@@ -1,0 +1,50 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  
+  # Scrape NGINX stub_status (Simulated for now, or real if nginx exposes it)
+  nginx:
+    endpoint: "http://host.docker.internal:80/stub_status"
+    collection_interval: 10s
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+exporters:
+  debug:
+    verbosity: detailed
+
+  # Send metrics to Redpanda (Kafka)
+  kafka/metrics:
+    brokers: ["redpanda:9092"]
+    protocol_version: 2.0.0
+    encoding: otlp_json
+    topic: "telemetry-metrics"
+
+  # Send logs to Redpanda (Kafka)
+  kafka/logs:
+    brokers: ["redpanda:9092"]
+    protocol_version: 2.0.0
+    encoding: otlp_json
+    topic: "telemetry-logs"
+    
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp, nginx]
+      processors: [batch]
+      exporters: [kafka/metrics, debug]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [kafka/logs, debug]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [kafka/metrics, debug]

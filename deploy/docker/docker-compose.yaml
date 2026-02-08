@@ -1,0 +1,123 @@
+version: "3.7"
+services:
+  # --- Message Broker (Redpanda) ---
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v23.3.3
+    container_name: redpanda
+    command:
+      - redpanda
+      - start
+      - --smp 1
+      - --memory 1G
+      - --reserve-memory 0M
+      - --overprovisioned
+      - --node-id 0
+      - --check=false
+      - --kafka-addr PLAIN://0.0.0.0:9092,OUTSIDE://0.0.0.0:29092
+      - --advertise-kafka-addr PLAIN://redpanda:9092,OUTSIDE://localhost:29092
+      - --pandaproxy-addr 0.0.0.0:8082
+      - --advertise-pandaproxy-addr localhost:8082
+    ports:
+      - 29092:29092
+      - 8081:8081
+      - 8082:8082
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+
+  console:
+    image: docker.redpanda.com/redpandadata/console:v2.4.3
+    container_name: redpanda-console
+    entrypoint: /bin/sh
+    command: -c "echo \"kafka:\n  brokers:\n    - redpanda:9092\n\" > /tmp/config.yaml && /app/console --config.filepath=/tmp/config.yaml"
+    ports:
+      - 8080:8080
+    depends_on:
+      - redpanda
+
+  # --- Time Series / OLAP DB (ClickHouse) ---
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.1
+    container_name: clickhouse
+    ports:
+      - 8123:8123
+      - 9000:9000
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./clickhouse-schema.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      CLICKHOUSE_DB: nginx_analytics
+
+  # --- Relational DB (Postgres) ---
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: nginx_manager
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  # --- OpenTelemetry Collector ---
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.91.0
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    depends_on:
+      - redpanda
+
+  # --- AI Engine (Bytewax) ---
+  ai-engine:
+    build: ../../ai-engine
+    container_name: ai-engine
+    depends_on:
+      - redpanda
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # --- Log Aggregator ---
+  log-aggregator:
+    build: ../../ai-engine
+    container_name: log-aggregator
+    command: ["python", "log_aggregator.py"]
+    depends_on:
+      - redpanda
+      - clickhouse
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # --- Gateway ---
+  gateway:
+    build:
+      context: ../../
+      dockerfile: cmd/gateway/Dockerfile
+    container_name: gateway
+    ports:
+      - "50051:50051" # gRPC
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+
+volumes:
+  redpanda-data:
+  clickhouse-data:
+  postgres-data:

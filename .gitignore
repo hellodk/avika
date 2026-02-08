@@ -1,0 +1,32 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Logs
+*.log
+agent.log
+frontend.log
+
+# Buffer data
+agent.wal
+agent.cursor
+
+# Temp
+temp_helm_out/
+
+# IDE
+.vscode/
+.idea/
+
+# Dependencies
+vendor/
+node_modules/
+dist/
+.next/
+
+# Agent ID
+.agent_id

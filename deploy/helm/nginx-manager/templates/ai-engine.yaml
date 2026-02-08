@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nginx-manager.fullname" . }}-ai-engine
+  labels:
+    {{- include "nginx-manager.labels" . | nindent 4 }}
+    component: ai-engine
+spec:
+  replicas: {{ .Values.aiEngine.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "nginx-manager.selectorLabels" . | nindent 6 }}
+      component: ai-engine
+  template:
+    metadata:
+      labels:
+        {{- include "nginx-manager.selectorLabels" . | nindent 8 }}
+        component: ai-engine
+    spec:
+      containers:
+        - name: ai-engine
+          image: "{{ .Values.aiEngine.image.repository }}:{{ .Values.aiEngine.image.tag | default .Chart.AppVersion }}"
+          env:
+            - name: REDPANDA_BROKERS
+              value: "{{ .Release.Name }}-redpanda:9092"
+          resources:
+            {{- toYaml .Values.aiEngine.resources | nindent 12 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nginx-manager.fullname" . }}-log-aggregator
+  labels:
+    {{- include "nginx-manager.labels" . | nindent 4 }}
+    component: log-aggregator
+spec:
+  replicas: {{ .Values.logAggregator.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "nginx-manager.selectorLabels" . | nindent 6 }}
+      component: log-aggregator
+  template:
+    metadata:
+      labels:
+        {{- include "nginx-manager.selectorLabels" . | nindent 8 }}
+        component: log-aggregator
+    spec:
+      containers:
+        - name: log-aggregator
+          image: "{{ .Values.logAggregator.image.repository }}:{{ .Values.logAggregator.image.tag | default .Chart.AppVersion }}"
+          env:
+            - name: REDPANDA_BROKERS
+              value: "{{ .Release.Name }}-redpanda:9092"
+            - name: CLICKHOUSE_HOST
+              value: "{{ .Release.Name }}-clickhouse"
+            - name: CLICKHOUSE_USER
+              value: "default"
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nginx-manager.fullname" . }}-db-secrets
+                  key: clickhouse-password
