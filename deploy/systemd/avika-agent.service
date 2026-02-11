@@ -1,0 +1,45 @@
+[Unit]
+Description=Avika NGINX Manager Agent
+Documentation=https://github.com/hellodk/nginx-manager
+After=network.target nginx.service
+Wants=nginx.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+# Run the agent binary (configuration loaded from /etc/avika/avika-agent.conf)
+ExecStart=/usr/local/bin/avika-agent
+
+# Restart policy - always restart to handle self-updates
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security: Running as root for NGINX management and self-update capabilities
+# The agent needs root to:
+# - Read NGINX config files
+# - Reload/restart NGINX
+# - Update its own binary in /usr/local/bin
+
+# Resource Limits
+# CPU: Limit to 50% of one core (500ms per 1000ms)
+CPUQuota=50%
+
+# Memory: Soft limit 256MB, hard limit 512MB
+MemoryMax=512M
+MemoryHigh=256M
+
+# File descriptors: Allow up to 8192 open files
+LimitNOFILE=8192
+
+# Processes: Limit to 512 threads/processes
+LimitNPROC=512
+
+# Prevent fork bombs
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

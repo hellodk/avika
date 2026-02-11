@@ -1,0 +1,48 @@
+# Avika NGINX Manager Agent Configuration
+# Copy this file to /etc/avika-agent/agent.conf and customize for your environment
+
+# Gateway Server (required)
+# The central management server that this agent connects to
+GATEWAY_SERVER="localhost:50051"
+
+# Agent Identity (optional)
+# Leave empty for auto-detection (hostname+IP)
+# Format: custom-name or leave blank
+AGENT_ID=""
+
+# Health Check Port
+# Port for agent health check endpoint
+HEALTH_PORT=8080
+
+# Self-Update Configuration
+# URL of the update server for automatic agent updates
+# Leave empty to disable self-updates
+UPDATE_SERVER=""
+UPDATE_INTERVAL="168h"
+
+# NGINX Configuration
+# URL for NGINX stub_status endpoint
+NGINX_STATUS_URL="http://127.0.0.1/nginx_status"
+
+# NGINX log file paths
+ACCESS_LOG_PATH="/var/log/nginx/access.log"
+ERROR_LOG_PATH="/var/log/nginx/error.log"
+
+# Log format: "combined" or "json"
+# Use "json" for high-fidelity telemetry with detailed request metadata
+LOG_FORMAT="combined"
+
+# Buffer Directory
+# Directory for persistent message buffer (WAL)
+BUFFER_DIR="/var/lib/avika-agent/"
+
+# Backup Directory
+# Directory for NGINX configuration backups
+BACKUP_DIR="/var/lib/nginx-manager/backups"
+
+# Logging
+# Agent log level: debug, info, warn, error
+LOG_LEVEL="info"
+
+# Agent log file (leave empty for stdout/journald)
+LOG_FILE=""

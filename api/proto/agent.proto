@@ -71,7 +71,8 @@ message ServerCommand {
 }
 
 message Update {
-    string version = 1; // version to update to, or "latest"
+    string version = 1;      // version to update to, or "latest"
+    string update_url = 2;    // optional: override the agent's configured update server URL
 }
 
 message Heartbeat {
@@ -291,6 +292,7 @@ message ListAgentsRequest {}
 
 message ListAgentsResponse {
   repeated AgentInfo agents = 1;
+  string system_version = 2; // Current system version (from VERSION file)
 }
 
 message RemoveAgentRequest {

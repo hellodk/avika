@@ -81,9 +81,14 @@ ls -lh "$OUTPUT_DIR"
 
 # Build and push multi-arch Docker image (non-fatal)
 echo ""
-echo -e "${BLUE}🐳 Building multi-arch Docker image hellodk/nginx-with-agent:${VERSION}...${NC}"
+echo -e "${BLUE}🐳 Building multi-arch Docker image hellodk/avika-agent:${VERSION}...${NC}"
 docker buildx build --platform linux/amd64,linux/arm64 \
-    -t "hellodk/nginx-with-agent:${VERSION}" \
+    --build-arg VERSION="${VERSION}" \
+    --build-arg BUILD_DATE="${BUILD_DATE}" \
+    --build-arg GIT_COMMIT="${GIT_COMMIT}" \
+    --build-arg GIT_BRANCH="${GIT_BRANCH}" \
+    -t "hellodk/avika-agent:${VERSION}" \
+    -t "hellodk/avika-agent:latest" \
     --push "$OUTPUT_DIR" || echo -e "${YELLOW}⚠️  Docker buildx failed (non-fatal)${NC}"
 
 # Deploy to Kubernetes (non-fatal)

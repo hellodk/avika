@@ -61,8 +61,8 @@ func (db *DB) migrate() error {
 		 );`,
 		// Drop old composite index if exists
 		`DROP INDEX IF EXISTS idx_agents_hostname_ip;`,
-		// Add unique constraint on ip if it doesn't exist
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_ip ON agents (ip);`,
+		// Remove unique constraint on ip if it exists
+		`DROP INDEX IF EXISTS idx_agents_ip;`,
 	}
 	for _, q := range queries {
 		if _, err := db.conn.Exec(q); err != nil {
@@ -78,12 +78,12 @@ func (db *DB) UpsertAgent(session *AgentSession) error {
 	query := `
 	INSERT INTO agents (agent_id, hostname, version, instances_count, uptime, ip, status, last_seen, is_pod, pod_ip, agent_version)
 	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-	ON CONFLICT (ip) DO UPDATE SET
-		agent_id = EXCLUDED.agent_id,
+	ON CONFLICT (agent_id) DO UPDATE SET
 		hostname = EXCLUDED.hostname,
 		version = EXCLUDED.version,
 		instances_count = EXCLUDED.instances_count,
 		uptime = EXCLUDED.uptime,
+		ip = EXCLUDED.ip,
 		status = EXCLUDED.status,
 		last_seen = EXCLUDED.last_seen,
 		is_pod = EXCLUDED.is_pod,

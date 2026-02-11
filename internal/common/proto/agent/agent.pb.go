@@ -623,7 +623,8 @@ func (*ServerCommand_Update) isServerCommand_Payload() {}
 
 type Update struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Version       string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"` // version to update to, or "latest"
+	Version       string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`                      // version to update to, or "latest"
+	UpdateUrl     string                 `protobuf:"bytes,2,opt,name=update_url,json=updateUrl,proto3" json:"update_url,omitempty"` // optional: override the agent's configured update server URL
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -661,6 +662,13 @@ func (*Update) Descriptor() ([]byte, []int) {
 func (x *Update) GetVersion() string {
 	if x != nil {
 		return x.Version
+	}
+	return ""
+}
+
+func (x *Update) GetUpdateUrl() string {
+	if x != nil {
+		return x.UpdateUrl
 	}
 	return ""
 }
@@ -2361,6 +2369,7 @@ func (*ListAgentsRequest) Descriptor() ([]byte, []int) {
 type ListAgentsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Agents        []*AgentInfo           `protobuf:"bytes,1,rep,name=agents,proto3" json:"agents,omitempty"`
+	SystemVersion string                 `protobuf:"bytes,2,opt,name=system_version,json=systemVersion,proto3" json:"system_version,omitempty"` // Current system version (from VERSION file)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2400,6 +2409,13 @@ func (x *ListAgentsResponse) GetAgents() []*AgentInfo {
 		return x.Agents
 	}
 	return nil
+}
+
+func (x *ListAgentsResponse) GetSystemVersion() string {
+	if x != nil {
+		return x.SystemVersion
+	}
+	return ""
 }
 
 type RemoveAgentRequest struct {
@@ -4525,9 +4541,11 @@ const file_agent_proto_rawDesc = "" +
 	"\vlog_request\x18\x04 \x01(\v2\x1a.nginx.agent.v1.LogRequestH\x00R\n" +
 	"logRequest\x120\n" +
 	"\x06update\x18\x05 \x01(\v2\x16.nginx.agent.v1.UpdateH\x00R\x06updateB\t\n" +
-	"\apayload\"\"\n" +
+	"\apayload\"A\n" +
 	"\x06Update\x12\x18\n" +
-	"\aversion\x18\x01 \x01(\tR\aversion\"\xc6\x02\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\x12\x1d\n" +
+	"\n" +
+	"update_url\x18\x02 \x01(\tR\tupdateUrl\"\xc6\x02\n" +
 	"\tHeartbeat\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x16\n" +
@@ -4686,9 +4704,10 @@ const file_agent_proto_rawDesc = "" +
 	"\vsan_domains\x18\x06 \x03(\tR\n" +
 	"sanDomains\x12*\n" +
 	"\x11days_until_expiry\x18\a \x01(\x05R\x0fdaysUntilExpiry\"\x13\n" +
-	"\x11ListAgentsRequest\"G\n" +
+	"\x11ListAgentsRequest\"n\n" +
 	"\x12ListAgentsResponse\x121\n" +
-	"\x06agents\x18\x01 \x03(\v2\x19.nginx.agent.v1.AgentInfoR\x06agents\"/\n" +
+	"\x06agents\x18\x01 \x03(\v2\x19.nginx.agent.v1.AgentInfoR\x06agents\x12%\n" +
+	"\x0esystem_version\x18\x02 \x01(\tR\rsystemVersion\"/\n" +
 	"\x12RemoveAgentRequest\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\"/\n" +
 	"\x13RemoveAgentResponse\x12\x18\n" +

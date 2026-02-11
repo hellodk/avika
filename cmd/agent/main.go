@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -45,6 +47,9 @@ var (
 	// Self-Update
 	updateServer   = flag.String("update-server", "", "URL of the update server (e.g., http://192.168.1.10:8090). If empty, self-update is disabled")
 	updateInterval = flag.Duration("update-interval", 168*time.Hour, "Interval between update checks (default: 1 week)")
+
+	// Config File
+	configFile = flag.String("config", "/etc/avika/avika-agent.conf", "Path to configuration file")
 )
 
 // Version information - set at build time via -ldflags
@@ -60,8 +65,101 @@ var (
 	startTime     = time.Now()
 )
 
+// loadConfig reads key=value pairs from file and updates flags if not set via CLI
+func loadConfig(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Track explicitly set flags so config file doesn't override CLI args
+	setFlags := make(map[string]bool)
+	flag.Visit(func(f *flag.Flag) {
+		setFlags[f.Name] = true
+	})
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		val := strings.Trim(strings.TrimSpace(parts[1]), "\"'")
+
+		// Mapping config keys to flags
+		switch key {
+		case "GATEWAY_SERVER":
+			if !setFlags["server"] {
+				*serverAddr = val
+			}
+		case "AGENT_ID":
+			if !setFlags["id"] {
+				*agentID = val
+			}
+		case "HEALTH_PORT":
+			if !setFlags["health-port"] {
+				if i, err := strconv.Atoi(val); err == nil {
+					*healthPort = i
+				}
+			}
+		case "UPDATE_SERVER":
+			if !setFlags["update-server"] {
+				*updateServer = val
+			}
+		case "UPDATE_INTERVAL":
+			if !setFlags["update-interval"] {
+				if d, err := time.ParseDuration(val); err == nil {
+					*updateInterval = d
+				}
+			}
+		case "NGINX_STATUS_URL":
+			if !setFlags["nginx-status-url"] {
+				*nginxStatusURL = val
+			}
+		case "ACCESS_LOG_PATH":
+			if !setFlags["access-log-path"] {
+				*accessLogPath = val
+			}
+		case "ERROR_LOG_PATH":
+			if !setFlags["error-log-path"] {
+				*errorLogPath = val
+			}
+		case "LOG_FORMAT":
+			if !setFlags["log-format"] {
+				*logFormat = val
+			}
+		case "BUFFER_DIR":
+			if !setFlags["buffer-dir"] {
+				*bufferDir = val
+			}
+		case "LOG_LEVEL":
+			if !setFlags["log-level"] {
+				*logLevel = val
+			}
+		case "LOG_FILE":
+			if !setFlags["log-file"] {
+				*logFile = val
+			}
+		}
+	}
+	return scanner.Err()
+}
+
 func main() {
 	flag.Parse()
+
+	// Load configuration
+	if err := loadConfig(*configFile); err != nil {
+		if !os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "Warning: Failed to load config file: %v\n", err)
+		}
+	}
 
 	if *version {
 		fmt.Printf("NGINX Manager Agent\n")
@@ -227,17 +325,28 @@ func main() {
 				// Heartbeat
 				instances, _ := discoverer.Scan(context.Background())
 				isPod, podIP := detectK8s()
+
+				// Determine primary NGINX version
+				primaryNginxVersion := "unknown"
+				if len(instances) > 0 {
+					primaryNginxVersion = instances[0].Version
+				}
+
 				hbMsg := &pb.AgentMessage{
 					AgentId:   *agentID,
 					Timestamp: time.Now().Unix(),
 					Payload: &pb.AgentMessage_Heartbeat{
 						Heartbeat: &pb.Heartbeat{
-							Hostname:  currentHostname,
-							Version:   Version,
-							Uptime:    time.Since(startTime).Seconds(),
-							Instances: instances,
-							IsPod:     isPod,
-							PodIp:     podIP,
+							Hostname:     currentHostname,
+							Version:      primaryNginxVersion, // NGINX Version
+							AgentVersion: Version,             // Agent Version
+							Uptime:       time.Since(startTime).Seconds(),
+							Instances:    instances,
+							IsPod:        isPod,
+							PodIp:        podIP,
+							BuildDate:    BuildDate,
+							GitCommit:    GitCommit,
+							GitBranch:    GitBranch,
 						},
 					},
 				}
@@ -361,16 +470,26 @@ func writeToBuffer(wal *buffer.FileBuffer, msg *pb.AgentMessage) {
 func detectK8s() (bool, string) {
 	// 1. Check for K8s service account secret
 	_, err := os.Stat("/var/run/secrets/kubernetes.io/serviceaccount")
-	isPod := err == nil ||
-		os.Getenv("KUBERNETES_SERVICE_HOST") != "" ||
-		os.Getenv("KUBERNETES_PORT") != "" ||
-		os.Getenv("KUBERNETES_SERVICE_PORT") != ""
+
+	// 2. Check for common K8s env vars
+	hasK8sEnv := os.Getenv("KUBERNETES_SERVICE_HOST") != "" ||
+		os.Getenv("KUBERNETES_PORT") != ""
+
+	// 3. Check /proc/1/cpuset (reliable in containers)
+	isContainer := false
+	if data, err := os.ReadFile("/proc/1/cpuset"); err == nil {
+		if strings.Contains(string(data), "kubepods") || strings.Contains(string(data), "docker") {
+			isContainer = true
+		}
+	}
+
+	isPod := err == nil || hasK8sEnv || isContainer
 
 	if !isPod {
 		return false, ""
 	}
 
-	// 2. Try to get Pod IP from environment (often set via Downward API)
+	// 4. Try to get Pod IP from environment (set via Downward API)
 	podIP := os.Getenv("POD_IP")
 	if podIP == "" {
 		// Fallback: get first non-loopback IP
@@ -425,9 +544,11 @@ func handleCommand(cmd *pb.ServerCommand, ss *StreamSync, agentID string) {
 		log.Printf("Action command received: %s", payload.Action.Type)
 		// For now just log, could trigger reload etc.
 	case *pb.ServerCommand_Update:
-		log.Printf("🚀 Remote update command received (target: %s)", payload.Update.Version)
+		log.Printf("🚀 Remote update command received (target: %s, URL: %s)", payload.Update.Version, payload.Update.UpdateUrl)
 		if globalUpdater != nil {
-			go globalUpdater.CheckAndApply()
+			// If a specific URL is provided in the command, override the default
+			targetURL := payload.Update.UpdateUrl
+			go globalUpdater.CheckAndApply(targetURL)
 		} else {
 			log.Printf("⚠️  Update command ignored: Self-update is not configured on this agent")
 		}
@@ -469,6 +590,7 @@ func handleLogRequest(cmdID string, req *pb.LogRequest, ss *StreamSync, agentID 
 }
 
 func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string) {
+	defer log.Println("Sender loop exited")
 	var conn *grpc.ClientConn
 	var client pb.CommanderClient
 	ss := &StreamSync{}
@@ -487,10 +609,15 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string) {
 		// 1. Connect / Reconnect
 		if ss.GetStream() == nil {
 			var err error
-			log.Printf("Connecting to %s...", *serverAddr)
+			// Strip protocol if present (gRPC dial expects host:port)
+			targetAddr := *serverAddr
+			targetAddr = strings.TrimPrefix(targetAddr, "http://")
+			targetAddr = strings.TrimPrefix(targetAddr, "https://")
+
+			log.Printf("Connecting to %s...", targetAddr)
 
 			// Dial with backoff? Simple wait for now
-			conn, err = grpc.Dial(*serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			conn, err = grpc.Dial(targetAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
 				log.Printf("Connection failed: %v. Retrying in 5s...", err)
 				select {
@@ -502,7 +629,8 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string) {
 			}
 
 			client = pb.NewCommanderClient(conn)
-			stream, err := client.Connect(context.Background())
+			// Use the main context so connection attempt is cancelled on shutdown
+			stream, err := client.Connect(ctx)
 			if err != nil {
 				log.Printf("Stream creation failed: %v. Retrying in 5s...", err)
 				conn.Close()
@@ -518,7 +646,18 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string) {
 
 			// Start Receiver routine (for commands)
 			go func() {
+				// Ensure receiver exits when context is done
+				defer func() {
+					log.Println("Receiver routine exiting")
+				}()
+
 				for {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+					}
+
 					currentStream := ss.GetStream()
 					if currentStream == nil {
 						return

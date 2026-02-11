@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -54,12 +55,12 @@ func (u *Updater) Run(interval time.Duration) {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		u.CheckAndApply()
+		u.CheckAndApply("")
 	}
 }
 
-func (u *Updater) CheckAndApply() {
-	manifest, err := u.fetchManifest()
+func (u *Updater) CheckAndApply(overrideURL string) {
+	manifest, err := u.fetchManifest(overrideURL)
 	if err != nil {
 		log.Printf("⚠️  Update check failed: %v", err)
 		return
@@ -84,9 +85,14 @@ func (u *Updater) CheckAndApply() {
 	}
 }
 
-func (u *Updater) fetchManifest() (*Manifest, error) {
+func (u *Updater) fetchManifest(overrideURL string) (*Manifest, error) {
+	serverURL := u.ServerURL
+	if overrideURL != "" {
+		serverURL = overrideURL
+	}
+
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(u.ServerURL + "/version.json")
+	resp, err := client.Get(serverURL + "/version.json")
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +106,34 @@ func (u *Updater) fetchManifest() (*Manifest, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&m); err != nil {
 		return nil, err
 	}
+
+	// If using an override URL, we should also rewrite binary URLs in the manifest
+	// if they point to localhost (as they likely do in dev).
+	if overrideURL != "" {
+		for k, b := range m.Binaries {
+			if strings.Contains(b.URL, "localhost") {
+				m.Binaries[k] = Binary{
+					URL:    strings.Replace(b.URL, "localhost", getHost(overrideURL), 1),
+					SHA256: b.SHA256,
+				}
+			}
+		}
+	}
+
 	return &m, nil
+}
+
+func getHost(url string) string {
+	// Simple helper to extract host:port from URL
+	parts := strings.Split(url, "//")
+	if len(parts) < 2 {
+		return url
+	}
+	end := strings.Index(parts[1], "/")
+	if end == -1 {
+		return parts[1]
+	}
+	return parts[1][:end]
 }
 
 func (u *Updater) applyUpdate(b Binary) error {
@@ -146,13 +179,31 @@ func (u *Updater) applyUpdate(b Binary) error {
 
 	log.Printf("🚀 Swapping binary at %s", selfPath)
 
-	// Atomic rename (might require same filesystem, usually /tmp and /usr/local/bin are same in containers)
+	// Try direct rename first (works in containers and when agent has write permissions)
 	if err := os.Rename(tmpFile.Name(), selfPath); err != nil {
-		// Fallback for cross-filesystem moves
-		log.Println("Note: Attempting fallback copy for cross-device move")
+		log.Printf("⚠️  Direct rename failed: %v. Trying fallback methods...", err)
+
+		// Fallback 1: Try copy (for cross-filesystem)
 		if err := copyFile(tmpFile.Name(), selfPath); err != nil {
-			return fmt.Errorf("failed to replace binary: %w", err)
+			log.Printf("⚠️  Direct copy failed: %v. Trying sudo method...", err)
+
+			// Fallback 2: Use sudo for privileged binary replacement
+			cmd := exec.Command("sudo", "cp", tmpFile.Name(), selfPath)
+			if output, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("failed to replace binary (all methods failed). Last error: %w, output: %s", err, string(output))
+			}
+			log.Println("✅ Binary replaced using sudo")
+
+			// Ensure it's executable
+			cmd = exec.Command("sudo", "chmod", "755", selfPath)
+			if err := cmd.Run(); err != nil {
+				log.Printf("⚠️  Failed to chmod: %v", err)
+			}
+		} else {
+			log.Println("✅ Binary replaced using copy")
 		}
+	} else {
+		log.Println("✅ Binary replaced using rename")
 	}
 
 	// 5. Restart or Exit

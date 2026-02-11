@@ -4,14 +4,6 @@ set -e
 # Avika Agent Deployment Script
 # This script downloads and installs the Avika NGINX Manager Agent
 
-# Configuration
-UPDATE_SERVER="${UPDATE_SERVER:-http://192.168.1.10:8090}"
-GATEWAY_SERVER="${GATEWAY_SERVER:-192.168.1.10:50051}"
-INSTALL_DIR="/usr/local/bin"
-CONFIG_DIR="/etc/avika-agent"
-SERVICE_NAME="avika-agent"
-AGENT_USER="${AGENT_USER:-root}"
-
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -34,6 +26,33 @@ log_warn() {
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
+
+# Configuration - can be overridden via environment variables
+# Auto-detect UPDATE_SERVER from where this script is being downloaded
+# If piped from curl, try to extract from the URL
+if [ -z "$UPDATE_SERVER" ]; then
+    # Try to detect from process arguments (works when piped from curl)
+    CURL_URL=$(ps aux | grep -E "curl.*deploy-agent.sh" | grep -v grep | sed -n 's/.*curl.*\(http[s]*:\/\/[^\/]*\).*/\1/p' | head -1)
+    if [ -n "$CURL_URL" ]; then
+        UPDATE_SERVER="$CURL_URL"
+        log_info "Auto-detected UPDATE_SERVER: $UPDATE_SERVER"
+    fi
+fi
+
+# Example: GATEWAY_SERVER=192.168.1.10:50051 UPDATE_SERVER=http://192.168.1.10:8090 ./deploy-agent.sh
+UPDATE_SERVER="${UPDATE_SERVER:-}"
+GATEWAY_SERVER="${GATEWAY_SERVER:-localhost:50051}"
+INSTALL_DIR="/usr/local/bin"
+CONFIG_DIR="/etc/avika"
+SERVICE_NAME="avika-agent"
+AGENT_USER="${AGENT_USER:-root}"
+
+# Validate required configuration
+if [ -z "$UPDATE_SERVER" ]; then
+    log_error "UPDATE_SERVER environment variable is required"
+    log_error "Example: curl -fsSL http://192.168.1.10:8090/deploy-agent.sh | UPDATE_SERVER=http://192.168.1.10:8090 GATEWAY_SERVER=192.168.1.10:50051 sudo -E bash"
+    exit 1
+fi
 
 # Check if running as root
 if [ $EUID -ne 0 ]; then
@@ -123,7 +142,7 @@ log_success "Installed version: $INSTALLED_VERSION"
 
 # Create configuration file
 log_info "Creating configuration file..."
-cat > "$CONFIG_DIR/agent.conf" <<EOF
+cat > "$CONFIG_DIR/avika-agent.conf" <<EOF
 # Avika Agent Configuration
 # Generated on $(date)
 
@@ -160,57 +179,20 @@ EOF
 chmod 644 "$CONFIG_DIR/agent.conf"
 log_success "Configuration file created at $CONFIG_DIR/agent.conf"
 
-# Create systemd service file
-log_info "Creating systemd service..."
-cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<EOF
-[Unit]
-Description=Avika NGINX Manager Agent
-Documentation=https://github.com/hellodk/nginx-manager
-After=network-online.target
-Wants=network-online.target
+# Download systemd service file
+log_info "Downloading systemd service file..."
+SERVICE_URL="${UPDATE_SERVER}/avika-agent.service"
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
-[Service]
-Type=simple
-User=$AGENT_USER
-Group=$AGENT_USER
+if curl -sLf "$SERVICE_URL" -o "$SERVICE_FILE"; then
+    log_success "Service file downloaded to $SERVICE_FILE"
+else
+    log_error "Failed to download service file from $SERVICE_URL"
+    exit 1
+fi
 
-# Load configuration
-EnvironmentFile=$CONFIG_DIR/agent.conf
-
-# Execute agent with configuration
-ExecStart=$INSTALL_DIR/avika-agent \\
-    -server \${GATEWAY_SERVER} \\
-    -id "\${AGENT_ID}" \\
-    -health-port \${HEALTH_PORT} \\
-    -update-server "\${UPDATE_SERVER}" \\
-    -update-interval \${UPDATE_INTERVAL} \\
-    -nginx-status-url "\${NGINX_STATUS_URL}" \\
-    -access-log-path "\${ACCESS_LOG_PATH}" \\
-    -error-log-path "\${ERROR_LOG_PATH}" \\
-    -log-format "\${LOG_FORMAT}" \\
-    -buffer-dir "\${BUFFER_DIR}" \\
-    -log-level "\${LOG_LEVEL}" \\
-    -log-file "\${LOG_FILE}"
-
-# Restart policy
-Restart=on-failure
-RestartSec=10s
-StartLimitInterval=0
-
-# Security hardening
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/var/lib/nginx-manager /var/lib/avika-agent /var/log/avika-agent /etc/nginx
-
-# Resource limits
-LimitNOFILE=65536
-LimitNPROC=4096
-
-[Install]
-WantedBy=multi-user.target
-EOF
+# Ensure correct permissions
+chmod 644 "$SERVICE_FILE"
 
 chmod 644 "/etc/systemd/system/${SERVICE_NAME}.service"
 log_success "Systemd service created"

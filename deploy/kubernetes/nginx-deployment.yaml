@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: avika-agent-config
+  namespace: default
+data:
+  GATEWAY_SERVER: "192.168.1.10:50051"
+  UPDATE_SERVER: "http://192.168.1.10:8090"
+  UPDATE_INTERVAL: "168h"
+  NGINX_STATUS_URL: "http://127.0.0.1/nginx_status"
+  ACCESS_LOG_PATH: "/var/log/nginx/access.log"
+  ERROR_LOG_PATH: "/var/log/nginx/error.log"
+  LOG_FORMAT: "combined"
+  BUFFER_DIR: "/var/lib/avika-agent/"
+  LOG_LEVEL: "info"
+  HEALTH_PORT: "8080"
+  TZ: "Asia/Kolkata"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: default
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: hellodk/avika-agent:latest
+        ports:
+        - containerPort: 80
+          name: http
+        - containerPort: 8080
+          name: health
+        envFrom:
+        - configMapRef:
+            name: avika-agent-config
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  namespace: default
+spec:
+  selector:
+    app: nginx
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+  - name: health
+    port: 8080
+    targetPort: 8080
+  type: ClusterIP

@@ -1,13 +1,13 @@
 #!/bin/bash
 set -e
 
-# Timezone Configuration (Default: IST)
-export TZ=${TZ:-Asia/Kolkata}
+echo "Starting Avika Agent..."
+# The agent binary now natively supports loading configuration from /etc/avika/avika-agent.conf
+# No flags are needed as it defaults to this path.
+# Environment variable overrides are still supported via command-line flags if needed, 
+# but for simple file-based config, just running the binary is sufficient.
 
-ID="${POD_NAME:-$(hostname)}"
+/usr/local/bin/avika-agent &
 
-echo "Starting agent with ID=$ID"
-
-/usr/local/bin/agent -server 192.168.1.10:50051 -id "$ID" &
-
+# Start NGINX in foreground
 exec nginx -g "daemon off;"

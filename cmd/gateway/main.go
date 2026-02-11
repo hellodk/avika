@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -108,51 +109,56 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 			return err
 		}
 
+		// Log message
 		log.Printf("Received message from agent %s: type %T", msg.AgentId, msg.Payload)
 
 		switch payload := msg.Payload.(type) {
 		case *pb.AgentMessage_Heartbeat:
-			// ... (existing heartbeat logic) ...
 			hb := payload.Heartbeat
 			agentID := msg.AgentId
-
-			// Determine version to display (prefer NGINX version if available)
-			displayVersion := hb.Version
-			if len(hb.Instances) > 0 && hb.Instances[0].Version != "unknown" && hb.Instances[0].Version != "" {
-				displayVersion = hb.Instances[0].Version
-			}
 
 			// 0. Extract IP from peer context
 			ip := "unknown"
 			if p, ok := peer.FromContext(stream.Context()); ok {
 				ip = p.Addr.String()
-				// Clean up port if present
 				if host, _, err := net.SplitHostPort(ip); err == nil {
 					ip = host
 				}
 			}
 
-			// Register/Update session
-			// 1. Check if we already have this agent_id (exact match)
+			// 1. Smart Version Fallback
+			nginxVersion := hb.Version
+			agentVer := hb.AgentVersion
+			if len(hb.Instances) > 0 && hb.Instances[0].Version != "unknown" && hb.Instances[0].Version != "" {
+				nginxVersion = hb.Instances[0].Version
+			}
+			// If AgentVersion is empty, then hb.Version was likely the agent version (old agents)
+			if agentVer == "" && hb.Version != "" && hb.Version != nginxVersion {
+				agentVer = hb.Version
+			}
+			if agentVer == "" {
+				agentVer = "0.1.0" // Default fallback
+			}
+
+			// 2. Smart Pod Detection Fallback (if agent fails to detect it)
+			isPod := hb.IsPod
+			if !isPod {
+				// K8s pods usually have hostnames like <deployment>-<replicaset>-<hash>
+				// Standard pattern is [a-z0-9]([-a-z0-9]*[a-z0-9])? (\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*
+				parts := strings.Split(hb.Hostname, "-")
+				if len(parts) >= 3 && len(parts[len(parts)-1]) >= 4 && len(parts[len(parts)-2]) >= 4 {
+					isPod = true
+				}
+			}
+
+			// 3. Register/Update session
 			val, loaded := s.sessions.Load(agentID)
-
-			// 2. Deduplicate by ip: If another session exists with same ip but different ID, replace it.
 			if !loaded {
-				s.sessions.Range(func(k, v interface{}) bool {
-					other := v.(*AgentSession)
-					if other.ip == ip && other.id != agentID {
-						log.Printf("Deduplicating in-memory session: replacing %s with %s for %s (prev host: %s) at %s", other.id, agentID, hb.Hostname, other.hostname, ip)
-						s.sessions.Delete(k)
-						return false // Stop iteration
-					}
-					return true
-				})
-
 				currentSession = &AgentSession{
 					id:             agentID,
 					hostname:       hb.Hostname,
-					version:        displayVersion,
-					agentVersion:   hb.AgentVersion,
+					version:        nginxVersion,
+					agentVersion:   agentVer,
 					buildDate:      hb.BuildDate,
 					gitCommit:      hb.GitCommit,
 					gitBranch:      hb.GitBranch,
@@ -163,9 +169,11 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 					status:         "online",
 					lastActive:     time.Now(),
 					ip:             ip,
+					isPod:          isPod,
+					podIP:          hb.PodIp,
 				}
 				s.sessions.Store(agentID, currentSession)
-				log.Printf("Registered agent %s (%s) at %s", agentID, hb.Hostname, ip)
+				log.Printf("Registered agent %s (%s) at %s (Pod: %v)", agentID, hb.Hostname, ip, isPod)
 			} else {
 				// Reconnecting - update existing session
 				currentSession = val.(*AgentSession)
@@ -174,14 +182,14 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				currentSession.status = "online"
 				currentSession.hostname = hb.Hostname
 				currentSession.ip = ip
-				currentSession.version = displayVersion
-				currentSession.agentVersion = hb.AgentVersion
+				currentSession.version = nginxVersion
+				currentSession.agentVersion = agentVer
 				currentSession.buildDate = hb.BuildDate
 				currentSession.gitCommit = hb.GitCommit
 				currentSession.gitBranch = hb.GitBranch
 				currentSession.instancesCount = len(hb.Instances)
 				currentSession.uptime = fmt.Sprintf("%.2fs", hb.Uptime)
-				currentSession.isPod = hb.IsPod
+				currentSession.isPod = isPod
 				currentSession.podIP = hb.PodIp
 				currentSession.lastActive = time.Now()
 				currentSession.mu.Unlock()
@@ -377,7 +385,16 @@ func (s *server) ListAgents(ctx context.Context, req *pb.ListAgentsRequest) (*pb
 		return true
 	})
 
-	return &pb.ListAgentsResponse{Agents: agents}, nil
+	// Load latest version from file
+	version := "0.1.0"
+	if data, err := os.ReadFile("VERSION"); err == nil {
+		version = strings.TrimSpace(string(data))
+	}
+
+	return &pb.ListAgentsResponse{
+		Agents:        agents,
+		SystemVersion: version,
+	}, nil
 }
 
 func (s *server) GetAgent(ctx context.Context, req *pb.GetAgentRequest) (*pb.AgentInfo, error) {
@@ -437,7 +454,8 @@ func (s *server) UpdateAgent(ctx context.Context, req *pb.UpdateAgentRequest) (*
 		CommandId: fmt.Sprintf("upd-%d", time.Now().Unix()),
 		Payload: &pb.ServerCommand_Update{
 			Update: &pb.Update{
-				Version: "latest",
+				Version:   "latest",
+				UpdateUrl: "http://192.168.1.10:8090", // Hardcoded LAN IP for now, should be configurable
 			},
 		},
 	})

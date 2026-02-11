@@ -6,7 +6,7 @@ set -e
 # Configuration
 VERSION_FILE="VERSION"
 DIST_DIR="dist"
-SERVER_URL="http://localhost:8090" # Change this to your server IP for remote agents
+SERVER_URL="http://192.168.1.10:8090" # Change this to your server IP for remote agents
 
 # Colors
 GREEN='\033[0;32m'
@@ -100,19 +100,34 @@ cat <<EOF > "$DIST_DIR/version.json"
 }
 EOF
 
-# Copy deployment script
-echo "📦 Copying deployment script..."
+# Copy systemd service file
+echo "📦 Copying systemd service..."
+cp deploy/systemd/avika-agent.service "$DIST_DIR/"
+
+# Copy and customize deployment script with SERVER_URL
+echo "📦 Preparing deployment script..."
 cp scripts/deploy-agent.sh "$DIST_DIR/deploy-agent.sh"
+
+# Extract host from SERVER_URL (remove protocol and port)
+# e.g., http://192.168.1.10:8090 -> 192.168.1.10
+SERVER_HOST="${SERVER_URL#*://}" # Remove protocol
+SERVER_HOST="${SERVER_HOST%:*}"  # Remove port
+
+# Inject variables into deployment script
+sed -i "s|UPDATE_SERVER=\"\${UPDATE_SERVER:-}\"|UPDATE_SERVER=\"\${UPDATE_SERVER:-$SERVER_URL}\"|g" "$DIST_DIR/deploy-agent.sh"
+sed -i "s|GATEWAY_SERVER=\"\${GATEWAY_SERVER:-localhost:50051}\"|GATEWAY_SERVER=\"\${GATEWAY_SERVER:-${SERVER_HOST}:50051}\"|g" "$DIST_DIR/deploy-agent.sh"
+
 chmod +x "$DIST_DIR/deploy-agent.sh"
 
 echo ""
 echo -e "${GREEN}✅ Local release prepared in ./${DIST_DIR}${NC}"
 echo -e "  - Manifest: ./${DIST_DIR}/version.json"
 echo -e "  - Binaries: ./${DIST_DIR}/bin/"
+echo -e "  - Service: ./${DIST_DIR}/avika-agent.service"
 echo -e "  - Deployment: ./${DIST_DIR}/deploy-agent.sh"
 echo ""
 echo -e "${YELLOW}To start the update server, run:${NC}"
 echo -e "  go run cmd/update-server/main.go"
 echo ""
 echo -e "${YELLOW}To deploy on a remote host:${NC}"
-echo -e "  curl -fsSL http://192.168.1.10:8090/deploy-agent.sh | sudo bash"
+echo -e "  curl -fsSL $SERVER_URL/deploy-agent.sh | sudo bash"
