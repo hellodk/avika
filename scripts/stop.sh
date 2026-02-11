@@ -53,9 +53,9 @@ stop_service() {
 
 # Stop services in reverse order of dependencies
 stop_service "Frontend (Next.js)" "next dev"
-stop_service "Gateway" "./gateway"
-stop_service "Agent" "./agent"
-stop_service "Update Server" "./update-server"
+stop_service "Gateway" "\./gateway"
+stop_service "Agent" "\./agent"
+stop_service "Update Server" "\./update-server"
 
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -64,7 +64,9 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 echo ""
 
 # Show remaining processes (if any)
-if pgrep -f "gateway|agent|next dev|update-server" > /dev/null; then
+# Use specific patterns to avoid false positives from system processes (e.g., konnectivity-agent)
+REMAINING_PATTERN="\./gateway|\./agent|next dev|\./update-server"
+if pgrep -f "$REMAINING_PATTERN" > /dev/null; then
     echo -e "${YELLOW}⚠ Some processes may still be running:${NC}"
-    ps aux | grep -E "gateway|agent|next dev|update-server" | grep -v grep
+    ps aux | grep -E "$REMAINING_PATTERN" | grep -v grep
 fi
