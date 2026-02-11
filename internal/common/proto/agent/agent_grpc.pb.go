@@ -137,6 +137,7 @@ const (
 	AgentService_GetRecommendations_FullMethodName = "/nginx.agent.v1.AgentService/GetRecommendations"
 	AgentService_ApplyAugment_FullMethodName       = "/nginx.agent.v1.AgentService/ApplyAugment"
 	AgentService_UpdateAgent_FullMethodName        = "/nginx.agent.v1.AgentService/UpdateAgent"
+	AgentService_Execute_FullMethodName            = "/nginx.agent.v1.AgentService/Execute"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -170,6 +171,8 @@ type AgentServiceClient interface {
 	ApplyAugment(ctx context.Context, in *ApplyAugmentRequest, opts ...grpc.CallOption) (*ApplyAugmentResponse, error)
 	// Agent Management
 	UpdateAgent(ctx context.Context, in *UpdateAgentRequest, opts ...grpc.CallOption) (*UpdateAgentResponse, error)
+	// Command Execution (Shell)
+	Execute(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExecRequest, ExecResponse], error)
 }
 
 type agentServiceClient struct {
@@ -349,6 +352,19 @@ func (c *agentServiceClient) UpdateAgent(ctx context.Context, in *UpdateAgentReq
 	return out, nil
 }
 
+func (c *agentServiceClient) Execute(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExecRequest, ExecResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AgentService_ServiceDesc.Streams[1], AgentService_Execute_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ExecRequest, ExecResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_ExecuteClient = grpc.BidiStreamingClient[ExecRequest, ExecResponse]
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -380,6 +396,8 @@ type AgentServiceServer interface {
 	ApplyAugment(context.Context, *ApplyAugmentRequest) (*ApplyAugmentResponse, error)
 	// Agent Management
 	UpdateAgent(context.Context, *UpdateAgentRequest) (*UpdateAgentResponse, error)
+	// Command Execution (Shell)
+	Execute(grpc.BidiStreamingServer[ExecRequest, ExecResponse]) error
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -437,6 +455,9 @@ func (UnimplementedAgentServiceServer) ApplyAugment(context.Context, *ApplyAugme
 }
 func (UnimplementedAgentServiceServer) UpdateAgent(context.Context, *UpdateAgentRequest) (*UpdateAgentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateAgent not implemented")
+}
+func (UnimplementedAgentServiceServer) Execute(grpc.BidiStreamingServer[ExecRequest, ExecResponse]) error {
+	return status.Error(codes.Unimplemented, "method Execute not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -740,6 +761,13 @@ func _AgentService_UpdateAgent_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_Execute_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AgentServiceServer).Execute(&grpc.GenericServerStream[ExecRequest, ExecResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_ExecuteServer = grpc.BidiStreamingServer[ExecRequest, ExecResponse]
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -813,6 +841,12 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "GetLogs",
 			Handler:       _AgentService_GetLogs_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "Execute",
+			Handler:       _AgentService_Execute_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "agent.proto",

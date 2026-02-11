@@ -162,6 +162,21 @@ service AgentService {
 
   // Agent Management
   rpc UpdateAgent(UpdateAgentRequest) returns (UpdateAgentResponse);
+
+  // Command Execution (Shell)
+  rpc Execute(stream ExecRequest) returns (stream ExecResponse);
+}
+
+message ExecRequest {
+  string instance_id = 1;
+  bytes input = 2; // stdin
+  string command = 3; // optional: command to run, e.g. /bin/bash
+}
+
+message ExecResponse {
+  bytes output = 1; // stdout/stderr
+  int32 exit_code = 2;
+  string error = 3;
 }
 
 message UpdateAgentRequest {
@@ -401,6 +416,19 @@ message AnalyticsResponse {
   
   // Recent Requests (for detailed view)
   repeated LogEntry recent_requests = 12;
+
+  // Gateway specific metrics
+  repeated GatewayMetricPoint gateway_metrics = 13;
+}
+
+message GatewayMetricPoint {
+  string time = 1;
+  float eps = 2;
+  int32 active_connections = 3;
+  float cpu_usage = 4;
+  float memory_mb = 5;
+  int32 goroutines = 6;
+  float db_latency = 7;
 }
 
 message Insight {

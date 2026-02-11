@@ -307,7 +307,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
 		for {
@@ -559,9 +559,9 @@ func handleLogRequest(cmdID string, req *pb.LogRequest, ss *StreamSync, agentID 
 	log.Printf("Handling LogRequest: %s (tail: %d, follow: %v)", req.LogType, req.TailLines, req.Follow)
 
 	// Determine log path based on type
-	logPath := "/var/log/nginx/access.log"
+	logPath := *accessLogPath
 	if req.LogType == "error" {
-		logPath = "/var/log/nginx/error.log"
+		logPath = *errorLogPath
 	}
 
 	// 1. Get Tail (Last N lines)

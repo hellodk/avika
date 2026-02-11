@@ -15,7 +15,7 @@ func (db *ClickHouseDB) InsertSystemMetrics(metrics *pb.SystemMetrics, agentID s
 	}
 
 	ctx := context.Background()
-	ts := time.Now()
+	ts := time.Now().UTC()
 
 	err := db.conn.Exec(ctx, `
 		INSERT INTO system_metrics (
@@ -54,7 +54,7 @@ func (db *ClickHouseDB) InsertNginxMetrics(metrics *pb.NginxMetrics, agentID str
 	}
 
 	ctx := context.Background()
-	ts := time.Now()
+	ts := time.Now().UTC()
 
 	err := db.conn.Exec(ctx, `
 		INSERT INTO nginx_metrics (
@@ -80,4 +80,25 @@ func (db *ClickHouseDB) InsertNginxMetrics(metrics *pb.NginxMetrics, agentID str
 	)
 
 	return err
+}
+
+func (db *ClickHouseDB) InsertGatewayMetrics(gatewayID string, metrics *pb.GatewayMetricPoint) error {
+	ctx := context.Background()
+	ts := time.Now().UTC()
+
+	return db.conn.Exec(ctx, `
+		INSERT INTO gateway_metrics (
+			timestamp, gateway_id, eps, active_connections,
+			cpu_usage, memory_mb, goroutines, db_latency_ms
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`,
+		ts,
+		gatewayID,
+		metrics.Eps,
+		uint32(metrics.ActiveConnections),
+		metrics.CpuUsage,
+		metrics.MemoryMb,
+		uint32(metrics.Goroutines),
+		metrics.DbLatency,
+	)
 }

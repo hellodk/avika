@@ -58,6 +58,16 @@ func NewClickHouseDB(addr string) (*ClickHouseDB, error) {
 func (db *ClickHouseDB) migrate() error {
 	ctx := context.Background()
 	queries := []string{
+		`CREATE TABLE IF NOT EXISTS gateway_metrics (
+			timestamp DateTime64(3),
+			gateway_id String,
+			eps Float32,
+			active_connections UInt32,
+			cpu_usage Float32,
+			memory_mb Float32,
+			goroutines UInt32,
+			db_latency_ms Float32
+		) ENGINE = MergeTree() ORDER BY (timestamp, gateway_id)`,
 		`ALTER TABLE system_metrics ADD COLUMN IF NOT EXISTS cpu_user Float32`,
 		`ALTER TABLE system_metrics ADD COLUMN IF NOT EXISTS cpu_system Float32`,
 		`ALTER TABLE system_metrics ADD COLUMN IF NOT EXISTS cpu_iowait Float32`,
@@ -135,7 +145,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 		duration = 7 * 24 * time.Hour
 	}
 
-	startTime := time.Now().Add(-duration)
+	startTime := time.Now().UTC().Add(-duration)
 	resp := &pb.AnalyticsResponse{}
 
 	// Determine bucket size
@@ -599,7 +609,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 		log.Printf("GetAnalytics: Recent requests query failed: %v", err)
 	} else {
 		for rows.Next() {
-			var ts int64
+			var ts uint32
 			var addr, method, uri, upstream, upStatus string
 			var status uint16
 			var bytes uint64
@@ -607,7 +617,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 
 			if err := rows.Scan(&ts, &addr, &method, &uri, &status, &bytes, &rt, &upstream, &upStatus); err == nil {
 				resp.RecentRequests = append(resp.RecentRequests, &pb.LogEntry{
-					Timestamp:      ts,
+					Timestamp:      int64(ts),
 					RemoteAddr:     addr,
 					RequestMethod:  method,
 					RequestUri:     uri,
@@ -625,7 +635,45 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 		rows.Close()
 	}
 
-	log.Printf("GetAnalytics: generated %d insights, %d recent logs", len(resp.Insights), len(resp.RecentRequests))
+	// 13. Gateway Metrics (Only if no specific agent filter)
+	if agentID == "" || agentID == "all" {
+		queryGW := fmt.Sprintf(`
+			SELECT
+				formatDateTime(%s(timestamp), '%%H:%%i') as time,
+				avg(eps),
+				avg(active_connections),
+				avg(cpu_usage),
+				avg(memory_mb),
+				avg(goroutines),
+				avg(db_latency_ms)
+			FROM gateway_metrics
+			WHERE timestamp >= ?
+			GROUP BY time
+			ORDER BY time
+		`, bucketSize)
+
+		rows, err = db.conn.Query(ctx, queryGW, startTime)
+		if err == nil {
+			for rows.Next() {
+				var t string
+				var eps, cpu, mem, dbLat, conns, goro float64
+				if err := rows.Scan(&t, &eps, &conns, &cpu, &mem, &goro, &dbLat); err == nil {
+					resp.GatewayMetrics = append(resp.GatewayMetrics, &pb.GatewayMetricPoint{
+						Time:              t,
+						Eps:               float32(eps),
+						ActiveConnections: int32(conns),
+						CpuUsage:          float32(cpu),
+						MemoryMb:          float32(mem),
+						Goroutines:        int32(goro),
+						DbLatency:         float32(dbLat),
+					})
+				}
+			}
+			rows.Close()
+		}
+	}
+
+	log.Printf("GetAnalytics: generated %d insights, %d recent logs, %d gateway points", len(resp.Insights), len(resp.RecentRequests), len(resp.GatewayMetrics))
 
 	return resp, nil
 }

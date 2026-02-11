@@ -1,6 +1,6 @@
 module github.com/user/nginx-manager
 
-go 1.22.0
+go 1.24.1
 
 require (
 	google.golang.org/grpc v1.78.0
@@ -15,6 +15,7 @@ require (
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.7.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hpcloud/tail v1.0.0 // indirect
 	github.com/klauspost/compress v1.18.3 // indirect
 	github.com/lib/pq v1.11.1 // indirect

@@ -1125,6 +1125,126 @@ func (x *ConfigAugment) GetContext() string {
 	return ""
 }
 
+type ExecRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	InstanceId    string                 `protobuf:"bytes,1,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
+	Input         []byte                 `protobuf:"bytes,2,opt,name=input,proto3" json:"input,omitempty"`     // stdin
+	Command       string                 `protobuf:"bytes,3,opt,name=command,proto3" json:"command,omitempty"` // optional: command to run, e.g. /bin/bash
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExecRequest) Reset() {
+	*x = ExecRequest{}
+	mi := &file_agent_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExecRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecRequest) ProtoMessage() {}
+
+func (x *ExecRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecRequest.ProtoReflect.Descriptor instead.
+func (*ExecRequest) Descriptor() ([]byte, []int) {
+	return file_agent_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ExecRequest) GetInstanceId() string {
+	if x != nil {
+		return x.InstanceId
+	}
+	return ""
+}
+
+func (x *ExecRequest) GetInput() []byte {
+	if x != nil {
+		return x.Input
+	}
+	return nil
+}
+
+func (x *ExecRequest) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
+}
+
+type ExecResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Output        []byte                 `protobuf:"bytes,1,opt,name=output,proto3" json:"output,omitempty"` // stdout/stderr
+	ExitCode      int32                  `protobuf:"varint,2,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
+	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExecResponse) Reset() {
+	*x = ExecResponse{}
+	mi := &file_agent_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExecResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecResponse) ProtoMessage() {}
+
+func (x *ExecResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecResponse.ProtoReflect.Descriptor instead.
+func (*ExecResponse) Descriptor() ([]byte, []int) {
+	return file_agent_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ExecResponse) GetOutput() []byte {
+	if x != nil {
+		return x.Output
+	}
+	return nil
+}
+
+func (x *ExecResponse) GetExitCode() int32 {
+	if x != nil {
+		return x.ExitCode
+	}
+	return 0
+}
+
+func (x *ExecResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 type UpdateAgentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
@@ -1134,7 +1254,7 @@ type UpdateAgentRequest struct {
 
 func (x *UpdateAgentRequest) Reset() {
 	*x = UpdateAgentRequest{}
-	mi := &file_agent_proto_msgTypes[13]
+	mi := &file_agent_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1146,7 +1266,7 @@ func (x *UpdateAgentRequest) String() string {
 func (*UpdateAgentRequest) ProtoMessage() {}
 
 func (x *UpdateAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[13]
+	mi := &file_agent_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1159,7 +1279,7 @@ func (x *UpdateAgentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateAgentRequest.ProtoReflect.Descriptor instead.
 func (*UpdateAgentRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{13}
+	return file_agent_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *UpdateAgentRequest) GetAgentId() string {
@@ -1179,7 +1299,7 @@ type UpdateAgentResponse struct {
 
 func (x *UpdateAgentResponse) Reset() {
 	*x = UpdateAgentResponse{}
-	mi := &file_agent_proto_msgTypes[14]
+	mi := &file_agent_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1191,7 +1311,7 @@ func (x *UpdateAgentResponse) String() string {
 func (*UpdateAgentResponse) ProtoMessage() {}
 
 func (x *UpdateAgentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[14]
+	mi := &file_agent_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1204,7 +1324,7 @@ func (x *UpdateAgentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateAgentResponse.ProtoReflect.Descriptor instead.
 func (*UpdateAgentResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{14}
+	return file_agent_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *UpdateAgentResponse) GetSuccess() bool {
@@ -1231,7 +1351,7 @@ type ConfigRequest struct {
 
 func (x *ConfigRequest) Reset() {
 	*x = ConfigRequest{}
-	mi := &file_agent_proto_msgTypes[15]
+	mi := &file_agent_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1243,7 +1363,7 @@ func (x *ConfigRequest) String() string {
 func (*ConfigRequest) ProtoMessage() {}
 
 func (x *ConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[15]
+	mi := &file_agent_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1256,7 +1376,7 @@ func (x *ConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigRequest.ProtoReflect.Descriptor instead.
 func (*ConfigRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{15}
+	return file_agent_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ConfigRequest) GetInstanceId() string {
@@ -1284,7 +1404,7 @@ type ConfigResponse struct {
 
 func (x *ConfigResponse) Reset() {
 	*x = ConfigResponse{}
-	mi := &file_agent_proto_msgTypes[16]
+	mi := &file_agent_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1296,7 +1416,7 @@ func (x *ConfigResponse) String() string {
 func (*ConfigResponse) ProtoMessage() {}
 
 func (x *ConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[16]
+	mi := &file_agent_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1309,7 +1429,7 @@ func (x *ConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigResponse.ProtoReflect.Descriptor instead.
 func (*ConfigResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{16}
+	return file_agent_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ConfigResponse) GetInstanceId() string {
@@ -1346,7 +1466,7 @@ type NginxConfig struct {
 
 func (x *NginxConfig) Reset() {
 	*x = NginxConfig{}
-	mi := &file_agent_proto_msgTypes[17]
+	mi := &file_agent_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1358,7 +1478,7 @@ func (x *NginxConfig) String() string {
 func (*NginxConfig) ProtoMessage() {}
 
 func (x *NginxConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[17]
+	mi := &file_agent_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1371,7 +1491,7 @@ func (x *NginxConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NginxConfig.ProtoReflect.Descriptor instead.
 func (*NginxConfig) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{17}
+	return file_agent_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *NginxConfig) GetConfigPath() string {
@@ -1423,7 +1543,7 @@ type ServerBlock struct {
 
 func (x *ServerBlock) Reset() {
 	*x = ServerBlock{}
-	mi := &file_agent_proto_msgTypes[18]
+	mi := &file_agent_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1435,7 +1555,7 @@ func (x *ServerBlock) String() string {
 func (*ServerBlock) ProtoMessage() {}
 
 func (x *ServerBlock) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[18]
+	mi := &file_agent_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1448,7 +1568,7 @@ func (x *ServerBlock) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerBlock.ProtoReflect.Descriptor instead.
 func (*ServerBlock) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{18}
+	return file_agent_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ServerBlock) GetListen() []string {
@@ -1505,7 +1625,7 @@ type LocationBlock struct {
 
 func (x *LocationBlock) Reset() {
 	*x = LocationBlock{}
-	mi := &file_agent_proto_msgTypes[19]
+	mi := &file_agent_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1517,7 +1637,7 @@ func (x *LocationBlock) String() string {
 func (*LocationBlock) ProtoMessage() {}
 
 func (x *LocationBlock) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[19]
+	mi := &file_agent_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1530,7 +1650,7 @@ func (x *LocationBlock) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LocationBlock.ProtoReflect.Descriptor instead.
 func (*LocationBlock) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{19}
+	return file_agent_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *LocationBlock) GetPath() string {
@@ -1572,7 +1692,7 @@ type UpstreamBlock struct {
 
 func (x *UpstreamBlock) Reset() {
 	*x = UpstreamBlock{}
-	mi := &file_agent_proto_msgTypes[20]
+	mi := &file_agent_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1584,7 +1704,7 @@ func (x *UpstreamBlock) String() string {
 func (*UpstreamBlock) ProtoMessage() {}
 
 func (x *UpstreamBlock) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[20]
+	mi := &file_agent_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1597,7 +1717,7 @@ func (x *UpstreamBlock) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpstreamBlock.ProtoReflect.Descriptor instead.
 func (*UpstreamBlock) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{20}
+	return file_agent_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *UpstreamBlock) GetName() string {
@@ -1633,7 +1753,7 @@ type ConfigUpdate struct {
 
 func (x *ConfigUpdate) Reset() {
 	*x = ConfigUpdate{}
-	mi := &file_agent_proto_msgTypes[21]
+	mi := &file_agent_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1645,7 +1765,7 @@ func (x *ConfigUpdate) String() string {
 func (*ConfigUpdate) ProtoMessage() {}
 
 func (x *ConfigUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[21]
+	mi := &file_agent_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1658,7 +1778,7 @@ func (x *ConfigUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigUpdate.ProtoReflect.Descriptor instead.
 func (*ConfigUpdate) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{21}
+	return file_agent_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ConfigUpdate) GetInstanceId() string {
@@ -1700,7 +1820,7 @@ type ConfigUpdateResponse struct {
 
 func (x *ConfigUpdateResponse) Reset() {
 	*x = ConfigUpdateResponse{}
-	mi := &file_agent_proto_msgTypes[22]
+	mi := &file_agent_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1712,7 +1832,7 @@ func (x *ConfigUpdateResponse) String() string {
 func (*ConfigUpdateResponse) ProtoMessage() {}
 
 func (x *ConfigUpdateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[22]
+	mi := &file_agent_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1725,7 +1845,7 @@ func (x *ConfigUpdateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigUpdateResponse.ProtoReflect.Descriptor instead.
 func (*ConfigUpdateResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{22}
+	return file_agent_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ConfigUpdateResponse) GetSuccess() bool {
@@ -1759,7 +1879,7 @@ type ConfigValidation struct {
 
 func (x *ConfigValidation) Reset() {
 	*x = ConfigValidation{}
-	mi := &file_agent_proto_msgTypes[23]
+	mi := &file_agent_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1771,7 +1891,7 @@ func (x *ConfigValidation) String() string {
 func (*ConfigValidation) ProtoMessage() {}
 
 func (x *ConfigValidation) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[23]
+	mi := &file_agent_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1784,7 +1904,7 @@ func (x *ConfigValidation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigValidation.ProtoReflect.Descriptor instead.
 func (*ConfigValidation) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{23}
+	return file_agent_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ConfigValidation) GetInstanceId() string {
@@ -1812,7 +1932,7 @@ type ValidationResult struct {
 
 func (x *ValidationResult) Reset() {
 	*x = ValidationResult{}
-	mi := &file_agent_proto_msgTypes[24]
+	mi := &file_agent_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1824,7 +1944,7 @@ func (x *ValidationResult) String() string {
 func (*ValidationResult) ProtoMessage() {}
 
 func (x *ValidationResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[24]
+	mi := &file_agent_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1837,7 +1957,7 @@ func (x *ValidationResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ValidationResult.ProtoReflect.Descriptor instead.
 func (*ValidationResult) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{24}
+	return file_agent_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ValidationResult) GetValid() bool {
@@ -1870,7 +1990,7 @@ type ReloadRequest struct {
 
 func (x *ReloadRequest) Reset() {
 	*x = ReloadRequest{}
-	mi := &file_agent_proto_msgTypes[25]
+	mi := &file_agent_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1882,7 +2002,7 @@ func (x *ReloadRequest) String() string {
 func (*ReloadRequest) ProtoMessage() {}
 
 func (x *ReloadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[25]
+	mi := &file_agent_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1895,7 +2015,7 @@ func (x *ReloadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReloadRequest.ProtoReflect.Descriptor instead.
 func (*ReloadRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{25}
+	return file_agent_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ReloadRequest) GetInstanceId() string {
@@ -1915,7 +2035,7 @@ type ReloadResponse struct {
 
 func (x *ReloadResponse) Reset() {
 	*x = ReloadResponse{}
-	mi := &file_agent_proto_msgTypes[26]
+	mi := &file_agent_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1927,7 +2047,7 @@ func (x *ReloadResponse) String() string {
 func (*ReloadResponse) ProtoMessage() {}
 
 func (x *ReloadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[26]
+	mi := &file_agent_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1940,7 +2060,7 @@ func (x *ReloadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReloadResponse.ProtoReflect.Descriptor instead.
 func (*ReloadResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{26}
+	return file_agent_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *ReloadResponse) GetSuccess() bool {
@@ -1966,7 +2086,7 @@ type RestartRequest struct {
 
 func (x *RestartRequest) Reset() {
 	*x = RestartRequest{}
-	mi := &file_agent_proto_msgTypes[27]
+	mi := &file_agent_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1978,7 +2098,7 @@ func (x *RestartRequest) String() string {
 func (*RestartRequest) ProtoMessage() {}
 
 func (x *RestartRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[27]
+	mi := &file_agent_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1991,7 +2111,7 @@ func (x *RestartRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartRequest.ProtoReflect.Descriptor instead.
 func (*RestartRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{27}
+	return file_agent_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *RestartRequest) GetInstanceId() string {
@@ -2011,7 +2131,7 @@ type RestartResponse struct {
 
 func (x *RestartResponse) Reset() {
 	*x = RestartResponse{}
-	mi := &file_agent_proto_msgTypes[28]
+	mi := &file_agent_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2023,7 +2143,7 @@ func (x *RestartResponse) String() string {
 func (*RestartResponse) ProtoMessage() {}
 
 func (x *RestartResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[28]
+	mi := &file_agent_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2036,7 +2156,7 @@ func (x *RestartResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartResponse.ProtoReflect.Descriptor instead.
 func (*RestartResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{28}
+	return file_agent_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *RestartResponse) GetSuccess() bool {
@@ -2062,7 +2182,7 @@ type StopRequest struct {
 
 func (x *StopRequest) Reset() {
 	*x = StopRequest{}
-	mi := &file_agent_proto_msgTypes[29]
+	mi := &file_agent_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2074,7 +2194,7 @@ func (x *StopRequest) String() string {
 func (*StopRequest) ProtoMessage() {}
 
 func (x *StopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[29]
+	mi := &file_agent_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2087,7 +2207,7 @@ func (x *StopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopRequest.ProtoReflect.Descriptor instead.
 func (*StopRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{29}
+	return file_agent_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *StopRequest) GetInstanceId() string {
@@ -2107,7 +2227,7 @@ type StopResponse struct {
 
 func (x *StopResponse) Reset() {
 	*x = StopResponse{}
-	mi := &file_agent_proto_msgTypes[30]
+	mi := &file_agent_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2119,7 +2239,7 @@ func (x *StopResponse) String() string {
 func (*StopResponse) ProtoMessage() {}
 
 func (x *StopResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[30]
+	mi := &file_agent_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2132,7 +2252,7 @@ func (x *StopResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopResponse.ProtoReflect.Descriptor instead.
 func (*StopResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{30}
+	return file_agent_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *StopResponse) GetSuccess() bool {
@@ -2158,7 +2278,7 @@ type CertListRequest struct {
 
 func (x *CertListRequest) Reset() {
 	*x = CertListRequest{}
-	mi := &file_agent_proto_msgTypes[31]
+	mi := &file_agent_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2170,7 +2290,7 @@ func (x *CertListRequest) String() string {
 func (*CertListRequest) ProtoMessage() {}
 
 func (x *CertListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[31]
+	mi := &file_agent_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2183,7 +2303,7 @@ func (x *CertListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CertListRequest.ProtoReflect.Descriptor instead.
 func (*CertListRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{31}
+	return file_agent_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *CertListRequest) GetInstanceId() string {
@@ -2202,7 +2322,7 @@ type CertListResponse struct {
 
 func (x *CertListResponse) Reset() {
 	*x = CertListResponse{}
-	mi := &file_agent_proto_msgTypes[32]
+	mi := &file_agent_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2214,7 +2334,7 @@ func (x *CertListResponse) String() string {
 func (*CertListResponse) ProtoMessage() {}
 
 func (x *CertListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[32]
+	mi := &file_agent_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2227,7 +2347,7 @@ func (x *CertListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CertListResponse.ProtoReflect.Descriptor instead.
 func (*CertListResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{32}
+	return file_agent_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *CertListResponse) GetCertificates() []*Certificate {
@@ -2252,7 +2372,7 @@ type Certificate struct {
 
 func (x *Certificate) Reset() {
 	*x = Certificate{}
-	mi := &file_agent_proto_msgTypes[33]
+	mi := &file_agent_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2264,7 +2384,7 @@ func (x *Certificate) String() string {
 func (*Certificate) ProtoMessage() {}
 
 func (x *Certificate) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[33]
+	mi := &file_agent_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2277,7 +2397,7 @@ func (x *Certificate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Certificate.ProtoReflect.Descriptor instead.
 func (*Certificate) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{33}
+	return file_agent_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *Certificate) GetDomain() string {
@@ -2338,7 +2458,7 @@ type ListAgentsRequest struct {
 
 func (x *ListAgentsRequest) Reset() {
 	*x = ListAgentsRequest{}
-	mi := &file_agent_proto_msgTypes[34]
+	mi := &file_agent_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2350,7 +2470,7 @@ func (x *ListAgentsRequest) String() string {
 func (*ListAgentsRequest) ProtoMessage() {}
 
 func (x *ListAgentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[34]
+	mi := &file_agent_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2363,7 +2483,7 @@ func (x *ListAgentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAgentsRequest.ProtoReflect.Descriptor instead.
 func (*ListAgentsRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{34}
+	return file_agent_proto_rawDescGZIP(), []int{36}
 }
 
 type ListAgentsResponse struct {
@@ -2376,7 +2496,7 @@ type ListAgentsResponse struct {
 
 func (x *ListAgentsResponse) Reset() {
 	*x = ListAgentsResponse{}
-	mi := &file_agent_proto_msgTypes[35]
+	mi := &file_agent_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2388,7 +2508,7 @@ func (x *ListAgentsResponse) String() string {
 func (*ListAgentsResponse) ProtoMessage() {}
 
 func (x *ListAgentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[35]
+	mi := &file_agent_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2401,7 +2521,7 @@ func (x *ListAgentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAgentsResponse.ProtoReflect.Descriptor instead.
 func (*ListAgentsResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{35}
+	return file_agent_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ListAgentsResponse) GetAgents() []*AgentInfo {
@@ -2427,7 +2547,7 @@ type RemoveAgentRequest struct {
 
 func (x *RemoveAgentRequest) Reset() {
 	*x = RemoveAgentRequest{}
-	mi := &file_agent_proto_msgTypes[36]
+	mi := &file_agent_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2439,7 +2559,7 @@ func (x *RemoveAgentRequest) String() string {
 func (*RemoveAgentRequest) ProtoMessage() {}
 
 func (x *RemoveAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[36]
+	mi := &file_agent_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2452,7 +2572,7 @@ func (x *RemoveAgentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveAgentRequest.ProtoReflect.Descriptor instead.
 func (*RemoveAgentRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{36}
+	return file_agent_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *RemoveAgentRequest) GetAgentId() string {
@@ -2471,7 +2591,7 @@ type RemoveAgentResponse struct {
 
 func (x *RemoveAgentResponse) Reset() {
 	*x = RemoveAgentResponse{}
-	mi := &file_agent_proto_msgTypes[37]
+	mi := &file_agent_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2483,7 +2603,7 @@ func (x *RemoveAgentResponse) String() string {
 func (*RemoveAgentResponse) ProtoMessage() {}
 
 func (x *RemoveAgentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[37]
+	mi := &file_agent_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2496,7 +2616,7 @@ func (x *RemoveAgentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveAgentResponse.ProtoReflect.Descriptor instead.
 func (*RemoveAgentResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{37}
+	return file_agent_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *RemoveAgentResponse) GetSuccess() bool {
@@ -2515,7 +2635,7 @@ type GetAgentRequest struct {
 
 func (x *GetAgentRequest) Reset() {
 	*x = GetAgentRequest{}
-	mi := &file_agent_proto_msgTypes[38]
+	mi := &file_agent_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2527,7 +2647,7 @@ func (x *GetAgentRequest) String() string {
 func (*GetAgentRequest) ProtoMessage() {}
 
 func (x *GetAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[38]
+	mi := &file_agent_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2540,7 +2660,7 @@ func (x *GetAgentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAgentRequest.ProtoReflect.Descriptor instead.
 func (*GetAgentRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{38}
+	return file_agent_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *GetAgentRequest) GetAgentId() string {
@@ -2572,7 +2692,7 @@ type AgentInfo struct {
 
 func (x *AgentInfo) Reset() {
 	*x = AgentInfo{}
-	mi := &file_agent_proto_msgTypes[39]
+	mi := &file_agent_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2584,7 +2704,7 @@ func (x *AgentInfo) String() string {
 func (*AgentInfo) ProtoMessage() {}
 
 func (x *AgentInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[39]
+	mi := &file_agent_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2597,7 +2717,7 @@ func (x *AgentInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentInfo.ProtoReflect.Descriptor instead.
 func (*AgentInfo) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{39}
+	return file_agent_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *AgentInfo) GetAgentId() string {
@@ -2710,7 +2830,7 @@ type LogRequest struct {
 
 func (x *LogRequest) Reset() {
 	*x = LogRequest{}
-	mi := &file_agent_proto_msgTypes[40]
+	mi := &file_agent_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2722,7 +2842,7 @@ func (x *LogRequest) String() string {
 func (*LogRequest) ProtoMessage() {}
 
 func (x *LogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[40]
+	mi := &file_agent_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2735,7 +2855,7 @@ func (x *LogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogRequest.ProtoReflect.Descriptor instead.
 func (*LogRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{40}
+	return file_agent_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *LogRequest) GetInstanceId() string {
@@ -2791,7 +2911,7 @@ type LogEntry struct {
 
 func (x *LogEntry) Reset() {
 	*x = LogEntry{}
-	mi := &file_agent_proto_msgTypes[41]
+	mi := &file_agent_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2803,7 +2923,7 @@ func (x *LogEntry) String() string {
 func (*LogEntry) ProtoMessage() {}
 
 func (x *LogEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[41]
+	mi := &file_agent_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2816,7 +2936,7 @@ func (x *LogEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogEntry.ProtoReflect.Descriptor instead.
 func (*LogEntry) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{41}
+	return file_agent_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *LogEntry) GetTimestamp() int64 {
@@ -2948,7 +3068,7 @@ type UptimeRequest struct {
 
 func (x *UptimeRequest) Reset() {
 	*x = UptimeRequest{}
-	mi := &file_agent_proto_msgTypes[42]
+	mi := &file_agent_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2960,7 +3080,7 @@ func (x *UptimeRequest) String() string {
 func (*UptimeRequest) ProtoMessage() {}
 
 func (x *UptimeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[42]
+	mi := &file_agent_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2973,7 +3093,7 @@ func (x *UptimeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UptimeRequest.ProtoReflect.Descriptor instead.
 func (*UptimeRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{42}
+	return file_agent_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *UptimeRequest) GetAgentId() string {
@@ -2999,7 +3119,7 @@ type UptimeResponse struct {
 
 func (x *UptimeResponse) Reset() {
 	*x = UptimeResponse{}
-	mi := &file_agent_proto_msgTypes[43]
+	mi := &file_agent_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3011,7 +3131,7 @@ func (x *UptimeResponse) String() string {
 func (*UptimeResponse) ProtoMessage() {}
 
 func (x *UptimeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[43]
+	mi := &file_agent_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3024,7 +3144,7 @@ func (x *UptimeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UptimeResponse.ProtoReflect.Descriptor instead.
 func (*UptimeResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{43}
+	return file_agent_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *UptimeResponse) GetReports() []*UptimeReport {
@@ -3048,7 +3168,7 @@ type UptimeReport struct {
 
 func (x *UptimeReport) Reset() {
 	*x = UptimeReport{}
-	mi := &file_agent_proto_msgTypes[44]
+	mi := &file_agent_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3060,7 +3180,7 @@ func (x *UptimeReport) String() string {
 func (*UptimeReport) ProtoMessage() {}
 
 func (x *UptimeReport) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[44]
+	mi := &file_agent_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3073,7 +3193,7 @@ func (x *UptimeReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UptimeReport.ProtoReflect.Descriptor instead.
 func (*UptimeReport) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{44}
+	return file_agent_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *UptimeReport) GetTimestamp() int64 {
@@ -3128,7 +3248,7 @@ type AnalyticsRequest struct {
 
 func (x *AnalyticsRequest) Reset() {
 	*x = AnalyticsRequest{}
-	mi := &file_agent_proto_msgTypes[45]
+	mi := &file_agent_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3140,7 +3260,7 @@ func (x *AnalyticsRequest) String() string {
 func (*AnalyticsRequest) ProtoMessage() {}
 
 func (x *AnalyticsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[45]
+	mi := &file_agent_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3153,7 +3273,7 @@ func (x *AnalyticsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AnalyticsRequest.ProtoReflect.Descriptor instead.
 func (*AnalyticsRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{45}
+	return file_agent_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *AnalyticsRequest) GetAgentId() string {
@@ -3189,13 +3309,15 @@ type AnalyticsResponse struct {
 	Insights []*Insight `protobuf:"bytes,11,rep,name=insights,proto3" json:"insights,omitempty"`
 	// Recent Requests (for detailed view)
 	RecentRequests []*LogEntry `protobuf:"bytes,12,rep,name=recent_requests,json=recentRequests,proto3" json:"recent_requests,omitempty"`
+	// Gateway specific metrics
+	GatewayMetrics []*GatewayMetricPoint `protobuf:"bytes,13,rep,name=gateway_metrics,json=gatewayMetrics,proto3" json:"gateway_metrics,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *AnalyticsResponse) Reset() {
 	*x = AnalyticsResponse{}
-	mi := &file_agent_proto_msgTypes[46]
+	mi := &file_agent_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3207,7 +3329,7 @@ func (x *AnalyticsResponse) String() string {
 func (*AnalyticsResponse) ProtoMessage() {}
 
 func (x *AnalyticsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[46]
+	mi := &file_agent_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3220,7 +3342,7 @@ func (x *AnalyticsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AnalyticsResponse.ProtoReflect.Descriptor instead.
 func (*AnalyticsResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{46}
+	return file_agent_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *AnalyticsResponse) GetRequestRate() []*TimeSeriesPoint {
@@ -3307,6 +3429,105 @@ func (x *AnalyticsResponse) GetRecentRequests() []*LogEntry {
 	return nil
 }
 
+func (x *AnalyticsResponse) GetGatewayMetrics() []*GatewayMetricPoint {
+	if x != nil {
+		return x.GatewayMetrics
+	}
+	return nil
+}
+
+type GatewayMetricPoint struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Time              string                 `protobuf:"bytes,1,opt,name=time,proto3" json:"time,omitempty"`
+	Eps               float32                `protobuf:"fixed32,2,opt,name=eps,proto3" json:"eps,omitempty"`
+	ActiveConnections int32                  `protobuf:"varint,3,opt,name=active_connections,json=activeConnections,proto3" json:"active_connections,omitempty"`
+	CpuUsage          float32                `protobuf:"fixed32,4,opt,name=cpu_usage,json=cpuUsage,proto3" json:"cpu_usage,omitempty"`
+	MemoryMb          float32                `protobuf:"fixed32,5,opt,name=memory_mb,json=memoryMb,proto3" json:"memory_mb,omitempty"`
+	Goroutines        int32                  `protobuf:"varint,6,opt,name=goroutines,proto3" json:"goroutines,omitempty"`
+	DbLatency         float32                `protobuf:"fixed32,7,opt,name=db_latency,json=dbLatency,proto3" json:"db_latency,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GatewayMetricPoint) Reset() {
+	*x = GatewayMetricPoint{}
+	mi := &file_agent_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GatewayMetricPoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GatewayMetricPoint) ProtoMessage() {}
+
+func (x *GatewayMetricPoint) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GatewayMetricPoint.ProtoReflect.Descriptor instead.
+func (*GatewayMetricPoint) Descriptor() ([]byte, []int) {
+	return file_agent_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *GatewayMetricPoint) GetTime() string {
+	if x != nil {
+		return x.Time
+	}
+	return ""
+}
+
+func (x *GatewayMetricPoint) GetEps() float32 {
+	if x != nil {
+		return x.Eps
+	}
+	return 0
+}
+
+func (x *GatewayMetricPoint) GetActiveConnections() int32 {
+	if x != nil {
+		return x.ActiveConnections
+	}
+	return 0
+}
+
+func (x *GatewayMetricPoint) GetCpuUsage() float32 {
+	if x != nil {
+		return x.CpuUsage
+	}
+	return 0
+}
+
+func (x *GatewayMetricPoint) GetMemoryMb() float32 {
+	if x != nil {
+		return x.MemoryMb
+	}
+	return 0
+}
+
+func (x *GatewayMetricPoint) GetGoroutines() int32 {
+	if x != nil {
+		return x.Goroutines
+	}
+	return 0
+}
+
+func (x *GatewayMetricPoint) GetDbLatency() float32 {
+	if x != nil {
+		return x.DbLatency
+	}
+	return 0
+}
+
 type Insight struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"` // "info", "warning", "critical"
@@ -3319,7 +3540,7 @@ type Insight struct {
 
 func (x *Insight) Reset() {
 	*x = Insight{}
-	mi := &file_agent_proto_msgTypes[47]
+	mi := &file_agent_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3331,7 +3552,7 @@ func (x *Insight) String() string {
 func (*Insight) ProtoMessage() {}
 
 func (x *Insight) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[47]
+	mi := &file_agent_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3344,7 +3565,7 @@ func (x *Insight) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Insight.ProtoReflect.Descriptor instead.
 func (*Insight) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{47}
+	return file_agent_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *Insight) GetType() string {
@@ -3385,7 +3606,7 @@ type ApplyAugmentRequest struct {
 
 func (x *ApplyAugmentRequest) Reset() {
 	*x = ApplyAugmentRequest{}
-	mi := &file_agent_proto_msgTypes[48]
+	mi := &file_agent_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3397,7 +3618,7 @@ func (x *ApplyAugmentRequest) String() string {
 func (*ApplyAugmentRequest) ProtoMessage() {}
 
 func (x *ApplyAugmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[48]
+	mi := &file_agent_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3410,7 +3631,7 @@ func (x *ApplyAugmentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyAugmentRequest.ProtoReflect.Descriptor instead.
 func (*ApplyAugmentRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{48}
+	return file_agent_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *ApplyAugmentRequest) GetInstanceId() string {
@@ -3438,7 +3659,7 @@ type ApplyAugmentResponse struct {
 
 func (x *ApplyAugmentResponse) Reset() {
 	*x = ApplyAugmentResponse{}
-	mi := &file_agent_proto_msgTypes[49]
+	mi := &file_agent_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3450,7 +3671,7 @@ func (x *ApplyAugmentResponse) String() string {
 func (*ApplyAugmentResponse) ProtoMessage() {}
 
 func (x *ApplyAugmentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[49]
+	mi := &file_agent_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3463,7 +3684,7 @@ func (x *ApplyAugmentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyAugmentResponse.ProtoReflect.Descriptor instead.
 func (*ApplyAugmentResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{49}
+	return file_agent_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *ApplyAugmentResponse) GetSuccess() bool {
@@ -3503,7 +3724,7 @@ type AnalyticsSummary struct {
 
 func (x *AnalyticsSummary) Reset() {
 	*x = AnalyticsSummary{}
-	mi := &file_agent_proto_msgTypes[50]
+	mi := &file_agent_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3515,7 +3736,7 @@ func (x *AnalyticsSummary) String() string {
 func (*AnalyticsSummary) ProtoMessage() {}
 
 func (x *AnalyticsSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[50]
+	mi := &file_agent_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3528,7 +3749,7 @@ func (x *AnalyticsSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AnalyticsSummary.ProtoReflect.Descriptor instead.
 func (*AnalyticsSummary) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{50}
+	return file_agent_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *AnalyticsSummary) GetTotalRequests() int64 {
@@ -3590,7 +3811,7 @@ type LatencyBucket struct {
 
 func (x *LatencyBucket) Reset() {
 	*x = LatencyBucket{}
-	mi := &file_agent_proto_msgTypes[51]
+	mi := &file_agent_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3602,7 +3823,7 @@ func (x *LatencyBucket) String() string {
 func (*LatencyBucket) ProtoMessage() {}
 
 func (x *LatencyBucket) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[51]
+	mi := &file_agent_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3615,7 +3836,7 @@ func (x *LatencyBucket) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LatencyBucket.ProtoReflect.Descriptor instead.
 func (*LatencyBucket) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{51}
+	return file_agent_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *LatencyBucket) GetBucket() string {
@@ -3644,7 +3865,7 @@ type ServerStat struct {
 
 func (x *ServerStat) Reset() {
 	*x = ServerStat{}
-	mi := &file_agent_proto_msgTypes[52]
+	mi := &file_agent_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3656,7 +3877,7 @@ func (x *ServerStat) String() string {
 func (*ServerStat) ProtoMessage() {}
 
 func (x *ServerStat) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[52]
+	mi := &file_agent_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3669,7 +3890,7 @@ func (x *ServerStat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerStat.ProtoReflect.Descriptor instead.
 func (*ServerStat) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{52}
+	return file_agent_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *ServerStat) GetHostname() string {
@@ -3718,7 +3939,7 @@ type NginxMetricPoint struct {
 
 func (x *NginxMetricPoint) Reset() {
 	*x = NginxMetricPoint{}
-	mi := &file_agent_proto_msgTypes[53]
+	mi := &file_agent_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3730,7 +3951,7 @@ func (x *NginxMetricPoint) String() string {
 func (*NginxMetricPoint) ProtoMessage() {}
 
 func (x *NginxMetricPoint) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[53]
+	mi := &file_agent_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3743,7 +3964,7 @@ func (x *NginxMetricPoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NginxMetricPoint.ProtoReflect.Descriptor instead.
 func (*NginxMetricPoint) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{53}
+	return file_agent_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *NginxMetricPoint) GetTimestamp() int64 {
@@ -3827,7 +4048,7 @@ type TimeSeriesPoint struct {
 
 func (x *TimeSeriesPoint) Reset() {
 	*x = TimeSeriesPoint{}
-	mi := &file_agent_proto_msgTypes[54]
+	mi := &file_agent_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3839,7 +4060,7 @@ func (x *TimeSeriesPoint) String() string {
 func (*TimeSeriesPoint) ProtoMessage() {}
 
 func (x *TimeSeriesPoint) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[54]
+	mi := &file_agent_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3852,7 +4073,7 @@ func (x *TimeSeriesPoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TimeSeriesPoint.ProtoReflect.Descriptor instead.
 func (*TimeSeriesPoint) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{54}
+	return file_agent_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *TimeSeriesPoint) GetTime() string {
@@ -3886,7 +4107,7 @@ type StatusCount struct {
 
 func (x *StatusCount) Reset() {
 	*x = StatusCount{}
-	mi := &file_agent_proto_msgTypes[55]
+	mi := &file_agent_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3898,7 +4119,7 @@ func (x *StatusCount) String() string {
 func (*StatusCount) ProtoMessage() {}
 
 func (x *StatusCount) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[55]
+	mi := &file_agent_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3911,7 +4132,7 @@ func (x *StatusCount) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusCount.ProtoReflect.Descriptor instead.
 func (*StatusCount) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{55}
+	return file_agent_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *StatusCount) GetCode() string {
@@ -3940,7 +4161,7 @@ type LatencyPercentiles struct {
 
 func (x *LatencyPercentiles) Reset() {
 	*x = LatencyPercentiles{}
-	mi := &file_agent_proto_msgTypes[56]
+	mi := &file_agent_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3952,7 +4173,7 @@ func (x *LatencyPercentiles) String() string {
 func (*LatencyPercentiles) ProtoMessage() {}
 
 func (x *LatencyPercentiles) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[56]
+	mi := &file_agent_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3965,7 +4186,7 @@ func (x *LatencyPercentiles) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LatencyPercentiles.ProtoReflect.Descriptor instead.
 func (*LatencyPercentiles) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{56}
+	return file_agent_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *LatencyPercentiles) GetTime() string {
@@ -4012,7 +4233,7 @@ type SystemMetricPoint struct {
 
 func (x *SystemMetricPoint) Reset() {
 	*x = SystemMetricPoint{}
-	mi := &file_agent_proto_msgTypes[57]
+	mi := &file_agent_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4024,7 +4245,7 @@ func (x *SystemMetricPoint) String() string {
 func (*SystemMetricPoint) ProtoMessage() {}
 
 func (x *SystemMetricPoint) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[57]
+	mi := &file_agent_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4037,7 +4258,7 @@ func (x *SystemMetricPoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SystemMetricPoint.ProtoReflect.Descriptor instead.
 func (*SystemMetricPoint) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{57}
+	return file_agent_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *SystemMetricPoint) GetTime() string {
@@ -4111,7 +4332,7 @@ type HttpStatusMetricsResponse struct {
 
 func (x *HttpStatusMetricsResponse) Reset() {
 	*x = HttpStatusMetricsResponse{}
-	mi := &file_agent_proto_msgTypes[58]
+	mi := &file_agent_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4123,7 +4344,7 @@ func (x *HttpStatusMetricsResponse) String() string {
 func (*HttpStatusMetricsResponse) ProtoMessage() {}
 
 func (x *HttpStatusMetricsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[58]
+	mi := &file_agent_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4136,7 +4357,7 @@ func (x *HttpStatusMetricsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HttpStatusMetricsResponse.ProtoReflect.Descriptor instead.
 func (*HttpStatusMetricsResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{58}
+	return file_agent_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *HttpStatusMetricsResponse) GetStatus_2Xx_5Min() []*TimeSeriesPoint {
@@ -4201,7 +4422,7 @@ type EndpointStat struct {
 
 func (x *EndpointStat) Reset() {
 	*x = EndpointStat{}
-	mi := &file_agent_proto_msgTypes[59]
+	mi := &file_agent_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4213,7 +4434,7 @@ func (x *EndpointStat) String() string {
 func (*EndpointStat) ProtoMessage() {}
 
 func (x *EndpointStat) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[59]
+	mi := &file_agent_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4226,7 +4447,7 @@ func (x *EndpointStat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndpointStat.ProtoReflect.Descriptor instead.
 func (*EndpointStat) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{59}
+	return file_agent_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *EndpointStat) GetUri() string {
@@ -4273,7 +4494,7 @@ type RecommendationRequest struct {
 
 func (x *RecommendationRequest) Reset() {
 	*x = RecommendationRequest{}
-	mi := &file_agent_proto_msgTypes[60]
+	mi := &file_agent_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4285,7 +4506,7 @@ func (x *RecommendationRequest) String() string {
 func (*RecommendationRequest) ProtoMessage() {}
 
 func (x *RecommendationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[60]
+	mi := &file_agent_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4298,7 +4519,7 @@ func (x *RecommendationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecommendationRequest.ProtoReflect.Descriptor instead.
 func (*RecommendationRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{60}
+	return file_agent_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *RecommendationRequest) GetAgentId() string {
@@ -4317,7 +4538,7 @@ type RecommendationResponse struct {
 
 func (x *RecommendationResponse) Reset() {
 	*x = RecommendationResponse{}
-	mi := &file_agent_proto_msgTypes[61]
+	mi := &file_agent_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4329,7 +4550,7 @@ func (x *RecommendationResponse) String() string {
 func (*RecommendationResponse) ProtoMessage() {}
 
 func (x *RecommendationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[61]
+	mi := &file_agent_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4342,7 +4563,7 @@ func (x *RecommendationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecommendationResponse.ProtoReflect.Descriptor instead.
 func (*RecommendationResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{61}
+	return file_agent_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *RecommendationResponse) GetRecommendations() []*Recommendation {
@@ -4372,7 +4593,7 @@ type Recommendation struct {
 
 func (x *Recommendation) Reset() {
 	*x = Recommendation{}
-	mi := &file_agent_proto_msgTypes[62]
+	mi := &file_agent_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4384,7 +4605,7 @@ func (x *Recommendation) String() string {
 func (*Recommendation) ProtoMessage() {}
 
 func (x *Recommendation) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_msgTypes[62]
+	mi := &file_agent_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4397,7 +4618,7 @@ func (x *Recommendation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Recommendation.ProtoReflect.Descriptor instead.
 func (*Recommendation) Descriptor() ([]byte, []int) {
-	return file_agent_proto_rawDescGZIP(), []int{62}
+	return file_agent_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *Recommendation) GetId() int32 {
@@ -4590,7 +4811,16 @@ const file_agent_proto_rawDesc = "" +
 	"augment_id\x18\x01 \x01(\tR\taugmentId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
 	"\asnippet\x18\x03 \x01(\tR\asnippet\x12\x18\n" +
-	"\acontext\x18\x04 \x01(\tR\acontext\"/\n" +
+	"\acontext\x18\x04 \x01(\tR\acontext\"^\n" +
+	"\vExecRequest\x12\x1f\n" +
+	"\vinstance_id\x18\x01 \x01(\tR\n" +
+	"instanceId\x12\x14\n" +
+	"\x05input\x18\x02 \x01(\fR\x05input\x12\x18\n" +
+	"\acommand\x18\x03 \x01(\tR\acommand\"Y\n" +
+	"\fExecResponse\x12\x16\n" +
+	"\x06output\x18\x01 \x01(\fR\x06output\x12\x1b\n" +
+	"\texit_code\x18\x02 \x01(\x05R\bexitCode\x12\x14\n" +
+	"\x05error\x18\x03 \x01(\tR\x05error\"/\n" +
 	"\x12UpdateAgentRequest\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\"I\n" +
 	"\x13UpdateAgentResponse\x12\x18\n" +
@@ -4781,7 +5011,7 @@ const file_agent_proto_rawDesc = "" +
 	"\x10AnalyticsRequest\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x1f\n" +
 	"\vtime_window\x18\x02 \x01(\tR\n" +
-	"timeWindow\"\xfc\x06\n" +
+	"timeWindow\"\xc9\a\n" +
 	"\x11AnalyticsResponse\x12B\n" +
 	"\frequest_rate\x18\x01 \x03(\v2\x1f.nginx.agent.v1.TimeSeriesPointR\vrequestRate\x12L\n" +
 	"\x13status_distribution\x18\x02 \x03(\v2\x1b.nginx.agent.v1.StatusCountR\x12statusDistribution\x12G\n" +
@@ -4795,7 +5025,19 @@ const file_agent_proto_rawDesc = "" +
 	"\x13http_status_metrics\x18\n" +
 	" \x01(\v2).nginx.agent.v1.HttpStatusMetricsResponseR\x11httpStatusMetrics\x123\n" +
 	"\binsights\x18\v \x03(\v2\x17.nginx.agent.v1.InsightR\binsights\x12A\n" +
-	"\x0frecent_requests\x18\f \x03(\v2\x18.nginx.agent.v1.LogEntryR\x0erecentRequests\"i\n" +
+	"\x0frecent_requests\x18\f \x03(\v2\x18.nginx.agent.v1.LogEntryR\x0erecentRequests\x12K\n" +
+	"\x0fgateway_metrics\x18\r \x03(\v2\".nginx.agent.v1.GatewayMetricPointR\x0egatewayMetrics\"\xe2\x01\n" +
+	"\x12GatewayMetricPoint\x12\x12\n" +
+	"\x04time\x18\x01 \x01(\tR\x04time\x12\x10\n" +
+	"\x03eps\x18\x02 \x01(\x02R\x03eps\x12-\n" +
+	"\x12active_connections\x18\x03 \x01(\x05R\x11activeConnections\x12\x1b\n" +
+	"\tcpu_usage\x18\x04 \x01(\x02R\bcpuUsage\x12\x1b\n" +
+	"\tmemory_mb\x18\x05 \x01(\x02R\bmemoryMb\x12\x1e\n" +
+	"\n" +
+	"goroutines\x18\x06 \x01(\x05R\n" +
+	"goroutines\x12\x1d\n" +
+	"\n" +
+	"db_latency\x18\a \x01(\x02R\tdbLatency\"i\n" +
 	"\aInsight\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
@@ -4901,8 +5143,7 @@ const file_agent_proto_rawDesc = "" +
 	"\x06server\x18\v \x01(\tR\x06server\x12\x1c\n" +
 	"\ttimestamp\x18\f \x01(\x03R\ttimestamp2W\n" +
 	"\tCommander\x12J\n" +
-	"\aConnect\x12\x1c.nginx.agent.v1.AgentMessage\x1a\x1d.nginx.agent.v1.ServerCommand(\x010\x012\xba\n" +
-	"\n" +
+	"\aConnect\x12\x1c.nginx.agent.v1.AgentMessage\x1a\x1d.nginx.agent.v1.ServerCommand(\x010\x012\x84\v\n" +
 	"\fAgentService\x12J\n" +
 	"\tGetConfig\x12\x1d.nginx.agent.v1.ConfigRequest\x1a\x1e.nginx.agent.v1.ConfigResponse\x12R\n" +
 	"\fUpdateConfig\x12\x1c.nginx.agent.v1.ConfigUpdate\x1a$.nginx.agent.v1.ConfigUpdateResponse\x12T\n" +
@@ -4920,7 +5161,8 @@ const file_agent_proto_rawDesc = "" +
 	"\fGetAnalytics\x12 .nginx.agent.v1.AnalyticsRequest\x1a!.nginx.agent.v1.AnalyticsResponse\x12c\n" +
 	"\x12GetRecommendations\x12%.nginx.agent.v1.RecommendationRequest\x1a&.nginx.agent.v1.RecommendationResponse\x12Y\n" +
 	"\fApplyAugment\x12#.nginx.agent.v1.ApplyAugmentRequest\x1a$.nginx.agent.v1.ApplyAugmentResponse\x12V\n" +
-	"\vUpdateAgent\x12\".nginx.agent.v1.UpdateAgentRequest\x1a#.nginx.agent.v1.UpdateAgentResponseB;Z9github.com/user/nginx-manager/internal/common/proto/agentb\x06proto3"
+	"\vUpdateAgent\x12\".nginx.agent.v1.UpdateAgentRequest\x1a#.nginx.agent.v1.UpdateAgentResponse\x12H\n" +
+	"\aExecute\x12\x1b.nginx.agent.v1.ExecRequest\x1a\x1c.nginx.agent.v1.ExecResponse(\x010\x01B;Z9github.com/user/nginx-manager/internal/common/proto/agentb\x06proto3"
 
 var (
 	file_agent_proto_rawDescOnce sync.Once
@@ -4934,7 +5176,7 @@ func file_agent_proto_rawDescGZIP() []byte {
 	return file_agent_proto_rawDescData
 }
 
-var file_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 68)
+var file_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 71)
 var file_agent_proto_goTypes = []any{
 	(*AgentMessage)(nil),              // 0: nginx.agent.v1.AgentMessage
 	(*SystemMetrics)(nil),             // 1: nginx.agent.v1.SystemMetrics
@@ -4949,144 +5191,150 @@ var file_agent_proto_goTypes = []any{
 	(*ConfigPush)(nil),                // 10: nginx.agent.v1.ConfigPush
 	(*Action)(nil),                    // 11: nginx.agent.v1.Action
 	(*ConfigAugment)(nil),             // 12: nginx.agent.v1.ConfigAugment
-	(*UpdateAgentRequest)(nil),        // 13: nginx.agent.v1.UpdateAgentRequest
-	(*UpdateAgentResponse)(nil),       // 14: nginx.agent.v1.UpdateAgentResponse
-	(*ConfigRequest)(nil),             // 15: nginx.agent.v1.ConfigRequest
-	(*ConfigResponse)(nil),            // 16: nginx.agent.v1.ConfigResponse
-	(*NginxConfig)(nil),               // 17: nginx.agent.v1.NginxConfig
-	(*ServerBlock)(nil),               // 18: nginx.agent.v1.ServerBlock
-	(*LocationBlock)(nil),             // 19: nginx.agent.v1.LocationBlock
-	(*UpstreamBlock)(nil),             // 20: nginx.agent.v1.UpstreamBlock
-	(*ConfigUpdate)(nil),              // 21: nginx.agent.v1.ConfigUpdate
-	(*ConfigUpdateResponse)(nil),      // 22: nginx.agent.v1.ConfigUpdateResponse
-	(*ConfigValidation)(nil),          // 23: nginx.agent.v1.ConfigValidation
-	(*ValidationResult)(nil),          // 24: nginx.agent.v1.ValidationResult
-	(*ReloadRequest)(nil),             // 25: nginx.agent.v1.ReloadRequest
-	(*ReloadResponse)(nil),            // 26: nginx.agent.v1.ReloadResponse
-	(*RestartRequest)(nil),            // 27: nginx.agent.v1.RestartRequest
-	(*RestartResponse)(nil),           // 28: nginx.agent.v1.RestartResponse
-	(*StopRequest)(nil),               // 29: nginx.agent.v1.StopRequest
-	(*StopResponse)(nil),              // 30: nginx.agent.v1.StopResponse
-	(*CertListRequest)(nil),           // 31: nginx.agent.v1.CertListRequest
-	(*CertListResponse)(nil),          // 32: nginx.agent.v1.CertListResponse
-	(*Certificate)(nil),               // 33: nginx.agent.v1.Certificate
-	(*ListAgentsRequest)(nil),         // 34: nginx.agent.v1.ListAgentsRequest
-	(*ListAgentsResponse)(nil),        // 35: nginx.agent.v1.ListAgentsResponse
-	(*RemoveAgentRequest)(nil),        // 36: nginx.agent.v1.RemoveAgentRequest
-	(*RemoveAgentResponse)(nil),       // 37: nginx.agent.v1.RemoveAgentResponse
-	(*GetAgentRequest)(nil),           // 38: nginx.agent.v1.GetAgentRequest
-	(*AgentInfo)(nil),                 // 39: nginx.agent.v1.AgentInfo
-	(*LogRequest)(nil),                // 40: nginx.agent.v1.LogRequest
-	(*LogEntry)(nil),                  // 41: nginx.agent.v1.LogEntry
-	(*UptimeRequest)(nil),             // 42: nginx.agent.v1.UptimeRequest
-	(*UptimeResponse)(nil),            // 43: nginx.agent.v1.UptimeResponse
-	(*UptimeReport)(nil),              // 44: nginx.agent.v1.UptimeReport
-	(*AnalyticsRequest)(nil),          // 45: nginx.agent.v1.AnalyticsRequest
-	(*AnalyticsResponse)(nil),         // 46: nginx.agent.v1.AnalyticsResponse
-	(*Insight)(nil),                   // 47: nginx.agent.v1.Insight
-	(*ApplyAugmentRequest)(nil),       // 48: nginx.agent.v1.ApplyAugmentRequest
-	(*ApplyAugmentResponse)(nil),      // 49: nginx.agent.v1.ApplyAugmentResponse
-	(*AnalyticsSummary)(nil),          // 50: nginx.agent.v1.AnalyticsSummary
-	(*LatencyBucket)(nil),             // 51: nginx.agent.v1.LatencyBucket
-	(*ServerStat)(nil),                // 52: nginx.agent.v1.ServerStat
-	(*NginxMetricPoint)(nil),          // 53: nginx.agent.v1.NginxMetricPoint
-	(*TimeSeriesPoint)(nil),           // 54: nginx.agent.v1.TimeSeriesPoint
-	(*StatusCount)(nil),               // 55: nginx.agent.v1.StatusCount
-	(*LatencyPercentiles)(nil),        // 56: nginx.agent.v1.LatencyPercentiles
-	(*SystemMetricPoint)(nil),         // 57: nginx.agent.v1.SystemMetricPoint
-	(*HttpStatusMetricsResponse)(nil), // 58: nginx.agent.v1.HttpStatusMetricsResponse
-	(*EndpointStat)(nil),              // 59: nginx.agent.v1.EndpointStat
-	(*RecommendationRequest)(nil),     // 60: nginx.agent.v1.RecommendationRequest
-	(*RecommendationResponse)(nil),    // 61: nginx.agent.v1.RecommendationResponse
-	(*Recommendation)(nil),            // 62: nginx.agent.v1.Recommendation
-	nil,                               // 63: nginx.agent.v1.ConfigPush.FilesEntry
-	nil,                               // 64: nginx.agent.v1.ServerBlock.SslConfigEntry
-	nil,                               // 65: nginx.agent.v1.ServerBlock.DirectivesEntry
-	nil,                               // 66: nginx.agent.v1.LocationBlock.DirectivesEntry
-	nil,                               // 67: nginx.agent.v1.UpstreamBlock.DirectivesEntry
+	(*ExecRequest)(nil),               // 13: nginx.agent.v1.ExecRequest
+	(*ExecResponse)(nil),              // 14: nginx.agent.v1.ExecResponse
+	(*UpdateAgentRequest)(nil),        // 15: nginx.agent.v1.UpdateAgentRequest
+	(*UpdateAgentResponse)(nil),       // 16: nginx.agent.v1.UpdateAgentResponse
+	(*ConfigRequest)(nil),             // 17: nginx.agent.v1.ConfigRequest
+	(*ConfigResponse)(nil),            // 18: nginx.agent.v1.ConfigResponse
+	(*NginxConfig)(nil),               // 19: nginx.agent.v1.NginxConfig
+	(*ServerBlock)(nil),               // 20: nginx.agent.v1.ServerBlock
+	(*LocationBlock)(nil),             // 21: nginx.agent.v1.LocationBlock
+	(*UpstreamBlock)(nil),             // 22: nginx.agent.v1.UpstreamBlock
+	(*ConfigUpdate)(nil),              // 23: nginx.agent.v1.ConfigUpdate
+	(*ConfigUpdateResponse)(nil),      // 24: nginx.agent.v1.ConfigUpdateResponse
+	(*ConfigValidation)(nil),          // 25: nginx.agent.v1.ConfigValidation
+	(*ValidationResult)(nil),          // 26: nginx.agent.v1.ValidationResult
+	(*ReloadRequest)(nil),             // 27: nginx.agent.v1.ReloadRequest
+	(*ReloadResponse)(nil),            // 28: nginx.agent.v1.ReloadResponse
+	(*RestartRequest)(nil),            // 29: nginx.agent.v1.RestartRequest
+	(*RestartResponse)(nil),           // 30: nginx.agent.v1.RestartResponse
+	(*StopRequest)(nil),               // 31: nginx.agent.v1.StopRequest
+	(*StopResponse)(nil),              // 32: nginx.agent.v1.StopResponse
+	(*CertListRequest)(nil),           // 33: nginx.agent.v1.CertListRequest
+	(*CertListResponse)(nil),          // 34: nginx.agent.v1.CertListResponse
+	(*Certificate)(nil),               // 35: nginx.agent.v1.Certificate
+	(*ListAgentsRequest)(nil),         // 36: nginx.agent.v1.ListAgentsRequest
+	(*ListAgentsResponse)(nil),        // 37: nginx.agent.v1.ListAgentsResponse
+	(*RemoveAgentRequest)(nil),        // 38: nginx.agent.v1.RemoveAgentRequest
+	(*RemoveAgentResponse)(nil),       // 39: nginx.agent.v1.RemoveAgentResponse
+	(*GetAgentRequest)(nil),           // 40: nginx.agent.v1.GetAgentRequest
+	(*AgentInfo)(nil),                 // 41: nginx.agent.v1.AgentInfo
+	(*LogRequest)(nil),                // 42: nginx.agent.v1.LogRequest
+	(*LogEntry)(nil),                  // 43: nginx.agent.v1.LogEntry
+	(*UptimeRequest)(nil),             // 44: nginx.agent.v1.UptimeRequest
+	(*UptimeResponse)(nil),            // 45: nginx.agent.v1.UptimeResponse
+	(*UptimeReport)(nil),              // 46: nginx.agent.v1.UptimeReport
+	(*AnalyticsRequest)(nil),          // 47: nginx.agent.v1.AnalyticsRequest
+	(*AnalyticsResponse)(nil),         // 48: nginx.agent.v1.AnalyticsResponse
+	(*GatewayMetricPoint)(nil),        // 49: nginx.agent.v1.GatewayMetricPoint
+	(*Insight)(nil),                   // 50: nginx.agent.v1.Insight
+	(*ApplyAugmentRequest)(nil),       // 51: nginx.agent.v1.ApplyAugmentRequest
+	(*ApplyAugmentResponse)(nil),      // 52: nginx.agent.v1.ApplyAugmentResponse
+	(*AnalyticsSummary)(nil),          // 53: nginx.agent.v1.AnalyticsSummary
+	(*LatencyBucket)(nil),             // 54: nginx.agent.v1.LatencyBucket
+	(*ServerStat)(nil),                // 55: nginx.agent.v1.ServerStat
+	(*NginxMetricPoint)(nil),          // 56: nginx.agent.v1.NginxMetricPoint
+	(*TimeSeriesPoint)(nil),           // 57: nginx.agent.v1.TimeSeriesPoint
+	(*StatusCount)(nil),               // 58: nginx.agent.v1.StatusCount
+	(*LatencyPercentiles)(nil),        // 59: nginx.agent.v1.LatencyPercentiles
+	(*SystemMetricPoint)(nil),         // 60: nginx.agent.v1.SystemMetricPoint
+	(*HttpStatusMetricsResponse)(nil), // 61: nginx.agent.v1.HttpStatusMetricsResponse
+	(*EndpointStat)(nil),              // 62: nginx.agent.v1.EndpointStat
+	(*RecommendationRequest)(nil),     // 63: nginx.agent.v1.RecommendationRequest
+	(*RecommendationResponse)(nil),    // 64: nginx.agent.v1.RecommendationResponse
+	(*Recommendation)(nil),            // 65: nginx.agent.v1.Recommendation
+	nil,                               // 66: nginx.agent.v1.ConfigPush.FilesEntry
+	nil,                               // 67: nginx.agent.v1.ServerBlock.SslConfigEntry
+	nil,                               // 68: nginx.agent.v1.ServerBlock.DirectivesEntry
+	nil,                               // 69: nginx.agent.v1.LocationBlock.DirectivesEntry
+	nil,                               // 70: nginx.agent.v1.UpstreamBlock.DirectivesEntry
 }
 var file_agent_proto_depIdxs = []int32{
 	6,  // 0: nginx.agent.v1.AgentMessage.heartbeat:type_name -> nginx.agent.v1.Heartbeat
 	8,  // 1: nginx.agent.v1.AgentMessage.command_result:type_name -> nginx.agent.v1.CommandResult
 	9,  // 2: nginx.agent.v1.AgentMessage.state:type_name -> nginx.agent.v1.StateSnapshot
-	41, // 3: nginx.agent.v1.AgentMessage.log_entry:type_name -> nginx.agent.v1.LogEntry
+	43, // 3: nginx.agent.v1.AgentMessage.log_entry:type_name -> nginx.agent.v1.LogEntry
 	3,  // 4: nginx.agent.v1.AgentMessage.metrics:type_name -> nginx.agent.v1.NginxMetrics
 	1,  // 5: nginx.agent.v1.NginxMetrics.system:type_name -> nginx.agent.v1.SystemMetrics
 	2,  // 6: nginx.agent.v1.NginxMetrics.http_status:type_name -> nginx.agent.v1.HttpStatusMetrics
 	10, // 7: nginx.agent.v1.ServerCommand.config_push:type_name -> nginx.agent.v1.ConfigPush
 	11, // 8: nginx.agent.v1.ServerCommand.action:type_name -> nginx.agent.v1.Action
-	40, // 9: nginx.agent.v1.ServerCommand.log_request:type_name -> nginx.agent.v1.LogRequest
+	42, // 9: nginx.agent.v1.ServerCommand.log_request:type_name -> nginx.agent.v1.LogRequest
 	5,  // 10: nginx.agent.v1.ServerCommand.update:type_name -> nginx.agent.v1.Update
 	7,  // 11: nginx.agent.v1.Heartbeat.instances:type_name -> nginx.agent.v1.NginxInstance
-	63, // 12: nginx.agent.v1.ConfigPush.files:type_name -> nginx.agent.v1.ConfigPush.FilesEntry
-	17, // 13: nginx.agent.v1.ConfigResponse.config:type_name -> nginx.agent.v1.NginxConfig
-	18, // 14: nginx.agent.v1.NginxConfig.servers:type_name -> nginx.agent.v1.ServerBlock
-	20, // 15: nginx.agent.v1.NginxConfig.upstreams:type_name -> nginx.agent.v1.UpstreamBlock
-	19, // 16: nginx.agent.v1.ServerBlock.locations:type_name -> nginx.agent.v1.LocationBlock
-	64, // 17: nginx.agent.v1.ServerBlock.ssl_config:type_name -> nginx.agent.v1.ServerBlock.SslConfigEntry
-	65, // 18: nginx.agent.v1.ServerBlock.directives:type_name -> nginx.agent.v1.ServerBlock.DirectivesEntry
-	66, // 19: nginx.agent.v1.LocationBlock.directives:type_name -> nginx.agent.v1.LocationBlock.DirectivesEntry
-	67, // 20: nginx.agent.v1.UpstreamBlock.directives:type_name -> nginx.agent.v1.UpstreamBlock.DirectivesEntry
-	33, // 21: nginx.agent.v1.CertListResponse.certificates:type_name -> nginx.agent.v1.Certificate
-	39, // 22: nginx.agent.v1.ListAgentsResponse.agents:type_name -> nginx.agent.v1.AgentInfo
-	44, // 23: nginx.agent.v1.UptimeResponse.reports:type_name -> nginx.agent.v1.UptimeReport
-	54, // 24: nginx.agent.v1.AnalyticsResponse.request_rate:type_name -> nginx.agent.v1.TimeSeriesPoint
-	55, // 25: nginx.agent.v1.AnalyticsResponse.status_distribution:type_name -> nginx.agent.v1.StatusCount
-	56, // 26: nginx.agent.v1.AnalyticsResponse.latency_trend:type_name -> nginx.agent.v1.LatencyPercentiles
-	59, // 27: nginx.agent.v1.AnalyticsResponse.top_endpoints:type_name -> nginx.agent.v1.EndpointStat
-	53, // 28: nginx.agent.v1.AnalyticsResponse.connections_history:type_name -> nginx.agent.v1.NginxMetricPoint
-	50, // 29: nginx.agent.v1.AnalyticsResponse.summary:type_name -> nginx.agent.v1.AnalyticsSummary
-	51, // 30: nginx.agent.v1.AnalyticsResponse.latency_distribution:type_name -> nginx.agent.v1.LatencyBucket
-	52, // 31: nginx.agent.v1.AnalyticsResponse.server_distribution:type_name -> nginx.agent.v1.ServerStat
-	57, // 32: nginx.agent.v1.AnalyticsResponse.system_metrics:type_name -> nginx.agent.v1.SystemMetricPoint
-	58, // 33: nginx.agent.v1.AnalyticsResponse.http_status_metrics:type_name -> nginx.agent.v1.HttpStatusMetricsResponse
-	47, // 34: nginx.agent.v1.AnalyticsResponse.insights:type_name -> nginx.agent.v1.Insight
-	41, // 35: nginx.agent.v1.AnalyticsResponse.recent_requests:type_name -> nginx.agent.v1.LogEntry
-	12, // 36: nginx.agent.v1.ApplyAugmentRequest.augment:type_name -> nginx.agent.v1.ConfigAugment
-	54, // 37: nginx.agent.v1.HttpStatusMetricsResponse.status_2xx_5min:type_name -> nginx.agent.v1.TimeSeriesPoint
-	54, // 38: nginx.agent.v1.HttpStatusMetricsResponse.status_4xx_5min:type_name -> nginx.agent.v1.TimeSeriesPoint
-	54, // 39: nginx.agent.v1.HttpStatusMetricsResponse.status_3xx:type_name -> nginx.agent.v1.TimeSeriesPoint
-	54, // 40: nginx.agent.v1.HttpStatusMetricsResponse.status_5xx:type_name -> nginx.agent.v1.TimeSeriesPoint
-	62, // 41: nginx.agent.v1.RecommendationResponse.recommendations:type_name -> nginx.agent.v1.Recommendation
-	0,  // 42: nginx.agent.v1.Commander.Connect:input_type -> nginx.agent.v1.AgentMessage
-	15, // 43: nginx.agent.v1.AgentService.GetConfig:input_type -> nginx.agent.v1.ConfigRequest
-	21, // 44: nginx.agent.v1.AgentService.UpdateConfig:input_type -> nginx.agent.v1.ConfigUpdate
-	23, // 45: nginx.agent.v1.AgentService.ValidateConfig:input_type -> nginx.agent.v1.ConfigValidation
-	25, // 46: nginx.agent.v1.AgentService.ReloadNginx:input_type -> nginx.agent.v1.ReloadRequest
-	27, // 47: nginx.agent.v1.AgentService.RestartNginx:input_type -> nginx.agent.v1.RestartRequest
-	29, // 48: nginx.agent.v1.AgentService.StopNginx:input_type -> nginx.agent.v1.StopRequest
-	31, // 49: nginx.agent.v1.AgentService.ListCertificates:input_type -> nginx.agent.v1.CertListRequest
-	40, // 50: nginx.agent.v1.AgentService.GetLogs:input_type -> nginx.agent.v1.LogRequest
-	34, // 51: nginx.agent.v1.AgentService.ListAgents:input_type -> nginx.agent.v1.ListAgentsRequest
-	38, // 52: nginx.agent.v1.AgentService.GetAgent:input_type -> nginx.agent.v1.GetAgentRequest
-	36, // 53: nginx.agent.v1.AgentService.RemoveAgent:input_type -> nginx.agent.v1.RemoveAgentRequest
-	42, // 54: nginx.agent.v1.AgentService.GetUptimeReports:input_type -> nginx.agent.v1.UptimeRequest
-	45, // 55: nginx.agent.v1.AgentService.GetAnalytics:input_type -> nginx.agent.v1.AnalyticsRequest
-	60, // 56: nginx.agent.v1.AgentService.GetRecommendations:input_type -> nginx.agent.v1.RecommendationRequest
-	48, // 57: nginx.agent.v1.AgentService.ApplyAugment:input_type -> nginx.agent.v1.ApplyAugmentRequest
-	13, // 58: nginx.agent.v1.AgentService.UpdateAgent:input_type -> nginx.agent.v1.UpdateAgentRequest
-	4,  // 59: nginx.agent.v1.Commander.Connect:output_type -> nginx.agent.v1.ServerCommand
-	16, // 60: nginx.agent.v1.AgentService.GetConfig:output_type -> nginx.agent.v1.ConfigResponse
-	22, // 61: nginx.agent.v1.AgentService.UpdateConfig:output_type -> nginx.agent.v1.ConfigUpdateResponse
-	24, // 62: nginx.agent.v1.AgentService.ValidateConfig:output_type -> nginx.agent.v1.ValidationResult
-	26, // 63: nginx.agent.v1.AgentService.ReloadNginx:output_type -> nginx.agent.v1.ReloadResponse
-	28, // 64: nginx.agent.v1.AgentService.RestartNginx:output_type -> nginx.agent.v1.RestartResponse
-	30, // 65: nginx.agent.v1.AgentService.StopNginx:output_type -> nginx.agent.v1.StopResponse
-	32, // 66: nginx.agent.v1.AgentService.ListCertificates:output_type -> nginx.agent.v1.CertListResponse
-	41, // 67: nginx.agent.v1.AgentService.GetLogs:output_type -> nginx.agent.v1.LogEntry
-	35, // 68: nginx.agent.v1.AgentService.ListAgents:output_type -> nginx.agent.v1.ListAgentsResponse
-	39, // 69: nginx.agent.v1.AgentService.GetAgent:output_type -> nginx.agent.v1.AgentInfo
-	37, // 70: nginx.agent.v1.AgentService.RemoveAgent:output_type -> nginx.agent.v1.RemoveAgentResponse
-	43, // 71: nginx.agent.v1.AgentService.GetUptimeReports:output_type -> nginx.agent.v1.UptimeResponse
-	46, // 72: nginx.agent.v1.AgentService.GetAnalytics:output_type -> nginx.agent.v1.AnalyticsResponse
-	61, // 73: nginx.agent.v1.AgentService.GetRecommendations:output_type -> nginx.agent.v1.RecommendationResponse
-	49, // 74: nginx.agent.v1.AgentService.ApplyAugment:output_type -> nginx.agent.v1.ApplyAugmentResponse
-	14, // 75: nginx.agent.v1.AgentService.UpdateAgent:output_type -> nginx.agent.v1.UpdateAgentResponse
-	59, // [59:76] is the sub-list for method output_type
-	42, // [42:59] is the sub-list for method input_type
-	42, // [42:42] is the sub-list for extension type_name
-	42, // [42:42] is the sub-list for extension extendee
-	0,  // [0:42] is the sub-list for field type_name
+	66, // 12: nginx.agent.v1.ConfigPush.files:type_name -> nginx.agent.v1.ConfigPush.FilesEntry
+	19, // 13: nginx.agent.v1.ConfigResponse.config:type_name -> nginx.agent.v1.NginxConfig
+	20, // 14: nginx.agent.v1.NginxConfig.servers:type_name -> nginx.agent.v1.ServerBlock
+	22, // 15: nginx.agent.v1.NginxConfig.upstreams:type_name -> nginx.agent.v1.UpstreamBlock
+	21, // 16: nginx.agent.v1.ServerBlock.locations:type_name -> nginx.agent.v1.LocationBlock
+	67, // 17: nginx.agent.v1.ServerBlock.ssl_config:type_name -> nginx.agent.v1.ServerBlock.SslConfigEntry
+	68, // 18: nginx.agent.v1.ServerBlock.directives:type_name -> nginx.agent.v1.ServerBlock.DirectivesEntry
+	69, // 19: nginx.agent.v1.LocationBlock.directives:type_name -> nginx.agent.v1.LocationBlock.DirectivesEntry
+	70, // 20: nginx.agent.v1.UpstreamBlock.directives:type_name -> nginx.agent.v1.UpstreamBlock.DirectivesEntry
+	35, // 21: nginx.agent.v1.CertListResponse.certificates:type_name -> nginx.agent.v1.Certificate
+	41, // 22: nginx.agent.v1.ListAgentsResponse.agents:type_name -> nginx.agent.v1.AgentInfo
+	46, // 23: nginx.agent.v1.UptimeResponse.reports:type_name -> nginx.agent.v1.UptimeReport
+	57, // 24: nginx.agent.v1.AnalyticsResponse.request_rate:type_name -> nginx.agent.v1.TimeSeriesPoint
+	58, // 25: nginx.agent.v1.AnalyticsResponse.status_distribution:type_name -> nginx.agent.v1.StatusCount
+	59, // 26: nginx.agent.v1.AnalyticsResponse.latency_trend:type_name -> nginx.agent.v1.LatencyPercentiles
+	62, // 27: nginx.agent.v1.AnalyticsResponse.top_endpoints:type_name -> nginx.agent.v1.EndpointStat
+	56, // 28: nginx.agent.v1.AnalyticsResponse.connections_history:type_name -> nginx.agent.v1.NginxMetricPoint
+	53, // 29: nginx.agent.v1.AnalyticsResponse.summary:type_name -> nginx.agent.v1.AnalyticsSummary
+	54, // 30: nginx.agent.v1.AnalyticsResponse.latency_distribution:type_name -> nginx.agent.v1.LatencyBucket
+	55, // 31: nginx.agent.v1.AnalyticsResponse.server_distribution:type_name -> nginx.agent.v1.ServerStat
+	60, // 32: nginx.agent.v1.AnalyticsResponse.system_metrics:type_name -> nginx.agent.v1.SystemMetricPoint
+	61, // 33: nginx.agent.v1.AnalyticsResponse.http_status_metrics:type_name -> nginx.agent.v1.HttpStatusMetricsResponse
+	50, // 34: nginx.agent.v1.AnalyticsResponse.insights:type_name -> nginx.agent.v1.Insight
+	43, // 35: nginx.agent.v1.AnalyticsResponse.recent_requests:type_name -> nginx.agent.v1.LogEntry
+	49, // 36: nginx.agent.v1.AnalyticsResponse.gateway_metrics:type_name -> nginx.agent.v1.GatewayMetricPoint
+	12, // 37: nginx.agent.v1.ApplyAugmentRequest.augment:type_name -> nginx.agent.v1.ConfigAugment
+	57, // 38: nginx.agent.v1.HttpStatusMetricsResponse.status_2xx_5min:type_name -> nginx.agent.v1.TimeSeriesPoint
+	57, // 39: nginx.agent.v1.HttpStatusMetricsResponse.status_4xx_5min:type_name -> nginx.agent.v1.TimeSeriesPoint
+	57, // 40: nginx.agent.v1.HttpStatusMetricsResponse.status_3xx:type_name -> nginx.agent.v1.TimeSeriesPoint
+	57, // 41: nginx.agent.v1.HttpStatusMetricsResponse.status_5xx:type_name -> nginx.agent.v1.TimeSeriesPoint
+	65, // 42: nginx.agent.v1.RecommendationResponse.recommendations:type_name -> nginx.agent.v1.Recommendation
+	0,  // 43: nginx.agent.v1.Commander.Connect:input_type -> nginx.agent.v1.AgentMessage
+	17, // 44: nginx.agent.v1.AgentService.GetConfig:input_type -> nginx.agent.v1.ConfigRequest
+	23, // 45: nginx.agent.v1.AgentService.UpdateConfig:input_type -> nginx.agent.v1.ConfigUpdate
+	25, // 46: nginx.agent.v1.AgentService.ValidateConfig:input_type -> nginx.agent.v1.ConfigValidation
+	27, // 47: nginx.agent.v1.AgentService.ReloadNginx:input_type -> nginx.agent.v1.ReloadRequest
+	29, // 48: nginx.agent.v1.AgentService.RestartNginx:input_type -> nginx.agent.v1.RestartRequest
+	31, // 49: nginx.agent.v1.AgentService.StopNginx:input_type -> nginx.agent.v1.StopRequest
+	33, // 50: nginx.agent.v1.AgentService.ListCertificates:input_type -> nginx.agent.v1.CertListRequest
+	42, // 51: nginx.agent.v1.AgentService.GetLogs:input_type -> nginx.agent.v1.LogRequest
+	36, // 52: nginx.agent.v1.AgentService.ListAgents:input_type -> nginx.agent.v1.ListAgentsRequest
+	40, // 53: nginx.agent.v1.AgentService.GetAgent:input_type -> nginx.agent.v1.GetAgentRequest
+	38, // 54: nginx.agent.v1.AgentService.RemoveAgent:input_type -> nginx.agent.v1.RemoveAgentRequest
+	44, // 55: nginx.agent.v1.AgentService.GetUptimeReports:input_type -> nginx.agent.v1.UptimeRequest
+	47, // 56: nginx.agent.v1.AgentService.GetAnalytics:input_type -> nginx.agent.v1.AnalyticsRequest
+	63, // 57: nginx.agent.v1.AgentService.GetRecommendations:input_type -> nginx.agent.v1.RecommendationRequest
+	51, // 58: nginx.agent.v1.AgentService.ApplyAugment:input_type -> nginx.agent.v1.ApplyAugmentRequest
+	15, // 59: nginx.agent.v1.AgentService.UpdateAgent:input_type -> nginx.agent.v1.UpdateAgentRequest
+	13, // 60: nginx.agent.v1.AgentService.Execute:input_type -> nginx.agent.v1.ExecRequest
+	4,  // 61: nginx.agent.v1.Commander.Connect:output_type -> nginx.agent.v1.ServerCommand
+	18, // 62: nginx.agent.v1.AgentService.GetConfig:output_type -> nginx.agent.v1.ConfigResponse
+	24, // 63: nginx.agent.v1.AgentService.UpdateConfig:output_type -> nginx.agent.v1.ConfigUpdateResponse
+	26, // 64: nginx.agent.v1.AgentService.ValidateConfig:output_type -> nginx.agent.v1.ValidationResult
+	28, // 65: nginx.agent.v1.AgentService.ReloadNginx:output_type -> nginx.agent.v1.ReloadResponse
+	30, // 66: nginx.agent.v1.AgentService.RestartNginx:output_type -> nginx.agent.v1.RestartResponse
+	32, // 67: nginx.agent.v1.AgentService.StopNginx:output_type -> nginx.agent.v1.StopResponse
+	34, // 68: nginx.agent.v1.AgentService.ListCertificates:output_type -> nginx.agent.v1.CertListResponse
+	43, // 69: nginx.agent.v1.AgentService.GetLogs:output_type -> nginx.agent.v1.LogEntry
+	37, // 70: nginx.agent.v1.AgentService.ListAgents:output_type -> nginx.agent.v1.ListAgentsResponse
+	41, // 71: nginx.agent.v1.AgentService.GetAgent:output_type -> nginx.agent.v1.AgentInfo
+	39, // 72: nginx.agent.v1.AgentService.RemoveAgent:output_type -> nginx.agent.v1.RemoveAgentResponse
+	45, // 73: nginx.agent.v1.AgentService.GetUptimeReports:output_type -> nginx.agent.v1.UptimeResponse
+	48, // 74: nginx.agent.v1.AgentService.GetAnalytics:output_type -> nginx.agent.v1.AnalyticsResponse
+	64, // 75: nginx.agent.v1.AgentService.GetRecommendations:output_type -> nginx.agent.v1.RecommendationResponse
+	52, // 76: nginx.agent.v1.AgentService.ApplyAugment:output_type -> nginx.agent.v1.ApplyAugmentResponse
+	16, // 77: nginx.agent.v1.AgentService.UpdateAgent:output_type -> nginx.agent.v1.UpdateAgentResponse
+	14, // 78: nginx.agent.v1.AgentService.Execute:output_type -> nginx.agent.v1.ExecResponse
+	61, // [61:79] is the sub-list for method output_type
+	43, // [43:61] is the sub-list for method input_type
+	43, // [43:43] is the sub-list for extension type_name
+	43, // [43:43] is the sub-list for extension extendee
+	0,  // [0:43] is the sub-list for field type_name
 }
 
 func init() { file_agent_proto_init() }
@@ -5113,7 +5361,7 @@ func file_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_agent_proto_rawDesc), len(file_agent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   68,
+			NumMessages:   71,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

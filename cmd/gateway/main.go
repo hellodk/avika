@@ -8,12 +8,17 @@ import (
 	"log"
 	"net"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/segmentio/kafka-go"
 	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+
+	"net/http"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -23,16 +28,18 @@ import (
 // ... existing code ...
 
 type EndpointStats struct {
-	Requests int64
-	Errors   int64
-	Latency  float64 // Sum of latency
-	P95      float64 // Approximate
+	Requests  int64
+	Errors    int64
+	Latency   float64 // Sum of latency
+	P95       float64 // Approximate
+	BytesSent int64
 }
 
 type AnalyticsCache struct {
 	sync.RWMutex
 	TotalRequests  int64
 	TotalErrors    int64
+	TotalBytes     int64
 	StatusCodes    map[string]int64
 	EndpointStats  map[string]*EndpointStats
 	RequestHistory []*pb.TimeSeriesPoint // Last 24h by hour or minute
@@ -55,6 +62,11 @@ type server struct {
 	db         *DB
 	clickhouse *ClickHouseDB
 	analytics  *AnalyticsCache // Keep for legacy/fallback or remove later
+
+	// Monitoring stats (atomic)
+	messageCount int64 // total messages received since last tick
+	dbLatencySum int64 // sum of DB latency in ns (use atomic)
+	dbOpCount    int64 // total DB operations since last tick
 }
 
 type AgentSession struct {
@@ -110,7 +122,8 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 		}
 
 		// Log message
-		log.Printf("Received message from agent %s: type %T", msg.AgentId, msg.Payload)
+		// log.Printf("Received message from agent %s: type %T", msg.AgentId, msg.Payload)
+		atomic.AddInt64(&s.messageCount, 1)
 
 		switch payload := msg.Payload.(type) {
 		case *pb.AgentMessage_Heartbeat:
@@ -222,9 +235,11 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				if s.clickhouse != nil {
 					// Async insert/batching would be better, but sync for now
 					go func(e *pb.LogEntry, agentID string) {
+						start := time.Now()
 						if err := s.clickhouse.InsertAccessLog(e, agentID); err != nil {
 							log.Printf("Failed to insert log to CH: %v", err)
 						}
+						s.trackDBOp(start)
 					}(entry, currentSession.id)
 				}
 
@@ -244,10 +259,12 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				}
 				stats := s.analytics.EndpointStats[entry.RequestUri]
 				stats.Requests++
+				stats.BytesSent += entry.BodyBytesSent
 				if entry.Status >= 400 {
 					stats.Errors++
 				}
 				stats.Latency += float64(entry.RequestTime)
+				s.analytics.TotalBytes += entry.BodyBytesSent
 
 				// Update TimeSeries (bucketing by hour for simplicity in this snippet)
 				// In a real impl, we'd have a ticker to create new buckets.
@@ -280,23 +297,93 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				// Insert NGINX metrics
 				if s.clickhouse != nil {
 					go func(m *pb.NginxMetrics, agentID string) {
+						start := time.Now()
 						if err := s.clickhouse.InsertNginxMetrics(m, agentID); err != nil {
 							log.Printf("Failed to insert NGINX metrics to CH: %v", err)
 						}
+						s.trackDBOp(start)
 					}(metrics, currentSession.id)
 
 					// Insert system metrics if present
 					if metrics.System != nil {
 						go func(sm *pb.SystemMetrics, agentID string) {
+							start := time.Now()
 							if err := s.clickhouse.InsertSystemMetrics(sm, agentID); err != nil {
 								log.Printf("Failed to insert system metrics to CH: %v", err)
 							}
+							s.trackDBOp(start)
 						}(metrics.System, currentSession.id)
 					}
 				}
 			}
 		}
 	}
+}
+
+func (s *server) trackDBOp(start time.Time) {
+	atomic.AddInt64(&s.dbOpCount, 1)
+	atomic.AddInt64(&s.dbLatencySum, int64(time.Since(start).Nanoseconds()))
+}
+
+func (s *server) startGatewayMonitoring() {
+	ticker := time.NewTicker(10 * time.Second)
+	gatewayID := os.Getenv("GATEWAY_ID")
+	if gatewayID == "" {
+		hostname, _ := os.Hostname()
+		gatewayID = hostname
+	}
+
+	log.Printf("Starting gateway monitoring for %s", gatewayID)
+
+	go func() {
+		for range ticker.C {
+			// 1. Collect EPS (Events Per Second)
+			msgs := atomic.SwapInt64(&s.messageCount, 0)
+			eps := float32(msgs) / 10.0
+
+			// 2. Collect Active Connections
+			activeConns := 0
+			s.sessions.Range(func(key, value interface{}) bool {
+				session := value.(*AgentSession)
+				if session.status == "online" {
+					activeConns++
+				}
+				return true
+			})
+
+			// 3. Collect System Stats
+			var m runtime.MemStats
+			runtime.ReadMemStats(&m)
+			memMB := float32(m.Alloc) / 1024 / 1024
+			goro := uint32(runtime.NumGoroutine())
+
+			// 4. Collect DB Latency
+			dbOps := atomic.SwapInt64(&s.dbOpCount, 0)
+			dbLatSum := atomic.SwapInt64(&s.dbLatencySum, 0)
+			avgDBLat := float32(0)
+			if dbOps > 0 {
+				avgDBLat = float32(dbLatSum) / float32(dbOps) / 1000000.0 // ns to ms
+			}
+
+			// 5. CPU Usage (simple mock for now)
+			cpu := float32(0.5)
+
+			// 6. Persist to ClickHouse
+			if s.clickhouse != nil {
+				metricPoint := &pb.GatewayMetricPoint{
+					Eps:               eps,
+					ActiveConnections: int32(activeConns),
+					CpuUsage:          cpu,
+					MemoryMb:          memMB,
+					Goroutines:        int32(goro),
+					DbLatency:         avgDBLat,
+				}
+				if err := s.clickhouse.InsertGatewayMetrics(gatewayID, metricPoint); err != nil {
+					log.Printf("Failed to persist gateway metrics: %v", err)
+				}
+			}
+		}
+	}()
 }
 
 func (s *server) GetLogs(req *pb.LogRequest, stream pb.AgentService_GetLogsServer) error {
@@ -413,6 +500,9 @@ func (s *server) GetAgent(ctx context.Context, req *pb.GetAgentRequest) (*pb.Age
 		Uptime:         session.uptime,
 		Ip:             session.ip,
 		LastSeen:       session.lastActive.Unix(),
+		IsPod:          session.isPod,
+		PodIp:          session.podIP,
+		AgentVersion:   session.agentVersion,
 	}, nil
 }
 
@@ -549,7 +639,7 @@ func (s *server) GetAnalytics(ctx context.Context, req *pb.AnalyticsRequest) (*p
 			Requests: v.Requests,
 			Errors:   v.Errors,
 			P95:      float32(avgLat * 1.5), // Approximation for MVP
-			Traffic:  "1.2 MB",              // Mock for now
+			Traffic:  formatBytes(v.BytesSent),
 		})
 	}
 
@@ -580,11 +670,14 @@ func (s *server) GetRecommendations(ctx context.Context, req *pb.RecommendationR
 func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.ClientConn, error) {
 	val, ok := s.sessions.Load(agentID)
 	if !ok {
+		log.Printf("Agent lookup failed for ID: %s", agentID)
 		return nil, nil, fmt.Errorf("agent %s not found", agentID)
 	}
 	session := val.(*AgentSession)
+	log.Printf("Found session for %s, dialing %s:50052", agentID, session.ip)
 
 	if session.ip == "" {
+		log.Printf("Agent %s has no IP", agentID)
 		return nil, nil, fmt.Errorf("agent %s has no IP", agentID)
 	}
 
@@ -596,6 +689,55 @@ func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.Cl
 	}
 
 	return pb.NewAgentServiceClient(conn), conn, nil
+}
+
+func (s *server) Execute(stream pb.AgentService_ExecuteServer) error {
+	// Need to get instance_id from first message
+	req, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+
+	client, conn, err := s.getAgentClient(req.InstanceId)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	agentStream, err := client.Execute(stream.Context())
+	if err != nil {
+		return err
+	}
+
+	// Forward first message
+	if err := agentStream.Send(req); err != nil {
+		return err
+	}
+
+	// Proxy from frontend to agent
+	go func() {
+		for {
+			req, err := stream.Recv()
+			if err != nil {
+				return
+			}
+			agentStream.Send(req)
+		}
+	}()
+
+	// Proxy from agent back to frontend
+	for {
+		resp, err := agentStream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if err := stream.Send(resp); err != nil {
+			return err
+		}
+	}
 }
 
 func (s *server) GetConfig(ctx context.Context, req *pb.ConfigRequest) (*pb.ConfigResponse, error) {
@@ -683,7 +825,7 @@ func (s *server) startUptimeCrawler() {
 				}
 
 				status := "UP"
-				latency := 10.5 // mock latency
+				latency := 0.0 // Real probes not implemented yet, using 0 instead of mock
 				var errStr string
 
 				// In a real crawler, we'd do:
@@ -880,6 +1022,8 @@ func main() {
 	srv.startUptimeCrawler()
 	srv.startRecommendationConsumer()
 	srv.startBackgroundPruning()
+	srv.startGatewayMonitoring()
+	go srv.startWebSocketServer()
 
 	pb.RegisterCommanderServer(s, srv)
 	pb.RegisterAgentServiceServer(s, srv)
@@ -887,4 +1031,126 @@ func main() {
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
+}
+
+func (srv *server) startWebSocketServer() {
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+
+	http.HandleFunc("/terminal", func(w http.ResponseWriter, r *http.Request) {
+		agentID := r.URL.Query().Get("agent_id")
+		log.Printf("Terminal request for agent: %s", agentID)
+		if agentID == "" {
+			http.Error(w, "agent_id is required", 400)
+			return
+		}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Printf("WS upgrade error for agent %s: %v", agentID, err)
+			return
+		}
+		log.Printf("WS upgraded for agent %s", agentID)
+		defer ws.Close()
+
+		client, conn, err := srv.getAgentClient(agentID)
+		if err != nil {
+			log.Printf("Terminal error: agent %s client failed: %v", agentID, err)
+			ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nError connecting to agent: %v\r\n", err)))
+			return
+		}
+		defer func() {
+			log.Printf("Closing gRPC connection for terminal session %s", agentID)
+			conn.Close()
+		}()
+
+		// Create a persistent context for the whole session
+		sessionCtx, sessionCancel := context.WithCancel(context.Background())
+		defer sessionCancel()
+
+		stream, err := client.Execute(sessionCtx)
+		if err != nil {
+			log.Printf("Terminal error: exec stream failed for %s: %v", agentID, err)
+			ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nError starting exec: %v\r\n", err)))
+			return
+		}
+		log.Printf("Exec stream established for agent %s", agentID)
+
+		// Initial message to set instance_id and command
+		cmd := r.URL.Query().Get("command")
+		if cmd == "" {
+			cmd = "/bin/bash"
+		}
+		if err := stream.Send(&pb.ExecRequest{
+			InstanceId: agentID,
+			Command:    cmd,
+		}); err != nil {
+			log.Printf("Terminal error: failed to send initial request to %s: %v", agentID, err)
+			ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nError initializing: %v\r\n", err)))
+			return
+		}
+		log.Printf("Initial exec request sent for agent %s (cmd: %s)", agentID, cmd)
+
+		// WS -> gRPC
+		go func() {
+			defer sessionCancel()
+			for {
+				_, msg, err := ws.ReadMessage()
+				if err != nil {
+					log.Printf("WS read error for agent %s: %v", agentID, err)
+					return
+				}
+				if err := stream.Send(&pb.ExecRequest{Input: msg}); err != nil {
+					log.Printf("gRPC send error for agent %s: %v", agentID, err)
+					return
+				}
+			}
+		}()
+
+		// gRPC -> WS
+		log.Printf("Starting gRPC -> WS proxy for agent %s", agentID)
+		for {
+			resp, err := stream.Recv()
+			if err == io.EOF {
+				log.Printf("gRPC stream closed (EOF) for %s", agentID)
+				break
+			}
+			if err != nil {
+				log.Printf("gRPC recv error for agent %s: %v", agentID, err)
+				ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nTerminal stream error: %v\r\n", err)))
+				break
+			}
+			if len(resp.Output) > 0 {
+				if err := ws.WriteMessage(websocket.BinaryMessage, resp.Output); err != nil {
+					log.Printf("WS write error for agent %s: %v", agentID, err)
+					break
+				}
+			}
+			if resp.Error != "" {
+				log.Printf("Exec error reported by agent %s: %s", agentID, resp.Error)
+				ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nError from agent: %s\r\n", resp.Error)))
+				break
+			}
+		}
+		log.Printf("Terminal session ended for agent %s", agentID)
+	})
+
+	log.Printf("Terminal WebSocket server listening on :50053")
+	if err := http.ListenAndServe(":50053", nil); err != nil {
+		log.Printf("WS server error: %v", err)
+	}
+}
+
+func formatBytes(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
