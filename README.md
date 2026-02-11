@@ -4,9 +4,9 @@ A production-grade NGINX Management & Monitoring Application enhanced with AI-dr
 
 ## Architecture
 
-The system consists of four primary components:
+The system consists of four primary components (see [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for a deep dive):
 
-1.  **Agent (Go)**: Deployed alongside NGINX instances. It collects metrics, tails logs, and manages NGINX configuration/certificates.
+1.  **Agent (Go)**: Deployed alongside NGINX instances. It collects metrics, tails logs, and manages NGINX configuration/certificates. Supports [automated self-updates](./cmd/agent/README.md).
 2.  **Gateway (Go)**: Central command and control server. It manages agent sessions, streams logs to the UI, and provides a gRPC API for the frontend.
 3.  **AI Engine (Python/Bytewax)**: Consumes telemetry from Kafka. It uses machine learning to detect anomalies and correlates logs for Root Cause Analysis (RCA).
 4.  **Frontend (Next.js)**: A modern web interface for managing the NGINX fleet, viewing real-time logs, and analyzing performance via AI-driven dashboards.

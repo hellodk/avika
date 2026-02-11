@@ -1,32 +1,145 @@
-# Binaries
-bin/
+# ============================================================================
+# Sensitive Files - NEVER COMMIT THESE
+# ============================================================================
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+.env.test
+
+# Credentials and secrets
+credentials.json
+secrets.yaml
+secrets.yml
+config/secrets.yml
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+
+# Docker secrets
+docker-compose.override.yml
+.docker/config.json
+
+# Cloud provider credentials
+.aws/credentials
+.gcp/credentials.json
+.azure/credentials
+
+# ============================================================================
+# Build outputs
+# ============================================================================
+
+# Go
+/agent
+/gateway
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+*.test
+*.out
+vendor/
+go.work
+
+# Node.js / Frontend
+node_modules/
+.next/
+out/
+build/
+dist/
+.cache/
+.turbo/
+.vercel/
+
+# ============================================================================
+# Development files
+# ============================================================================
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.iml
 
 # Logs
 *.log
-agent.log
-frontend.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Buffer data
-agent.wal
-agent.cursor
+# Testing
+coverage/
+*.cover
+.hypothesis/
+.pytest_cache/
+.tox/
 
-# Temp
-temp_helm_out/
+# ============================================================================
+# Database files
+# ============================================================================
 
-# IDE
-.vscode/
-.idea/
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
 
-# Dependencies
-vendor/
-node_modules/
-dist/
-.next/
+# PostgreSQL
+*.dump
+*.sql.gz
 
-# Agent ID
-.agent_id
+# ============================================================================
+# Temporary files
+# ============================================================================
+
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+*.old
+.cache/
+
+# OS files
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ============================================================================
+# Application specific
+# ============================================================================
+
+# Buffer/WAL files
+buffer/
+wal/
+*.wal
+
+# Certificates (generated)
+certs/
+ssl/
+
+# Local configuration overrides
+config.local.yml
+config.override.yml
+
+# ============================================================================
+# CI/CD artifacts
+# ============================================================================
+
+.github/workflows/*.log

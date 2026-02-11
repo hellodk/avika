@@ -1,6 +1,7 @@
 package logs
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -8,7 +9,7 @@ import (
 	"time"
 
 	"github.com/hpcloud/tail"
-	pb "github.com/user/nginx-manager/api/proto"
+	pb "github.com/user/nginx-manager/internal/common/proto/agent"
 )
 
 type Parser struct {
@@ -16,13 +17,32 @@ type Parser struct {
 	regex     *regexp.Regexp
 }
 
-// NewParser creates a parser for NGINX access logs
-// Supports the "combined" log format by default
-func NewParser() *Parser {
-	// NGINX combined log format regex
-	// Example: 192.168.1.1 - - [07/Feb/2024:14:30:15 +0530] "GET /api/users HTTP/1.1" 200 1234 "-" "Mozilla/5.0"
-	pattern := `^(\S+) \S+ \S+ \[([^\]]+)\] "(\S+) (\S+) \S+" (\d+) (\d+) "([^"]*)" "([^"]*)"`
+type jsonLog struct {
+	Ts       string  `json:"ts"`
+	ReqID    string  `json:"req_id"`
+	Client   string  `json:"client"`
+	Method   string  `json:"method"`
+	Path     string  `json:"path"`
+	Status   int32   `json:"status"`
+	Bytes    int64   `json:"bytes"`
+	Rt       float32 `json:"rt"`
+	Uct      string  `json:"uct"`
+	Uht      string  `json:"uht"`
+	Urt      string  `json:"urt"`
+	Upstream string  `json:"upstream"`
+	Ustatus  string  `json:"ustatus"`
+	Referer  string  `json:"referer"`
+	UA       string  `json:"ua"`
+}
 
+// NewParser creates a parser for NGINX access logs
+func NewParser(format string) *Parser {
+	if format == "json" {
+		return &Parser{logFormat: "json"}
+	}
+
+	// NGINX combined log format regex
+	pattern := `^(\S+) \S+ \S+ \[([^\]]+)\] "(\S+) (\S+) \S+" (\d+) (\d+) "([^"]*)" "([^"]*)"`
 	return &Parser{
 		logFormat: "combined",
 		regex:     regexp.MustCompile(pattern),
@@ -31,9 +51,15 @@ func NewParser() *Parser {
 
 // ParseLine parses a single access log line
 func (p *Parser) ParseLine(line string) (*pb.LogEntry, error) {
-	matches := p.regex.FindStringSubmatch(line)
-	if len(matches) < 9 {
-		// Return unparsed entry
+	if p.logFormat == "json" || strings.HasPrefix(strings.TrimSpace(line), "{") {
+		return p.parseJSON(line)
+	}
+	return p.parseCombined(line)
+}
+
+func (p *Parser) parseJSON(line string) (*pb.LogEntry, error) {
+	var jl jsonLog
+	if err := json.Unmarshal([]byte(line), &jl); err != nil {
 		return &pb.LogEntry{
 			Timestamp: time.Now().Unix(),
 			LogType:   "access",
@@ -41,13 +67,53 @@ func (p *Parser) ParseLine(line string) (*pb.LogEntry, error) {
 		}, nil
 	}
 
-	// Parse timestamp
+	ts, _ := time.Parse(time.RFC3339, jl.Ts)
+	if jl.Ts == "" {
+		ts = time.Now()
+	}
+
+	// Helper to parse float from string (some NGINX vars can be "-")
+	parseFloat := func(s string) float32 {
+		if s == "-" || s == "" {
+			return 0
+		}
+		f, _ := strconv.ParseFloat(s, 32)
+		return float32(f)
+	}
+
+	return &pb.LogEntry{
+		Timestamp:            ts.Unix(),
+		LogType:              "access",
+		Content:              line,
+		RemoteAddr:           jl.Client,
+		RequestMethod:        jl.Method,
+		RequestUri:           jl.Path,
+		Status:               jl.Status,
+		BodyBytesSent:        jl.Bytes,
+		RequestTime:          jl.Rt,
+		RequestId:            jl.ReqID,
+		UpstreamAddr:         jl.Upstream,
+		UpstreamStatus:       jl.Ustatus,
+		UpstreamConnectTime:  parseFloat(jl.Uct),
+		UpstreamHeaderTime:   parseFloat(jl.Uht),
+		UpstreamResponseTime: parseFloat(jl.Urt),
+		Referer:              jl.Referer,
+		UserAgent:            jl.UA,
+	}, nil
+}
+
+func (p *Parser) parseCombined(line string) (*pb.LogEntry, error) {
+	matches := p.regex.FindStringSubmatch(line)
+	if len(matches) < 9 {
+		return &pb.LogEntry{
+			Timestamp: time.Now().Unix(),
+			LogType:   "access",
+			Content:   line,
+		}, nil
+	}
+
 	timestamp, _ := time.Parse("02/Jan/2006:15:04:05 -0700", matches[2])
-
-	// Parse status code
 	status, _ := strconv.Atoi(matches[5])
-
-	// Parse bytes sent
 	bytesSent, _ := strconv.ParseInt(matches[6], 10, 64)
 
 	return &pb.LogEntry{
@@ -59,17 +125,17 @@ func (p *Parser) ParseLine(line string) (*pb.LogEntry, error) {
 		RequestUri:    matches[4],
 		Status:        int32(status),
 		BodyBytesSent: bytesSent,
-		RequestTime:   0, // Would need $request_time in log format
 	}, nil
 }
 
 type Tailer struct {
-	logPath string
-	tail    *tail.Tail
+	logPath   string
+	logFormat string
+	tail      *tail.Tail
 }
 
-func NewTailer(logPath string) *Tailer {
-	return &Tailer{logPath: logPath}
+func NewTailer(logPath, format string) *Tailer {
+	return &Tailer{logPath: logPath, logFormat: format}
 }
 
 // Start begins tailing the log file
@@ -91,7 +157,7 @@ func (t *Tailer) Start() (<-chan *pb.LogEntry, error) {
 
 	t.tail = tailFile
 
-	parser := NewParser()
+	parser := NewParser(t.logFormat)
 	entryChan := make(chan *pb.LogEntry, 100)
 
 	go func() {
@@ -140,7 +206,9 @@ func GetLastN(logPath string, n int) ([]*pb.LogEntry, error) {
 	}
 	defer tailFile.Stop()
 
-	parser := NewParser()
+	// For GetLastN, we assume combined unless specified, or we could pass format.
+	// Let's assume combined for now as it's a fallback/diagnostic tool.
+	parser := NewParser("combined")
 	entries := []*pb.LogEntry{}
 
 	for line := range tailFile.Lines {

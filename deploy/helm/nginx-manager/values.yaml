@@ -94,6 +94,7 @@ monitoring:
     interval: 30s
 
 # -- Global Settings --
+timezone: Asia/Kolkata
 nameOverride: ""
 fullnameOverride: ""
 

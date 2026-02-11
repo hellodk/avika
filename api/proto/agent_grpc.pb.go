@@ -128,6 +128,7 @@ const (
 	AgentService_ListCertificates_FullMethodName   = "/nginx.agent.v1.AgentService/ListCertificates"
 	AgentService_GetLogs_FullMethodName            = "/nginx.agent.v1.AgentService/GetLogs"
 	AgentService_ListAgents_FullMethodName         = "/nginx.agent.v1.AgentService/ListAgents"
+	AgentService_GetAgent_FullMethodName           = "/nginx.agent.v1.AgentService/GetAgent"
 	AgentService_RemoveAgent_FullMethodName        = "/nginx.agent.v1.AgentService/RemoveAgent"
 	AgentService_GetUptimeReports_FullMethodName   = "/nginx.agent.v1.AgentService/GetUptimeReports"
 	AgentService_GetAnalytics_FullMethodName       = "/nginx.agent.v1.AgentService/GetAnalytics"
@@ -149,6 +150,8 @@ type AgentServiceClient interface {
 	GetLogs(ctx context.Context, in *LogRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[LogEntry], error)
 	// List currently connected agents
 	ListAgents(ctx context.Context, in *ListAgentsRequest, opts ...grpc.CallOption) (*ListAgentsResponse, error)
+	// Get a single agent's info
+	GetAgent(ctx context.Context, in *GetAgentRequest, opts ...grpc.CallOption) (*AgentInfo, error)
 	// Remove an agent from inventory
 	RemoveAgent(ctx context.Context, in *RemoveAgentRequest, opts ...grpc.CallOption) (*RemoveAgentResponse, error)
 	// Uptime & Monitoring
@@ -246,6 +249,16 @@ func (c *agentServiceClient) ListAgents(ctx context.Context, in *ListAgentsReque
 	return out, nil
 }
 
+func (c *agentServiceClient) GetAgent(ctx context.Context, in *GetAgentRequest, opts ...grpc.CallOption) (*AgentInfo, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentInfo)
+	err := c.cc.Invoke(ctx, AgentService_GetAgent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *agentServiceClient) RemoveAgent(ctx context.Context, in *RemoveAgentRequest, opts ...grpc.CallOption) (*RemoveAgentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RemoveAgentResponse)
@@ -301,6 +314,8 @@ type AgentServiceServer interface {
 	GetLogs(*LogRequest, grpc.ServerStreamingServer[LogEntry]) error
 	// List currently connected agents
 	ListAgents(context.Context, *ListAgentsRequest) (*ListAgentsResponse, error)
+	// Get a single agent's info
+	GetAgent(context.Context, *GetAgentRequest) (*AgentInfo, error)
 	// Remove an agent from inventory
 	RemoveAgent(context.Context, *RemoveAgentRequest) (*RemoveAgentResponse, error)
 	// Uptime & Monitoring
@@ -339,6 +354,9 @@ func (UnimplementedAgentServiceServer) GetLogs(*LogRequest, grpc.ServerStreaming
 }
 func (UnimplementedAgentServiceServer) ListAgents(context.Context, *ListAgentsRequest) (*ListAgentsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAgents not implemented")
+}
+func (UnimplementedAgentServiceServer) GetAgent(context.Context, *GetAgentRequest) (*AgentInfo, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAgent not implemented")
 }
 func (UnimplementedAgentServiceServer) RemoveAgent(context.Context, *RemoveAgentRequest) (*RemoveAgentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RemoveAgent not implemented")
@@ -492,6 +510,24 @@ func _AgentService_ListAgents_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_GetAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAgentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetAgent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetAgent(ctx, req.(*GetAgentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AgentService_RemoveAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RemoveAgentRequest)
 	if err := dec(in); err != nil {
@@ -594,6 +630,10 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListAgents",
 			Handler:    _AgentService_ListAgents_Handler,
+		},
+		{
+			MethodName: "GetAgent",
+			Handler:    _AgentService_GetAgent_Handler,
 		},
 		{
 			MethodName: "RemoveAgent",

@@ -1,0 +1,78 @@
+---
+# Source: nginx-manager/templates/ai-engine.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: release-name-nginx-manager-ai-engine
+  labels:
+    helm.sh/chart: nginx-manager-0.1.0
+    app.kubernetes.io/name: nginx-manager
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+    component: ai-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-manager
+      app.kubernetes.io/instance: release-name
+      component: ai-engine
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-manager
+        app.kubernetes.io/instance: release-name
+        component: ai-engine
+    spec:
+      containers:
+        - name: ai-engine
+          image: "ai-engine:latest"
+          env:
+            - name: REDPANDA_BROKERS
+              value: "release-name-redpanda:9092"
+          resources:
+            limits:
+              memory: 1Gi
+---
+# Source: nginx-manager/templates/ai-engine.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: release-name-nginx-manager-log-aggregator
+  labels:
+    helm.sh/chart: nginx-manager-0.1.0
+    app.kubernetes.io/name: nginx-manager
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+    component: log-aggregator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-manager
+      app.kubernetes.io/instance: release-name
+      component: log-aggregator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-manager
+        app.kubernetes.io/instance: release-name
+        component: log-aggregator
+    spec:
+      containers:
+        - name: log-aggregator
+          image: "log-aggregator:latest"
+          env:
+            - name: REDPANDA_BROKERS
+              value: "release-name-redpanda:9092"
+            - name: CLICKHOUSE_HOST
+              value: "release-name-clickhouse"
+            - name: CLICKHOUSE_USER
+              value: "default"
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: release-name-nginx-manager-db-secrets
+                  key: clickhouse-password

@@ -12,9 +12,10 @@ import (
 	"time"
 
 	"github.com/segmentio/kafka-go"
-	pb "github.com/user/nginx-manager/api/proto"
+	pb "github.com/user/nginx-manager/internal/common/proto/agent"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/peer"
 )
 
@@ -58,7 +59,11 @@ type server struct {
 type AgentSession struct {
 	id             string
 	hostname       string
-	version        string
+	version        string // NGINX version
+	agentVersion   string // Agent binary version
+	buildDate      string // Build timestamp
+	gitCommit      string // Git commit hash
+	gitBranch      string // Git branch name
 	instancesCount int
 	uptime         string
 	ip             string
@@ -67,6 +72,8 @@ type AgentSession struct {
 	mu             sync.Mutex
 	lastActive     time.Time
 	status         string // "online" or "offline"
+	isPod          bool
+	podIP          string
 }
 
 func (s *server) Connect(stream pb.Commander_ConnectServer) error {
@@ -101,6 +108,8 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 			return err
 		}
 
+		log.Printf("Received message from agent %s: type %T", msg.AgentId, msg.Payload)
+
 		switch payload := msg.Payload.(type) {
 		case *pb.AgentMessage_Heartbeat:
 			// ... (existing heartbeat logic) ...
@@ -113,32 +122,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				displayVersion = hb.Instances[0].Version
 			}
 
-			// Register/Update session
-			val, loaded := s.sessions.Load(agentID)
-			if !loaded {
-				currentSession = &AgentSession{
-					id:             agentID,
-					hostname:       hb.Hostname,
-					version:        displayVersion,
-					instancesCount: len(hb.Instances),
-					uptime:         fmt.Sprintf("%.1fs", hb.Uptime),
-					stream:         stream,
-					logChans:       make(map[string]chan *pb.LogEntry),
-					status:         "online",
-					lastActive:     time.Now(),
-				}
-				s.sessions.Store(agentID, currentSession)
-				log.Printf("Registered agent %s (%s)", agentID, hb.Hostname)
-			} else {
-				// Reconnecting - update existing session
-				currentSession = val.(*AgentSession)
-				currentSession.mu.Lock()
-				currentSession.stream = stream
-				currentSession.status = "online"
-				currentSession.mu.Unlock()
-			}
-
-			// Extract IP
+			// 0. Extract IP from peer context
 			ip := "unknown"
 			if p, ok := peer.FromContext(stream.Context()); ok {
 				ip = p.Addr.String()
@@ -146,27 +130,71 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				if host, _, err := net.SplitHostPort(ip); err == nil {
 					ip = host
 				}
-				// Handle local docker internal IP mapping if needed, but raw IP is usually fine
 			}
 
-			// Update fields
-			currentSession.lastActive = time.Now()
-			currentSession.version = displayVersion
-			currentSession.instancesCount = len(hb.Instances)
-			currentSession.uptime = fmt.Sprintf("%.1fs", hb.Uptime)
-			currentSession.hostname = hb.Hostname
-			currentSession.ip = ip
+			// Register/Update session
+			// 1. Check if we already have this agent_id (exact match)
+			val, loaded := s.sessions.Load(agentID)
+
+			// 2. Deduplicate by ip: If another session exists with same ip but different ID, replace it.
+			if !loaded {
+				s.sessions.Range(func(k, v interface{}) bool {
+					other := v.(*AgentSession)
+					if other.ip == ip && other.id != agentID {
+						log.Printf("Deduplicating in-memory session: replacing %s with %s for %s (prev host: %s) at %s", other.id, agentID, hb.Hostname, other.hostname, ip)
+						s.sessions.Delete(k)
+						return false // Stop iteration
+					}
+					return true
+				})
+
+				currentSession = &AgentSession{
+					id:             agentID,
+					hostname:       hb.Hostname,
+					version:        displayVersion,
+					agentVersion:   hb.AgentVersion,
+					buildDate:      hb.BuildDate,
+					gitCommit:      hb.GitCommit,
+					gitBranch:      hb.GitBranch,
+					instancesCount: len(hb.Instances),
+					uptime:         fmt.Sprintf("%.1fs", hb.Uptime),
+					stream:         stream,
+					logChans:       make(map[string]chan *pb.LogEntry),
+					status:         "online",
+					lastActive:     time.Now(),
+					ip:             ip,
+				}
+				s.sessions.Store(agentID, currentSession)
+				log.Printf("Registered agent %s (%s) at %s", agentID, hb.Hostname, ip)
+			} else {
+				// Reconnecting - update existing session
+				currentSession = val.(*AgentSession)
+				currentSession.mu.Lock()
+				currentSession.stream = stream
+				currentSession.status = "online"
+				currentSession.hostname = hb.Hostname
+				currentSession.ip = ip
+				currentSession.version = displayVersion
+				currentSession.agentVersion = hb.AgentVersion
+				currentSession.buildDate = hb.BuildDate
+				currentSession.gitCommit = hb.GitCommit
+				currentSession.gitBranch = hb.GitBranch
+				currentSession.instancesCount = len(hb.Instances)
+				currentSession.uptime = fmt.Sprintf("%.2fs", hb.Uptime)
+				currentSession.isPod = hb.IsPod
+				currentSession.podIP = hb.PodIp
+				currentSession.lastActive = time.Now()
+				currentSession.mu.Unlock()
+			}
 
 			// Persist to DB
 			if err := s.db.UpsertAgent(currentSession); err != nil {
 				log.Printf("Failed to persist agent heartbeat: %v", err)
 			}
 
-			// Log heartbeat occasionally
-			if time.Now().Unix()%60 == 0 {
-				log.Printf("Heartbeat from %s (v%s) | NGINX Instances: %d",
-					hb.Hostname, hb.Version, len(hb.Instances))
-			}
+			// Log heartbeat
+			log.Printf("Heartbeat from %s (v%s) | NGINX Instances: %d",
+				hb.Hostname, hb.Version, len(hb.Instances))
 
 		case *pb.AgentMessage_LogEntry:
 			if currentSession != nil {
@@ -236,6 +264,29 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 
 				s.analytics.Unlock()
 			}
+
+		case *pb.AgentMessage_Metrics:
+			if currentSession != nil {
+				metrics := payload.Metrics
+
+				// Insert NGINX metrics
+				if s.clickhouse != nil {
+					go func(m *pb.NginxMetrics, agentID string) {
+						if err := s.clickhouse.InsertNginxMetrics(m, agentID); err != nil {
+							log.Printf("Failed to insert NGINX metrics to CH: %v", err)
+						}
+					}(metrics, currentSession.id)
+
+					// Insert system metrics if present
+					if metrics.System != nil {
+						go func(sm *pb.SystemMetrics, agentID string) {
+							if err := s.clickhouse.InsertSystemMetrics(sm, agentID); err != nil {
+								log.Printf("Failed to insert system metrics to CH: %v", err)
+							}
+						}(metrics.System, currentSession.id)
+					}
+				}
+			}
 		}
 	}
 }
@@ -296,7 +347,6 @@ func (s *server) GetLogs(req *pb.LogRequest, stream pb.AgentService_GetLogsServe
 		}
 	}
 }
-
 func (s *server) ListAgents(ctx context.Context, req *pb.ListAgentsRequest) (*pb.ListAgentsResponse, error) {
 	var agents []*pb.AgentInfo
 
@@ -312,16 +362,41 @@ func (s *server) ListAgents(ctx context.Context, req *pb.ListAgentsRequest) (*pb
 			AgentId:        session.id,
 			Hostname:       session.hostname,
 			Version:        session.version,
+			AgentVersion:   session.agentVersion,
 			Status:         status,
 			InstancesCount: int32(session.instancesCount),
 			Uptime:         session.uptime,
 			Ip:             session.ip,
 			LastSeen:       session.lastActive.Unix(),
+			IsPod:          session.isPod,
+			PodIp:          session.podIP,
+			BuildDate:      session.buildDate,
+			GitCommit:      session.gitCommit,
+			GitBranch:      session.gitBranch,
 		})
 		return true
 	})
 
 	return &pb.ListAgentsResponse{Agents: agents}, nil
+}
+
+func (s *server) GetAgent(ctx context.Context, req *pb.GetAgentRequest) (*pb.AgentInfo, error) {
+	val, ok := s.sessions.Load(req.AgentId)
+	if !ok {
+		return nil, fmt.Errorf("agent %s not found", req.AgentId)
+	}
+	session := val.(*AgentSession)
+
+	return &pb.AgentInfo{
+		AgentId:        session.id,
+		Hostname:       session.hostname,
+		Version:        session.version,
+		Status:         session.status,
+		InstancesCount: int32(session.instancesCount),
+		Uptime:         session.uptime,
+		Ip:             session.ip,
+		LastSeen:       session.lastActive.Unix(),
+	}, nil
 }
 
 func (s *server) RemoveAgent(ctx context.Context, req *pb.RemoveAgentRequest) (*pb.RemoveAgentResponse, error) {
@@ -338,6 +413,47 @@ func (s *server) RemoveAgent(ctx context.Context, req *pb.RemoveAgentRequest) (*
 		return &pb.RemoveAgentResponse{Success: true}, nil
 	}
 	return &pb.RemoveAgentResponse{Success: false}, nil
+}
+
+func (s *server) UpdateAgent(ctx context.Context, req *pb.UpdateAgentRequest) (*pb.UpdateAgentResponse, error) {
+	val, ok := s.sessions.Load(req.AgentId)
+	if !ok {
+		return nil, fmt.Errorf("agent %s not found", req.AgentId)
+	}
+	session := val.(*AgentSession)
+
+	session.mu.Lock()
+	defer session.mu.Unlock()
+
+	if session.status != "online" || session.stream == nil {
+		return &pb.UpdateAgentResponse{
+			Success: false,
+			Message: "Agent is offline or has no active stream",
+		}, nil
+	}
+
+	// Send update command
+	err := session.stream.Send(&pb.ServerCommand{
+		CommandId: fmt.Sprintf("upd-%d", time.Now().Unix()),
+		Payload: &pb.ServerCommand_Update{
+			Update: &pb.Update{
+				Version: "latest",
+			},
+		},
+	})
+
+	if err != nil {
+		return &pb.UpdateAgentResponse{
+			Success: false,
+			Message: fmt.Sprintf("Failed to send update command: %v", err),
+		}, nil
+	}
+
+	log.Printf("🚀 Triggered remote update for agent %s", req.AgentId)
+	return &pb.UpdateAgentResponse{
+		Success: true,
+		Message: "Update command sent to agent",
+	}, nil
 }
 
 func (s *server) GetUptimeReports(ctx context.Context, req *pb.UptimeRequest) (*pb.UptimeResponse, error) {
@@ -357,7 +473,7 @@ func (s *server) GetUptimeReports(ctx context.Context, req *pb.UptimeRequest) (*
 
 func (s *server) GetAnalytics(ctx context.Context, req *pb.AnalyticsRequest) (*pb.AnalyticsResponse, error) {
 	if s.clickhouse != nil {
-		return s.clickhouse.GetAnalytics(ctx, req.TimeWindow)
+		return s.clickhouse.GetAnalytics(ctx, req.TimeWindow, req.AgentId)
 	}
 
 	// Fallback to in-memory if ClickHouse not available
@@ -443,6 +559,97 @@ func (s *server) GetRecommendations(ctx context.Context, req *pb.RecommendationR
 	return &pb.RecommendationResponse{Recommendations: recs}, nil
 }
 
+func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.ClientConn, error) {
+	val, ok := s.sessions.Load(agentID)
+	if !ok {
+		return nil, nil, fmt.Errorf("agent %s not found", agentID)
+	}
+	session := val.(*AgentSession)
+
+	if session.ip == "" {
+		return nil, nil, fmt.Errorf("agent %s has no IP", agentID)
+	}
+
+	// Dial agent on port 50052
+	target := fmt.Sprintf("%s:50052", session.ip)
+	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to connect to agent %s: %v", agentID, err)
+	}
+
+	return pb.NewAgentServiceClient(conn), conn, nil
+}
+
+func (s *server) GetConfig(ctx context.Context, req *pb.ConfigRequest) (*pb.ConfigResponse, error) {
+	client, conn, err := s.getAgentClient(req.InstanceId)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	return client.GetConfig(ctx, req)
+}
+
+func (s *server) UpdateConfig(ctx context.Context, req *pb.ConfigUpdate) (*pb.ConfigUpdateResponse, error) {
+	client, conn, err := s.getAgentClient(req.InstanceId)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	return client.UpdateConfig(ctx, req)
+}
+
+func (s *server) ValidateConfig(ctx context.Context, req *pb.ConfigValidation) (*pb.ValidationResult, error) {
+	client, conn, err := s.getAgentClient(req.InstanceId)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	return client.ValidateConfig(ctx, req)
+}
+
+func (s *server) ReloadNginx(ctx context.Context, req *pb.ReloadRequest) (*pb.ReloadResponse, error) {
+	client, conn, err := s.getAgentClient(req.InstanceId)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	return client.ReloadNginx(ctx, req)
+}
+
+func (s *server) RestartNginx(ctx context.Context, req *pb.RestartRequest) (*pb.RestartResponse, error) {
+	client, conn, err := s.getAgentClient(req.InstanceId)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	return client.RestartNginx(ctx, req)
+}
+
+func (s *server) StopNginx(ctx context.Context, req *pb.StopRequest) (*pb.StopResponse, error) {
+	client, conn, err := s.getAgentClient(req.InstanceId)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	return client.StopNginx(ctx, req)
+}
+
+func (s *server) ListCertificates(ctx context.Context, req *pb.CertListRequest) (*pb.CertListResponse, error) {
+	client, conn, err := s.getAgentClient(req.InstanceId)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	return client.ListCertificates(ctx, req)
+}
+
 func (s *server) startUptimeCrawler() {
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {
@@ -495,15 +702,19 @@ func (s *server) startUptimeCrawler() {
 
 func (s *server) startRecommendationConsumer() {
 	go func() {
+		brokers := os.Getenv("KAFKA_BROKERS")
+		if brokers == "" {
+			brokers = "redpanda:9092"
+		}
 		r := kafka.NewReader(kafka.ReaderConfig{
-			Brokers:  []string{"redpanda:9092"},
+			Brokers:  []string{brokers},
 			Topic:    "optimization-recommendations",
 			GroupID:  "gateway-recommendation-consumer",
 			MinBytes: 10e3, // 10KB
 			MaxBytes: 10e6, // 10MB
 		})
 
-		log.Println("Started consuming recommendations from Kafka")
+		log.Printf("Started consuming recommendations from Kafka (%s)", brokers)
 
 		for {
 			m, err := r.ReadMessage(context.Background())
@@ -529,6 +740,46 @@ func (s *server) startRecommendationConsumer() {
 			s.recMu.Unlock()
 
 			log.Printf("Received recommendation: %s", rec.Title)
+		}
+	}()
+}
+
+func (srv *server) startBackgroundPruning() {
+	go func() {
+		// Prune more frequently (every 12 hours) to keep it clean
+		ticker := time.NewTicker(12 * time.Hour)
+		defer ticker.Stop()
+
+		// Retention is now 10 days for offline agents
+		retentionPeriod := 10 * 24 * time.Hour
+
+		prune := func() {
+			ids, err := srv.db.PruneStaleAgents(retentionPeriod)
+			if err != nil {
+				log.Printf("Failed to prune stale agents: %v", err)
+				return
+			}
+			if len(ids) > 0 {
+				log.Printf("Pruned %d stale agents (offline > 10 days): %v", len(ids), ids)
+
+				// Cleanup ClickHouse data for these agents
+				if srv.clickhouse != nil {
+					for _, id := range ids {
+						if err := srv.clickhouse.DeleteAgentData(id); err != nil {
+							log.Printf("Failed to cleanup ClickHouse data for pruned agent %s: %v", id, err)
+						} else {
+							log.Printf("Cleaned up ClickHouse analytics for pruned agent %s", id)
+						}
+					}
+				}
+			}
+		}
+
+		// Run once at startup
+		prune()
+
+		for range ticker.C {
+			prune()
 		}
 	}()
 }
@@ -575,6 +826,13 @@ func main() {
 		log.Println("Connected to ClickHouse database")
 	}
 
+	// Kafka configuration
+	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
+	if kafkaBrokers == "" {
+		kafkaBrokers = "redpanda:9092"
+	}
+	os.Setenv("KAFKA_BROKERS", kafkaBrokers) // Set for consumer usage
+
 	s := grpc.NewServer()
 	// Register services
 	srv := &server{
@@ -603,6 +861,7 @@ func main() {
 
 	srv.startUptimeCrawler()
 	srv.startRecommendationConsumer()
+	srv.startBackgroundPruning()
 
 	pb.RegisterCommanderServer(s, srv)
 	pb.RegisterAgentServiceServer(s, srv)

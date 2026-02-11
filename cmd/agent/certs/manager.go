@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	pb "github.com/user/nginx-manager/api/proto"
+	pb "github.com/user/nginx-manager/internal/common/proto/agent"
 )
 
 type Manager struct {

@@ -1,0 +1,78 @@
+---
+# Source: nginx-manager/templates/gateway.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: release-name-nginx-manager-gateway
+  labels:
+    helm.sh/chart: nginx-manager-0.1.0
+    app.kubernetes.io/name: nginx-manager
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+    component: gateway
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "50051"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 50051
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+  selector:
+    app.kubernetes.io/name: nginx-manager
+    app.kubernetes.io/instance: release-name
+    component: gateway
+---
+# Source: nginx-manager/templates/gateway.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: release-name-nginx-manager-gateway
+  labels:
+    helm.sh/chart: nginx-manager-0.1.0
+    app.kubernetes.io/name: nginx-manager
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+    component: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-manager
+      app.kubernetes.io/instance: release-name
+      component: gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-manager
+        app.kubernetes.io/instance: release-name
+        component: gateway
+    spec:
+      serviceAccountName: release-name-nginx-manager
+      containers:
+        - name: gateway
+          image: "gateway:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: grpc
+              containerPort: 50051
+              protocol: TCP
+          env:
+            - name: DB_DSN
+              value: "postgres://admin:$(POSTGRES_PASSWORD)@release-name-postgresql:5432/nginx_manager?sslmode=disable"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: release-name-nginx-manager-db-secrets
+                  key: postgres-password
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi

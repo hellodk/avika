@@ -38,6 +38,8 @@ spec:
                 secretKeyRef:
                   name: {{ include "nginx-manager.fullname" . }}-db-secrets
                   key: postgres-password
+            - name: TZ
+              value: {{ .Values.timezone | default "Asia/Kolkata" }}
           resources:
             {{- toYaml .Values.gateway.resources | nindent 12 }}
 ---

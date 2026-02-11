@@ -3,12 +3,13 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 
 	"github.com/shirou/gopsutil/v3/process"
-	pb "github.com/user/nginx-manager/api/proto"
+	pb "github.com/user/nginx-manager/internal/common/proto/agent"
 )
 
 type Discoverer struct{}
@@ -90,12 +91,32 @@ func getNginxVersion(exePath string) string {
 }
 
 func parseConfPath(cmdline string) string {
-	// naive parsing
+	// Parse from command line first
 	parts := strings.Split(cmdline, " ")
 	for i, part := range parts {
 		if part == "-c" && i+1 < len(parts) {
 			return parts[i+1]
 		}
 	}
-	return "/etc/nginx/nginx.conf" // Default
+
+	// Common Kubernetes ConfigMap mount paths
+	k8sPaths := []string{
+		"/etc/nginx/conf.d/nginx.conf",
+		"/etc/nginx/nginx.conf",
+		"/usr/local/nginx/conf/nginx.conf",
+		"/opt/nginx/conf/nginx.conf",
+	}
+
+	// Check if running in K8s (simple check for service account)
+	if _, err := os.Stat("/var/run/secrets/kubernetes.io/serviceaccount"); err == nil {
+		// Try K8s-specific paths first
+		for _, path := range k8sPaths {
+			if _, err := os.Stat(path); err == nil {
+				return path
+			}
+		}
+	}
+
+	// Default fallback
+	return "/etc/nginx/nginx.conf"
 }

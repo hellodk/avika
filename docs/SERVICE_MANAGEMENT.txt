@@ -1,0 +1,194 @@
+┌─────────────────────────────────────────────────────────────────┐
+│           NGINX MANAGER - SERVICE MANAGEMENT                    │
+└─────────────────────────────────────────────────────────────────┘
+
+🚀 QUICK START
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Start all services
+./scripts/start.sh
+
+# Check status
+./scripts/status.sh
+
+# Stop all services
+./scripts/stop.sh
+
+# Restart all services
+./scripts/restart.sh
+
+
+📋 AVAILABLE SCRIPTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+scripts/start.sh          Start all services (Gateway, Agent, Frontend)
+scripts/stop.sh           Stop all services gracefully
+scripts/restart.sh        Restart all services
+scripts/status.sh         Check status of all services
+scripts/build-agent.sh    Build agent binary
+scripts/docker-build.sh   Build and push Docker image
+scripts/safe-push.sh      Push code to GitHub with security checks
+
+
+🔧 SERVICE MANAGEMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Start Services:
+  ./scripts/start.sh
+  
+  Features:
+  • Checks if services are already running
+  • Creates logs/ directory automatically
+  • Starts services in correct order (Gateway → Agent → Frontend)
+  • Waits for services to be ready
+  • Shows service URLs and PIDs
+
+Stop Services:
+  ./scripts/stop.sh
+  
+  Features:
+  • Graceful shutdown (SIGTERM first)
+  • Force kill after 10 seconds if needed
+  • Stops in reverse order (Frontend → Gateway → Agent)
+  • Shows remaining processes if any
+
+Restart Services:
+  ./scripts/restart.sh
+  
+  Features:
+  • Stops all services
+  • Waits 2 seconds
+  • Starts all services
+
+Check Status:
+  ./scripts/status.sh
+  
+  Features:
+  • Shows running/stopped status
+  • Displays PID, uptime, CPU, memory
+  • Checks port availability
+  • Shows external dependencies (PostgreSQL, ClickHouse)
+  • Displays recent logs
+
+
+📁 LOG FILES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+All logs are stored in logs/ directory:
+
+logs/gateway.log          Gateway service logs
+logs/agent.log            Agent service logs
+logs/frontend.log         Frontend (Next.js) logs
+
+View logs in real-time:
+  tail -f logs/gateway.log
+  tail -f logs/agent.log
+  tail -f logs/frontend.log
+
+View all logs:
+  tail -f logs/*.log
+
+
+🌐 SERVICE ENDPOINTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Frontend:     http://localhost:3000
+Gateway:      localhost:50051 (gRPC)
+Agent:        localhost:50052 (gRPC)
+PostgreSQL:   localhost:5432
+ClickHouse:   localhost:8123 (HTTP), localhost:9000 (Native)
+
+
+⚙️  ENVIRONMENT VARIABLES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Agent:
+  AGENT_ID=prod-nginx-agent    Agent identifier (default)
+
+Gateway:
+  DB_DSN=postgres://...         PostgreSQL connection string
+  CLICKHOUSE_ADDR=localhost:9000  ClickHouse address
+
+Frontend:
+  GATEWAY_URL=http://localhost:50051  Gateway URL
+
+
+🔍 TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Service won't start:
+  1. Check if port is already in use:
+     netstat -tuln | grep -E "3000|50051|50052"
+  
+  2. Check logs for errors:
+     tail -50 logs/gateway.log
+     tail -50 logs/agent.log
+     tail -50 logs/frontend.log
+  
+  3. Ensure dependencies are running:
+     docker ps | grep -E "postgres|clickhouse"
+
+Service won't stop:
+  1. Try force stop:
+     pkill -9 -f "./gateway"
+     pkill -9 -f "./agent"
+     pkill -9 -f "next dev"
+  
+  2. Check for zombie processes:
+     ps aux | grep -E "gateway|agent|next" | grep -v grep
+
+Port already in use:
+  1. Find process using port:
+     lsof -i :3000
+     lsof -i :50051
+  
+  2. Kill the process:
+     kill -9 <PID>
+
+
+📊 MONITORING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Watch service status:
+  watch -n 2 ./scripts/status.sh
+
+Monitor resource usage:
+  htop -p $(pgrep -d',' -f "gateway|agent|next")
+
+Check service health:
+  # Gateway
+  grpcurl -plaintext localhost:50051 list
+  
+  # Frontend
+  curl http://localhost:3000/api/servers
+
+
+🔄 DEVELOPMENT WORKFLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Make code changes
+2. Rebuild binaries:
+   go build -o gateway ./cmd/gateway
+   go build -o agent ./cmd/agent
+3. Restart services:
+   ./scripts/restart.sh
+4. Check status:
+   ./scripts/status.sh
+5. View logs:
+   tail -f logs/*.log
+
+
+💡 TIPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Always use scripts/ for service management (not pkill directly)
+• Check status before starting to avoid duplicate processes
+• Logs are automatically rotated (managed by nohup)
+• Use ./scripts/status.sh to verify all services are healthy
+• Frontend hot-reloads automatically (no restart needed for UI changes)
+• Gateway and Agent require restart after code changes
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│  For more information, see docs/ directory                      │
+└─────────────────────────────────────────────────────────────────┘

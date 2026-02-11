@@ -60,23 +60,70 @@ func (m *Manager) Update(content string, createBackup bool) (string, error) {
 	return backupPath, nil
 }
 
-// Reload sends SIGHUP to NGINX to reload configuration
+// runCommand executes a command with sudo if not already root
+func (m *Manager) runCommand(name string, arg ...string) ([]byte, error) {
+	if os.Geteuid() == 0 {
+		// Already root, no sudo needed
+		return exec.Command(name, arg...).CombinedOutput()
+	}
+	// Not root, try sudo -n
+	args := append([]string{"-n", name}, arg...)
+	return exec.Command("sudo", args...).CombinedOutput()
+}
+
+// hasSystemd returns true if systemctl is available
+func (m *Manager) hasSystemd() bool {
+	_, err := exec.LookPath("systemctl")
+	return err == nil
+}
+
+// Reload reloads the NGINX configuration
 func (m *Manager) Reload() error {
 	// First test the config
-	cmd := exec.Command("nginx", "-t")
-	output, err := cmd.CombinedOutput()
+	output, err := m.runCommand("nginx", "-t")
 	if err != nil {
 		return fmt.Errorf("config test failed: %s", string(output))
 	}
 
-	// Reload NGINX
-	cmd = exec.Command("nginx", "-s", "reload")
-	output, err = cmd.CombinedOutput()
+	// Prefer systemctl reload if available
+	if m.hasSystemd() {
+		output, err = m.runCommand("systemctl", "reload", "nginx")
+	} else {
+		// Fallback for containers/non-systemd environments
+		output, err = m.runCommand("nginx", "-s", "reload")
+	}
+
 	if err != nil {
 		return fmt.Errorf("reload failed: %s", string(output))
 	}
 
 	return nil
+}
+
+// Restart restarts the NGINX service
+func (m *Manager) Restart() error {
+	if m.hasSystemd() {
+		output, err := m.runCommand("systemctl", "restart", "nginx")
+		if err != nil {
+			return fmt.Errorf("restart failed: %s", string(output))
+		}
+		return nil
+	}
+	return fmt.Errorf("restart failed: systemctl not found")
+}
+
+// Stop stops the NGINX service
+func (m *Manager) Stop() error {
+	if m.hasSystemd() {
+		output, err := m.runCommand("systemctl", "stop", "nginx")
+		if err != nil {
+			return fmt.Errorf("stop failed: %s", string(output))
+		}
+		return nil
+	}
+	// Note: We don't want to stop the containerized NGINX process directly via -s quit
+	// as that's usually handled by the orchestrator/container manager.
+	return fmt.Errorf("stop failed: systemctl not found")
 }
 
 // Rollback restores the most recent backup

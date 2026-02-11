@@ -1,0 +1,114 @@
+┌─────────────────────────────────────────────────────────────────┐
+│           SAFE PUSH TO GITHUB - QUICK REFERENCE                 │
+└─────────────────────────────────────────────────────────────────┘
+
+🚀 RECOMMENDED METHOD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+./scripts/safe-push.sh "your commit message"
+
+This will:
+  ✅ Run security checks
+  ✅ Commit your changes
+  ✅ Show what will be pushed
+  ✅ Ask for confirmation
+  ✅ Push to GitHub
+
+
+📝 MANUAL METHOD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+git add .
+git commit -m "feat: your message"  # Pre-commit hook runs here
+git push origin main
+
+
+🛡️ WHAT GETS CHECKED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✓ API keys & tokens (AWS, Docker, GitHub, etc.)
+✓ Database credentials
+✓ Private keys (.pem, .key, SSH keys)
+✓ .env files
+✓ Hardcoded passwords
+✓ Large files (> 10MB)
+✓ Sensitive file patterns
+
+
+✅ COMMIT MESSAGE CONVENTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+feat:     New feature (bumps minor version)
+fix:      Bug fix (bumps patch version)
+docs:     Documentation only
+chore:    Maintenance tasks
+refactor: Code restructuring
+test:     Adding tests
+perf:     Performance improvements
+
+BREAKING CHANGE: Major version bump
+
+Examples:
+  git commit -m "feat: add user authentication"
+  git commit -m "fix: resolve memory leak in agent"
+  git commit -m "docs: update API documentation"
+
+
+🔧 USEFUL COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Check status
+git status
+
+# View changes
+git diff
+
+# View staged changes
+git diff --cached
+
+# Undo last commit (keep changes)
+git reset --soft HEAD~1
+
+# View commit history
+git log --oneline -10
+
+# Test pre-commit hook manually
+.git/hooks/pre-commit
+
+
+⚠️  IF COMMIT IS BLOCKED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Review the error message
+2. Remove sensitive data
+3. Use environment variables instead
+4. Add sensitive files to .gitignore
+5. Try committing again
+
+To bypass (NOT RECOMMENDED):
+  git commit --no-verify -m "message"
+
+
+🚨 IF YOU PUSHED SECRETS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. IMMEDIATELY rotate/revoke the exposed credentials
+2. Remove from git history:
+   git rm --cached path/to/file
+   git commit --amend --no-edit
+   git push --force origin main
+3. Generate new credentials
+4. Update systems with new credentials
+
+
+📚 MORE INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+docs/SECURITY_GUIDE.md       - Complete security guide
+docs/VERSIONING_GUIDE.md     - CI/CD and versioning
+docs/GITHUB_SECRETS_SETUP.md - GitHub Secrets setup
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│  💡 TIP: Always use ./scripts/safe-push.sh for safest workflow  │
+└─────────────────────────────────────────────────────────────────┘

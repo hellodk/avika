@@ -1,0 +1,28 @@
+[Unit]
+Description=NGINX Manager Agent
+After=network.target nginx.service
+Wants=nginx.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/nginx-manager
+ExecStart=/opt/nginx-manager/agent \
+    -server ${GATEWAY_ADDR} \
+    -id ${AGENT_ID} \
+    -log-level ${LOG_LEVEL} \
+    -buffer-dir /var/lib/nginx-manager/buffer/
+Restart=always
+RestartSec=5
+Environment=GATEWAY_ADDR=localhost:50051
+Environment=LOG_LEVEL=info
+Environment=AGENT_ID=
+
+# Security Sandboxing (Optional but recommended for production)
+# Since we need to manage NGINX, some of these might need tuning
+# CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_KILL CAP_SETUID CAP_SETGID
+# ProtectSystem=full
+# PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

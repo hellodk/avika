@@ -1,0 +1,164 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
+
+	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+)
+
+// ApplyAugment applies a configuration augment to a specific agent
+func (s *server) ApplyAugment(ctx context.Context, req *pb.ApplyAugmentRequest) (*pb.ApplyAugmentResponse, error) {
+	if req.Augment == nil {
+		return &pb.ApplyAugmentResponse{
+			Success: false,
+			Error:   "augment is required",
+		}, nil
+	}
+
+	// Connect to the agent
+	client, conn, err := s.getAgentClient(req.InstanceId)
+	if err != nil {
+		return &pb.ApplyAugmentResponse{
+			Success: false,
+			Error:   fmt.Sprintf("failed to connect to agent: %v", err),
+		}, nil
+	}
+	defer conn.Close()
+
+	// Forward the request
+	return client.ApplyAugment(ctx, req)
+}
+
+func generateAugmentSnippet(augment *pb.ConfigAugment) string {
+	// This is a simple template generator
+	// In production, use proper templating
+	return augment.Snippet
+}
+
+// HTTP handler for provisions API
+func (s *server) handleProvisions(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		// Parse provision request
+		var req struct {
+			InstanceID string                 `json:"instance_id"`
+			Template   string                 `json:"template"`
+			Config     map[string]interface{} `json:"config"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Generate snippet based on template
+		snippet := generateProvisionSnippet(req.Template, req.Config)
+
+		augment := &pb.ConfigAugment{
+			AugmentId: fmt.Sprintf("%s-%d", req.Template, time.Now().Unix()),
+			Name:      req.Template,
+			Snippet:   snippet,
+			Context:   "http",
+		}
+
+		resp, err := s.ApplyAugment(r.Context(), &pb.ApplyAugmentRequest{
+			InstanceId: req.InstanceID,
+			Augment:    augment,
+		})
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
+func generateProvisionSnippet(template string, config map[string]interface{}) string {
+	switch template {
+	case "rate-limiting":
+		rpm, _ := config["requests_per_minute"].(float64)
+		burst, _ := config["burst_size"].(float64)
+		return fmt.Sprintf(`limit_req_zone $binary_remote_addr zone=api_limit:10m rate=%.0fr/m;
+
+server {
+    location /api/ {
+        limit_req zone=api_limit burst=%.0f nodelay;
+        proxy_pass http://backend;
+    }
+}`, rpm, burst)
+
+	case "health-checks":
+		upstreamName, _ := config["upstream_name"].(string)
+		if upstreamName == "" {
+			upstreamName = "backend"
+		}
+
+		servers, _ := config["servers"].(string)
+		// If servers is passed as a string (textarea), split by newlines
+		// If it's a slice (from JSON array), handle that too if needed, but text area is likely.
+		// For now assuming string from a textarea.
+
+		interval, _ := config["interval"].(float64)
+		if interval == 0 {
+			interval = 3000
+		}
+
+		rise, _ := config["rise"].(float64)
+		if rise == 0 {
+			rise = 2
+		}
+
+		fall, _ := config["fall"].(float64)
+		if fall == 0 {
+			fall = 3
+		}
+
+		timeout, _ := config["timeout"].(float64)
+		if timeout == 0 {
+			timeout = 1000
+		}
+
+		return fmt.Sprintf(`upstream %s {
+%s
+    
+    # Active health check
+    check interval=%.0f rise=%.0f fall=%.0f timeout=%.0f;
+}`, upstreamName, servers, interval, rise, fall, timeout)
+
+	case "error-pages":
+		pagePath, _ := config["page_path"].(string)
+		errorCodesRaw, _ := config["error_codes"].(string)
+		// assuming error_codes is a comma separated string or space separated
+
+		return fmt.Sprintf(`error_page %s %s;
+
+location = %s {
+    root /usr/share/nginx/html;
+    internal;
+}`, errorCodesRaw, pagePath, pagePath)
+
+	case "location-blocks":
+		path, _ := config["path"].(string)
+		directives, _ := config["directives"].(string)
+
+		return fmt.Sprintf(`location %s {
+%s
+}`, path, directives)
+
+	default:
+		// Custom or fallback
+		if val, ok := config["raw_config"]; ok {
+			return val.(string)
+		}
+		return "# Custom provision"
+	}
+}

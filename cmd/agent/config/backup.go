@@ -84,11 +84,17 @@ func copyDir(src, dst string) error {
 
 		target := filepath.Join(dst, rel)
 
+		// Handle symlinks: for NGINX config, we typically just want to skip them
+		// or copy them as links. Let's skip them to keep backups clean.
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil
+		}
+
 		if info.IsDir() {
 			return os.MkdirAll(target, info.Mode())
 		}
 
-		// It's a file
+		// It's a regular file
 		return copyFile(path, target)
 	})
 }

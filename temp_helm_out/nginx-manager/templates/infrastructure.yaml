@@ -1,0 +1,150 @@
+---
+# Source: nginx-manager/templates/infrastructure.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: release-name-postgresql
+spec:
+  ports:
+    - port: 5432
+  selector:
+    app: postgresql
+---
+# Source: nginx-manager/templates/infrastructure.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: release-name-clickhouse
+spec:
+  ports:
+    - name: http
+      port: 8123
+    - name: native
+      port: 9000
+  selector:
+    app: clickhouse
+---
+# Source: nginx-manager/templates/infrastructure.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: release-name-nginx-manager-otel-collector
+spec:
+  ports:
+    - name: otlp-grpc
+      port: 4317
+    - name: otlp-http
+      port: 4318
+  selector:
+    app: otel-collector
+---
+# Source: nginx-manager/templates/infrastructure.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: release-name-nginx-manager-otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+        - name: otel-collector
+          image: "otel/opentelemetry-collector-contrib:0.91.0"
+          command: ["--config=/etc/otel-collector-config.yaml"]
+          env:
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: release-name-nginx-manager-db-secrets
+                  key: clickhouse-password
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel-collector-config.yaml
+              subPath: otel-collector-config.yaml
+      volumes:
+        - name: config
+          configMap:
+            name: release-name-nginx-manager-otel-config
+---
+# Source: nginx-manager/templates/infrastructure.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: release-name-postgresql
+spec:
+  serviceName: release-name-postgresql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresql
+  template:
+    metadata:
+      labels:
+        app: postgresql
+    spec:
+      containers:
+        - name: postgresql
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_USER
+              value: "admin"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: release-name-nginx-manager-db-secrets
+                  key: postgres-password
+            - name: POSTGRES_DB
+              value: "nginx_manager"
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 8Gi
+---
+# Source: nginx-manager/templates/infrastructure.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: release-name-clickhouse
+spec:
+  serviceName: release-name-clickhouse
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clickhouse
+  template:
+    metadata:
+      labels:
+        app: clickhouse
+    spec:
+      containers:
+        - name: clickhouse
+          image: clickhouse/clickhouse-server:24.1
+          ports:
+            - containerPort: 8123
+            - containerPort: 9000
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi

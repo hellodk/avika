@@ -9,13 +9,14 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/user/nginx-manager/api/proto"
+	pb "github.com/user/nginx-manager/internal/common/proto/agent"
 )
 
 // NginxCollector collects metrics from NGINX stub_status
 type NginxCollector struct {
-	stubStatusURL string
-	client        *http.Client
+	stubStatusURL   string
+	client          *http.Client
+	systemCollector *SystemCollector
 }
 
 func NewNginxCollector(url string) *NginxCollector {
@@ -27,6 +28,7 @@ func NewNginxCollector(url string) *NginxCollector {
 		client: &http.Client{
 			Timeout: 2 * time.Second,
 		},
+		systemCollector: NewSystemCollector(),
 	}
 }
 
@@ -47,7 +49,18 @@ func (c *NginxCollector) Collect() (*pb.NginxMetrics, error) {
 		return nil, fmt.Errorf("failed to read body: %v", err)
 	}
 
-	return parseStubStatus(string(body))
+	metrics, err := parseStubStatus(string(body))
+	if err != nil {
+		return nil, err
+	}
+
+	// Collect system metrics
+	systemMetrics, err := c.systemCollector.Collect()
+	if err == nil {
+		metrics.System = systemMetrics
+	}
+
+	return metrics, nil
 }
 
 // parseStubStatus parses the standard NGINX stub_status output

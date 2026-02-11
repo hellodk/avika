@@ -7,15 +7,21 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
-	pb "github.com/user/nginx-manager/api/proto"
+	"sync"
+
 	"github.com/user/nginx-manager/cmd/agent/buffer"
 	"github.com/user/nginx-manager/cmd/agent/config"
 	"github.com/user/nginx-manager/cmd/agent/discovery"
+	"github.com/user/nginx-manager/cmd/agent/health"
 	"github.com/user/nginx-manager/cmd/agent/logs"
 	"github.com/user/nginx-manager/cmd/agent/metrics"
+	"github.com/user/nginx-manager/cmd/agent/updater"
+	pb "github.com/user/nginx-manager/internal/common/proto/agent"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
@@ -27,28 +33,121 @@ var (
 	logLevel   = flag.String("log-level", "info", "Log level (debug, info, error)")
 	logFile    = flag.String("log-file", "", "Path to log file. If empty, logs to stdout")
 	bufferDir  = flag.String("buffer-dir", "./", "Directory to store the persistent buffer")
+	version    = flag.Bool("version", false, "Display version and exit")
+	healthPort = flag.Int("health-port", 8080, "Port for health check endpoints")
+
+	// NGINX configuration
+	nginxStatusURL = flag.String("nginx-status-url", "http://127.0.0.1/nginx_status", "URL for NGINX stub_status")
+	accessLogPath  = flag.String("access-log-path", "/var/log/nginx/access.log", "Path to NGINX access log")
+	errorLogPath   = flag.String("error-log-path", "/var/log/nginx/error.log", "Path to NGINX error log")
+	logFormat      = flag.String("log-format", "combined", "Log format (combined or json)")
+
+	// Self-Update
+	updateServer   = flag.String("update-server", "", "URL of the update server (e.g., http://192.168.1.10:8090). If empty, self-update is disabled")
+	updateInterval = flag.Duration("update-interval", 168*time.Hour, "Interval between update checks (default: 1 week)")
 )
 
-var startTime = time.Now()
+// Version information - set at build time via -ldflags
+var (
+	Version   = "0.1.0-dev"
+	BuildDate = "unknown"
+	GitCommit = "unknown"
+	GitBranch = "unknown"
+)
+
+var (
+	globalUpdater *updater.Updater
+	startTime     = time.Now()
+)
 
 func main() {
 	flag.Parse()
 
-	setupLogging()
+	if *version {
+		fmt.Printf("NGINX Manager Agent\n")
+		fmt.Printf("Version:    %s\n", Version)
+		fmt.Printf("Build Date: %s\n", BuildDate)
+		fmt.Printf("Git Commit: %s\n", GitCommit)
+		fmt.Printf("Git Branch: %s\n", GitBranch)
+		os.Exit(0)
+	}
+
+	// Reject unknown subcommands/arguments
+	if len(flag.Args()) > 0 {
+		fmt.Fprintf(os.Stderr, "Error: Unknown command or argument: %s\n", flag.Args()[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nCommon options:\n")
+		fmt.Fprintf(os.Stderr, "  -version              Display version information\n")
+		fmt.Fprintf(os.Stderr, "  -server string        Gateway server address (default \"localhost:50051\")\n")
+		fmt.Fprintf(os.Stderr, "  -id string            Agent ID (default: hostname-ip)\n")
+		fmt.Fprintf(os.Stderr, "  -health-port int      Health check port (default 8080)\n")
+		fmt.Fprintf(os.Stderr, "\nRun '%s -h' for full options\n", os.Args[0])
+		os.Exit(1)
+	}
+
+	if err := setupLogging(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to setup logging: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Create context with cancellation for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Setup signal handling
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
+
+	// WaitGroup to track all goroutines
+	var wg sync.WaitGroup
 
 	// 1. Get or Generate Persistent Agent ID
 	if *agentID == "" {
 		*agentID = getOrGenerateAgentID()
 	}
 
-	log.Printf("Starting agent %s with server %s", *agentID, *serverAddr)
+	log.Printf("Starting agent %s (version %s) with server %s", *agentID, Version, *serverAddr)
 
-	// Initialize Persistent Buffer
+	// 2. Start Health Check Server
+	healthServer := health.NewServer(*healthPort)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := healthServer.Start(); err != nil {
+			log.Printf("Health server error: %v", err)
+		}
+	}()
+
+	// 3. Start Self-Updater (if enabled)
+	if *updateServer != "" {
+		globalUpdater = updater.New(*updateServer, Version)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			globalUpdater.Run(*updateInterval)
+		}()
+	}
+
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		if err := healthServer.Shutdown(shutdownCtx); err != nil {
+			log.Printf("Health server shutdown error: %v", err)
+		}
+	}()
+
+	// 3. Initialize Persistent Buffer
 	wal, err := buffer.NewFileBuffer(*bufferDir + "agent")
 	if err != nil {
-		log.Fatalf("Failed to initialize buffer: %v", err)
+		log.Printf("FATAL: Failed to initialize buffer: %v", err)
+		os.Exit(1)
 	}
-	defer wal.Close()
+	defer func() {
+		log.Println("Closing buffer...")
+		if err := wal.Close(); err != nil {
+			log.Printf("Error closing buffer: %v", err)
+		}
+	}()
 
 	// Initial backup on node add/start
 	if err := config.BackupNginxConfig("startup"); err != nil {
@@ -67,8 +166,9 @@ func main() {
 
 	// Log Collector
 	collector := logs.NewLogCollector(
-		"/var/log/nginx/access.log",
-		"/var/log/nginx/error.log",
+		*accessLogPath,
+		*errorLogPath,
+		*logFormat,
 		"localhost:4317", // OTel OTLP gRPC endpoint
 		*agentID,
 		currentHostname,
@@ -77,69 +177,135 @@ func main() {
 	defer collector.Stop()
 
 	// Metrics Collector
-	metricsCollector := metrics.NewNginxCollector("http://127.0.0.1/nginx_status")
+	metricsCollector := metrics.NewNginxCollector(*nginxStatusURL)
 
 	// Goroutine: Collect Logs -> Buffer
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		logChan := collector.GetGatewayChannel()
-		for entry := range logChan {
-			msg := &pb.AgentMessage{
-				AgentId:   *agentID,
-				Timestamp: time.Now().Unix(),
-				Payload: &pb.AgentMessage_LogEntry{
-					LogEntry: entry,
-				},
+		for {
+			select {
+			case <-ctx.Done():
+				log.Println("Log collection goroutine shutting down...")
+				return
+			case entry, ok := <-logChan:
+				if !ok {
+					return
+				}
+				msg := &pb.AgentMessage{
+					AgentId:   *agentID,
+					Timestamp: time.Now().Unix(),
+					Payload: &pb.AgentMessage_LogEntry{
+						LogEntry: entry,
+					},
+				}
+				writeToBuffer(wal, msg)
 			}
-			writeToBuffer(wal, msg)
 		}
 	}()
 
 	// Goroutine: Collect Metrics & Heartbeats -> Buffer
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
 		for {
-			// Dynamic Hostname Detection
-			h, err := os.Hostname()
-			if err == nil && h != "" {
-				currentHostname = h
-			}
+			select {
+			case <-ctx.Done():
+				log.Println("Metrics collection goroutine shutting down...")
+				return
+			case <-ticker.C:
+				// Dynamic Hostname Detection
+				h, err := os.Hostname()
+				if err == nil && h != "" {
+					currentHostname = h
+				}
 
-			// Heartbeat
-			instances, _ := discoverer.Scan(context.Background())
-			hbMsg := &pb.AgentMessage{
-				AgentId:   *agentID,
-				Timestamp: time.Now().Unix(),
-				Payload: &pb.AgentMessage_Heartbeat{
-					Heartbeat: &pb.Heartbeat{
-						Hostname:  currentHostname,
-						Version:   "0.1.1",
-						Uptime:    time.Since(startTime).Seconds(),
-						Instances: instances,
-					},
-				},
-			}
-			writeToBuffer(wal, hbMsg)
-
-			// Metrics
-			nginxMetrics, err := metricsCollector.Collect()
-			if err == nil {
-				metricMsg := &pb.AgentMessage{
+				// Heartbeat
+				instances, _ := discoverer.Scan(context.Background())
+				isPod, podIP := detectK8s()
+				hbMsg := &pb.AgentMessage{
 					AgentId:   *agentID,
 					Timestamp: time.Now().Unix(),
-					Payload: &pb.AgentMessage_Metrics{
-						Metrics: nginxMetrics,
+					Payload: &pb.AgentMessage_Heartbeat{
+						Heartbeat: &pb.Heartbeat{
+							Hostname:  currentHostname,
+							Version:   Version,
+							Uptime:    time.Since(startTime).Seconds(),
+							Instances: instances,
+							IsPod:     isPod,
+							PodIp:     podIP,
+						},
 					},
 				}
-				writeToBuffer(wal, metricMsg)
-			}
+				writeToBuffer(wal, hbMsg)
 
-			time.Sleep(5 * time.Second)
+				// Metrics
+				nginxMetrics, err := metricsCollector.Collect()
+				if err != nil {
+					log.Printf("Metrics collection failed: %v", err)
+				} else {
+					metricMsg := &pb.AgentMessage{
+						AgentId:   *agentID,
+						Timestamp: time.Now().Unix(),
+						Payload: &pb.AgentMessage_Metrics{
+							Metrics: nginxMetrics,
+						},
+					}
+					writeToBuffer(wal, metricMsg)
+				}
+			}
 		}
 	}()
+
+	// Start Management Service (gRPC) in background
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		startMgmtService(ctx)
+	}()
+
+	// Mark service as ready
+	healthServer.SetReady(true)
+	log.Println("Agent is ready")
 
 	// -------------------------------------------------------------------------
 	// Sender (Consumer) -> Gateway
 	// -------------------------------------------------------------------------
-	senderLoop(wal)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		senderLoop(ctx, wal, *agentID)
+	}()
+
+	// Wait for shutdown signal
+	sig := <-sigChan
+	log.Printf("Received signal %v, initiating graceful shutdown...", sig)
+
+	// Mark as not ready
+	healthServer.SetReady(false)
+
+	// Cancel context to stop all goroutines
+	cancel()
+
+	// Wait for all goroutines to finish with timeout
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		log.Println("All goroutines stopped gracefully")
+	case <-time.After(30 * time.Second):
+		log.Println("Shutdown timeout exceeded, forcing exit")
+	}
+
+	log.Println("Agent shutdown complete")
 }
 
 func getOrGenerateAgentID() string {
@@ -181,6 +347,7 @@ func getOrGenerateAgentID() string {
 }
 
 func writeToBuffer(wal *buffer.FileBuffer, msg *pb.AgentMessage) {
+	log.Printf("Writing message to buffer: type %T", msg.Payload)
 	data, err := proto.Marshal(msg)
 	if err != nil {
 		log.Printf("Failed to marshal message: %v", err)
@@ -191,14 +358,134 @@ func writeToBuffer(wal *buffer.FileBuffer, msg *pb.AgentMessage) {
 	}
 }
 
-func senderLoop(wal *buffer.FileBuffer) {
+func detectK8s() (bool, string) {
+	// 1. Check for K8s service account secret
+	_, err := os.Stat("/var/run/secrets/kubernetes.io/serviceaccount")
+	isPod := err == nil ||
+		os.Getenv("KUBERNETES_SERVICE_HOST") != "" ||
+		os.Getenv("KUBERNETES_PORT") != "" ||
+		os.Getenv("KUBERNETES_SERVICE_PORT") != ""
+
+	if !isPod {
+		return false, ""
+	}
+
+	// 2. Try to get Pod IP from environment (often set via Downward API)
+	podIP := os.Getenv("POD_IP")
+	if podIP == "" {
+		// Fallback: get first non-loopback IP
+		if addrs, err := net.InterfaceAddrs(); err == nil {
+			for _, addr := range addrs {
+				if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+					if ipnet.IP.To4() != nil {
+						podIP = ipnet.IP.String()
+						break
+					}
+				}
+			}
+		}
+	}
+
+	return true, podIP
+}
+
+type StreamSync struct {
+	mu     sync.Mutex
+	stream pb.Commander_ConnectClient
+}
+
+func (s *StreamSync) Send(msg *pb.AgentMessage) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stream == nil {
+		return fmt.Errorf("stream is nil")
+	}
+	return s.stream.Send(msg)
+}
+
+func (s *StreamSync) SetStream(stream pb.Commander_ConnectClient) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stream = stream
+}
+
+func (s *StreamSync) GetStream() pb.Commander_ConnectClient {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.stream
+}
+
+func handleCommand(cmd *pb.ServerCommand, ss *StreamSync, agentID string) {
+	log.Printf("Processing command %s", cmd.CommandId)
+
+	switch payload := cmd.Payload.(type) {
+	case *pb.ServerCommand_LogRequest:
+		go handleLogRequest(cmd.CommandId, payload.LogRequest, ss, agentID)
+	case *pb.ServerCommand_Action:
+		log.Printf("Action command received: %s", payload.Action.Type)
+		// For now just log, could trigger reload etc.
+	case *pb.ServerCommand_Update:
+		log.Printf("🚀 Remote update command received (target: %s)", payload.Update.Version)
+		if globalUpdater != nil {
+			go globalUpdater.CheckAndApply()
+		} else {
+			log.Printf("⚠️  Update command ignored: Self-update is not configured on this agent")
+		}
+	}
+}
+
+func handleLogRequest(cmdID string, req *pb.LogRequest, ss *StreamSync, agentID string) {
+	log.Printf("Handling LogRequest: %s (tail: %d, follow: %v)", req.LogType, req.TailLines, req.Follow)
+
+	// Determine log path based on type
+	logPath := "/var/log/nginx/access.log"
+	if req.LogType == "error" {
+		logPath = "/var/log/nginx/error.log"
+	}
+
+	// 1. Get Tail (Last N lines)
+	logEntries, err := logs.GetLastN(logPath, int(req.TailLines))
+	if err != nil {
+		log.Printf("Failed to get last N logs: %v", err)
+		return
+	}
+
+	log.Printf("Sending %d historical log entries for %s", len(logEntries), cmdID)
+
+	// 2. Send entries back via stream
+	for _, entry := range logEntries {
+		msg := &pb.AgentMessage{
+			AgentId:   agentID,
+			Timestamp: time.Now().Unix(),
+			Payload: &pb.AgentMessage_LogEntry{
+				LogEntry: entry,
+			},
+		}
+		if err := ss.Send(msg); err != nil {
+			log.Printf("Failed to send log entry: %v", err)
+			return
+		}
+	}
+}
+
+func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string) {
 	var conn *grpc.ClientConn
 	var client pb.CommanderClient
-	var stream pb.Commander_ConnectClient
+	ss := &StreamSync{}
 
 	for {
+		select {
+		case <-ctx.Done():
+			log.Println("Sender loop shutting down...")
+			if conn != nil {
+				conn.Close()
+			}
+			return
+		default:
+		}
+
 		// 1. Connect / Reconnect
-		if stream == nil {
+		if ss.GetStream() == nil {
 			var err error
 			log.Printf("Connecting to %s...", *serverAddr)
 
@@ -206,34 +493,43 @@ func senderLoop(wal *buffer.FileBuffer) {
 			conn, err = grpc.Dial(*serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
 				log.Printf("Connection failed: %v. Retrying in 5s...", err)
-				time.Sleep(5 * time.Second)
-				continue
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(5 * time.Second):
+					continue
+				}
 			}
 
 			client = pb.NewCommanderClient(conn)
-			stream, err = client.Connect(context.Background())
+			stream, err := client.Connect(context.Background())
 			if err != nil {
 				log.Printf("Stream creation failed: %v. Retrying in 5s...", err)
 				conn.Close()
-				time.Sleep(5 * time.Second)
-				continue
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(5 * time.Second):
+					continue
+				}
 			}
+			ss.SetStream(stream)
 			log.Println("Connected to Gateway")
 
 			// Start Receiver routine (for commands)
 			go func() {
 				for {
-					if stream == nil {
-						return
-					} // Exit if stream invalid
-					cmd, err := stream.Recv()
-					if err != nil {
-						log.Printf("Stream disconnected (Recv): %v", err)
-						// Signal main loop to reconnect?
-						// Main sender loop will detect on Send failure.
+					currentStream := ss.GetStream()
+					if currentStream == nil {
 						return
 					}
-					log.Printf("Received command: %v", cmd)
+					cmd, err := currentStream.Recv()
+					if err != nil {
+						log.Printf("Stream disconnected (Recv): %v", err)
+						ss.SetStream(nil)
+						return
+					}
+					handleCommand(cmd, ss, agentID)
 				}
 			}()
 		}
@@ -242,14 +538,22 @@ func senderLoop(wal *buffer.FileBuffer) {
 		data, offset, err := wal.ReadNext()
 		if err != nil {
 			log.Printf("Buffer read error: %v", err)
-			time.Sleep(1 * time.Second)
-			continue
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(1 * time.Second):
+				continue
+			}
 		}
 
 		// If no data, wait a bit
 		if data == nil {
-			time.Sleep(100 * time.Millisecond)
-			continue
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(100 * time.Millisecond):
+				continue
+			}
 		}
 
 		// Unmarshal to verify/check or just send?
@@ -261,15 +565,21 @@ func senderLoop(wal *buffer.FileBuffer) {
 		}
 
 		// Send
-		if err := stream.Send(&msg); err != nil {
+		log.Printf("Sending message from buffer: type %T", msg.Payload)
+		if err := ss.Send(&msg); err != nil {
 			log.Printf("Failed to send: %v. Reconnecting...", err)
-			stream = nil
+			ss.SetStream(nil)
 			if conn != nil {
 				conn.Close()
 			}
-			time.Sleep(2 * time.Second)
-			continue // Retry loop will handle reconnection
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(2 * time.Second):
+				continue // Retry loop will handle reconnection
+			}
 		}
+		log.Printf("Successfully sent message")
 
 		// Success -> Ack
 		if err := wal.Ack(offset); err != nil {
@@ -278,13 +588,14 @@ func senderLoop(wal *buffer.FileBuffer) {
 	}
 }
 
-func setupLogging() {
+func setupLogging() error {
 	if *logFile != "" {
 		f, err := os.OpenFile(*logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
-			log.Fatalf("error opening file: %v", err)
+			return fmt.Errorf("error opening log file: %w", err)
 		}
 		log.SetOutput(f)
 	}
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	return nil
 }

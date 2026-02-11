@@ -5,12 +5,13 @@ import (
 	"log"
 	"sync"
 
-	pb "github.com/user/nginx-manager/api/proto"
+	pb "github.com/user/nginx-manager/internal/common/proto/agent"
 )
 
 type LogCollector struct {
 	accessLogPath string
 	errorLogPath  string
+	logFormat     string
 	accessTailer  *Tailer
 	errorTailer   *Tailer
 
@@ -24,7 +25,7 @@ type LogCollector struct {
 	wg     sync.WaitGroup
 }
 
-func NewLogCollector(accessLog, errorLog, otlpEndpoint, agentID, hostname string) *LogCollector {
+func NewLogCollector(accessLog, errorLog, logFormat, otlpEndpoint, agentID, hostname string) *LogCollector {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var exporter *OTLPExporter
@@ -40,6 +41,7 @@ func NewLogCollector(accessLog, errorLog, otlpEndpoint, agentID, hostname string
 	return &LogCollector{
 		accessLogPath: accessLog,
 		errorLogPath:  errorLog,
+		logFormat:     logFormat,
 		exporter:      exporter,
 		gatewayChan:   make(chan *pb.LogEntry, 1000),
 		ctx:           ctx,
@@ -49,7 +51,7 @@ func NewLogCollector(accessLog, errorLog, otlpEndpoint, agentID, hostname string
 
 func (c *LogCollector) Start() {
 	// Start Access Log Tailer
-	c.accessTailer = NewTailer(c.accessLogPath)
+	c.accessTailer = NewTailer(c.accessLogPath, c.logFormat)
 	accChan, err := c.accessTailer.Start()
 	if err != nil {
 		log.Printf("[ERROR] Failed to start access log tailer: %v", err)
@@ -59,7 +61,7 @@ func (c *LogCollector) Start() {
 	}
 
 	// Start Error Log Tailer
-	c.errorTailer = NewTailer(c.errorLogPath)
+	c.errorTailer = NewTailer(c.errorLogPath, "combined") // Error logs are usually not the same JSON format
 	errChan, err := c.errorTailer.Start()
 	if err != nil {
 		log.Printf("[ERROR] Failed to start error log tailer: %v", err)

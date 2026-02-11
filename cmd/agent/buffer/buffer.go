@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"sync"
 )
@@ -85,20 +86,31 @@ func (b *FileBuffer) ReadNext() ([]byte, int64, error) {
 	defer b.mu.Unlock()
 
 	// Seek to current read offset
+	sz, _ := b.walFile.Seek(0, io.SeekEnd)
 	if _, err := b.walFile.Seek(b.readOffset, io.SeekStart); err != nil {
 		return nil, 0, err
+	}
+	if b.readOffset%1000 == 0 { // Don't spam too much, but log often enough
+		log.Printf("ReadNext: offset=%d, wal_size=%d", b.readOffset, sz)
 	}
 
 	var length uint32
 	if err := binary.Read(b.walFile, binary.LittleEndian, &length); err != nil {
-		if err == io.EOF {
-			return nil, b.readOffset, nil // Nothing new to read
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			return nil, b.readOffset, nil // Nothing new or partial data at end
 		}
 		return nil, 0, err
 	}
 
+	if length > 1024*1024 { // Safety check: 1MB
+		return nil, 0, fmt.Errorf("suspiciously large message length: %d at offset %d", length, b.readOffset)
+	}
+
 	data := make([]byte, length)
 	if _, err := io.ReadFull(b.walFile, data); err != nil {
+		if err == io.ErrUnexpectedEOF || err == io.EOF {
+			return nil, b.readOffset, nil // Partial message at end
+		}
 		return nil, 0, err
 	}
 

@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.1
 // - protoc             v3.21.12
-// source: api/proto/agent.proto
+// source: agent.proto
 
 package agent
 
@@ -117,7 +117,7 @@ var Commander_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "api/proto/agent.proto",
+	Metadata: "agent.proto",
 }
 
 const (
@@ -125,13 +125,18 @@ const (
 	AgentService_UpdateConfig_FullMethodName       = "/nginx.agent.v1.AgentService/UpdateConfig"
 	AgentService_ValidateConfig_FullMethodName     = "/nginx.agent.v1.AgentService/ValidateConfig"
 	AgentService_ReloadNginx_FullMethodName        = "/nginx.agent.v1.AgentService/ReloadNginx"
+	AgentService_RestartNginx_FullMethodName       = "/nginx.agent.v1.AgentService/RestartNginx"
+	AgentService_StopNginx_FullMethodName          = "/nginx.agent.v1.AgentService/StopNginx"
 	AgentService_ListCertificates_FullMethodName   = "/nginx.agent.v1.AgentService/ListCertificates"
 	AgentService_GetLogs_FullMethodName            = "/nginx.agent.v1.AgentService/GetLogs"
 	AgentService_ListAgents_FullMethodName         = "/nginx.agent.v1.AgentService/ListAgents"
+	AgentService_GetAgent_FullMethodName           = "/nginx.agent.v1.AgentService/GetAgent"
 	AgentService_RemoveAgent_FullMethodName        = "/nginx.agent.v1.AgentService/RemoveAgent"
 	AgentService_GetUptimeReports_FullMethodName   = "/nginx.agent.v1.AgentService/GetUptimeReports"
 	AgentService_GetAnalytics_FullMethodName       = "/nginx.agent.v1.AgentService/GetAnalytics"
 	AgentService_GetRecommendations_FullMethodName = "/nginx.agent.v1.AgentService/GetRecommendations"
+	AgentService_ApplyAugment_FullMethodName       = "/nginx.agent.v1.AgentService/ApplyAugment"
+	AgentService_UpdateAgent_FullMethodName        = "/nginx.agent.v1.AgentService/UpdateAgent"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -143,12 +148,16 @@ type AgentServiceClient interface {
 	UpdateConfig(ctx context.Context, in *ConfigUpdate, opts ...grpc.CallOption) (*ConfigUpdateResponse, error)
 	ValidateConfig(ctx context.Context, in *ConfigValidation, opts ...grpc.CallOption) (*ValidationResult, error)
 	ReloadNginx(ctx context.Context, in *ReloadRequest, opts ...grpc.CallOption) (*ReloadResponse, error)
+	RestartNginx(ctx context.Context, in *RestartRequest, opts ...grpc.CallOption) (*RestartResponse, error)
+	StopNginx(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error)
 	// Certificate Management
 	ListCertificates(ctx context.Context, in *CertListRequest, opts ...grpc.CallOption) (*CertListResponse, error)
 	// Log Management
 	GetLogs(ctx context.Context, in *LogRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[LogEntry], error)
 	// List currently connected agents
 	ListAgents(ctx context.Context, in *ListAgentsRequest, opts ...grpc.CallOption) (*ListAgentsResponse, error)
+	// Get a single agent's info
+	GetAgent(ctx context.Context, in *GetAgentRequest, opts ...grpc.CallOption) (*AgentInfo, error)
 	// Remove an agent from inventory
 	RemoveAgent(ctx context.Context, in *RemoveAgentRequest, opts ...grpc.CallOption) (*RemoveAgentResponse, error)
 	// Uptime & Monitoring
@@ -157,6 +166,10 @@ type AgentServiceClient interface {
 	GetAnalytics(ctx context.Context, in *AnalyticsRequest, opts ...grpc.CallOption) (*AnalyticsResponse, error)
 	// AI Tuner
 	GetRecommendations(ctx context.Context, in *RecommendationRequest, opts ...grpc.CallOption) (*RecommendationResponse, error)
+	// Config Augments (Provisions)
+	ApplyAugment(ctx context.Context, in *ApplyAugmentRequest, opts ...grpc.CallOption) (*ApplyAugmentResponse, error)
+	// Agent Management
+	UpdateAgent(ctx context.Context, in *UpdateAgentRequest, opts ...grpc.CallOption) (*UpdateAgentResponse, error)
 }
 
 type agentServiceClient struct {
@@ -207,6 +220,26 @@ func (c *agentServiceClient) ReloadNginx(ctx context.Context, in *ReloadRequest,
 	return out, nil
 }
 
+func (c *agentServiceClient) RestartNginx(ctx context.Context, in *RestartRequest, opts ...grpc.CallOption) (*RestartResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RestartResponse)
+	err := c.cc.Invoke(ctx, AgentService_RestartNginx_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) StopNginx(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StopResponse)
+	err := c.cc.Invoke(ctx, AgentService_StopNginx_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *agentServiceClient) ListCertificates(ctx context.Context, in *CertListRequest, opts ...grpc.CallOption) (*CertListResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CertListResponse)
@@ -240,6 +273,16 @@ func (c *agentServiceClient) ListAgents(ctx context.Context, in *ListAgentsReque
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListAgentsResponse)
 	err := c.cc.Invoke(ctx, AgentService_ListAgents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetAgent(ctx context.Context, in *GetAgentRequest, opts ...grpc.CallOption) (*AgentInfo, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentInfo)
+	err := c.cc.Invoke(ctx, AgentService_GetAgent_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -286,6 +329,26 @@ func (c *agentServiceClient) GetRecommendations(ctx context.Context, in *Recomme
 	return out, nil
 }
 
+func (c *agentServiceClient) ApplyAugment(ctx context.Context, in *ApplyAugmentRequest, opts ...grpc.CallOption) (*ApplyAugmentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApplyAugmentResponse)
+	err := c.cc.Invoke(ctx, AgentService_ApplyAugment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) UpdateAgent(ctx context.Context, in *UpdateAgentRequest, opts ...grpc.CallOption) (*UpdateAgentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateAgentResponse)
+	err := c.cc.Invoke(ctx, AgentService_UpdateAgent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -295,12 +358,16 @@ type AgentServiceServer interface {
 	UpdateConfig(context.Context, *ConfigUpdate) (*ConfigUpdateResponse, error)
 	ValidateConfig(context.Context, *ConfigValidation) (*ValidationResult, error)
 	ReloadNginx(context.Context, *ReloadRequest) (*ReloadResponse, error)
+	RestartNginx(context.Context, *RestartRequest) (*RestartResponse, error)
+	StopNginx(context.Context, *StopRequest) (*StopResponse, error)
 	// Certificate Management
 	ListCertificates(context.Context, *CertListRequest) (*CertListResponse, error)
 	// Log Management
 	GetLogs(*LogRequest, grpc.ServerStreamingServer[LogEntry]) error
 	// List currently connected agents
 	ListAgents(context.Context, *ListAgentsRequest) (*ListAgentsResponse, error)
+	// Get a single agent's info
+	GetAgent(context.Context, *GetAgentRequest) (*AgentInfo, error)
 	// Remove an agent from inventory
 	RemoveAgent(context.Context, *RemoveAgentRequest) (*RemoveAgentResponse, error)
 	// Uptime & Monitoring
@@ -309,6 +376,10 @@ type AgentServiceServer interface {
 	GetAnalytics(context.Context, *AnalyticsRequest) (*AnalyticsResponse, error)
 	// AI Tuner
 	GetRecommendations(context.Context, *RecommendationRequest) (*RecommendationResponse, error)
+	// Config Augments (Provisions)
+	ApplyAugment(context.Context, *ApplyAugmentRequest) (*ApplyAugmentResponse, error)
+	// Agent Management
+	UpdateAgent(context.Context, *UpdateAgentRequest) (*UpdateAgentResponse, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -331,6 +402,12 @@ func (UnimplementedAgentServiceServer) ValidateConfig(context.Context, *ConfigVa
 func (UnimplementedAgentServiceServer) ReloadNginx(context.Context, *ReloadRequest) (*ReloadResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReloadNginx not implemented")
 }
+func (UnimplementedAgentServiceServer) RestartNginx(context.Context, *RestartRequest) (*RestartResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RestartNginx not implemented")
+}
+func (UnimplementedAgentServiceServer) StopNginx(context.Context, *StopRequest) (*StopResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StopNginx not implemented")
+}
 func (UnimplementedAgentServiceServer) ListCertificates(context.Context, *CertListRequest) (*CertListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListCertificates not implemented")
 }
@@ -339,6 +416,9 @@ func (UnimplementedAgentServiceServer) GetLogs(*LogRequest, grpc.ServerStreaming
 }
 func (UnimplementedAgentServiceServer) ListAgents(context.Context, *ListAgentsRequest) (*ListAgentsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAgents not implemented")
+}
+func (UnimplementedAgentServiceServer) GetAgent(context.Context, *GetAgentRequest) (*AgentInfo, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAgent not implemented")
 }
 func (UnimplementedAgentServiceServer) RemoveAgent(context.Context, *RemoveAgentRequest) (*RemoveAgentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RemoveAgent not implemented")
@@ -351,6 +431,12 @@ func (UnimplementedAgentServiceServer) GetAnalytics(context.Context, *AnalyticsR
 }
 func (UnimplementedAgentServiceServer) GetRecommendations(context.Context, *RecommendationRequest) (*RecommendationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetRecommendations not implemented")
+}
+func (UnimplementedAgentServiceServer) ApplyAugment(context.Context, *ApplyAugmentRequest) (*ApplyAugmentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApplyAugment not implemented")
+}
+func (UnimplementedAgentServiceServer) UpdateAgent(context.Context, *UpdateAgentRequest) (*UpdateAgentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateAgent not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -445,6 +531,42 @@ func _AgentService_ReloadNginx_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_RestartNginx_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RestartRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).RestartNginx(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_RestartNginx_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).RestartNginx(ctx, req.(*RestartRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_StopNginx_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StopRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).StopNginx(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_StopNginx_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).StopNginx(ctx, req.(*StopRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AgentService_ListCertificates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CertListRequest)
 	if err := dec(in); err != nil {
@@ -488,6 +610,24 @@ func _AgentService_ListAgents_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AgentServiceServer).ListAgents(ctx, req.(*ListAgentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAgentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetAgent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetAgent(ctx, req.(*GetAgentRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -564,6 +704,42 @@ func _AgentService_GetRecommendations_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_ApplyAugment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApplyAugmentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ApplyAugment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ApplyAugment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ApplyAugment(ctx, req.(*ApplyAugmentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_UpdateAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAgentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).UpdateAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_UpdateAgent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).UpdateAgent(ctx, req.(*UpdateAgentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -588,12 +764,24 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AgentService_ReloadNginx_Handler,
 		},
 		{
+			MethodName: "RestartNginx",
+			Handler:    _AgentService_RestartNginx_Handler,
+		},
+		{
+			MethodName: "StopNginx",
+			Handler:    _AgentService_StopNginx_Handler,
+		},
+		{
 			MethodName: "ListCertificates",
 			Handler:    _AgentService_ListCertificates_Handler,
 		},
 		{
 			MethodName: "ListAgents",
 			Handler:    _AgentService_ListAgents_Handler,
+		},
+		{
+			MethodName: "GetAgent",
+			Handler:    _AgentService_GetAgent_Handler,
 		},
 		{
 			MethodName: "RemoveAgent",
@@ -611,6 +799,14 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetRecommendations",
 			Handler:    _AgentService_GetRecommendations_Handler,
 		},
+		{
+			MethodName: "ApplyAugment",
+			Handler:    _AgentService_ApplyAugment_Handler,
+		},
+		{
+			MethodName: "UpdateAgent",
+			Handler:    _AgentService_UpdateAgent_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -619,5 +815,5 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "api/proto/agent.proto",
+	Metadata: "agent.proto",
 }

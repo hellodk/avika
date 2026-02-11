@@ -23,6 +23,8 @@ spec:
           env:
             - name: REDPANDA_BROKERS
               value: "{{ .Release.Name }}-redpanda:9092"
+            - name: TZ
+              value: {{ .Values.timezone | default "Asia/Kolkata" }}
           resources:
             {{- toYaml .Values.aiEngine.resources | nindent 12 }}
 ---
@@ -60,3 +62,5 @@ spec:
                 secretKeyRef:
                   name: {{ include "nginx-manager.fullname" . }}-db-secrets
                   key: clickhouse-password
+            - name: TZ
+              value: {{ .Values.timezone | default "Asia/Kolkata" }}

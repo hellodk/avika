@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Timezone Configuration (Default: IST)
+export TZ=${TZ:-Asia/Kolkata}
+
 ID="${POD_NAME:-$(hostname)}"
 
 echo "Starting agent with ID=$ID"

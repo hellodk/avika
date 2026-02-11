@@ -27,6 +27,8 @@ spec:
           env:
             - name: GATEWAY_URL
               value: "{{ include "nginx-manager.fullname" . }}-gateway:50051"
+            - name: TZ
+              value: {{ .Values.timezone | default "Asia/Kolkata" }}
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}
 ---

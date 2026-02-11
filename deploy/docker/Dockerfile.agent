@@ -1,0 +1,36 @@
+# --- Build Stage ---
+FROM golang:1.23-alpine AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apk add --no-cache make git
+
+# Copy source code
+COPY . .
+
+# Build the agent
+RUN make build
+
+# --- Production Stage ---
+FROM alpine:3.18
+
+WORKDIR /app
+
+# Install runtime dependencies (sudo for fallback, nginx for testing/control)
+RUN apk add --no-cache sudo nginx systemd-utils
+
+# Copy binary from builder
+COPY --from=builder /app/agent /app/agent
+
+# Default environment variables
+ENV GATEWAY_ADDR=gateway:50051
+ENV AGENT_ID=""
+ENV LOG_LEVEL="info"
+
+# Create buffer directory
+RUN mkdir -p /var/lib/nginx-manager/buffer
+
+# The agent runs as root to manage NGINX configuration
+ENTRYPOINT ["/app/agent"]
+CMD ["-server", "${GATEWAY_ADDR}", "-log-level", "${LOG_LEVEL}", "-buffer-dir", "/var/lib/nginx-manager/buffer/"]
