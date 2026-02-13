@@ -23,6 +23,42 @@ echo -e "${CYAN}║         Starting NGINX Manager Services                   �
 echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
+# Function to stop a service
+stop_service() {
+    local service_name=$1
+    local process_pattern=$2
+    
+    echo -e "${YELLOW}  Stopping existing ${service_name}...${NC}"
+    
+    # Find PIDs
+    PIDS=$(pgrep -f "$process_pattern" || true)
+    
+    if [ -z "$PIDS" ]; then
+        return 0
+    fi
+    
+    # Try graceful shutdown first (SIGTERM)
+    kill -TERM $PIDS 2>/dev/null || true
+    
+    # Wait up to 5 seconds for graceful shutdown
+    for i in {1..5}; do
+        sleep 1
+        if ! pgrep -f "$process_pattern" > /dev/null; then
+            echo -e "${GREEN}  ✓ Stopped gracefully${NC}"
+            return 0
+        fi
+    done
+    
+    # Force kill if still running
+    PIDS=$(pgrep -f "$process_pattern" || true)
+    if [ -n "$PIDS" ]; then
+        echo -e "${YELLOW}  Forcing shutdown with SIGKILL...${NC}"
+        kill -9 $PIDS 2>/dev/null || true
+        sleep 1
+        echo -e "${GREEN}  ✓ Force stopped${NC}"
+    fi
+}
+
 # Check if services are already running
 check_running() {
     local service_name=$1
@@ -33,7 +69,8 @@ check_running() {
         read -p "Do you want to restart it? (y/N) " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            return 1  # Need to restart
+            stop_service "$service_name" "$process_pattern"
+            return 1  # Processed stopped, ready to start
         else
             return 0  # Skip
         fi
@@ -44,9 +81,47 @@ check_running() {
 # Create log directory
 mkdir -p "$PROJECT_ROOT/logs"
 
+# 0. Start Infrastructure
+echo -e "${BLUE}📦 Starting Infrastructure...${NC}"
+cd "$PROJECT_ROOT/deploy/docker"
+docker-compose up -d
+cd "$PROJECT_ROOT"
+
+# Wait for Postgres
+echo -e "${YELLOW}  Waiting for Database (Postgres) to be ready...${NC}"
+MAX_RETRIES=30
+RETRY_COUNT=0
+until nc -z localhost 5432 || [ $RETRY_COUNT -eq $MAX_RETRIES ]; do
+    echo -n "."
+    sleep 1
+    ((RETRY_COUNT++))
+done
+
+if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+    echo -e "${RED}✗ Postgres failed to start within timeout${NC}"
+    exit 1
+fi
+echo -e " ${GREEN}✓ Postgres is up${NC}"
+
+# Wait for ClickHouse
+echo -e "${YELLOW}  Waiting for Analytics (ClickHouse) to be ready...${NC}"
+RETRY_COUNT=0
+until curl -s http://localhost:8123 > /dev/null || [ $RETRY_COUNT -eq $MAX_RETRIES ]; do
+    echo -n "."
+    sleep 1
+    ((RETRY_COUNT++))
+done
+
+if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+    echo -e "${RED}✗ ClickHouse failed to start within timeout${NC}"
+    exit 1
+fi
+echo -e " ${GREEN}✓ ClickHouse is up${NC}"
+echo ""
+
 # 1. Start Gateway
 echo -e "${BLUE}📡 Starting Gateway...${NC}"
-if ! check_running "Gateway" "./gateway"; then
+if ! check_running "Gateway" "\./gateway"; then
     cd "$PROJECT_ROOT"
     nohup ./gateway > logs/gateway.log 2>&1 &
     GATEWAY_PID=$!
@@ -65,7 +140,7 @@ echo ""
 
 # 1.5 Start Update Server (Distribution)
 echo -e "${BLUE}📦 Starting Update Server...${NC}"
-if ! check_running "Update Server" "./update-server"; then
+if ! check_running "Update Server" "\./update-server"; then
     cd "$PROJECT_ROOT"
     if [ ! -f "./update-server" ]; then
         echo -e "${YELLOW}  Building update server...${NC}"
@@ -91,7 +166,7 @@ echo ""
 
 # 2. Start Agent
 echo -e "${BLUE}🤖 Starting Agent...${NC}"
-if ! check_running "Agent" "./agent"; then
+if ! check_running "Agent" "\./agent"; then
     cd "$PROJECT_ROOT"
     
     # Get agent ID (default or from env)
