@@ -24,6 +24,7 @@ spec:
       containers:
         - name: frontend
           image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy | default "IfNotPresent" }}
           ports:
             - name: http
               containerPort: {{ .Values.frontend.service.port }}

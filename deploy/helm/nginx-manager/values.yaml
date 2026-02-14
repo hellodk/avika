@@ -22,7 +22,7 @@ gateway:
     metricsPort: 5022   # Prometheus metrics endpoint
   config:
     agentMgmtPort: 5025 # Port to connect back to agents
-    allowedOrigins: "http://localhost:5031,http://localhost:3000"
+    allowedOrigins: "http://localhost:5031,http://localhost:3000,http://nginx-manager-frontend:3000"
     enableRateLimit: true
     rateLimitRPS: 100
     shutdownTimeout: 30s
@@ -56,14 +56,15 @@ testAgent:
 frontend:
   replicaCount: 1
   image:
-    repository: hellodk/frontend
-    tag: latest
+    repository: hellodk/avika-frontend
+    tag: v1.0.1
+    pullPolicy: Always
   service:
     type: ClusterIP
-    port: 5031          # Frontend HTTP server
+    port: 5031          # Frontend HTTP server (5020-5050 range)
   env:
-    gatewayUrl: "http://gateway:5020"
-    wsUrl: "ws://gateway:5021"
+    gatewayUrl: "http://nginx-manager-gateway:5020"
+    wsUrl: "ws://nginx-manager-gateway:5021"
   resources:
     limits:
       cpu: 500m
@@ -73,28 +74,28 @@ frontend:
       memory: 256Mi
 
 updateServer:
-  enabled: true
+  enabled: false  # Disabled for now
   image:
     repository: hellodk/update-server
-    tag: latest
+    tag: v1.0.0
   service:
     type: ClusterIP
     port: 5030          # Update server HTTP
 
 aiEngine:
-  replicaCount: 1
+  replicaCount: 0  # Disabled - requires Redpanda
   image:
     repository: hellodk/ai-engine
-    tag: latest
+    tag: v1.0.0
   resources:
     limits:
       memory: 1Gi
 
 logAggregator:
-  replicaCount: 1
+  replicaCount: 0  # Disabled - requires Redpanda
   image:
     repository: hellodk/log-aggregator
-    tag: latest
+    tag: v1.0.0
 
 # -- Infrastructure --
 # IMPORTANT: Override these credentials in production using --set or secrets
