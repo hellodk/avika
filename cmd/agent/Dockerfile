@@ -48,7 +48,9 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD ["/app/agent", "-health-check"] || exit 1
 
 # Expose management port
-EXPOSE 50052
+# Application ports (5020-5050 range)
+EXPOSE 5025
+EXPOSE 5026
 
 # Labels for metadata
 LABEL org.opencontainers.image.title="NGINX Manager Agent"

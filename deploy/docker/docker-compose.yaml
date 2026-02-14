@@ -103,26 +103,40 @@ services:
           memory: 256M
 
   # --- Gateway ---
-  gateway:
-    build:
-      context: ../../
-      dockerfile: cmd/gateway/Dockerfile
-    container_name: gateway
-    ports:
-      - "${GATEWAY_GRPC_PORT:-50051}:50051" # gRPC
-      - "${GATEWAY_HTTP_PORT:-8081}:8081"   # Health checks
-    environment:
-      - DB_DSN=postgres://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:?Please set POSTGRES_PASSWORD in .env file}@postgres:5432/${POSTGRES_DB:-nginx_manager}?sslmode=disable
-      - CLICKHOUSE_ADDR=clickhouse:9000
-      - KAFKA_BROKERS=${KAFKA_BROKERS:-redpanda:9092}
-    depends_on:
-      - postgres
-      - clickhouse
-      - redpanda
-    deploy:
-      resources:
-        limits:
-          memory: 128M
+  # Uncomment to run gateway in Docker
+  # gateway:
+  #   build:
+  #     context: ../../
+  #     dockerfile: cmd/gateway/Dockerfile
+  #   container_name: gateway
+  #   ports:
+  #     - "${GATEWAY_GRPC_PORT:-5020}:5020"   # gRPC (agents connect here)
+  #     - "${GATEWAY_HTTP_PORT:-5021}:5021"   # HTTP/WebSocket (terminal, reports)
+  #     - "${GATEWAY_METRICS_PORT:-5022}:5022" # Prometheus metrics
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
+  #   environment:
+  #     - GATEWAY_GRPC_PORT=5020
+  #     - GATEWAY_HTTP_PORT=5021
+  #     - GATEWAY_METRICS_PORT=5022
+  #     - DB_DSN=postgres://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD}@host.docker.internal:5432/${POSTGRES_DB:-nginx_manager}?sslmode=disable
+  #     - CLICKHOUSE_ADDR=host.docker.internal:9000
+  #     - KAFKA_BROKERS=${KAFKA_BROKERS:-redpanda:9092}
+  #     - ALLOWED_ORIGINS=http://localhost:5031,http://localhost:3000,http://127.0.0.1:5031
+  #     - AGENT_MGMT_PORT=5025
+  #   depends_on:
+  #     - postgres
+  #     - clickhouse
+  #     - redpanda
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 256M
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:5021/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
 
 volumes:

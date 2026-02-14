@@ -29,20 +29,29 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// Port constants - application ports in range 5020-5050
+const (
+	DefaultGatewayPort = 5020 // Gateway gRPC port
+	DefaultHealthPort  = 5026 // Agent health check port
+	DefaultMgmtPort    = 5025 // Agent management gRPC port
+)
+
 var (
-	serverAddr = flag.String("server", "localhost:50051", "The server address in the format of host:port")
+	serverAddr = flag.String("server", "localhost:5020", "The gateway server address in the format of host:port")
 	agentID    = flag.String("id", "", "The agent ID (default: hostname-ip)")
 	logLevel   = flag.String("log-level", "info", "Log level (debug, info, error)")
 	logFile    = flag.String("log-file", "", "Path to log file. If empty, logs to stdout")
 	bufferDir  = flag.String("buffer-dir", "./", "Directory to store the persistent buffer")
 	version    = flag.Bool("version", false, "Display version and exit")
-	healthPort = flag.Int("health-port", 8080, "Port for health check endpoints")
+	healthPort = flag.Int("health-port", DefaultHealthPort, "Port for health check endpoints")
+	mgmtPort   = flag.Int("mgmt-port", DefaultMgmtPort, "Port for management gRPC server")
 
 	// NGINX configuration
-	nginxStatusURL = flag.String("nginx-status-url", "http://127.0.0.1/nginx_status", "URL for NGINX stub_status")
-	accessLogPath  = flag.String("access-log-path", "/var/log/nginx/access.log", "Path to NGINX access log")
-	errorLogPath   = flag.String("error-log-path", "/var/log/nginx/error.log", "Path to NGINX error log")
-	logFormat      = flag.String("log-format", "combined", "Log format (combined or json)")
+	nginxStatusURL  = flag.String("nginx-status-url", "http://127.0.0.1/nginx_status", "URL for NGINX stub_status")
+	accessLogPath   = flag.String("access-log-path", "/var/log/nginx/access.log", "Path to NGINX access log")
+	errorLogPath    = flag.String("error-log-path", "/var/log/nginx/error.log", "Path to NGINX error log")
+	logFormat       = flag.String("log-format", "combined", "Log format (combined or json)")
+	nginxConfigPath = flag.String("nginx-config-path", "/etc/nginx/nginx.conf", "Path to NGINX configuration file")
 
 	// Self-Update
 	updateServer   = flag.String("update-server", "", "URL of the update server (e.g., http://192.168.1.10:8090). If empty, self-update is disabled")
@@ -133,6 +142,10 @@ func loadConfig(path string) error {
 		case "LOG_FORMAT":
 			if !setFlags["log-format"] {
 				*logFormat = val
+			}
+		case "NGINX_CONFIG_PATH":
+			if !setFlags["nginx-config-path"] {
+				*nginxConfigPath = val
 			}
 		case "BUFFER_DIR":
 			if !setFlags["buffer-dir"] {
@@ -374,7 +387,8 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		startMgmtService(ctx)
+		log.Printf("Starting Management Service with NGINX config: %s", *nginxConfigPath)
+		startMgmtService(ctx, *nginxConfigPath, *mgmtPort)
 	}()
 
 	// Mark service as ready
@@ -677,6 +691,12 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string) {
 		data, offset, err := wal.ReadNext()
 		if err != nil {
 			log.Printf("Buffer read error: %v", err)
+			if strings.Contains(err.Error(), "suspiciously large message length") {
+				log.Printf("Corruption detected at offset %d, attempting to skip...", offset)
+				if skipErr := wal.SkipCorrupt(offset); skipErr != nil {
+					log.Printf("Failed to skip corrupt message: %v", skipErr)
+				}
+			}
 			select {
 			case <-ctx.Done():
 				return

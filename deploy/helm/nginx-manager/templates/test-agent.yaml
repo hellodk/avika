@@ -1,0 +1,60 @@
+{{- if .Values.testAgent.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nginx-manager.fullname" . }}-test-agent
+  labels:
+    {{- include "nginx-manager.labels" . | nindent 4 }}
+    component: test-agent
+spec:
+  replicas: {{ .Values.testAgent.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "nginx-manager.selectorLabels" . | nindent 6 }}
+      component: test-agent
+  template:
+    metadata:
+      labels:
+        {{- include "nginx-manager.selectorLabels" . | nindent 8 }}
+        component: test-agent
+    spec:
+      containers:
+        - name: agent
+          image: "{{ .Values.testAgent.image.repository }}:{{ .Values.testAgent.image.tag }}"
+          imagePullPolicy: {{ .Values.testAgent.image.pullPolicy | default "IfNotPresent" }}
+          command: ["/app/agent"]
+          args:
+            - "-server"
+            - "{{ include "nginx-manager.fullname" . }}-gateway:5020"
+            - "-buffer-dir"
+            - "/var/lib/nginx-manager/buffer/"
+            - "-health-port"
+            - "5026"
+            - "-mgmt-port"
+            - "5025"
+          ports:
+            - name: health
+              containerPort: 5026
+              protocol: TCP
+            - name: mgmt
+              containerPort: 5025
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: buffer
+              mountPath: /var/lib/nginx-manager/buffer
+      volumes:
+        - name: buffer
+          emptyDir: {}
+{{- end }}

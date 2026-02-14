@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -22,9 +23,9 @@ type mgmtServer struct {
 	certManager   *certs.Manager
 }
 
-func newMgmtServer() *mgmtServer {
+func newMgmtServer(configPath string) *mgmtServer {
 	return &mgmtServer{
-		configManager: config.NewManager("/etc/nginx/nginx.conf"),
+		configManager: config.NewManager(configPath),
 		certManager:   certs.NewManager([]string{"/etc/nginx/ssl", "/etc/ssl/certs"}),
 	}
 }
@@ -190,18 +191,38 @@ func (s *mgmtServer) ApplyAugment(ctx context.Context, req *pb.ApplyAugmentReque
 
 	log.Printf("Applying augment: %s (context: %s)", req.Augment.Name, req.Augment.Context)
 
-	// For now, just return the preview
-	// In production, this would:
-	// 1. Read current NGINX config
-	// 2. Merge the augment snippet into appropriate context
-	// 3. Validate the merged config
-	// 4. Apply if valid
+	// 1. Apply Snippet
+	backupPath, err := s.configManager.UpdateSnippet(req.Augment.Snippet, req.Augment.Context)
+	if err != nil {
+		return &pb.ApplyAugmentResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to update config: %v", err),
+		}, nil
+	}
 
-	preview := req.Augment.Snippet
+	// 2. Reload NGINX
+	if err := s.configManager.Reload(); err != nil {
+		log.Printf("Reload failed, rolling back... Error: %v", err)
+
+		// 3. Rollback on failure
+		if rbErr := s.configManager.Rollback(); rbErr != nil {
+			return &pb.ApplyAugmentResponse{
+				Success: false,
+				Error:   fmt.Sprintf("Reload failed: %v. Critical: Rollback also failed: %v", err, rbErr),
+				Preview: req.Augment.Snippet,
+			}, nil
+		}
+
+		return &pb.ApplyAugmentResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Config invalid, rolled back. Error: %v", err),
+			Preview: req.Augment.Snippet,
+		}, nil
+	}
 
 	return &pb.ApplyAugmentResponse{
 		Success: true,
-		Preview: preview,
+		Preview: req.Augment.Snippet + " (Applied & Backup at " + backupPath + ")",
 	}, nil
 }
 
@@ -290,17 +311,18 @@ func (s *mgmtServer) Execute(stream pb.AgentService_ExecuteServer) error {
 	}
 }
 
-func startMgmtService(ctx context.Context) {
-	lis, err := net.Listen("tcp", ":50052")
+func startMgmtService(ctx context.Context, configPath string, port int) {
+	addr := fmt.Sprintf(":%d", port)
+	lis, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Printf("Failed to listen on :50052: %v", err)
+		log.Printf("Failed to listen on %s: %v", addr, err)
 		return
 	}
 
 	grpcServer := grpc.NewServer()
-	pb.RegisterAgentServiceServer(grpcServer, newMgmtServer())
+	pb.RegisterAgentServiceServer(grpcServer, newMgmtServer(configPath))
 
-	log.Println("Agent Management Service listening on :50052")
+	log.Printf("Agent Management Service listening on %s", addr)
 
 	// Start server in goroutine
 	go func() {

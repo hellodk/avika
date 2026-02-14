@@ -1,11 +1,11 @@
 # Default values for nginx-manager.
+# Port assignments are in range 5020-5050 to avoid collisions.
 
 replicaCount: 1
 
 image:
   repository: nginx-manager
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
   tag: ""
 
 # -- Component Configurations --
@@ -13,11 +13,19 @@ image:
 gateway:
   replicaCount: 1
   image:
-    repository: gateway # Assume user builds and pushes
-    tag: latest
+    repository: hellodk/gateway
+    tag: v2
   service:
     type: ClusterIP
-    port: 50051
+    grpcPort: 5020      # gRPC for agent connections
+    httpPort: 5021      # HTTP/WebSocket (terminal, reports)
+    metricsPort: 5022   # Prometheus metrics endpoint
+  config:
+    agentMgmtPort: 5025 # Port to connect back to agents
+    allowedOrigins: "http://localhost:5031,http://localhost:3000"
+    enableRateLimit: true
+    rateLimitRPS: 100
+    shutdownTimeout: 30s
   resources:
     limits:
       cpu: 500m
@@ -25,15 +33,37 @@ gateway:
     requests:
       cpu: 100m
       memory: 128Mi
+  # Graceful shutdown configuration
+  terminationGracePeriodSeconds: 35
+
+agent:
+  image:
+    repository: hellodk/nginx-agent
+    tag: v2
+  config:
+    mgmtPort: 5025      # Management gRPC server
+    healthPort: 5026    # Health check endpoint
+
+# Test agent for validation
+testAgent:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: hellodk/nginx-agent
+    tag: v2
+    pullPolicy: Always
 
 frontend:
   replicaCount: 1
   image:
-    repository: frontend
+    repository: hellodk/frontend
     tag: latest
   service:
     type: ClusterIP
-    port: 3000
+    port: 5031          # Frontend HTTP server
+  env:
+    gatewayUrl: "http://gateway:5020"
+    wsUrl: "ws://gateway:5021"
   resources:
     limits:
       cpu: 500m
@@ -42,10 +72,19 @@ frontend:
       cpu: 100m
       memory: 256Mi
 
+updateServer:
+  enabled: true
+  image:
+    repository: hellodk/update-server
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 5030          # Update server HTTP
+
 aiEngine:
   replicaCount: 1
   image:
-    repository: ai-engine
+    repository: hellodk/ai-engine
     tag: latest
   resources:
     limits:
@@ -54,17 +93,22 @@ aiEngine:
 logAggregator:
   replicaCount: 1
   image:
-    repository: log-aggregator
+    repository: hellodk/log-aggregator
     tag: latest
 
-# -- Infrastructure (Embedded for simplicity, or use dependencies) --
+# -- Infrastructure --
+# IMPORTANT: Override these credentials in production using --set or secrets
 
 postgresql:
   enabled: true
   auth:
     database: nginx_manager
     username: admin
-    password: password # USE SECRETS IN PROD
+    # In production, use existingSecret instead:
+    # existingSecret: nginx-manager-postgresql
+    # secretKeys:
+    #   adminPasswordKey: postgres-password
+    password: ""  # Set via --set postgresql.auth.password=<secure-password>
   primary:
     persistence:
       enabled: true
@@ -72,19 +116,39 @@ postgresql:
 
 clickhouse:
   enabled: true
-  password: password
+  # In production, use existingSecret:
+  # existingSecret: nginx-manager-clickhouse
+  password: ""  # Set via --set clickhouse.password=<secure-password>
   persistence:
     size: 10Gi
 
 redpanda:
   enabled: true
   replicaCount: 1
+  # Standard Kafka ports
+  listeners:
+    kafka:
+      port: 9092
 
 otelCollector:
   enabled: true
   image:
     repository: otel/opentelemetry-collector-contrib
     tag: 0.91.0
+  ports:
+    grpc: 4317
+    http: 4318
+
+# -- Security --
+security:
+  # TLS configuration for gRPC/HTTP
+  tls:
+    enabled: false
+    certSecret: ""
+    keySecret: ""
+  # Pod Security Standards
+  podSecurityPolicy:
+    enabled: false
 
 # -- Monitoring --
 monitoring:
@@ -92,9 +156,10 @@ monitoring:
     enabled: true
     scrape: true
     interval: 30s
+    path: /metrics
 
 # -- Global Settings --
-timezone: Asia/Kolkata
+timezone: UTC
 nameOverride: ""
 fullnameOverride: ""
 
@@ -104,18 +169,30 @@ serviceAccount:
   name: ""
 
 podAnnotations: {}
-podSecurityContext: {}
-securityContext: {}
+podSecurityContext:
+  runAsNonRoot: false  # Allow root for now, can be hardened later
+  # runAsUser: 1000
+  # fsGroup: 1000
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false  # Gateway needs to write temp files for reports
+  capabilities:
+    drop:
+      - ALL
 
 ingress:
   enabled: false
   className: ""
   annotations: {}
   hosts:
-    - host: chart-example.local
+    - host: nginx-manager.local
       paths:
         - path: /
-          pathType: ImplementationSpecific
+          pathType: Prefix
+          service: frontend
+        - path: /api
+          pathType: Prefix
+          service: gateway
   tls: []
 
 nodeSelector: {}
