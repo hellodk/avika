@@ -84,6 +84,18 @@ spec:
               value: "{{ .Release.Name }}-redpanda:9092"
             - name: TZ
               value: {{ .Values.timezone | default "UTC" }}
+            {{- if .Values.vault.enabled }}
+            - name: VAULT_ENABLED
+              value: "true"
+            - name: VAULT_ADDR
+              value: "{{ .Values.vault.address }}"
+            - name: VAULT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nginx-manager.fullname" . }}-vault-secrets
+                  key: token
+                  optional: true
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /health

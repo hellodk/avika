@@ -14,7 +14,7 @@ gateway:
   replicaCount: 1
   image:
     repository: hellodk/gateway
-    tag: v2
+    tag: v3-vault
   service:
     type: ClusterIP
     grpcPort: 5020      # gRPC for agent connections
@@ -139,6 +139,18 @@ otelCollector:
   ports:
     grpc: 4317
     http: 4318
+
+# -- Vault Integration --
+vault:
+  enabled: false  # Enable and configure for your environment
+  address: "http://vault.utilities.svc.cluster.local:8200"
+  # In production, use Kubernetes auth instead of a static token
+  # Set via: --set vault.token=<your-token> or use K8s ServiceAccount auth
+  token: ""
+  secretsPath: "nginx-manager"
+  # Enable sidecar injection for auto-renewal (requires Vault Agent)
+  injector:
+    enabled: false
 
 # -- Security --
 security:

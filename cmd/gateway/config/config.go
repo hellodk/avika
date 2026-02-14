@@ -2,11 +2,13 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/user/nginx-manager/internal/common/vault"
 	"gopkg.in/yaml.v3"
 )
 
@@ -87,6 +89,13 @@ type AgentConfig struct {
 	RetentionPeriod  time.Duration `yaml:"retention_period"`
 }
 
+// VaultConfig holds HashiCorp Vault configuration
+type VaultConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Address string `yaml:"address"`
+	Token   string `yaml:"token"`
+}
+
 // Config holds all gateway configuration
 type Config struct {
 	Server     ServerConfig     `yaml:"server"`
@@ -96,6 +105,7 @@ type Config struct {
 	Kafka      KafkaConfig      `yaml:"kafka"`
 	SMTP       SMTPConfig       `yaml:"smtp"`
 	Agent      AgentConfig      `yaml:"agent"`
+	Vault      VaultConfig      `yaml:"vault"`
 }
 
 // GetGRPCAddress returns the formatted gRPC listen address
@@ -140,7 +150,66 @@ func LoadConfig(path string) (*Config, error) {
 	// Override with environment variables
 	loadEnvOverrides(cfg)
 
+	// Load secrets from Vault if enabled
+	if cfg.Vault.Enabled {
+		if err := loadVaultSecrets(cfg); err != nil {
+			log.Printf("Warning: Failed to load Vault secrets: %v (using fallback config)", err)
+		}
+	}
+
 	return cfg, nil
+}
+
+// loadVaultSecrets loads sensitive configuration from HashiCorp Vault
+func loadVaultSecrets(cfg *Config) error {
+	vaultClient, err := vault.NewClient(vault.Config{
+		Address: cfg.Vault.Address,
+		Token:   cfg.Vault.Token,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create Vault client: %w", err)
+	}
+
+	// Retry Vault connection up to 5 times with backoff
+	maxRetries := 5
+	for i := 0; i < maxRetries; i++ {
+		if vaultClient.IsAvailable() {
+			break
+		}
+		if i == maxRetries-1 {
+			return fmt.Errorf("Vault is not available at %s after %d retries", cfg.Vault.Address, maxRetries)
+		}
+		log.Printf("Vault not ready, retrying in %d seconds... (attempt %d/%d)", i+1, i+1, maxRetries)
+		time.Sleep(time.Duration(i+1) * time.Second)
+	}
+
+	log.Printf("Loading secrets from Vault at %s", cfg.Vault.Address)
+
+	// Load PostgreSQL credentials
+	if pgDSN, err := vaultClient.GetPostgresDSN(); err == nil {
+		cfg.Database.DSN = pgDSN
+		log.Println("Loaded PostgreSQL credentials from Vault")
+	} else {
+		log.Printf("Warning: Could not load PostgreSQL config from Vault: %v", err)
+	}
+
+	// Load ClickHouse credentials
+	if chAddr, err := vaultClient.GetClickHouseAddr(); err == nil {
+		cfg.ClickHouse.Address = chAddr
+		log.Println("Loaded ClickHouse credentials from Vault")
+	} else {
+		log.Printf("Warning: Could not load ClickHouse config from Vault: %v", err)
+	}
+
+	// Load Redpanda/Kafka credentials
+	if rpCfg, err := vaultClient.GetRedpandaConfig(); err == nil {
+		cfg.Kafka.Brokers = rpCfg.Brokers
+		log.Println("Loaded Redpanda credentials from Vault")
+	} else {
+		log.Printf("Warning: Could not load Redpanda config from Vault: %v", err)
+	}
+
+	return nil
 }
 
 // defaultConfig returns a Config with sensible defaults
@@ -195,6 +264,11 @@ func defaultConfig() *Config {
 			HeartbeatTimeout: 30 * time.Second,
 			PruneInterval:    12 * time.Hour,
 			RetentionPeriod:  10 * 24 * time.Hour,
+		},
+		Vault: VaultConfig{
+			Enabled: false,
+			Address: "http://vault.utilities.svc.cluster.local:8200",
+			Token:   "",
 		},
 	}
 }
@@ -296,5 +370,16 @@ func loadEnvOverrides(cfg *Config) {
 		if port, err := strconv.Atoi(v); err == nil {
 			cfg.Agent.MgmtPort = port
 		}
+	}
+
+	// Vault
+	if v := os.Getenv("VAULT_ENABLED"); v != "" {
+		cfg.Vault.Enabled = v == "true" || v == "1"
+	}
+	if v := os.Getenv("VAULT_ADDR"); v != "" {
+		cfg.Vault.Address = v
+	}
+	if v := os.Getenv("VAULT_TOKEN"); v != "" {
+		cfg.Vault.Token = v
 	}
 }

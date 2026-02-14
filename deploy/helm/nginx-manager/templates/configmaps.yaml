@@ -9,6 +9,18 @@ data:
   postgres-password: {{ .Values.postgresql.auth.password | b64enc | quote }}
   clickhouse-password: {{ .Values.clickhouse.password | b64enc | quote }}
 ---
+{{- if .Values.vault.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "nginx-manager.fullname" . }}-vault-secrets
+  labels:
+    {{- include "nginx-manager.labels" . | nindent 4 }}
+type: Opaque
+data:
+  token: {{ .Values.vault.token | b64enc | quote }}
+---
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -28,9 +40,10 @@ data:
 
     exporters:
       clickhouse:
-        endpoint: "tcp://clickhouse:9000?database=nginx_analytics"
+        endpoint: "tcp://{{ .Release.Name }}-clickhouse:9000?database=nginx_analytics"
         username: "default"
-        password: "${CLICKHOUSE_PASSWORD}"
+        # Password injected via environment variable CLICKHOUSE_PASSWORD
+        password: ${env:CLICKHOUSE_PASSWORD}
         timeout: 5s
         retry_on_failure:
           enabled: true
