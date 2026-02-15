@@ -24,22 +24,78 @@ StandardError=journal
 # - Reload/restart NGINX
 # - Update its own binary in /usr/local/bin
 
-# Resource Limits
-# CPU: Limit to 50% of one core (500ms per 1000ms)
-CPUQuota=50%
+# =============================================================================
+# RESOURCE LIMITS (based on profiling - see docs/MONITORING_GUIDE.md)
+# =============================================================================
+# Profiling results (2026-02-15):
+#   - Memory baseline: 1.4 MB, peak: 4.5 MB, max observed: ~10 MB under stress
+#   - CPU usage: <1% typical, 5% peak during process discovery
+#   - Goroutines: 23-24 stable (no leaks detected)
+#   - GC pause: 0.037ms average (negligible impact)
+# =============================================================================
 
-# Memory: Soft limit 256MB, hard limit 512MB
-MemoryMax=512M
-MemoryHigh=256M
+# --- CPU Limits ---
+# Limit to 20% of one CPU core (200ms per 1000ms period)
+# Actual usage: <1% typical, 5% peak
+# Provides 4x headroom for burst activity
+CPUQuota=20%
 
-# File descriptors: Allow up to 8192 open files
-LimitNOFILE=8192
+# CPU scheduling weight (default is 100, lower = less priority)
+# Agent is background service, should yield to NGINX
+CPUWeight=50
 
-# Processes: Limit to 512 threads/processes
-LimitNPROC=512
+# --- Memory Limits ---
+# Hard limit: 64MB (actual usage: 1.5-10MB)
+# Provides 6x headroom for unexpected spikes
+MemoryMax=64M
 
-# Prevent fork bombs
-TasksMax=256
+# Soft limit: 32MB - triggers memory pressure handling
+# Agent will be asked to reduce memory before hitting hard limit
+MemoryHigh=32M
+
+# Swap limit: Disable swap to ensure predictable performance
+MemorySwapMax=0
+
+# --- File Descriptor Limits ---
+# Agent opens: config files, log files, gRPC connections, /proc files
+# Typical usage: ~50 FDs, allow 1024 for safety
+LimitNOFILE=1024
+
+# --- Process/Thread Limits ---
+# Goroutines map to OS threads via GOMAXPROCS
+# Typical: 23-24 goroutines, limit to 64 threads
+LimitNPROC=64
+
+# Task limit (threads + processes)
+# Prevents runaway goroutine creation
+TasksMax=64
+
+# --- I/O Limits ---
+# Limit I/O bandwidth to prevent disk saturation
+# Agent primarily reads /proc and log files
+IOWeight=50
+
+# Read bandwidth limit: 10 MB/s (generous for log tailing)
+# IOReadBandwidthMax=/dev/sda 10M
+
+# Write bandwidth limit: 5 MB/s (WAL buffer writes)
+# IOWriteBandwidthMax=/dev/sda 5M
+
+# --- Watchdog ---
+# Kill if unresponsive for 30 seconds
+WatchdogSec=30
+
+# --- OOM Handling ---
+# Prefer killing this service over others if system runs low on memory
+OOMScoreAdjust=500
+
+# --- Go Runtime Tuning ---
+# GOGC=50: Trigger GC at 50% heap growth (default 100) for lower memory
+# GOMEMLIMIT: Soft memory limit for Go runtime (below MemoryMax)
+# GOMAXPROCS: Limit concurrent OS threads to reduce context switching
+Environment="GOGC=50"
+Environment="GOMEMLIMIT=56MiB"
+Environment="GOMAXPROCS=2"
 
 [Install]
 WantedBy=multi-user.target

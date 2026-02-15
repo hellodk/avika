@@ -5,22 +5,92 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+	"github.com/google/uuid"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 )
 
 type ClickHouseDB struct {
-	conn driver.Conn
+	conn      driver.Conn
+	logChan   chan logBatchItem
+	spanChan  chan spanBatchItem
+	sysChan   chan sysBatchItem
+	nginxChan chan nginxBatchItem
+	gwChan    chan gwBatchItem
+}
+
+type logBatchItem struct {
+	entry   *pb.LogEntry
+	agentID string
+}
+
+type spanBatchItem struct {
+	traceID string
+	spanID  string
+	parent  string
+	name    string
+	start   time.Time
+	end     time.Time
+	attrs   map[string]string
+	agentID string
+}
+
+type sysBatchItem struct {
+	entry   *pb.SystemMetrics
+	agentID string
+}
+
+type nginxBatchItem struct {
+	entry   *pb.NginxMetrics
+	agentID string
+}
+
+type gwBatchItem struct {
+	metrics *gatewayMetrics
+}
+
+// ClickHouse buffer configuration (configurable via environment)
+var (
+	// Buffer channel sizes
+	logBufferSize     = getEnvInt("CH_LOG_BUFFER_SIZE", 100000)
+	spanBufferSize    = getEnvInt("CH_SPAN_BUFFER_SIZE", 200000)
+	sysBufferSize     = getEnvInt("CH_SYS_BUFFER_SIZE", 10000)
+	nginxBufferSize   = getEnvInt("CH_NGINX_BUFFER_SIZE", 10000)
+	gwBufferSize      = getEnvInt("CH_GW_BUFFER_SIZE", 1000)
+
+	// Batch flush sizes
+	logBatchSize  = getEnvInt("CH_LOG_BATCH_SIZE", 10000)
+	spanBatchSize = getEnvInt("CH_SPAN_BATCH_SIZE", 20000)
+
+	// Connection pool
+	maxOpenConns = getEnvInt("CH_MAX_OPEN_CONNS", 20)
+	maxIdleConns = getEnvInt("CH_MAX_IDLE_CONNS", 20)
+)
+
+func getEnvInt(key string, defaultVal int) int {
+	if v := os.Getenv(key); v != "" {
+		if i, err := strconv.Atoi(v); err == nil {
+			return i
+		}
+	}
+	return defaultVal
 }
 
 func NewClickHouseDB(addr string) (*ClickHouseDB, error) {
+	// Log configuration for debugging
+	log.Printf("ClickHouse config: buffers(log=%d, span=%d, sys=%d, nginx=%d, gw=%d) batches(log=%d, span=%d) conns(open=%d, idle=%d)",
+		logBufferSize, spanBufferSize, sysBufferSize, nginxBufferSize, gwBufferSize,
+		logBatchSize, spanBatchSize, maxOpenConns, maxIdleConns)
+
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{addr},
 		Auth: clickhouse.Auth{
-			Database: "nginx_analytics",
+			Database: "default",
 			Username: "default",
 			Password: "",
 		},
@@ -30,9 +100,9 @@ func NewClickHouseDB(addr string) (*ClickHouseDB, error) {
 		Compression: &clickhouse.Compression{
 			Method: clickhouse.CompressionLZ4,
 		},
-		DialTimeout:     5 * time.Second,
-		MaxOpenConns:    5,
-		MaxIdleConns:    5,
+		DialTimeout:     10 * time.Second,
+		MaxOpenConns:    maxOpenConns,
+		MaxIdleConns:    maxIdleConns,
 		ConnMaxLifetime: time.Hour,
 	})
 
@@ -40,17 +110,25 @@ func NewClickHouseDB(addr string) (*ClickHouseDB, error) {
 		return nil, err
 	}
 
-	if err := conn.Ping(context.Background()); err != nil {
-		if exception, ok := err.(*clickhouse.Exception); ok {
-			return nil, fmt.Errorf("exception [%d] %s \n%s", exception.Code, exception.Message, exception.StackTrace)
-		}
-		return nil, err
+	db := &ClickHouseDB{
+		conn:      conn,
+		logChan:   make(chan logBatchItem, logBufferSize),
+		spanChan:  make(chan spanBatchItem, spanBufferSize),
+		sysChan:   make(chan sysBatchItem, sysBufferSize),
+		nginxChan: make(chan nginxBatchItem, nginxBufferSize),
+		gwChan:    make(chan gwBatchItem, gwBufferSize),
 	}
 
-	db := &ClickHouseDB{conn: conn}
 	if err := db.migrate(); err != nil {
 		log.Printf("Warning: ClickHouse migration failed: %v", err)
 	}
+
+	// Start background flushers
+	go db.runLogFlusher()
+	go db.runSpanFlusher()
+	go db.runSysFlusher()
+	go db.runNginxFlusher()
+	go db.runGwFlusher()
 
 	return db, nil
 }
@@ -58,7 +136,8 @@ func NewClickHouseDB(addr string) (*ClickHouseDB, error) {
 func (db *ClickHouseDB) migrate() error {
 	ctx := context.Background()
 	queries := []string{
-		`CREATE TABLE IF NOT EXISTS gateway_metrics (
+		"CREATE DATABASE IF NOT EXISTS nginx_analytics",
+		`CREATE TABLE IF NOT EXISTS nginx_analytics.gateway_metrics (
 			timestamp DateTime64(3),
 			gateway_id String,
 			eps Float32,
@@ -66,11 +145,77 @@ func (db *ClickHouseDB) migrate() error {
 			cpu_usage Float32,
 			memory_mb Float32,
 			goroutines UInt32,
-			db_latency_ms Float32
+			db_latency_ms Float32,
+			labels Map(String, String)
 		) ENGINE = MergeTree() ORDER BY (timestamp, gateway_id)`,
-		`ALTER TABLE system_metrics ADD COLUMN IF NOT EXISTS cpu_user Float32`,
-		`ALTER TABLE system_metrics ADD COLUMN IF NOT EXISTS cpu_system Float32`,
-		`ALTER TABLE system_metrics ADD COLUMN IF NOT EXISTS cpu_iowait Float32`,
+		`CREATE TABLE IF NOT EXISTS nginx_analytics.access_logs (
+			timestamp DateTime64(3),
+			instance_id String,
+			remote_addr String,
+			request_method String,
+			request_uri String,
+			status UInt16,
+			body_bytes_sent UInt64,
+			request_time Float32,
+			request_id String,
+			upstream_addr String,
+			upstream_status String,
+			upstream_connect_time Float32,
+			upstream_header_time Float32,
+			upstream_response_time Float32,
+			user_agent String,
+			referer String,
+			labels Map(String, String)
+		) ENGINE = MergeTree() ORDER BY (timestamp, instance_id)`,
+		`CREATE TABLE IF NOT EXISTS nginx_analytics.system_metrics (
+			timestamp DateTime64(3),
+			instance_id String,
+			cpu_usage Float32,
+			memory_usage Float32,
+			memory_total UInt64,
+			memory_used UInt64,
+			network_rx_bytes UInt64,
+			network_tx_bytes UInt64,
+			network_rx_rate Float32,
+			network_tx_rate Float32,
+			cpu_user Float32,
+			cpu_system Float32,
+			cpu_iowait Float32,
+			labels Map(String, String)
+		) ENGINE = MergeTree() ORDER BY (timestamp, instance_id)`,
+		`CREATE TABLE IF NOT EXISTS nginx_analytics.nginx_metrics (
+			timestamp DateTime64(3),
+			instance_id String,
+			active_connections UInt32,
+			accepted_connections UInt64,
+			handled_connections UInt64,
+			total_requests UInt64,
+			reading UInt32,
+			writing UInt32,
+			waiting UInt32,
+			requests_per_second Float64,
+			labels Map(String, String)
+		) ENGINE = MergeTree() ORDER BY (timestamp, instance_id)`,
+		`CREATE TABLE IF NOT EXISTS nginx_analytics.spans (
+			trace_id String,
+			span_id String,
+			parent_span_id String,
+			name String,
+			start_time DateTime64(9),
+			end_time DateTime64(9),
+			attributes Map(String, String),
+			instance_id String
+		) ENGINE = MergeTree() ORDER BY (instance_id, trace_id, start_time)`,
+		"ALTER TABLE nginx_analytics.gateway_metrics ADD COLUMN IF NOT EXISTS labels Map(String, String)",
+		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS labels Map(String, String)",
+		"ALTER TABLE nginx_analytics.system_metrics ADD COLUMN IF NOT EXISTS labels Map(String, String)",
+		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS labels Map(String, String)",
+		// Phase 5: Retention Policies
+		"ALTER TABLE nginx_analytics.access_logs MODIFY TTL timestamp + INTERVAL 7 DAY",
+		"ALTER TABLE nginx_analytics.spans MODIFY TTL start_time + INTERVAL 7 DAY",
+		"ALTER TABLE nginx_analytics.system_metrics MODIFY TTL timestamp + INTERVAL 30 DAY",
+		"ALTER TABLE nginx_analytics.nginx_metrics MODIFY TTL timestamp + INTERVAL 30 DAY",
+		"ALTER TABLE nginx_analytics.gateway_metrics MODIFY TTL timestamp + INTERVAL 30 DAY",
 	}
 
 	for _, q := range queries {
@@ -84,51 +229,102 @@ func (db *ClickHouseDB) migrate() error {
 }
 
 func (db *ClickHouseDB) InsertAccessLog(entry *pb.LogEntry, agentID string) error {
-	// For production, this should be batched. For MVP, single insert.
-	// Note: We use async insert if possible, or just raw exec.
+	select {
+	case db.logChan <- logBatchItem{entry: entry, agentID: agentID}:
+		return nil
+	default:
+		return fmt.Errorf("access log queue full, dropping record")
+	}
+}
 
-	ctx := context.Background()
+func (db *ClickHouseDB) InsertSpans(entry *pb.LogEntry, agentID string, requestTime time.Time) error {
+	// Root Span (Request)
+	traceID := entry.RequestId
+	if traceID == "" {
+		traceID = uuid.New().String()
+	}
+	rootSpanID := uuid.New().String()
 
-	// Map timestamp
-	ts := time.Unix(entry.Timestamp, 0)
-	if entry.Timestamp == 0 {
-		ts = time.Now()
+	// Calculate times
+	duration := time.Duration(float64(entry.RequestTime) * float64(time.Second))
+	endTime := requestTime
+	startTime := endTime.Add(-duration)
+
+	// Root Attributes
+	rootAttrs := map[string]string{
+		"uri":      entry.RequestUri,
+		"method":   entry.RequestMethod,
+		"status":   fmt.Sprintf("%d", entry.Status),
+		"agent_id": agentID,
+		"client":   entry.RemoteAddr,
 	}
 
-	err := db.conn.Exec(ctx, `
-		INSERT INTO access_logs (
-			timestamp, instance_id, remote_addr, request_method,
-			request_uri, status, body_bytes_sent, request_time,
-			request_id, upstream_addr, upstream_status, 
-			upstream_connect_time, upstream_header_time, upstream_response_time,
-			user_agent, referer
-		) VALUES (
-			?, ?, ?, ?,
-			?, ?, ?, ?,
-			?, ?, ?,
-			?, ?, ?,
-			?, ?
-		)
-	`,
-		ts,
-		agentID,
-		entry.RemoteAddr,
-		entry.RequestMethod,
-		entry.RequestUri,
-		uint16(entry.Status),
-		uint64(entry.BodyBytesSent),
-		float32(entry.RequestTime),
-		entry.RequestId,
-		entry.UpstreamAddr,
-		entry.UpstreamStatus,
-		float32(entry.UpstreamConnectTime),
-		float32(entry.UpstreamHeaderTime),
-		float32(entry.UpstreamResponseTime),
-		entry.UserAgent,
-		entry.Referer,
-	)
+	// Push Root Span
+	select {
+	case db.spanChan <- spanBatchItem{
+		traceID: traceID,
+		spanID:  rootSpanID,
+		parent:  "",
+		name:    "request",
+		start:   startTime,
+		end:     endTime,
+		attrs:   rootAttrs,
+		agentID: agentID,
+	}:
+	default:
+		// Drop span if queue full
+	}
 
-	return err
+	// Upstream Span
+	if entry.UpstreamAddr != "" && entry.UpstreamResponseTime > 0 {
+		upstreamSpanID := uuid.New().String()
+		upstreamDuration := time.Duration(float64(entry.UpstreamResponseTime) * float64(time.Second))
+		upstreamEnd := endTime
+		upstreamStart := upstreamEnd.Add(-upstreamDuration)
+
+		upstreamAttrs := map[string]string{
+			"upstream_addr":   entry.UpstreamAddr,
+			"upstream_status": entry.UpstreamStatus,
+		}
+
+		select {
+		case db.spanChan <- spanBatchItem{
+			traceID: traceID,
+			spanID:  upstreamSpanID,
+			parent:  rootSpanID,
+			name:    "upstream",
+			start:   upstreamStart,
+			end:     upstreamEnd,
+			attrs:   upstreamAttrs,
+			agentID: agentID,
+		}:
+		default:
+		}
+
+		// Connect Span (Child of Upstream)
+		if entry.UpstreamConnectTime > 0 {
+			connectSpanID := uuid.New().String()
+			connectDuration := time.Duration(float64(entry.UpstreamConnectTime) * float64(time.Second))
+			connectStart := upstreamStart
+			connectEnd := connectStart.Add(connectDuration)
+
+			select {
+			case db.spanChan <- spanBatchItem{
+				traceID: traceID,
+				spanID:  connectSpanID,
+				parent:  upstreamSpanID,
+				name:    "upstream_connect",
+				start:   connectStart,
+				end:     connectEnd,
+				attrs:   upstreamAttrs,
+				agentID: agentID,
+			}:
+			default:
+			}
+		}
+	}
+
+	return nil
 }
 
 func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID string) (*pb.AnalyticsResponse, error) {
@@ -168,7 +364,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 			formatDateTime(%s(timestamp), '%%H:%%i') as time,
 			count(*) as requests,
 			countIf(status >= 400) as errors
-		FROM access_logs
+		FROM nginx_analytics.access_logs
 		%s
 		GROUP BY time
 		ORDER BY time
@@ -199,7 +395,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 		SELECT
 			toString(status) as code,
 			count(*) as count
-		FROM access_logs
+		FROM nginx_analytics.access_logs
 		%s
 		GROUP BY code
 	`, whereClause), args...)
@@ -224,7 +420,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 			count(*) as requests,
 			countIf(status >= 400) as errors,
 			quantile(0.95)(request_time) as p95
-		FROM access_logs
+		FROM nginx_analytics.access_logs
 		%s
 		GROUP BY request_uri
 		ORDER BY requests DESC
@@ -258,7 +454,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 			quantile(0.50)(request_time) as p50,
 			quantile(0.95)(request_time) as p95,
 			quantile(0.99)(request_time) as p99
-		FROM access_logs
+		FROM nginx_analytics.access_logs
 		%s
 		GROUP BY time
 		ORDER BY time
@@ -303,7 +499,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 			countIf(status >= 400), 
 			sum(body_bytes_sent), 
 			avg(request_time) 
-		FROM access_logs %s`, whereClause), args...).Scan(&currReqs, &currErrors, &currBytes, &currLat)
+		FROM nginx_analytics.access_logs %s`, whereClause), args...).Scan(&currReqs, &currErrors, &currBytes, &currLat)
 
 	// Deltas need a slightly different filter
 	prevWhereClause := "WHERE timestamp >= ? AND timestamp < ?"
@@ -319,7 +515,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 			countIf(status >= 400), 
 			sum(body_bytes_sent), 
 			avg(request_time) 
-		FROM access_logs %s`, prevWhereClause), prevArgs...).Scan(&prevReqs, &prevErrors, &prevBytes, &prevLat)
+		FROM nginx_analytics.access_logs %s`, prevWhereClause), prevArgs...).Scan(&prevReqs, &prevErrors, &prevBytes, &prevLat)
 
 	currErrRate := 0.0
 	if currReqs > 0 {
@@ -354,7 +550,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 					request_time < 0.2, '100-200ms', 
 					request_time < 0.5, '200-500ms', '500ms+') as label,
 			count(*) as count
-		FROM access_logs
+		FROM nginx_analytics.access_logs
 		%s
 		GROUP BY label
 	`, whereClause), args...)
@@ -380,7 +576,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 				count(*) as requests,
 				countIf(status >= 400) as errors,
 				sum(body_bytes_sent) as traffic
-			FROM access_logs
+			FROM nginx_analytics.access_logs
 			%s
 			GROUP BY instance_id
 			ORDER BY requests DESC
@@ -417,7 +613,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 			avg(cpu_user),
 			avg(cpu_system),
 			avg(cpu_iowait)
-		FROM system_metrics
+		FROM nginx_analytics.system_metrics
 		%s
 		GROUP BY time
 		ORDER BY time
@@ -455,7 +651,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 			avg(active_connections),
 			avg(waiting),
 			avg(requests_per_second)
-		FROM nginx_metrics
+		FROM nginx_analytics.nginx_metrics
 		%s
 		GROUP BY time
 		ORDER BY time
@@ -492,7 +688,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 			countIf(status >= 300 AND status < 400) as code_3xx,
 			countIf(status >= 400 AND status < 500) as code_4xx,
 			countIf(status >= 500) as code_5xx
-		FROM access_logs
+		FROM nginx_analytics.access_logs
 		%s
 		GROUP BY time
 		ORDER BY time
@@ -529,14 +725,15 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 			countIf(status = 200),
 			countIf(status = 404),
 			countIf(status = 503)
-		FROM access_logs %s`, where24h), args24h...)
+		FROM nginx_analytics.access_logs %s`, where24h), args24h...)
 
-	if err := row24h.Scan(
-		&resp.HttpStatusMetrics.TotalStatus_200_24H,
-		&resp.HttpStatusMetrics.TotalStatus_404_24H,
-		&resp.HttpStatusMetrics.TotalStatus_503,
-	); err != nil {
+	var t200, t404, t503 uint64
+	if err := row24h.Scan(&t200, &t404, &t503); err != nil {
 		log.Printf("GetAnalytics: 24h totals query failed: %v", err)
+	} else {
+		resp.HttpStatusMetrics.TotalStatus_200_24H = int64(t200)
+		resp.HttpStatusMetrics.TotalStatus_404_24H = int64(t404)
+		resp.HttpStatusMetrics.TotalStatus_503 = int64(t503)
 	}
 
 	// 11. Generate Actionable Insights (Decision Hub)
@@ -600,7 +797,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 			request_time,
 			upstream_addr,
 			upstream_status
-		FROM access_logs
+		FROM nginx_analytics.access_logs
 		%s
 		ORDER BY timestamp DESC
 		LIMIT 50
@@ -646,7 +843,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 				avg(memory_mb),
 				avg(goroutines),
 				avg(db_latency_ms)
-			FROM gateway_metrics
+			FROM nginx_analytics.gateway_metrics
 			WHERE timestamp >= ?
 			GROUP BY time
 			ORDER BY time
@@ -678,6 +875,303 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 	return resp, nil
 }
 
+func (db *ClickHouseDB) GetReportData(ctx context.Context, start, end time.Time, agentIDs []string) (*pb.ReportResponse, error) {
+	resp := &pb.ReportResponse{
+		GeneratedAt: time.Now().Unix(),
+		Summary:     &pb.ReportSummary{},
+	}
+
+	whereClause := "WHERE timestamp >= ? AND timestamp <= ?"
+	args := []interface{}{start, end}
+
+	if len(agentIDs) > 0 {
+		whereClause += " AND instance_id IN (?)"
+		args = append(args, agentIDs)
+	}
+
+	// 1. Summary Stats
+	row := db.conn.QueryRow(ctx, fmt.Sprintf(`
+		SELECT 
+			count(*), 
+			countIf(status >= 400), 
+			sum(body_bytes_sent), 
+			avg(request_time),
+			uniq(remote_addr)
+		FROM nginx_analytics.access_logs %s`, whereClause), args...)
+
+	var reqs, errs, bytes, visitors uint64
+	var lat float64
+	if err := row.Scan(&reqs, &errs, &bytes, &lat, &visitors); err != nil {
+		log.Printf("Report: Summary query failed: %v", err)
+	} else {
+		errRate := 0.0
+		if reqs > 0 {
+			errRate = (float64(errs) / float64(reqs)) * 100
+		}
+		if math.IsNaN(lat) {
+			lat = 0
+		}
+
+		resp.Summary = &pb.ReportSummary{
+			TotalRequests:  int64(reqs),
+			ErrorRate:      float32(errRate),
+			TotalBandwidth: bytes,
+			AvgLatency:     float32(lat * 1000),
+			UniqueVisitors: int64(visitors),
+		}
+	}
+
+	// 2. Traffic Trend (Daily or Hourly based on range)
+	// If range > 2 days, group by day. Else group by hour.
+	bucketSize := "toStartOfHour"
+	format := "%H:00"
+	if end.Sub(start) > 48*time.Hour {
+		bucketSize = "toStartOfDay"
+		format = "%Y-%m-%d"
+	}
+
+	queryTrend := fmt.Sprintf(`
+		SELECT
+			formatDateTime(%s(timestamp), '%s') as time,
+			count(*) as requests,
+			countIf(status >= 400) as errors
+		FROM nginx_analytics.access_logs
+		%s
+		GROUP BY time
+		ORDER BY time
+	`, bucketSize, format, whereClause)
+
+	rows, err := db.conn.Query(ctx, queryTrend, args...)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var t string
+			var r, e uint64
+			if err := rows.Scan(&t, &r, &e); err == nil {
+				resp.TrafficTrend = append(resp.TrafficTrend, &pb.TimeSeriesPoint{
+					Time:     t,
+					Requests: int64(r),
+					Errors:   int64(e),
+				})
+			}
+		}
+	}
+
+	// 3. Top URIs
+	rows, err = db.conn.Query(ctx, fmt.Sprintf(`
+		SELECT
+			request_uri,
+			count(*) as requests,
+			countIf(status >= 400) as errors,
+			quantile(0.95)(request_time) as p95
+		FROM nginx_analytics.access_logs
+		%s
+		GROUP BY request_uri
+		ORDER BY requests DESC
+		LIMIT 10
+	`, whereClause), args...)
+
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var uri string
+			var r, e uint64
+			var p float64
+			if err := rows.Scan(&uri, &r, &e, &p); err == nil {
+				if math.IsNaN(p) {
+					p = 0
+				}
+				resp.TopUris = append(resp.TopUris, &pb.EndpointStat{
+					Uri:      uri,
+					Requests: int64(r),
+					Errors:   int64(e),
+					P95:      float32(p * 1000),
+				})
+			}
+		}
+	}
+
+	// 4. Top Servers
+	rows, err = db.conn.Query(ctx, fmt.Sprintf(`
+		SELECT
+			instance_id,
+			count(*) as requests,
+			countIf(status >= 400) as errors,
+			sum(body_bytes_sent) as traffic
+		FROM nginx_analytics.access_logs
+		%s
+		GROUP BY instance_id
+		ORDER BY requests DESC
+		LIMIT 10
+	`, whereClause), args...)
+
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var id string
+			var r, e, tr uint64
+			if err := rows.Scan(&id, &r, &e, &tr); err == nil {
+				errRate := 0.0
+				if r > 0 {
+					errRate = (float64(e) / float64(r)) * 100
+				}
+				resp.TopServers = append(resp.TopServers, &pb.ServerStat{
+					Hostname:  id,
+					Requests:  int64(r),
+					ErrorRate: float32(errRate),
+					Traffic:   tr,
+				})
+			}
+		}
+	}
+
+	return resp, nil
+}
+
+func (db *ClickHouseDB) GetTraces(ctx context.Context, req *pb.TraceRequest) (*pb.TraceList, error) {
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+
+	duration := 1 * time.Hour
+	switch req.TimeWindow {
+	case "5m":
+		duration = 5 * time.Minute
+	case "15m":
+		duration = 15 * time.Minute
+	case "1h":
+		duration = 1 * time.Hour
+	case "6h":
+		duration = 6 * time.Hour
+	case "24h":
+		duration = 24 * time.Hour
+	}
+	startTime := time.Now().UTC().Add(-duration)
+
+	query := `
+		SELECT trace_id, span_id, start_time, end_time, attributes
+		FROM nginx_analytics.spans
+		WHERE name = 'request' AND start_time >= ?
+	`
+	args := []interface{}{startTime}
+
+	if req.AgentId != "" && req.AgentId != "all" {
+		query += " AND instance_id = ?"
+		args = append(args, req.AgentId)
+	}
+
+	if req.StatusFilter != "" {
+		if req.StatusFilter == "5xx" {
+			query += " AND attributes['status'] >= '500'"
+		} else if req.StatusFilter == "4xx" {
+			query += " AND attributes['status'] >= '400' AND attributes['status'] < '500'"
+		} else {
+			query += " AND attributes['status'] = ?"
+			args = append(args, req.StatusFilter)
+		}
+	}
+
+	if req.MethodFilter != "" {
+		query += " AND attributes['method'] = ?"
+		args = append(args, req.MethodFilter)
+	}
+
+	if req.UriFilter != "" {
+		query += " AND attributes['uri'] LIKE ?"
+		args = append(args, "%"+req.UriFilter+"%")
+	}
+
+	query += " ORDER BY start_time DESC LIMIT ?"
+	args = append(args, limit)
+
+	// Query for root spans (name='request')
+	rows, err := db.conn.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var traces []*pb.Trace
+	for rows.Next() {
+		var traceID, spanID string
+		var start, end time.Time
+		var attrs map[string]string
+
+		if err := rows.Scan(&traceID, &spanID, &start, &end, &attrs); err != nil {
+			log.Printf("Error scanning trace row: %v", err)
+			continue
+		}
+
+		// Reconstruct root span
+		rootSpan := &pb.Span{
+			TraceId:    traceID,
+			SpanId:     spanID,
+			Name:       "request",
+			StartTime:  start.UnixNano(),
+			EndTime:    end.UnixNano(),
+			Attributes: attrs,
+		}
+
+		traces = append(traces, &pb.Trace{
+			RequestId: traceID,
+			Spans:     []*pb.Span{rootSpan},
+		})
+	}
+
+	return &pb.TraceList{Traces: traces}, nil
+}
+
+func (db *ClickHouseDB) GetTraceDetails(ctx context.Context, agentID string, traceID string) (*pb.Trace, error) {
+	rows, err := db.conn.Query(ctx, `
+		SELECT span_id, parent_span_id, name, start_time, end_time, attributes
+		FROM nginx_analytics.spans
+		WHERE instance_id = ? AND trace_id = ?
+		ORDER BY start_time ASC
+	`, agentID, traceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var spans []*pb.Span
+	// var rootSpan *pb.Span // Unused for now
+
+	for rows.Next() {
+		var spanID, parentID, name string
+		var start, end time.Time
+		var attrs map[string]string
+
+		if err := rows.Scan(&spanID, &parentID, &name, &start, &end, &attrs); err != nil {
+			return nil, err
+		}
+
+		span := &pb.Span{
+			TraceId:      traceID,
+			SpanId:       spanID,
+			ParentSpanId: parentID,
+			Name:         name,
+			StartTime:    start.UnixNano(),
+			EndTime:      end.UnixNano(),
+			Attributes:   attrs,
+		}
+		spans = append(spans, span)
+
+		// 		if name == "request" {
+		// 			rootSpan = span
+		// 		}
+	}
+
+	trace := &pb.Trace{
+		RequestId: traceID,
+		Spans:     spans,
+	}
+
+	// Try to populate legacy RootEntry if possible/needed, but frontend should use Spans now.
+
+	return trace, nil
+}
+
 func (db *ClickHouseDB) DeleteAgentData(agentID string) error {
 	ctx := context.Background()
 	tables := []string{
@@ -696,4 +1190,235 @@ func (db *ClickHouseDB) DeleteAgentData(agentID string) error {
 	}
 
 	return nil
+}
+
+func (db *ClickHouseDB) QueryMetricAverage(ctx context.Context, metricType string, windowSec int) (float64, error) {
+	var query string
+	var table string
+	var column string
+
+	switch metricType {
+	case "cpu":
+		table = "nginx_analytics.system_metrics"
+		column = "cpu_usage"
+	case "memory":
+		table = "nginx_analytics.system_metrics"
+		column = "memory_usage"
+	case "rps":
+		table = "nginx_analytics.nginx_metrics"
+		column = "requests_per_second"
+	case "error_rate":
+		// Special case for error rate
+		query = fmt.Sprintf(`
+			SELECT if(count(*) > 0, (countIf(status >= 400) / count(*)) * 100, 0)
+			FROM nginx_analytics.access_logs
+			WHERE timestamp >= now() - INTERVAL %d SECOND
+		`, windowSec)
+	default:
+		return 0, fmt.Errorf("unknown metric type: %s", metricType)
+	}
+
+	if query == "" {
+		query = fmt.Sprintf(`
+			SELECT avg(%s)
+			FROM %s
+			WHERE timestamp >= now() - INTERVAL %d SECOND
+		`, column, table, windowSec)
+	}
+
+	var avg float64
+	err := db.conn.QueryRow(ctx, query).Scan(&avg)
+	if err != nil {
+		// Log and return 0 if no data
+		return 0, nil
+	}
+
+	return avg, nil
+}
+func (db *ClickHouseDB) runLogFlusher() {
+	flushInterval := getEnvInt("CH_FLUSH_INTERVAL_MS", 100)
+	ticker := time.NewTicker(time.Duration(flushInterval) * time.Millisecond)
+	batch := make([]logBatchItem, 0, logBatchSize)
+
+	for {
+		select {
+		case item := <-db.logChan:
+			batch = append(batch, item)
+			if len(batch) >= logBatchSize {
+				db.flushLogs(batch)
+				batch = batch[:0]
+			}
+		case <-ticker.C:
+			if len(batch) > 0 {
+				db.flushLogs(batch)
+				batch = batch[:0]
+			}
+		}
+	}
+}
+
+func (db *ClickHouseDB) flushLogs(batch []logBatchItem) {
+	ctx := context.Background()
+	b, err := db.conn.PrepareBatch(ctx, `INSERT INTO nginx_analytics.access_logs (
+		timestamp, instance_id, remote_addr, request_method,
+		request_uri, status, body_bytes_sent, request_time,
+		request_id, upstream_addr, upstream_status, user_agent, referer
+	)`)
+	if err != nil {
+		log.Printf("FlushLogs: PrepareBatch failed: %v", err)
+		return
+	}
+
+	for _, item := range batch {
+		ts := time.Unix(item.entry.Timestamp, 0)
+		if item.entry.Timestamp == 0 {
+			ts = time.Now()
+		}
+		b.Append(ts, item.agentID, item.entry.RemoteAddr, item.entry.RequestMethod,
+			item.entry.RequestUri, uint16(item.entry.Status), uint64(item.entry.BodyBytesSent),
+			float32(item.entry.RequestTime), item.entry.RequestId, item.entry.UpstreamAddr,
+			item.entry.UpstreamStatus, item.entry.UserAgent, item.entry.Referer)
+	}
+
+	if err := b.Send(); err != nil {
+		log.Printf("FlushLogs: Send failed: %v", err)
+	}
+}
+
+func (db *ClickHouseDB) runSpanFlusher() {
+	flushInterval := getEnvInt("CH_FLUSH_INTERVAL_MS", 100)
+	ticker := time.NewTicker(time.Duration(flushInterval) * time.Millisecond)
+	batch := make([]spanBatchItem, 0, spanBatchSize)
+
+	for {
+		select {
+		case item := <-db.spanChan:
+			batch = append(batch, item)
+			if len(batch) >= spanBatchSize {
+				db.flushSpans(batch)
+				batch = batch[:0]
+			}
+		case <-ticker.C:
+			if len(batch) > 0 {
+				db.flushSpans(batch)
+				batch = batch[:0]
+			}
+		}
+	}
+}
+
+func (db *ClickHouseDB) flushSpans(batch []spanBatchItem) {
+	ctx := context.Background()
+	b, err := db.conn.PrepareBatch(ctx, `INSERT INTO nginx_analytics.spans (
+		trace_id, span_id, parent_span_id, name, start_time, end_time, attributes, instance_id
+	)`)
+	if err != nil {
+		return
+	}
+
+	for _, s := range batch {
+		b.Append(s.traceID, s.spanID, s.parent, s.name, s.start, s.end, s.attrs, s.agentID)
+	}
+	b.Send()
+}
+
+func (db *ClickHouseDB) runSysFlusher() {
+	ticker := time.NewTicker(5 * time.Second)
+	batch := make([]sysBatchItem, 0, 100)
+	for {
+		select {
+		case item := <-db.sysChan:
+			batch = append(batch, item)
+			if len(batch) >= 100 {
+				db.flushSys(batch)
+				batch = batch[:0]
+			}
+		case <-ticker.C:
+			if len(batch) > 0 {
+				db.flushSys(batch)
+				batch = batch[:0]
+			}
+		}
+	}
+}
+
+func (db *ClickHouseDB) flushSys(batch []sysBatchItem) {
+	ctx := context.Background()
+	b, err := db.conn.PrepareBatch(ctx, "INSERT INTO nginx_analytics.system_metrics (timestamp, instance_id, cpu_usage, memory_usage)")
+	if err != nil {
+		return
+	}
+	for _, item := range batch {
+		b.Append(time.Now(), item.agentID, float32(item.entry.CpuUsagePercent), float32(item.entry.MemoryUsagePercent))
+	}
+	b.Send()
+}
+
+func (db *ClickHouseDB) runNginxFlusher() {
+	ticker := time.NewTicker(5 * time.Second)
+	batch := make([]nginxBatchItem, 0, 100)
+	for {
+		select {
+		case item := <-db.nginxChan:
+			batch = append(batch, item)
+			if len(batch) >= 100 {
+				db.flushNginx(batch)
+				batch = batch[:0]
+			}
+		case <-ticker.C:
+			if len(batch) > 0 {
+				db.flushNginx(batch)
+				batch = batch[:0]
+			}
+		}
+	}
+}
+
+func (db *ClickHouseDB) flushNginx(batch []nginxBatchItem) {
+	ctx := context.Background()
+	b, err := db.conn.PrepareBatch(ctx, "INSERT INTO nginx_analytics.nginx_metrics (timestamp, instance_id, active_connections, total_requests)")
+	if err != nil {
+		return
+	}
+	for _, item := range batch {
+		b.Append(time.Now(), item.agentID, uint32(item.entry.ActiveConnections), uint64(item.entry.TotalRequests))
+	}
+	b.Send()
+}
+func (db *ClickHouseDB) runGwFlusher() {
+	ticker := time.NewTicker(5 * time.Second)
+	batch := make([]gwBatchItem, 0, 100)
+	for {
+		select {
+		case item := <-db.gwChan:
+			batch = append(batch, item)
+			if len(batch) >= 100 {
+				db.flushGw(batch)
+				batch = batch[:0]
+			}
+		case <-ticker.C:
+			if len(batch) > 0 {
+				db.flushGw(batch)
+				batch = batch[:0]
+			}
+		}
+	}
+}
+
+func (db *ClickHouseDB) flushGw(batch []gwBatchItem) {
+	ctx := context.Background()
+	b, err := db.conn.PrepareBatch(ctx, `INSERT INTO nginx_analytics.gateway_metrics (
+		timestamp, gateway_id, eps, active_connections,
+		cpu_usage, memory_mb, goroutines, db_latency_ms
+	)`)
+	if err != nil {
+		return
+	}
+	for _, item := range batch {
+		b.Append(time.Now(), item.metrics.gatewayID, item.metrics.metrics.Eps,
+			uint32(item.metrics.metrics.ActiveConnections), item.metrics.metrics.CpuUsage,
+			item.metrics.metrics.MemoryMb, uint32(item.metrics.metrics.Goroutines),
+			item.metrics.metrics.DbLatency)
+	}
+	b.Send()
 }

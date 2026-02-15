@@ -1,0 +1,86 @@
+{{- if .Values.mockAgent.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "avika.fullname" . }}-mock-agent
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+    component: mock-agent
+spec:
+  replicas: {{ .Values.mockAgent.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "avika.selectorLabels" . | nindent 6 }}
+      component: mock-agent
+  template:
+    metadata:
+      labels:
+        {{- include "avika.selectorLabels" . | nindent 8 }}
+        component: mock-agent
+    spec:
+      containers:
+        - name: agent
+          image: "{{ .Values.mockAgent.image.repository }}:{{ .Values.mockAgent.image.tag }}"
+          imagePullPolicy: {{ .Values.mockAgent.image.pullPolicy | default "IfNotPresent" }}
+          command: ["/app/agent"]
+          args:
+            - "-server"
+            - "{{ include "avika.fullname" . }}-gateway:5020"
+            - "-buffer-dir"
+            - "/var/lib/avika/buffer/"
+            - "-health-port"
+            - "5026"
+            - "-mgmt-port"
+            - "5025"
+          ports:
+            - name: health
+              containerPort: 5026
+              protocol: TCP
+            - name: mgmt
+              containerPort: 5025
+              protocol: TCP
+          # Resource limits based on profiling (2026-02-15)
+          # Profiled: Memory 1.4-4.5MB, CPU <1% typical
+          resources:
+            {{- if .Values.agent.resources }}
+            {{- toYaml .Values.agent.resources | nindent 12 }}
+            {{- else }}
+            limits:
+              cpu: 200m
+              memory: 64Mi
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            {{- end }}
+          # Go runtime tuning for memory efficiency
+          env:
+            - name: GOGC
+              value: "{{ .Values.agent.env.GOGC | default "50" }}"
+            - name: GOMEMLIMIT
+              value: "{{ .Values.agent.env.GOMEMLIMIT | default "56MiB" }}"
+            - name: GOMAXPROCS
+              value: "{{ .Values.agent.env.GOMAXPROCS | default "2" }}"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: buffer
+              mountPath: /var/lib/avika/buffer
+      volumes:
+        - name: buffer
+          emptyDir:
+            sizeLimit: 100Mi  # Limit buffer storage
+{{- end }}

@@ -1,0 +1,308 @@
+# Default values for avika.
+# Port assignments are in range 5020-5050 to avoid collisions.
+#
+# =============================================================================
+# SCALING PROFILES
+# =============================================================================
+# This chart supports multiple scaling profiles. Choose based on your workload:
+#
+# Profile        | Agents | RPS      | Gateway Replicas | ClickHouse Memory
+# ---------------|--------|----------|------------------|------------------
+# default        | 1-10   | 1k       | 1                | 2Gi
+# medium         | 10-50  | 10k      | 2                | 4Gi
+# large          | 50-100 | 50k      | 3                | 8Gi
+# enterprise     | 100+   | 100k+    | 5+               | 16Gi+
+#
+# To apply a profile, use: helm install --values profiles/enterprise.yaml
+# =============================================================================
+
+replicaCount: 1
+
+image:
+  repository: avika
+  pullPolicy: IfNotPresent
+  tag: ""
+
+# -- Component Configurations --
+
+gateway:
+  replicaCount: 1
+  image:
+    repository: hellodk/gateway
+    tag: v3-vault
+  service:
+    type: ClusterIP
+    grpcPort: 5020      # gRPC for agent connections
+    httpPort: 5021      # HTTP/WebSocket (terminal, reports)
+    metricsPort: 5022   # Prometheus metrics endpoint
+  config:
+    agentMgmtPort: 5025 # Port to connect back to agents
+    allowedOrigins: "http://localhost:5031,http://localhost:3000,http://avika-frontend:3000"
+    enableRateLimit: true
+    rateLimitRPS: 100
+    shutdownTimeout: 30s
+    # High-throughput settings (override via environment)
+    grpcMaxConcurrentStreams: 100
+    grpcMaxRecvMsgSize: 16777216      # 16MB
+    grpcMaxSendMsgSize: 16777216      # 16MB
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  # Graceful shutdown configuration
+  terminationGracePeriodSeconds: 35
+  # Horizontal Pod Autoscaler (disabled by default)
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  # Pod Disruption Budget (disabled by default)
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
+agent:
+  image:
+    repository: hellodk/nginx-agent
+    tag: v2
+  config:
+    mgmtPort: 5025      # Management gRPC server
+    healthPort: 5026    # Health check endpoint
+  # Resource limits based on profiling (2026-02-15)
+  # Profiled values: Memory 1.4-4.5MB, CPU <1% typical
+  resources:
+    limits:
+      cpu: 200m         # 20% of 1 CPU core (actual: <5%)
+      memory: 64Mi      # Actual peak: ~10MB
+    requests:
+      cpu: 50m          # 5% of 1 CPU core (actual: <1%)
+      memory: 32Mi      # Actual baseline: ~1.5MB
+  # Go runtime environment for memory optimization
+  env:
+    GOGC: "50"          # Aggressive GC to keep memory low
+    GOMEMLIMIT: "56MiB" # Soft limit below container limit
+    GOMAXPROCS: "2"     # Limit parallelism
+
+# Mock agent for validation/testing
+mockAgent:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: hellodk/nginx-agent
+    tag: v2
+    pullPolicy: Always
+
+frontend:
+  replicaCount: 1
+  image:
+    repository: hellodk/avika-frontend
+    tag: v1.0.1
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 5031          # Frontend HTTP server (5020-5050 range)
+  env:
+    gatewayUrl: "http://avika-gateway:5020"
+    wsUrl: "ws://avika-gateway:5021"
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+updateServer:
+  enabled: false  # Disabled for now
+  image:
+    repository: hellodk/update-server
+    tag: v1.0.0
+  service:
+    type: ClusterIP
+    port: 5030          # Update server HTTP
+
+aiEngine:
+  replicaCount: 0  # Disabled - requires Redpanda
+  image:
+    repository: hellodk/ai-engine
+    tag: v1.0.0
+  resources:
+    limits:
+      memory: 1Gi
+
+logAggregator:
+  replicaCount: 0  # Disabled - requires Redpanda
+  image:
+    repository: hellodk/log-aggregator
+    tag: v1.0.0
+
+# -- Infrastructure --
+# IMPORTANT: Override these credentials in production using --set or secrets
+
+postgresql:
+  enabled: true
+  auth:
+    database: avika
+    username: admin
+    # In production, use existingSecret instead:
+    # existingSecret: avika-postgresql
+    # secretKeys:
+    #   adminPasswordKey: postgres-password
+    password: ""  # Set via --set postgresql.auth.password=<secure-password>
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    # PostgreSQL tuning for high connections
+    extendedConfiguration: |
+      max_connections = 200
+      shared_buffers = 128MB
+      work_mem = 4MB
+      maintenance_work_mem = 64MB
+      effective_cache_size = 256MB
+
+clickhouse:
+  enabled: true
+  # In production, use existingSecret:
+  # existingSecret: avika-clickhouse
+  password: ""  # Set via --set clickhouse.password=<secure-password>
+  persistence:
+    size: 10Gi
+  resources:
+    limits:
+      cpu: 2
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 2Gi
+  # ClickHouse tuning for high ingestion
+  # Override these for enterprise scale (100k+ RPS)
+  config:
+    # Buffer sizes for batch inserts
+    logBufferSize: 100000       # Access logs channel buffer
+    spanBufferSize: 200000      # Spans channel buffer
+    metricsBufferSize: 10000    # Metrics channel buffer
+    # Batch flush settings
+    logBatchSize: 10000         # Flush logs every N records
+    spanBatchSize: 20000        # Flush spans every N records
+    flushIntervalMs: 100        # Max flush interval
+
+redpanda:
+  enabled: true
+  replicaCount: 1
+  # Standard Kafka ports
+  listeners:
+    kafka:
+      port: 9092
+  resources:
+    limits:
+      cpu: 1
+      memory: 2Gi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+  # Redpanda tuning
+  config:
+    # Retention for logs
+    logRetentionMs: 86400000    # 24 hours
+    logRetentionBytes: 10737418240  # 10GB
+
+otelCollector:
+  enabled: true
+  image:
+    repository: otel/opentelemetry-collector-contrib
+    tag: 0.91.0
+  ports:
+    grpc: 4317
+    http: 4318
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# -- Vault Integration --
+vault:
+  enabled: false  # Enable and configure for your environment
+  address: "http://vault.utilities.svc.cluster.local:8200"
+  # In production, use Kubernetes auth instead of a static token
+  # Set via: --set vault.token=<your-token> or use K8s ServiceAccount auth
+  token: ""
+  secretsPath: "avika"
+  # Enable sidecar injection for auto-renewal (requires Vault Agent)
+  injector:
+    enabled: false
+
+# -- Security --
+security:
+  # TLS configuration for gRPC/HTTP
+  tls:
+    enabled: false
+    certSecret: ""
+    keySecret: ""
+  # Pod Security Standards
+  podSecurityPolicy:
+    enabled: false
+
+# -- Monitoring --
+monitoring:
+  prometheus:
+    enabled: true
+    scrape: true
+    interval: 30s
+    path: /metrics
+
+# -- Global Settings --
+timezone: UTC
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podSecurityContext:
+  runAsNonRoot: false  # Allow root for now, can be hardened later
+  # runAsUser: 1000
+  # fsGroup: 1000
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false  # Gateway needs to write temp files for reports
+  capabilities:
+    drop:
+      - ALL
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: avika.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+        - path: /api
+          pathType: Prefix
+          service: gateway
+  tls: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

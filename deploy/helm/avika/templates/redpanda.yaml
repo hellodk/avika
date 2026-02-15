@@ -1,0 +1,51 @@
+{{- if .Values.redpanda.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-redpanda
+spec:
+  serviceName: {{ .Release.Name }}-redpanda
+  replicas: {{ .Values.redpanda.replicaCount }}
+  selector:
+    matchLabels:
+      app: redpanda
+  template:
+    metadata:
+      labels:
+        app: redpanda
+    spec:
+      containers:
+        - name: redpanda
+          image: docker.redpanda.com/redpandadata/redpanda:v23.3.3
+          command:
+            - /bin/sh
+            - -c
+            - |
+              /usr/bin/rpk redpanda start \
+                --mode dev-container \
+                --smp 1 \
+                --memory 512M \
+                --reserve-memory 0M \
+                --overprovisioned \
+                --node-id 0 \
+                --check=false \
+                --kafka-addr PLAIN://0.0.0.0:9092 \
+                --advertise-kafka-addr {{ .Release.Name }}-redpanda:9092
+          ports:
+            - containerPort: 9092
+          resources:
+            limits:
+              memory: 1Gi
+            requests:
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-redpanda
+spec:
+  ports:
+    - port: 9092
+  selector:
+    app: redpanda
+{{- end }}
