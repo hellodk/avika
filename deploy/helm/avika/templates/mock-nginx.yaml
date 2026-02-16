@@ -84,10 +84,9 @@ spec:
         - name: avika-agent
           image: "{{ .Values.mockNginx.image.repository }}:{{ .Values.mockNginx.image.tag }}"
           imagePullPolicy: {{ .Values.mockNginx.image.pullPolicy | default "IfNotPresent" }}
-          command: ["/usr/local/bin/avika-agent"]
+          command: ["/app/agent"]
           args:
-            - "-config"
-            - "/etc/avika/avika-agent.conf"
+            - "-config=/etc/avika/avika-agent.conf"
           env:
             - name: POD_NAME
               valueFrom:

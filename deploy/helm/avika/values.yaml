@@ -21,7 +21,7 @@ replicaCount: 1
 image:
   repository: avika
   pullPolicy: IfNotPresent
-  tag: "0.1.44"
+  tag: "0.1.45"
 
 # -- Component Configurations --
 
@@ -29,7 +29,7 @@ gateway:
   replicaCount: 1
   image:
     repository: hellodk/gateway
-    tag: "0.1.44"
+    tag: "0.1.45"
   service:
     type: ClusterIP
     grpcPort: 5020      # gRPC for agent connections
@@ -69,7 +69,7 @@ gateway:
 agent:
   image:
     repository: hellodk/nginx-agent
-    tag: "0.1.44"
+    tag: "0.1.45"
   config:
     mgmtPort: 5025      # Management gRPC server
     healthPort: 5026    # Health check endpoint
@@ -94,7 +94,7 @@ mockAgent:
   replicaCount: 1
   image:
     repository: hellodk/nginx-agent
-    tag: "0.1.44"
+    tag: "0.1.45"
     pullPolicy: Always
 
 # Mock NGINX instances with Avika agent sidecar
@@ -104,7 +104,7 @@ mockNginx:
   replicaCount: 2
   image:
     repository: hellodk/avika-agent
-    tag: "0.1.44"
+    tag: "0.1.45"
     pullPolicy: Always
   # Gateway configuration
   # For in-cluster: use service.namespace.svc.cluster.local format
@@ -115,7 +115,7 @@ frontend:
   replicaCount: 1
   image:
     repository: hellodk/avika-frontend
-    tag: "0.1.44"
+    tag: "0.1.45"
     pullPolicy: Always
   service:
     type: ClusterIP
