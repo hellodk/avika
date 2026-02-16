@@ -22,9 +22,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/segmentio/kafka-go"
-	"github.com/user/nginx-manager/cmd/gateway/config"
-	"github.com/user/nginx-manager/cmd/gateway/middleware"
-	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+	"github.com/avika-ai/avika/cmd/gateway/config"
+	"github.com/avika-ai/avika/cmd/gateway/middleware"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/peer"
@@ -546,13 +546,17 @@ func (s *server) UpdateAgent(ctx context.Context, req *pb.UpdateAgentRequest) (*
 		}, nil
 	}
 
+	// Construct the update URL from gateway's HTTP address
+	// The gateway serves updates at /updates/ on its HTTP port
+	updateURL := fmt.Sprintf("http://%s/updates", s.config.GetHTTPAddress())
+
 	// Send update command
 	err := session.stream.Send(&pb.ServerCommand{
 		CommandId: fmt.Sprintf("upd-%d", time.Now().Unix()),
 		Payload: &pb.ServerCommand_Update{
 			Update: &pb.Update{
 				Version:   "latest",
-				UpdateUrl: "http://192.168.1.10:8090", // Hardcoded LAN IP for now, should be configurable
+				UpdateUrl: updateURL,
 			},
 		},
 	})
@@ -1159,7 +1163,7 @@ func connectToDatabase(cfg *config.Config) (*DB, error) {
 
 	// Try fallback for local development
 	log.Println("Trying fallback database connection...")
-	db, err = NewDB("postgres://admin:password@127.0.0.1:5432/nginx_manager?sslmode=disable")
+	db, err = NewDB("postgres://admin:password@127.0.0.1:5432/avika?sslmode=disable")
 	if err != nil {
 		return nil, fmt.Errorf("all connection attempts failed: %w", err)
 	}
@@ -1235,6 +1239,19 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 
 	// Prometheus metrics endpoint
 	mux.HandleFunc("/metrics", srv.handleMetrics)
+
+	// Agent update distribution endpoint
+	// Serves agent binaries and version.json from the updates directory
+	updatesDir := cfg.Server.UpdatesDir
+	if updatesDir == "" {
+		updatesDir = "./updates" // Default directory
+	}
+	if _, err := os.Stat(updatesDir); err == nil {
+		log.Printf("Serving agent updates from %s on /updates/", updatesDir)
+		mux.Handle("/updates/", http.StripPrefix("/updates/", http.FileServer(http.Dir(updatesDir))))
+	} else {
+		log.Printf("Updates directory not found (%s), update serving disabled", updatesDir)
+	}
 
 	return &http.Server{
 		Addr:         cfg.GetHTTPAddress(),

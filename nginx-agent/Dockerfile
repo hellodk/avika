@@ -30,8 +30,10 @@ RUN chmod +x /usr/local/bin/avika-agent
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
-# Create buffer directory, log directory, and copy default config
-RUN mkdir -p /etc/avika /var/lib/avika-agent /var/log/avika-agent
+# Create directories for agent data and copy default config
+# /var/lib/avika/ - WAL buffer and config backups (matches avika-agent.conf)
+# /var/log/avika/ - Agent logs (if not using stdout)
+RUN mkdir -p /etc/avika /var/lib/avika /var/lib/avika/backups /var/log/avika
 COPY avika-agent.conf /etc/avika/avika-agent.conf
 
 # Expose ports

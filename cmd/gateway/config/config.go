@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/user/nginx-manager/internal/common/vault"
+	"github.com/avika-ai/avika/internal/common/vault"
 	"gopkg.in/yaml.v3"
 )
 
@@ -26,6 +26,7 @@ type ServerConfig struct {
 	HTTPPort    int    `yaml:"http_port"`
 	MetricsPort int    `yaml:"metrics_port"`
 	Host        string `yaml:"host"`
+	UpdatesDir  string `yaml:"updates_dir"` // Directory for serving agent updates
 
 	// Legacy fields for backward compatibility
 	Port   string `yaml:"port"`
@@ -233,7 +234,7 @@ func defaultConfig() *Config {
 			EnableTLS:       false,
 		},
 		Database: DatabaseConfig{
-			DSN:             "postgres://admin:password@localhost:5432/nginx_manager?sslmode=disable",
+			DSN:             "postgres://admin:password@localhost:5432/avika?sslmode=disable",
 			MaxOpenConns:    25,
 			MaxIdleConns:    25,
 			ConnMaxLifetime: 5 * time.Minute,
@@ -256,7 +257,7 @@ func defaultConfig() *Config {
 		SMTP: SMTPConfig{
 			Host:   "smtp.gmail.com",
 			Port:   587,
-			From:   "alerts@nginx-manager.local",
+			From:   "alerts@avika.local",
 			UseTLS: true,
 		},
 		Agent: AgentConfig{
@@ -299,6 +300,9 @@ func loadEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("GATEWAY_WS_PORT"); v != "" {
 		cfg.Server.WSPort = v
+	}
+	if v := os.Getenv("GATEWAY_UPDATES_DIR"); v != "" {
+		cfg.Server.UpdatesDir = v
 	}
 
 	// Security

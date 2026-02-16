@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -40,6 +41,14 @@ func NewFileBuffer(basePath string) (*FileBuffer, error) {
 func NewFileBufferWithOptions(basePath string, maxWALSize int64) (*FileBuffer, error) {
 	walPath := basePath + ".wal"
 	cursorPath := basePath + ".cursor"
+
+	// Ensure the parent directory exists
+	dir := filepath.Dir(walPath)
+	if dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create buffer directory %s: %w", dir, err)
+		}
+	}
 
 	// Open WAL in append mode
 	wal, err := os.OpenFile(walPath, os.O_CREATE|os.O_RDWR, 0666)

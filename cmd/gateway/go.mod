@@ -1,16 +1,16 @@
-module github.com/user/nginx-manager/cmd/gateway
+module github.com/avika-ai/avika/cmd/gateway
 
-go 1.25.4
+go 1.24
 
-replace github.com/user/nginx-manager/internal/common => ../../internal/common
+replace github.com/avika-ai/avika/internal/common => ../../internal/common
 
-replace github.com/user/nginx-manager => ../../
+replace github.com/avika-ai/avika => ../../
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.43.0
 	github.com/lib/pq v1.11.1
 	github.com/segmentio/kafka-go v0.4.50
-	github.com/user/nginx-manager/internal/common v0.0.0-00010101000000-000000000000
+	github.com/avika-ai/avika/internal/common v0.0.0-00010101000000-000000000000
 	google.golang.org/grpc v1.78.0
 )
 

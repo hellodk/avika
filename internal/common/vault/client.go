@@ -82,7 +82,7 @@ func NewClientFromEnv() (*Client, error) {
 }
 
 // GetSecret retrieves a secret from Vault KV v2
-// path should be like "nginx-manager/postgresql" (without "secret/data/" prefix)
+// path should be like "avika/postgresql" (without "secret/data/" prefix)
 func (c *Client) GetSecret(path string) (SecretData, error) {
 	url := fmt.Sprintf("%s/v1/secret/data/%s", c.addr, path)
 
@@ -171,7 +171,7 @@ type PostgresConfig struct {
 
 // GetPostgresConfig retrieves PostgreSQL config from Vault
 func (c *Client) GetPostgresConfig() (*PostgresConfig, error) {
-	secret, err := c.GetSecret("nginx-manager/postgresql")
+	secret, err := c.GetSecret("avika/postgresql")
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +207,7 @@ type ClickHouseConfig struct {
 
 // GetClickHouseConfig retrieves ClickHouse config from Vault
 func (c *Client) GetClickHouseConfig() (*ClickHouseConfig, error) {
-	secret, err := c.GetSecret("nginx-manager/clickhouse")
+	secret, err := c.GetSecret("avika/clickhouse")
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +239,7 @@ type RedpandaConfig struct {
 
 // GetRedpandaConfig retrieves Redpanda config from Vault
 func (c *Client) GetRedpandaConfig() (*RedpandaConfig, error) {
-	secret, err := c.GetSecret("nginx-manager/redpanda")
+	secret, err := c.GetSecret("avika/redpanda")
 	if err != nil {
 		return nil, err
 	}

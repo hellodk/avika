@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/hpcloud/tail"
-	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 )
 
 type Parser struct {

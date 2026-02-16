@@ -8,7 +8,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 )
 
 type DB struct {
@@ -63,6 +63,16 @@ func (db *DB) migrate() error {
 		`DROP INDEX IF EXISTS idx_agents_hostname_ip;`,
 		// Remove unique constraint on ip if it exists
 		`DROP INDEX IF EXISTS idx_agents_ip;`,
+		`CREATE TABLE IF NOT EXISTS alert_rules (
+			id UUID PRIMARY KEY,
+			name TEXT,
+			metric_type TEXT,
+			threshold FLOAT,
+			comparison TEXT,
+			window_sec INT,
+			enabled BOOLEAN,
+			recipients TEXT
+		);`,
 	}
 	for _, q := range queries {
 		if _, err := db.conn.Exec(q); err != nil {
@@ -177,4 +187,55 @@ func (db *DB) PruneStaleAgents(maxAge time.Duration) ([]string, error) {
 		return nil, err
 	}
 	return ids, nil
+}
+
+func (db *DB) UpsertAlertRule(rule *pb.AlertRule) error {
+	query := `
+	INSERT INTO alert_rules (id, name, metric_type, threshold, comparison, window_sec, enabled, recipients)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	ON CONFLICT (id) DO UPDATE SET
+		name = EXCLUDED.name,
+		metric_type = EXCLUDED.metric_type,
+		threshold = EXCLUDED.threshold,
+		comparison = EXCLUDED.comparison,
+		window_sec = EXCLUDED.window_sec,
+		enabled = EXCLUDED.enabled,
+		recipients = EXCLUDED.recipients;
+	`
+	_, err := db.conn.Exec(query,
+		rule.Id,
+		rule.Name,
+		rule.MetricType,
+		rule.Threshold,
+		rule.Comparison,
+		rule.WindowSec,
+		rule.Enabled,
+		rule.Recipients,
+	)
+	return err
+}
+
+func (db *DB) DeleteAlertRule(id string) error {
+	query := `DELETE FROM alert_rules WHERE id = $1`
+	_, err := db.conn.Exec(query, id)
+	return err
+}
+
+func (db *DB) ListAlertRules() ([]*pb.AlertRule, error) {
+	rows, err := db.conn.Query("SELECT id, name, metric_type, threshold, comparison, window_sec, enabled, recipients FROM alert_rules")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var rules []*pb.AlertRule
+	for rows.Next() {
+		rule := &pb.AlertRule{}
+		if err := rows.Scan(&rule.Id, &rule.Name, &rule.MetricType, &rule.Threshold, &rule.Comparison, &rule.WindowSec, &rule.Enabled, &rule.Recipients); err != nil {
+			log.Printf("Failed to scan alert rule row: %v", err)
+			continue
+		}
+		rules = append(rules, rule)
+	}
+	return rules, nil
 }

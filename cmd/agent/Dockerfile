@@ -58,6 +58,6 @@ LABEL org.opencontainers.image.description="Agent for NGINX fleet management"
 LABEL org.opencontainers.image.version="${VERSION}"
 LABEL org.opencontainers.image.created="${BUILD_DATE}"
 LABEL org.opencontainers.image.revision="${GIT_COMMIT}"
-LABEL org.opencontainers.image.source="https://github.com/yourusername/nginx-manager"
+LABEL org.opencontainers.image.source="https://github.com/yourusername/avika"
 
 CMD ["./agent"]

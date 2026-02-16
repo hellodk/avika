@@ -1,4 +1,4 @@
-// Package logging provides structured logging for nginx-manager components.
+// Package logging provides structured logging for avika components.
 package logging
 
 import (
@@ -27,7 +27,7 @@ func DefaultConfig() *Config {
 		Format:     "json",
 		Output:     os.Stdout,
 		TimeFormat: time.RFC3339,
-		Service:    "nginx-manager",
+		Service:    "avika",
 	}
 }
 

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 )
 
 // SystemCollector collects system metrics from /proc filesystem

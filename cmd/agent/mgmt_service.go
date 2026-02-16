@@ -3,17 +3,17 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
-
-	"io"
 	"os/exec"
 
-	"github.com/user/nginx-manager/cmd/agent/certs"
-	"github.com/user/nginx-manager/cmd/agent/config"
-	"github.com/user/nginx-manager/cmd/agent/logs"
-	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+	"github.com/avika-ai/avika/cmd/agent/certs"
+	"github.com/avika-ai/avika/cmd/agent/config"
+	"github.com/avika-ai/avika/cmd/agent/logs"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
+	"github.com/creack/pty"
 	"google.golang.org/grpc"
 )
 
@@ -228,9 +228,8 @@ func (s *mgmtServer) ApplyAugment(ctx context.Context, req *pb.ApplyAugmentReque
 
 func (s *mgmtServer) Execute(stream pb.AgentService_ExecuteServer) error {
 	var cmd *exec.Cmd
-	var stdin io.WriteCloser
-	var stdout io.ReadCloser
-	var stderr io.ReadCloser
+	var ptmx *os.File
+	var done = make(chan struct{})
 
 	log.Printf("New Execute session started")
 
@@ -238,75 +237,73 @@ func (s *mgmtServer) Execute(stream pb.AgentService_ExecuteServer) error {
 		req, err := stream.Recv()
 		if err == io.EOF {
 			log.Printf("Execute session ended (EOF)")
+			if ptmx != nil {
+				ptmx.Close()
+			}
+			if cmd != nil && cmd.Process != nil {
+				cmd.Process.Kill()
+			}
 			return nil
 		}
 		if err != nil {
 			log.Printf("Execute session recv error: %v", err)
+			if ptmx != nil {
+				ptmx.Close()
+			}
+			if cmd != nil && cmd.Process != nil {
+				cmd.Process.Kill()
+			}
 			return err
 		}
 
 		if cmd == nil {
-			// Start process on first message
+			// Start process on first message with a PTY for interactive shell support
 			shell := req.Command
 			if shell == "" {
 				shell = "/bin/bash"
 			}
-			log.Printf("Starting shell: %s for instance: %s", shell, req.InstanceId)
+			log.Printf("Starting shell with PTY: %s for instance: %s", shell, req.InstanceId)
+			
 			cmd = exec.Command(shell)
-			stdin, _ = cmd.StdinPipe()
-			stdout, _ = cmd.StdoutPipe()
-			stderr, _ = cmd.StderrPipe()
-
-			if err := cmd.Start(); err != nil {
-				log.Printf("Failed to start shell %s: %v", shell, err)
+			cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+			
+			// Start with PTY
+			var err error
+			ptmx, err = pty.Start(cmd)
+			if err != nil {
+				log.Printf("Failed to start shell with PTY %s: %v", shell, err)
 				return stream.Send(&pb.ExecResponse{Error: err.Error()})
 			}
 
-			// Goroutine to stream stdout back
-			go func() {
-				buf := make([]byte, 1024)
-				for {
-					n, err := stdout.Read(buf)
-					if n > 0 {
-						if err := stream.Send(&pb.ExecResponse{Output: buf[:n]}); err != nil {
-							log.Printf("Failed to send stdout: %v", err)
-							break
-						}
-					}
-					if err != nil {
-						if err != io.EOF {
-							log.Printf("Stdout read error: %v", err)
-						}
-						break
-					}
-				}
-				log.Printf("Stdout streaming ended")
-			}()
+			log.Printf("Shell started with PTY, streaming output...")
 
-			// Goroutine to stream stderr back
+			// Goroutine to stream PTY output back
 			go func() {
-				buf := make([]byte, 1024)
+				defer close(done)
+				buf := make([]byte, 4096)
 				for {
-					n, err := stderr.Read(buf)
+					n, err := ptmx.Read(buf)
 					if n > 0 {
-						if err := stream.Send(&pb.ExecResponse{Output: buf[:n]}); err != nil {
-							log.Printf("Failed to send stderr: %v", err)
-							break
+						if sendErr := stream.Send(&pb.ExecResponse{Output: buf[:n]}); sendErr != nil {
+							log.Printf("Failed to send PTY output: %v", sendErr)
+							return
 						}
 					}
 					if err != nil {
 						if err != io.EOF {
-							log.Printf("Stderr read error: %v", err)
+							log.Printf("PTY read error: %v", err)
 						}
-						break
+						return
 					}
 				}
-				log.Printf("Stderr streaming ended")
 			}()
 		}
 
-		if len(req.Input) > 0 && stdin != nil {
-			stdin.Write(req.Input)
+		// Write input to PTY
+		if len(req.Input) > 0 && ptmx != nil {
+			if _, err := ptmx.Write(req.Input); err != nil {
+				log.Printf("PTY write error: %v", err)
+			}
 		}
 	}
 }

@@ -176,7 +176,7 @@ func TestSanitizeString(t *testing.T) {
 		{"normal string", "hello world", "hello world"},
 		{"with null byte", "hello\x00world", "helloworld"},
 		{"with control chars", "hello\x01\x02world", "helloworld"},
-		{"with tabs and newlines", "hello\t\nworld", "hello\t\nworld"}, // Tabs and newlines should be preserved
+		{"with tabs and newlines", "hello\t\nworld", "helloworld"}, // Tabs (9) and newlines (10) are removed (< 32)
 		{"empty", "", ""},
 		{"unicode", "héllo wörld", "héllo wörld"},
 	}

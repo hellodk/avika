@@ -1,4 +1,4 @@
-// Package ports defines standardized port assignments for the nginx-manager platform.
+// Package ports defines standardized port assignments for the avika platform.
 // All application ports are in the range 5020-5050 to avoid collisions with common services.
 package ports
 

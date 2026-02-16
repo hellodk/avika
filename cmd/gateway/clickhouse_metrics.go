@@ -1,104 +1,48 @@
 package main
 
 import (
-	"context"
-	"time"
+	"fmt"
 
-	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 )
 
-// Add these methods to the ClickHouseDB struct
+type gatewayMetrics struct {
+	gatewayID string
+	metrics   *pb.GatewayMetricPoint
+}
 
 func (db *ClickHouseDB) InsertSystemMetrics(metrics *pb.SystemMetrics, agentID string) error {
 	if metrics == nil {
 		return nil
 	}
-
-	ctx := context.Background()
-	ts := time.Now().UTC()
-
-	err := db.conn.Exec(ctx, `
-		INSERT INTO system_metrics (
-			timestamp, instance_id, cpu_usage, memory_usage,
-			memory_total, memory_used, network_rx_bytes, network_tx_bytes,
-			network_rx_rate, network_tx_rate,
-			cpu_user, cpu_system, cpu_iowait
-		) VALUES (
-			?, ?, ?, ?,
-			?, ?, ?, ?,
-			?, ?,
-			?, ?, ?
-		)
-	`,
-		ts,
-		agentID,
-		metrics.CpuUsagePercent,
-		metrics.MemoryUsagePercent,
-		metrics.MemoryTotalBytes,
-		metrics.MemoryUsedBytes,
-		metrics.NetworkRxBytes,
-		metrics.NetworkTxBytes,
-		metrics.NetworkRxRate,
-		metrics.NetworkTxRate,
-		metrics.CpuUserPercent,
-		metrics.CpuSystemPercent,
-		metrics.CpuIowaitPercent,
-	)
-
-	return err
+	select {
+	case db.sysChan <- sysBatchItem{entry: metrics, agentID: agentID}:
+		return nil
+	default:
+		return fmt.Errorf("system metrics queue full")
+	}
 }
 
 func (db *ClickHouseDB) InsertNginxMetrics(metrics *pb.NginxMetrics, agentID string) error {
 	if metrics == nil {
 		return nil
 	}
-
-	ctx := context.Background()
-	ts := time.Now().UTC()
-
-	err := db.conn.Exec(ctx, `
-		INSERT INTO nginx_metrics (
-			timestamp, instance_id, active_connections, accepted_connections,
-			handled_connections, total_requests, reading, writing,
-			waiting, requests_per_second
-		) VALUES (
-			?, ?, ?, ?,
-			?, ?, ?, ?,
-			?, ?
-		)
-	`,
-		ts,
-		agentID,
-		metrics.ActiveConnections,
-		metrics.AcceptedConnections,
-		metrics.HandledConnections,
-		metrics.TotalRequests,
-		metrics.Reading,
-		metrics.Writing,
-		metrics.Waiting,
-		metrics.RequestsPerSecond,
-	)
-
-	return err
+	select {
+	case db.nginxChan <- nginxBatchItem{entry: metrics, agentID: agentID}:
+		return nil
+	default:
+		return fmt.Errorf("nginx metrics queue full")
+	}
 }
 
 func (db *ClickHouseDB) InsertGatewayMetrics(gatewayID string, metrics *pb.GatewayMetricPoint) error {
-	ctx := context.Background()
-	ts := time.Now().UTC()
-
-	return db.conn.Exec(ctx, `
-		INSERT INTO gateway_metrics (
-			timestamp, gateway_id, eps, active_connections,
-			cpu_usage, memory_mb, goroutines, db_latency_ms
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`,
-		ts,
-		gatewayID,
-		metrics.Eps,
-		uint32(metrics.ActiveConnections),
-		metrics.CpuUsage,
-		metrics.MemoryMb,
-		uint32(metrics.Goroutines),
-		metrics.DbLatency,
-	)
+	if metrics == nil {
+		return nil
+	}
+	select {
+	case db.gwChan <- gwBatchItem{metrics: &gatewayMetrics{gatewayID: gatewayID, metrics: metrics}}:
+		return nil
+	default:
+		return fmt.Errorf("gateway metrics queue full")
+	}
 }

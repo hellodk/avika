@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/shirou/gopsutil/v3/process"
-	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 )
 
 type Discoverer struct{}

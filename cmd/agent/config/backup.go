@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	BackupDir  = "/var/lib/nginx-manager/backups"
+	BackupDir  = "/var/lib/avika/backups"
 	NginxDir   = "/etc/nginx"
 	MaxBackups = 10
 )

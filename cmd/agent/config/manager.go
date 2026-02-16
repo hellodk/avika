@@ -149,3 +149,35 @@ func (m *Manager) Rollback() error {
 
 	return m.Reload()
 }
+
+// UpdateSnippet injects a configuration snippet into the main config file
+// This is a naive implementation: it appends to the end of the file or specific block
+func (m *Manager) UpdateSnippet(snippet string, context string) (string, error) {
+	// 1. Create Backup
+	backupPath, err := m.Backup()
+	if err != nil {
+		return "", fmt.Errorf("backup failed: %w", err)
+	}
+
+	content, err := ioutil.ReadFile(m.configPath)
+	if err != nil {
+		return backupPath, fmt.Errorf("failed to read config: %w", err)
+	}
+	configStr := string(content)
+
+	// 2. Construct new content (Very simple append strategy)
+	// In a real world, we'd use the AST parser to insert intelligently.
+	// Here we just append to the end if it's http/events, or replace if we find a marker.
+
+	// Check if already exists to avoid duplicates (idempotency)
+	// For this MVP, we assume we just append.
+
+	newContent := configStr + fmt.Sprintf("\n# AI-Tuned Configuration (%s)\n%s\n", time.Now().Format("2006-01-02"), snippet)
+
+	// 3. Write
+	if err := ioutil.WriteFile(m.configPath, []byte(newContent), 0644); err != nil {
+		return backupPath, fmt.Errorf("failed to write config: %w", err)
+	}
+
+	return backupPath, nil
+}

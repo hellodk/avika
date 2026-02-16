@@ -89,6 +89,12 @@ coverage/
 .hypothesis/
 .pytest_cache/
 .tox/
+test-reports/
+test-results/
+playwright-report/
+frontend/playwright-report/
+frontend/test-results/
+frontend/coverage/
 
 # ============================================================================
 # Database files

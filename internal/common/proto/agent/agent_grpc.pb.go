@@ -134,10 +134,19 @@ const (
 	AgentService_RemoveAgent_FullMethodName        = "/nginx.agent.v1.AgentService/RemoveAgent"
 	AgentService_GetUptimeReports_FullMethodName   = "/nginx.agent.v1.AgentService/GetUptimeReports"
 	AgentService_GetAnalytics_FullMethodName       = "/nginx.agent.v1.AgentService/GetAnalytics"
+	AgentService_StreamAnalytics_FullMethodName    = "/nginx.agent.v1.AgentService/StreamAnalytics"
+	AgentService_GetTraces_FullMethodName          = "/nginx.agent.v1.AgentService/GetTraces"
+	AgentService_GetTraceDetails_FullMethodName    = "/nginx.agent.v1.AgentService/GetTraceDetails"
 	AgentService_GetRecommendations_FullMethodName = "/nginx.agent.v1.AgentService/GetRecommendations"
 	AgentService_ApplyAugment_FullMethodName       = "/nginx.agent.v1.AgentService/ApplyAugment"
 	AgentService_UpdateAgent_FullMethodName        = "/nginx.agent.v1.AgentService/UpdateAgent"
 	AgentService_Execute_FullMethodName            = "/nginx.agent.v1.AgentService/Execute"
+	AgentService_GenerateReport_FullMethodName     = "/nginx.agent.v1.AgentService/GenerateReport"
+	AgentService_SendReport_FullMethodName         = "/nginx.agent.v1.AgentService/SendReport"
+	AgentService_DownloadReport_FullMethodName     = "/nginx.agent.v1.AgentService/DownloadReport"
+	AgentService_ListAlertRules_FullMethodName     = "/nginx.agent.v1.AgentService/ListAlertRules"
+	AgentService_CreateAlertRule_FullMethodName    = "/nginx.agent.v1.AgentService/CreateAlertRule"
+	AgentService_DeleteAlertRule_FullMethodName    = "/nginx.agent.v1.AgentService/DeleteAlertRule"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -165,6 +174,11 @@ type AgentServiceClient interface {
 	GetUptimeReports(ctx context.Context, in *UptimeRequest, opts ...grpc.CallOption) (*UptimeResponse, error)
 	// Analytics
 	GetAnalytics(ctx context.Context, in *AnalyticsRequest, opts ...grpc.CallOption) (*AnalyticsResponse, error)
+	// Stream Analytics for real-time dashboards
+	StreamAnalytics(ctx context.Context, in *AnalyticsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AnalyticsResponse], error)
+	// Tracing
+	GetTraces(ctx context.Context, in *TraceRequest, opts ...grpc.CallOption) (*TraceList, error)
+	GetTraceDetails(ctx context.Context, in *TraceRequest, opts ...grpc.CallOption) (*Trace, error)
 	// AI Tuner
 	GetRecommendations(ctx context.Context, in *RecommendationRequest, opts ...grpc.CallOption) (*RecommendationResponse, error)
 	// Config Augments (Provisions)
@@ -173,6 +187,14 @@ type AgentServiceClient interface {
 	UpdateAgent(ctx context.Context, in *UpdateAgentRequest, opts ...grpc.CallOption) (*UpdateAgentResponse, error)
 	// Command Execution (Shell)
 	Execute(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExecRequest, ExecResponse], error)
+	// Reporting
+	GenerateReport(ctx context.Context, in *ReportRequest, opts ...grpc.CallOption) (*ReportResponse, error)
+	SendReport(ctx context.Context, in *SendReportRequest, opts ...grpc.CallOption) (*SendReportResponse, error)
+	DownloadReport(ctx context.Context, in *ReportRequest, opts ...grpc.CallOption) (*ReportDownloadResponse, error)
+	// Alerting
+	ListAlertRules(ctx context.Context, in *ListAlertRulesRequest, opts ...grpc.CallOption) (*AlertRuleList, error)
+	CreateAlertRule(ctx context.Context, in *AlertRule, opts ...grpc.CallOption) (*AlertRule, error)
+	DeleteAlertRule(ctx context.Context, in *DeleteAlertRuleRequest, opts ...grpc.CallOption) (*DeleteAlertRuleResponse, error)
 }
 
 type agentServiceClient struct {
@@ -322,6 +344,45 @@ func (c *agentServiceClient) GetAnalytics(ctx context.Context, in *AnalyticsRequ
 	return out, nil
 }
 
+func (c *agentServiceClient) StreamAnalytics(ctx context.Context, in *AnalyticsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AnalyticsResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AgentService_ServiceDesc.Streams[1], AgentService_StreamAnalytics_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[AnalyticsRequest, AnalyticsResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_StreamAnalyticsClient = grpc.ServerStreamingClient[AnalyticsResponse]
+
+func (c *agentServiceClient) GetTraces(ctx context.Context, in *TraceRequest, opts ...grpc.CallOption) (*TraceList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TraceList)
+	err := c.cc.Invoke(ctx, AgentService_GetTraces_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetTraceDetails(ctx context.Context, in *TraceRequest, opts ...grpc.CallOption) (*Trace, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Trace)
+	err := c.cc.Invoke(ctx, AgentService_GetTraceDetails_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *agentServiceClient) GetRecommendations(ctx context.Context, in *RecommendationRequest, opts ...grpc.CallOption) (*RecommendationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RecommendationResponse)
@@ -354,7 +415,7 @@ func (c *agentServiceClient) UpdateAgent(ctx context.Context, in *UpdateAgentReq
 
 func (c *agentServiceClient) Execute(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExecRequest, ExecResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AgentService_ServiceDesc.Streams[1], AgentService_Execute_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AgentService_ServiceDesc.Streams[2], AgentService_Execute_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -364,6 +425,66 @@ func (c *agentServiceClient) Execute(ctx context.Context, opts ...grpc.CallOptio
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentService_ExecuteClient = grpc.BidiStreamingClient[ExecRequest, ExecResponse]
+
+func (c *agentServiceClient) GenerateReport(ctx context.Context, in *ReportRequest, opts ...grpc.CallOption) (*ReportResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportResponse)
+	err := c.cc.Invoke(ctx, AgentService_GenerateReport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) SendReport(ctx context.Context, in *SendReportRequest, opts ...grpc.CallOption) (*SendReportResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SendReportResponse)
+	err := c.cc.Invoke(ctx, AgentService_SendReport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) DownloadReport(ctx context.Context, in *ReportRequest, opts ...grpc.CallOption) (*ReportDownloadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportDownloadResponse)
+	err := c.cc.Invoke(ctx, AgentService_DownloadReport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) ListAlertRules(ctx context.Context, in *ListAlertRulesRequest, opts ...grpc.CallOption) (*AlertRuleList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AlertRuleList)
+	err := c.cc.Invoke(ctx, AgentService_ListAlertRules_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) CreateAlertRule(ctx context.Context, in *AlertRule, opts ...grpc.CallOption) (*AlertRule, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AlertRule)
+	err := c.cc.Invoke(ctx, AgentService_CreateAlertRule_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) DeleteAlertRule(ctx context.Context, in *DeleteAlertRuleRequest, opts ...grpc.CallOption) (*DeleteAlertRuleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteAlertRuleResponse)
+	err := c.cc.Invoke(ctx, AgentService_DeleteAlertRule_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
@@ -390,6 +511,11 @@ type AgentServiceServer interface {
 	GetUptimeReports(context.Context, *UptimeRequest) (*UptimeResponse, error)
 	// Analytics
 	GetAnalytics(context.Context, *AnalyticsRequest) (*AnalyticsResponse, error)
+	// Stream Analytics for real-time dashboards
+	StreamAnalytics(*AnalyticsRequest, grpc.ServerStreamingServer[AnalyticsResponse]) error
+	// Tracing
+	GetTraces(context.Context, *TraceRequest) (*TraceList, error)
+	GetTraceDetails(context.Context, *TraceRequest) (*Trace, error)
 	// AI Tuner
 	GetRecommendations(context.Context, *RecommendationRequest) (*RecommendationResponse, error)
 	// Config Augments (Provisions)
@@ -398,6 +524,14 @@ type AgentServiceServer interface {
 	UpdateAgent(context.Context, *UpdateAgentRequest) (*UpdateAgentResponse, error)
 	// Command Execution (Shell)
 	Execute(grpc.BidiStreamingServer[ExecRequest, ExecResponse]) error
+	// Reporting
+	GenerateReport(context.Context, *ReportRequest) (*ReportResponse, error)
+	SendReport(context.Context, *SendReportRequest) (*SendReportResponse, error)
+	DownloadReport(context.Context, *ReportRequest) (*ReportDownloadResponse, error)
+	// Alerting
+	ListAlertRules(context.Context, *ListAlertRulesRequest) (*AlertRuleList, error)
+	CreateAlertRule(context.Context, *AlertRule) (*AlertRule, error)
+	DeleteAlertRule(context.Context, *DeleteAlertRuleRequest) (*DeleteAlertRuleResponse, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -447,6 +581,15 @@ func (UnimplementedAgentServiceServer) GetUptimeReports(context.Context, *Uptime
 func (UnimplementedAgentServiceServer) GetAnalytics(context.Context, *AnalyticsRequest) (*AnalyticsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAnalytics not implemented")
 }
+func (UnimplementedAgentServiceServer) StreamAnalytics(*AnalyticsRequest, grpc.ServerStreamingServer[AnalyticsResponse]) error {
+	return status.Error(codes.Unimplemented, "method StreamAnalytics not implemented")
+}
+func (UnimplementedAgentServiceServer) GetTraces(context.Context, *TraceRequest) (*TraceList, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetTraces not implemented")
+}
+func (UnimplementedAgentServiceServer) GetTraceDetails(context.Context, *TraceRequest) (*Trace, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetTraceDetails not implemented")
+}
 func (UnimplementedAgentServiceServer) GetRecommendations(context.Context, *RecommendationRequest) (*RecommendationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetRecommendations not implemented")
 }
@@ -458,6 +601,24 @@ func (UnimplementedAgentServiceServer) UpdateAgent(context.Context, *UpdateAgent
 }
 func (UnimplementedAgentServiceServer) Execute(grpc.BidiStreamingServer[ExecRequest, ExecResponse]) error {
 	return status.Error(codes.Unimplemented, "method Execute not implemented")
+}
+func (UnimplementedAgentServiceServer) GenerateReport(context.Context, *ReportRequest) (*ReportResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GenerateReport not implemented")
+}
+func (UnimplementedAgentServiceServer) SendReport(context.Context, *SendReportRequest) (*SendReportResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SendReport not implemented")
+}
+func (UnimplementedAgentServiceServer) DownloadReport(context.Context, *ReportRequest) (*ReportDownloadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DownloadReport not implemented")
+}
+func (UnimplementedAgentServiceServer) ListAlertRules(context.Context, *ListAlertRulesRequest) (*AlertRuleList, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAlertRules not implemented")
+}
+func (UnimplementedAgentServiceServer) CreateAlertRule(context.Context, *AlertRule) (*AlertRule, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateAlertRule not implemented")
+}
+func (UnimplementedAgentServiceServer) DeleteAlertRule(context.Context, *DeleteAlertRuleRequest) (*DeleteAlertRuleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteAlertRule not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -707,6 +868,53 @@ func _AgentService_GetAnalytics_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_StreamAnalytics_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(AnalyticsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AgentServiceServer).StreamAnalytics(m, &grpc.GenericServerStream[AnalyticsRequest, AnalyticsResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_StreamAnalyticsServer = grpc.ServerStreamingServer[AnalyticsResponse]
+
+func _AgentService_GetTraces_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TraceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetTraces(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetTraces_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetTraces(ctx, req.(*TraceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetTraceDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TraceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetTraceDetails(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetTraceDetails_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetTraceDetails(ctx, req.(*TraceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AgentService_GetRecommendations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RecommendationRequest)
 	if err := dec(in); err != nil {
@@ -768,6 +976,114 @@ func _AgentService_Execute_Handler(srv interface{}, stream grpc.ServerStream) er
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentService_ExecuteServer = grpc.BidiStreamingServer[ExecRequest, ExecResponse]
 
+func _AgentService_GenerateReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GenerateReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GenerateReport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GenerateReport(ctx, req.(*ReportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_SendReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).SendReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_SendReport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).SendReport(ctx, req.(*SendReportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_DownloadReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).DownloadReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_DownloadReport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).DownloadReport(ctx, req.(*ReportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_ListAlertRules_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAlertRulesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ListAlertRules(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ListAlertRules_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ListAlertRules(ctx, req.(*ListAlertRulesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_CreateAlertRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AlertRule)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).CreateAlertRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_CreateAlertRule_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).CreateAlertRule(ctx, req.(*AlertRule))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_DeleteAlertRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAlertRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).DeleteAlertRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_DeleteAlertRule_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).DeleteAlertRule(ctx, req.(*DeleteAlertRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -824,6 +1140,14 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AgentService_GetAnalytics_Handler,
 		},
 		{
+			MethodName: "GetTraces",
+			Handler:    _AgentService_GetTraces_Handler,
+		},
+		{
+			MethodName: "GetTraceDetails",
+			Handler:    _AgentService_GetTraceDetails_Handler,
+		},
+		{
 			MethodName: "GetRecommendations",
 			Handler:    _AgentService_GetRecommendations_Handler,
 		},
@@ -835,11 +1159,40 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "UpdateAgent",
 			Handler:    _AgentService_UpdateAgent_Handler,
 		},
+		{
+			MethodName: "GenerateReport",
+			Handler:    _AgentService_GenerateReport_Handler,
+		},
+		{
+			MethodName: "SendReport",
+			Handler:    _AgentService_SendReport_Handler,
+		},
+		{
+			MethodName: "DownloadReport",
+			Handler:    _AgentService_DownloadReport_Handler,
+		},
+		{
+			MethodName: "ListAlertRules",
+			Handler:    _AgentService_ListAlertRules_Handler,
+		},
+		{
+			MethodName: "CreateAlertRule",
+			Handler:    _AgentService_CreateAlertRule_Handler,
+		},
+		{
+			MethodName: "DeleteAlertRule",
+			Handler:    _AgentService_DeleteAlertRule_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "GetLogs",
 			Handler:       _AgentService_GetLogs_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "StreamAnalytics",
+			Handler:       _AgentService_StreamAnalytics_Handler,
 			ServerStreams: true,
 		},
 		{
