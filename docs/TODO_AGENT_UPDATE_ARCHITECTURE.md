@@ -297,3 +297,226 @@ Agent                    Update Server              Filesystem
 - Current updater implementation: `cmd/agent/updater.go`
 - Current config: `nginx-agent/avika-agent.conf`
 - Build script: `scripts/build-stack.sh`
+
+---
+---
+
+# TODO: MFA (Multi-Factor Authentication) Implementation
+
+> Future enhancement for enterprise security requirements
+
+## Status: Planned
+
+---
+
+## Overview
+
+Add TOTP (Time-based One-Time Password) support compatible with Google Authenticator, Authy, and similar apps.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         MFA AUTHENTICATION FLOW                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    User                     Frontend                    Gateway
+      │                         │                           │
+      │──── Login (user/pass) ──▶│                           │
+      │                         │───── Validate creds ──────▶│
+      │                         │                            │
+      │                         │◀──── MFA Required ─────────│
+      │◀── Show MFA Screen ─────│      (partial token)       │
+      │                         │                            │
+      │                         │                            │
+      │──── Enter 6-digit code ─▶│                           │
+      │                         │───── Verify TOTP ─────────▶│
+      │                         │                            │
+      │                         │◀──── Full session ─────────│
+      │◀── Dashboard ───────────│                            │
+      │                         │                            │
+```
+
+## Implementation Tasks
+
+### Phase 1: Backend (Estimated: 3-4 days)
+
+- [ ] Add TOTP library (`pquerna/otp` or similar)
+- [ ] Database schema changes:
+  ```sql
+  ALTER TABLE users ADD COLUMN mfa_enabled BOOLEAN DEFAULT FALSE;
+  ALTER TABLE users ADD COLUMN mfa_secret VARCHAR(64);
+  ALTER TABLE users ADD COLUMN mfa_backup_codes TEXT; -- JSON array
+  ```
+- [ ] API endpoints:
+  - `POST /api/auth/mfa/setup` - Generate MFA secret, return QR code
+  - `POST /api/auth/mfa/verify` - Verify TOTP code
+  - `POST /api/auth/mfa/enable` - Enable MFA after verification
+  - `POST /api/auth/mfa/disable` - Disable MFA (requires password)
+  - `POST /api/auth/mfa/backup-codes` - Generate new backup codes
+
+### Phase 2: Frontend (Estimated: 3-4 days)
+
+- [ ] MFA Setup Wizard component:
+  - Display QR code
+  - Manual secret entry option
+  - Verification step
+  - Backup codes display
+- [ ] MFA Verification Screen:
+  - 6-digit code input
+  - Auto-submit on 6 digits
+  - Backup code option
+- [ ] Settings page MFA section:
+  - Enable/disable toggle
+  - View/regenerate backup codes
+  - Re-setup MFA
+
+### Phase 3: Session Management (Estimated: 2 days)
+
+- [ ] Two-stage authentication:
+  - Stage 1: Password validated → partial token
+  - Stage 2: MFA validated → full session token
+- [ ] Remember device option (optional):
+  - Store device fingerprint
+  - Skip MFA for trusted devices for X days
+
+### Phase 4: Recovery & Edge Cases (Estimated: 2 days)
+
+- [ ] Backup codes:
+  - Generate 10 single-use codes
+  - Hash and store
+  - Warn when running low
+- [ ] Admin recovery:
+  - Allow admin to reset user MFA
+  - Audit log for MFA resets
+- [ ] Timeout handling:
+  - Partial session expiry (5 minutes)
+  - Graceful re-authentication
+
+## Code Snippets
+
+### TOTP Generation (Go)
+
+```go
+import "github.com/pquerna/otp/totp"
+
+func generateMFASecret(username string) (*otp.Key, error) {
+    return totp.Generate(totp.GenerateOpts{
+        Issuer:      "Avika NGINX Manager",
+        AccountName: username,
+        SecretSize:  20,
+    })
+}
+
+func validateTOTP(secret, code string) bool {
+    return totp.Validate(code, secret)
+}
+```
+
+### QR Code Generation
+
+```go
+import "github.com/skip2/go-qrcode"
+
+func generateQRCode(otpURL string) ([]byte, error) {
+    return qrcode.Encode(otpURL, qrcode.Medium, 256)
+}
+```
+
+### Frontend MFA Input Component
+
+```tsx
+// components/mfa-input.tsx
+export function MFAInput({ onComplete }: { onComplete: (code: string) => void }) {
+  const [code, setCode] = useState("");
+  
+  useEffect(() => {
+    if (code.length === 6) {
+      onComplete(code);
+    }
+  }, [code]);
+  
+  return (
+    <input
+      type="text"
+      maxLength={6}
+      pattern="[0-9]*"
+      inputMode="numeric"
+      value={code}
+      onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+      placeholder="000000"
+      className="text-center text-2xl tracking-widest"
+    />
+  );
+}
+```
+
+## Database Schema
+
+```sql
+-- PostgreSQL migration
+CREATE TABLE IF NOT EXISTS user_mfa (
+    user_id UUID PRIMARY KEY REFERENCES users(id),
+    mfa_enabled BOOLEAN DEFAULT FALSE,
+    mfa_secret VARCHAR(64),
+    backup_codes JSONB,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS mfa_trusted_devices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id),
+    device_fingerprint VARCHAR(64),
+    device_name VARCHAR(100),
+    trusted_until TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+## Configuration
+
+```yaml
+# Helm values.yaml (future)
+auth:
+  mfa:
+    enabled: false
+    required: false  # Force all users to enable MFA
+    issuer: "Avika NGINX Manager"
+    backupCodesCount: 10
+    trustedDeviceDays: 30
+```
+
+## Security Considerations
+
+1. **Secret Storage**: MFA secrets must be encrypted at rest
+2. **Rate Limiting**: Limit MFA attempts (5 per minute)
+3. **Backup Codes**: Hash backup codes like passwords
+4. **Audit Trail**: Log all MFA events
+5. **Recovery Flow**: Require admin approval for MFA reset
+
+## Estimated Total Effort
+
+| Component | Days |
+|-----------|------|
+| Backend TOTP implementation | 3-4 |
+| Database schema & migrations | 1 |
+| API endpoints | 2 |
+| Frontend setup wizard | 2-3 |
+| Frontend verification screen | 1-2 |
+| Session management changes | 2 |
+| Backup codes & recovery | 2 |
+| Testing & edge cases | 2 |
+| **Total** | **15-18 days** (~3 weeks) |
+
+## Dependencies
+
+- `github.com/pquerna/otp` - Go TOTP library
+- `github.com/skip2/go-qrcode` - QR code generation
+- Frontend: `react-hook-form` for form handling
+
+---
+
+## Priority
+
+**Medium** - Recommended for production deployments handling sensitive infrastructure, but not blocking for initial release.

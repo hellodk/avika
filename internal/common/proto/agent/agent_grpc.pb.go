@@ -141,6 +141,8 @@ const (
 	AgentService_ApplyAugment_FullMethodName       = "/nginx.agent.v1.AgentService/ApplyAugment"
 	AgentService_UpdateAgent_FullMethodName        = "/nginx.agent.v1.AgentService/UpdateAgent"
 	AgentService_Execute_FullMethodName            = "/nginx.agent.v1.AgentService/Execute"
+	AgentService_GetAgentConfig_FullMethodName     = "/nginx.agent.v1.AgentService/GetAgentConfig"
+	AgentService_UpdateAgentConfig_FullMethodName  = "/nginx.agent.v1.AgentService/UpdateAgentConfig"
 	AgentService_GenerateReport_FullMethodName     = "/nginx.agent.v1.AgentService/GenerateReport"
 	AgentService_SendReport_FullMethodName         = "/nginx.agent.v1.AgentService/SendReport"
 	AgentService_DownloadReport_FullMethodName     = "/nginx.agent.v1.AgentService/DownloadReport"
@@ -187,6 +189,9 @@ type AgentServiceClient interface {
 	UpdateAgent(ctx context.Context, in *UpdateAgentRequest, opts ...grpc.CallOption) (*UpdateAgentResponse, error)
 	// Command Execution (Shell)
 	Execute(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExecRequest, ExecResponse], error)
+	// Agent Configuration
+	GetAgentConfig(ctx context.Context, in *GetAgentConfigRequest, opts ...grpc.CallOption) (*AgentConfig, error)
+	UpdateAgentConfig(ctx context.Context, in *AgentConfig, opts ...grpc.CallOption) (*AgentConfigResponse, error)
 	// Reporting
 	GenerateReport(ctx context.Context, in *ReportRequest, opts ...grpc.CallOption) (*ReportResponse, error)
 	SendReport(ctx context.Context, in *SendReportRequest, opts ...grpc.CallOption) (*SendReportResponse, error)
@@ -426,6 +431,26 @@ func (c *agentServiceClient) Execute(ctx context.Context, opts ...grpc.CallOptio
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentService_ExecuteClient = grpc.BidiStreamingClient[ExecRequest, ExecResponse]
 
+func (c *agentServiceClient) GetAgentConfig(ctx context.Context, in *GetAgentConfigRequest, opts ...grpc.CallOption) (*AgentConfig, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentConfig)
+	err := c.cc.Invoke(ctx, AgentService_GetAgentConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) UpdateAgentConfig(ctx context.Context, in *AgentConfig, opts ...grpc.CallOption) (*AgentConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentConfigResponse)
+	err := c.cc.Invoke(ctx, AgentService_UpdateAgentConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *agentServiceClient) GenerateReport(ctx context.Context, in *ReportRequest, opts ...grpc.CallOption) (*ReportResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReportResponse)
@@ -524,6 +549,9 @@ type AgentServiceServer interface {
 	UpdateAgent(context.Context, *UpdateAgentRequest) (*UpdateAgentResponse, error)
 	// Command Execution (Shell)
 	Execute(grpc.BidiStreamingServer[ExecRequest, ExecResponse]) error
+	// Agent Configuration
+	GetAgentConfig(context.Context, *GetAgentConfigRequest) (*AgentConfig, error)
+	UpdateAgentConfig(context.Context, *AgentConfig) (*AgentConfigResponse, error)
 	// Reporting
 	GenerateReport(context.Context, *ReportRequest) (*ReportResponse, error)
 	SendReport(context.Context, *SendReportRequest) (*SendReportResponse, error)
@@ -601,6 +629,12 @@ func (UnimplementedAgentServiceServer) UpdateAgent(context.Context, *UpdateAgent
 }
 func (UnimplementedAgentServiceServer) Execute(grpc.BidiStreamingServer[ExecRequest, ExecResponse]) error {
 	return status.Error(codes.Unimplemented, "method Execute not implemented")
+}
+func (UnimplementedAgentServiceServer) GetAgentConfig(context.Context, *GetAgentConfigRequest) (*AgentConfig, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAgentConfig not implemented")
+}
+func (UnimplementedAgentServiceServer) UpdateAgentConfig(context.Context, *AgentConfig) (*AgentConfigResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateAgentConfig not implemented")
 }
 func (UnimplementedAgentServiceServer) GenerateReport(context.Context, *ReportRequest) (*ReportResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GenerateReport not implemented")
@@ -976,6 +1010,42 @@ func _AgentService_Execute_Handler(srv interface{}, stream grpc.ServerStream) er
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentService_ExecuteServer = grpc.BidiStreamingServer[ExecRequest, ExecResponse]
 
+func _AgentService_GetAgentConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAgentConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetAgentConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetAgentConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetAgentConfig(ctx, req.(*GetAgentConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_UpdateAgentConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AgentConfig)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).UpdateAgentConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_UpdateAgentConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).UpdateAgentConfig(ctx, req.(*AgentConfig))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AgentService_GenerateReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReportRequest)
 	if err := dec(in); err != nil {
@@ -1158,6 +1228,14 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateAgent",
 			Handler:    _AgentService_UpdateAgent_Handler,
+		},
+		{
+			MethodName: "GetAgentConfig",
+			Handler:    _AgentService_GetAgentConfig_Handler,
+		},
+		{
+			MethodName: "UpdateAgentConfig",
+			Handler:    _AgentService_UpdateAgentConfig_Handler,
 		},
 		{
 			MethodName: "GenerateReport",

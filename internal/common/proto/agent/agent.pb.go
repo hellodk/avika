@@ -3016,23 +3016,24 @@ func (x *GetAgentRequest) GetAgentId() string {
 }
 
 type AgentInfo struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	AgentId        string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
-	Hostname       string                 `protobuf:"bytes,2,opt,name=hostname,proto3" json:"hostname,omitempty"`
-	Version        string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"` // Nginx version of primary instance
-	Status         string                 `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
-	InstancesCount int32                  `protobuf:"varint,5,opt,name=instances_count,json=instancesCount,proto3" json:"instances_count,omitempty"`
-	Uptime         string                 `protobuf:"bytes,6,opt,name=uptime,proto3" json:"uptime,omitempty"`
-	Ip             string                 `protobuf:"bytes,7,opt,name=ip,proto3" json:"ip,omitempty"`
-	LastSeen       int64                  `protobuf:"varint,8,opt,name=last_seen,json=lastSeen,proto3" json:"last_seen,omitempty"`
-	AgentVersion   string                 `protobuf:"bytes,9,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`
-	IsPod          bool                   `protobuf:"varint,10,opt,name=is_pod,json=isPod,proto3" json:"is_pod,omitempty"`
-	PodIp          string                 `protobuf:"bytes,11,opt,name=pod_ip,json=podIp,proto3" json:"pod_ip,omitempty"`
-	BuildDate      string                 `protobuf:"bytes,12,opt,name=build_date,json=buildDate,proto3" json:"build_date,omitempty"` // Build timestamp
-	GitCommit      string                 `protobuf:"bytes,13,opt,name=git_commit,json=gitCommit,proto3" json:"git_commit,omitempty"` // Git commit hash
-	GitBranch      string                 `protobuf:"bytes,14,opt,name=git_branch,json=gitBranch,proto3" json:"git_branch,omitempty"` // Git branch name
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	AgentId          string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	Hostname         string                 `protobuf:"bytes,2,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	Version          string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"` // Nginx version of primary instance
+	Status           string                 `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
+	InstancesCount   int32                  `protobuf:"varint,5,opt,name=instances_count,json=instancesCount,proto3" json:"instances_count,omitempty"`
+	Uptime           string                 `protobuf:"bytes,6,opt,name=uptime,proto3" json:"uptime,omitempty"`
+	Ip               string                 `protobuf:"bytes,7,opt,name=ip,proto3" json:"ip,omitempty"`
+	LastSeen         int64                  `protobuf:"varint,8,opt,name=last_seen,json=lastSeen,proto3" json:"last_seen,omitempty"`
+	AgentVersion     string                 `protobuf:"bytes,9,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`
+	IsPod            bool                   `protobuf:"varint,10,opt,name=is_pod,json=isPod,proto3" json:"is_pod,omitempty"`
+	PodIp            string                 `protobuf:"bytes,11,opt,name=pod_ip,json=podIp,proto3" json:"pod_ip,omitempty"`
+	BuildDate        string                 `protobuf:"bytes,12,opt,name=build_date,json=buildDate,proto3" json:"build_date,omitempty"`                       // Build timestamp
+	GitCommit        string                 `protobuf:"bytes,13,opt,name=git_commit,json=gitCommit,proto3" json:"git_commit,omitempty"`                       // Git commit hash
+	GitBranch        string                 `protobuf:"bytes,14,opt,name=git_branch,json=gitBranch,proto3" json:"git_branch,omitempty"`                       // Git branch name
+	PskAuthenticated bool                   `protobuf:"varint,15,opt,name=psk_authenticated,json=pskAuthenticated,proto3" json:"psk_authenticated,omitempty"` // true if agent connected with valid PSK
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *AgentInfo) Reset() {
@@ -3161,6 +3162,13 @@ func (x *AgentInfo) GetGitBranch() string {
 		return x.GitBranch
 	}
 	return ""
+}
+
+func (x *AgentInfo) GetPskAuthenticated() bool {
+	if x != nil {
+		return x.PskAuthenticated
+	}
+	return false
 }
 
 type LogRequest struct {
@@ -5815,6 +5823,312 @@ func (x *ReportDownloadResponse) GetContentType() string {
 	return ""
 }
 
+type GetAgentConfigRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAgentConfigRequest) Reset() {
+	*x = GetAgentConfigRequest{}
+	mi := &file_agent_proto_msgTypes[83]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAgentConfigRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAgentConfigRequest) ProtoMessage() {}
+
+func (x *GetAgentConfigRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_proto_msgTypes[83]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAgentConfigRequest.ProtoReflect.Descriptor instead.
+func (*GetAgentConfigRequest) Descriptor() ([]byte, []int) {
+	return file_agent_proto_rawDescGZIP(), []int{83}
+}
+
+func (x *GetAgentConfigRequest) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
+	}
+	return ""
+}
+
+type AgentConfig struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	AgentId string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	// Gateway Configuration
+	GatewayAddresses []string `protobuf:"bytes,2,rep,name=gateway_addresses,json=gatewayAddresses,proto3" json:"gateway_addresses,omitempty"`    // Multiple gateway addresses for redundancy
+	MultiGatewayMode bool     `protobuf:"varint,3,opt,name=multi_gateway_mode,json=multiGatewayMode,proto3" json:"multi_gateway_mode,omitempty"` // Enable sending to multiple gateways
+	// NGINX Configuration
+	NginxStatusUrl  string `protobuf:"bytes,4,opt,name=nginx_status_url,json=nginxStatusUrl,proto3" json:"nginx_status_url,omitempty"`
+	AccessLogPath   string `protobuf:"bytes,5,opt,name=access_log_path,json=accessLogPath,proto3" json:"access_log_path,omitempty"`
+	ErrorLogPath    string `protobuf:"bytes,6,opt,name=error_log_path,json=errorLogPath,proto3" json:"error_log_path,omitempty"`
+	NginxConfigPath string `protobuf:"bytes,7,opt,name=nginx_config_path,json=nginxConfigPath,proto3" json:"nginx_config_path,omitempty"`
+	LogFormat       string `protobuf:"bytes,8,opt,name=log_format,json=logFormat,proto3" json:"log_format,omitempty"`
+	// Agent Settings
+	HealthPort int32  `protobuf:"varint,9,opt,name=health_port,json=healthPort,proto3" json:"health_port,omitempty"`
+	MgmtPort   int32  `protobuf:"varint,10,opt,name=mgmt_port,json=mgmtPort,proto3" json:"mgmt_port,omitempty"`
+	LogLevel   string `protobuf:"bytes,11,opt,name=log_level,json=logLevel,proto3" json:"log_level,omitempty"`
+	BufferDir  string `protobuf:"bytes,12,opt,name=buffer_dir,json=bufferDir,proto3" json:"buffer_dir,omitempty"`
+	// Update Settings
+	UpdateServer          string `protobuf:"bytes,13,opt,name=update_server,json=updateServer,proto3" json:"update_server,omitempty"`
+	UpdateIntervalSeconds int64  `protobuf:"varint,14,opt,name=update_interval_seconds,json=updateIntervalSeconds,proto3" json:"update_interval_seconds,omitempty"`
+	// Telemetry Settings
+	MetricsIntervalSeconds   int32 `protobuf:"varint,15,opt,name=metrics_interval_seconds,json=metricsIntervalSeconds,proto3" json:"metrics_interval_seconds,omitempty"`
+	HeartbeatIntervalSeconds int32 `protobuf:"varint,16,opt,name=heartbeat_interval_seconds,json=heartbeatIntervalSeconds,proto3" json:"heartbeat_interval_seconds,omitempty"`
+	// Feature Flags
+	EnableVtsMetrics   bool `protobuf:"varint,17,opt,name=enable_vts_metrics,json=enableVtsMetrics,proto3" json:"enable_vts_metrics,omitempty"`
+	EnableLogStreaming bool `protobuf:"varint,18,opt,name=enable_log_streaming,json=enableLogStreaming,proto3" json:"enable_log_streaming,omitempty"`
+	AutoApplyConfig    bool `protobuf:"varint,19,opt,name=auto_apply_config,json=autoApplyConfig,proto3" json:"auto_apply_config,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *AgentConfig) Reset() {
+	*x = AgentConfig{}
+	mi := &file_agent_proto_msgTypes[84]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentConfig) ProtoMessage() {}
+
+func (x *AgentConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_proto_msgTypes[84]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentConfig.ProtoReflect.Descriptor instead.
+func (*AgentConfig) Descriptor() ([]byte, []int) {
+	return file_agent_proto_rawDescGZIP(), []int{84}
+}
+
+func (x *AgentConfig) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
+	}
+	return ""
+}
+
+func (x *AgentConfig) GetGatewayAddresses() []string {
+	if x != nil {
+		return x.GatewayAddresses
+	}
+	return nil
+}
+
+func (x *AgentConfig) GetMultiGatewayMode() bool {
+	if x != nil {
+		return x.MultiGatewayMode
+	}
+	return false
+}
+
+func (x *AgentConfig) GetNginxStatusUrl() string {
+	if x != nil {
+		return x.NginxStatusUrl
+	}
+	return ""
+}
+
+func (x *AgentConfig) GetAccessLogPath() string {
+	if x != nil {
+		return x.AccessLogPath
+	}
+	return ""
+}
+
+func (x *AgentConfig) GetErrorLogPath() string {
+	if x != nil {
+		return x.ErrorLogPath
+	}
+	return ""
+}
+
+func (x *AgentConfig) GetNginxConfigPath() string {
+	if x != nil {
+		return x.NginxConfigPath
+	}
+	return ""
+}
+
+func (x *AgentConfig) GetLogFormat() string {
+	if x != nil {
+		return x.LogFormat
+	}
+	return ""
+}
+
+func (x *AgentConfig) GetHealthPort() int32 {
+	if x != nil {
+		return x.HealthPort
+	}
+	return 0
+}
+
+func (x *AgentConfig) GetMgmtPort() int32 {
+	if x != nil {
+		return x.MgmtPort
+	}
+	return 0
+}
+
+func (x *AgentConfig) GetLogLevel() string {
+	if x != nil {
+		return x.LogLevel
+	}
+	return ""
+}
+
+func (x *AgentConfig) GetBufferDir() string {
+	if x != nil {
+		return x.BufferDir
+	}
+	return ""
+}
+
+func (x *AgentConfig) GetUpdateServer() string {
+	if x != nil {
+		return x.UpdateServer
+	}
+	return ""
+}
+
+func (x *AgentConfig) GetUpdateIntervalSeconds() int64 {
+	if x != nil {
+		return x.UpdateIntervalSeconds
+	}
+	return 0
+}
+
+func (x *AgentConfig) GetMetricsIntervalSeconds() int32 {
+	if x != nil {
+		return x.MetricsIntervalSeconds
+	}
+	return 0
+}
+
+func (x *AgentConfig) GetHeartbeatIntervalSeconds() int32 {
+	if x != nil {
+		return x.HeartbeatIntervalSeconds
+	}
+	return 0
+}
+
+func (x *AgentConfig) GetEnableVtsMetrics() bool {
+	if x != nil {
+		return x.EnableVtsMetrics
+	}
+	return false
+}
+
+func (x *AgentConfig) GetEnableLogStreaming() bool {
+	if x != nil {
+		return x.EnableLogStreaming
+	}
+	return false
+}
+
+func (x *AgentConfig) GetAutoApplyConfig() bool {
+	if x != nil {
+		return x.AutoApplyConfig
+	}
+	return false
+}
+
+type AgentConfigResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Success         bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error           string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	Message         string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	RequiresRestart bool                   `protobuf:"varint,4,opt,name=requires_restart,json=requiresRestart,proto3" json:"requires_restart,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *AgentConfigResponse) Reset() {
+	*x = AgentConfigResponse{}
+	mi := &file_agent_proto_msgTypes[85]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentConfigResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentConfigResponse) ProtoMessage() {}
+
+func (x *AgentConfigResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_proto_msgTypes[85]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentConfigResponse.ProtoReflect.Descriptor instead.
+func (*AgentConfigResponse) Descriptor() ([]byte, []int) {
+	return file_agent_proto_rawDescGZIP(), []int{85}
+}
+
+func (x *AgentConfigResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *AgentConfigResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *AgentConfigResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *AgentConfigResponse) GetRequiresRestart() bool {
+	if x != nil {
+		return x.RequiresRestart
+	}
+	return false
+}
+
 var File_agent_proto protoreflect.FileDescriptor
 
 const file_agent_proto_rawDesc = "" +
@@ -6087,7 +6401,7 @@ const file_agent_proto_rawDesc = "" +
 	"\x13RemoveAgentResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\",\n" +
 	"\x0fGetAgentRequest\x12\x19\n" +
-	"\bagent_id\x18\x01 \x01(\tR\aagentId\"\x92\x03\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId\"\xbf\x03\n" +
 	"\tAgentInfo\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x18\n" +
@@ -6106,7 +6420,8 @@ const file_agent_proto_rawDesc = "" +
 	"\n" +
 	"git_commit\x18\r \x01(\tR\tgitCommit\x12\x1d\n" +
 	"\n" +
-	"git_branch\x18\x0e \x01(\tR\tgitBranch\"\x7f\n" +
+	"git_branch\x18\x0e \x01(\tR\tgitBranch\x12+\n" +
+	"\x11psk_authenticated\x18\x0f \x01(\bR\x10pskAuthenticated\"\x7f\n" +
 	"\n" +
 	"LogRequest\x12\x1f\n" +
 	"\vinstance_id\x18\x01 \x01(\tR\n" +
@@ -6362,9 +6677,40 @@ const file_agent_proto_rawDesc = "" +
 	"\x16ReportDownloadResponse\x12\x18\n" +
 	"\acontent\x18\x01 \x01(\fR\acontent\x12\x1b\n" +
 	"\tfile_name\x18\x02 \x01(\tR\bfileName\x12!\n" +
-	"\fcontent_type\x18\x03 \x01(\tR\vcontentType2W\n" +
+	"\fcontent_type\x18\x03 \x01(\tR\vcontentType\"2\n" +
+	"\x15GetAgentConfigRequest\x12\x19\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId\"\xa1\x06\n" +
+	"\vAgentConfig\x12\x19\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12+\n" +
+	"\x11gateway_addresses\x18\x02 \x03(\tR\x10gatewayAddresses\x12,\n" +
+	"\x12multi_gateway_mode\x18\x03 \x01(\bR\x10multiGatewayMode\x12(\n" +
+	"\x10nginx_status_url\x18\x04 \x01(\tR\x0enginxStatusUrl\x12&\n" +
+	"\x0faccess_log_path\x18\x05 \x01(\tR\raccessLogPath\x12$\n" +
+	"\x0eerror_log_path\x18\x06 \x01(\tR\ferrorLogPath\x12*\n" +
+	"\x11nginx_config_path\x18\a \x01(\tR\x0fnginxConfigPath\x12\x1d\n" +
+	"\n" +
+	"log_format\x18\b \x01(\tR\tlogFormat\x12\x1f\n" +
+	"\vhealth_port\x18\t \x01(\x05R\n" +
+	"healthPort\x12\x1b\n" +
+	"\tmgmt_port\x18\n" +
+	" \x01(\x05R\bmgmtPort\x12\x1b\n" +
+	"\tlog_level\x18\v \x01(\tR\blogLevel\x12\x1d\n" +
+	"\n" +
+	"buffer_dir\x18\f \x01(\tR\tbufferDir\x12#\n" +
+	"\rupdate_server\x18\r \x01(\tR\fupdateServer\x126\n" +
+	"\x17update_interval_seconds\x18\x0e \x01(\x03R\x15updateIntervalSeconds\x128\n" +
+	"\x18metrics_interval_seconds\x18\x0f \x01(\x05R\x16metricsIntervalSeconds\x12<\n" +
+	"\x1aheartbeat_interval_seconds\x18\x10 \x01(\x05R\x18heartbeatIntervalSeconds\x12,\n" +
+	"\x12enable_vts_metrics\x18\x11 \x01(\bR\x10enableVtsMetrics\x120\n" +
+	"\x14enable_log_streaming\x18\x12 \x01(\bR\x12enableLogStreaming\x12*\n" +
+	"\x11auto_apply_config\x18\x13 \x01(\bR\x0fautoApplyConfig\"\x8a\x01\n" +
+	"\x13AgentConfigResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\x12)\n" +
+	"\x10requires_restart\x18\x04 \x01(\bR\x0frequiresRestart2W\n" +
 	"\tCommander\x12J\n" +
-	"\aConnect\x12\x1c.nginx.agent.v1.AgentMessage\x1a\x1d.nginx.agent.v1.ServerCommand(\x010\x012\xf0\x10\n" +
+	"\aConnect\x12\x1c.nginx.agent.v1.AgentMessage\x1a\x1d.nginx.agent.v1.ServerCommand(\x010\x012\x9d\x12\n" +
 	"\fAgentService\x12J\n" +
 	"\tGetConfig\x12\x1d.nginx.agent.v1.ConfigRequest\x1a\x1e.nginx.agent.v1.ConfigResponse\x12R\n" +
 	"\fUpdateConfig\x12\x1c.nginx.agent.v1.ConfigUpdate\x1a$.nginx.agent.v1.ConfigUpdateResponse\x12T\n" +
@@ -6386,7 +6732,9 @@ const file_agent_proto_rawDesc = "" +
 	"\x12GetRecommendations\x12%.nginx.agent.v1.RecommendationRequest\x1a&.nginx.agent.v1.RecommendationResponse\x12Y\n" +
 	"\fApplyAugment\x12#.nginx.agent.v1.ApplyAugmentRequest\x1a$.nginx.agent.v1.ApplyAugmentResponse\x12V\n" +
 	"\vUpdateAgent\x12\".nginx.agent.v1.UpdateAgentRequest\x1a#.nginx.agent.v1.UpdateAgentResponse\x12H\n" +
-	"\aExecute\x12\x1b.nginx.agent.v1.ExecRequest\x1a\x1c.nginx.agent.v1.ExecResponse(\x010\x01\x12O\n" +
+	"\aExecute\x12\x1b.nginx.agent.v1.ExecRequest\x1a\x1c.nginx.agent.v1.ExecResponse(\x010\x01\x12T\n" +
+	"\x0eGetAgentConfig\x12%.nginx.agent.v1.GetAgentConfigRequest\x1a\x1b.nginx.agent.v1.AgentConfig\x12U\n" +
+	"\x11UpdateAgentConfig\x12\x1b.nginx.agent.v1.AgentConfig\x1a#.nginx.agent.v1.AgentConfigResponse\x12O\n" +
 	"\x0eGenerateReport\x12\x1d.nginx.agent.v1.ReportRequest\x1a\x1e.nginx.agent.v1.ReportResponse\x12S\n" +
 	"\n" +
 	"SendReport\x12!.nginx.agent.v1.SendReportRequest\x1a\".nginx.agent.v1.SendReportResponse\x12W\n" +
@@ -6407,7 +6755,7 @@ func file_agent_proto_rawDescGZIP() []byte {
 	return file_agent_proto_rawDescData
 }
 
-var file_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 92)
+var file_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 95)
 var file_agent_proto_goTypes = []any{
 	(*AgentMessage)(nil),              // 0: nginx.agent.v1.AgentMessage
 	(*SystemMetrics)(nil),             // 1: nginx.agent.v1.SystemMetrics
@@ -6492,15 +6840,18 @@ var file_agent_proto_goTypes = []any{
 	(*SendReportRequest)(nil),         // 80: nginx.agent.v1.SendReportRequest
 	(*SendReportResponse)(nil),        // 81: nginx.agent.v1.SendReportResponse
 	(*ReportDownloadResponse)(nil),    // 82: nginx.agent.v1.ReportDownloadResponse
-	nil,                               // 83: nginx.agent.v1.SystemMetrics.LabelsEntry
-	nil,                               // 84: nginx.agent.v1.NginxMetrics.LabelsEntry
-	nil,                               // 85: nginx.agent.v1.ConfigPush.FilesEntry
-	nil,                               // 86: nginx.agent.v1.ServerBlock.SslConfigEntry
-	nil,                               // 87: nginx.agent.v1.ServerBlock.DirectivesEntry
-	nil,                               // 88: nginx.agent.v1.LocationBlock.DirectivesEntry
-	nil,                               // 89: nginx.agent.v1.UpstreamBlock.DirectivesEntry
-	nil,                               // 90: nginx.agent.v1.GatewayMetricPoint.LabelsEntry
-	nil,                               // 91: nginx.agent.v1.Span.AttributesEntry
+	(*GetAgentConfigRequest)(nil),     // 83: nginx.agent.v1.GetAgentConfigRequest
+	(*AgentConfig)(nil),               // 84: nginx.agent.v1.AgentConfig
+	(*AgentConfigResponse)(nil),       // 85: nginx.agent.v1.AgentConfigResponse
+	nil,                               // 86: nginx.agent.v1.SystemMetrics.LabelsEntry
+	nil,                               // 87: nginx.agent.v1.NginxMetrics.LabelsEntry
+	nil,                               // 88: nginx.agent.v1.ConfigPush.FilesEntry
+	nil,                               // 89: nginx.agent.v1.ServerBlock.SslConfigEntry
+	nil,                               // 90: nginx.agent.v1.ServerBlock.DirectivesEntry
+	nil,                               // 91: nginx.agent.v1.LocationBlock.DirectivesEntry
+	nil,                               // 92: nginx.agent.v1.UpstreamBlock.DirectivesEntry
+	nil,                               // 93: nginx.agent.v1.GatewayMetricPoint.LabelsEntry
+	nil,                               // 94: nginx.agent.v1.Span.AttributesEntry
 }
 var file_agent_proto_depIdxs = []int32{
 	7,  // 0: nginx.agent.v1.AgentMessage.heartbeat:type_name -> nginx.agent.v1.Heartbeat
@@ -6508,26 +6859,26 @@ var file_agent_proto_depIdxs = []int32{
 	10, // 2: nginx.agent.v1.AgentMessage.state:type_name -> nginx.agent.v1.StateSnapshot
 	49, // 3: nginx.agent.v1.AgentMessage.log_entry:type_name -> nginx.agent.v1.LogEntry
 	3,  // 4: nginx.agent.v1.AgentMessage.metrics:type_name -> nginx.agent.v1.NginxMetrics
-	83, // 5: nginx.agent.v1.SystemMetrics.labels:type_name -> nginx.agent.v1.SystemMetrics.LabelsEntry
+	86, // 5: nginx.agent.v1.SystemMetrics.labels:type_name -> nginx.agent.v1.SystemMetrics.LabelsEntry
 	1,  // 6: nginx.agent.v1.NginxMetrics.system:type_name -> nginx.agent.v1.SystemMetrics
 	2,  // 7: nginx.agent.v1.NginxMetrics.http_status:type_name -> nginx.agent.v1.HttpStatusMetrics
-	84, // 8: nginx.agent.v1.NginxMetrics.labels:type_name -> nginx.agent.v1.NginxMetrics.LabelsEntry
+	87, // 8: nginx.agent.v1.NginxMetrics.labels:type_name -> nginx.agent.v1.NginxMetrics.LabelsEntry
 	4,  // 9: nginx.agent.v1.NginxMetrics.latency_distribution:type_name -> nginx.agent.v1.HistogramBucket
 	11, // 10: nginx.agent.v1.ServerCommand.config_push:type_name -> nginx.agent.v1.ConfigPush
 	12, // 11: nginx.agent.v1.ServerCommand.action:type_name -> nginx.agent.v1.Action
 	48, // 12: nginx.agent.v1.ServerCommand.log_request:type_name -> nginx.agent.v1.LogRequest
 	6,  // 13: nginx.agent.v1.ServerCommand.update:type_name -> nginx.agent.v1.Update
 	8,  // 14: nginx.agent.v1.Heartbeat.instances:type_name -> nginx.agent.v1.NginxInstance
-	85, // 15: nginx.agent.v1.ConfigPush.files:type_name -> nginx.agent.v1.ConfigPush.FilesEntry
+	88, // 15: nginx.agent.v1.ConfigPush.files:type_name -> nginx.agent.v1.ConfigPush.FilesEntry
 	18, // 16: nginx.agent.v1.AlertRuleList.rules:type_name -> nginx.agent.v1.AlertRule
 	25, // 17: nginx.agent.v1.ConfigResponse.config:type_name -> nginx.agent.v1.NginxConfig
 	26, // 18: nginx.agent.v1.NginxConfig.servers:type_name -> nginx.agent.v1.ServerBlock
 	28, // 19: nginx.agent.v1.NginxConfig.upstreams:type_name -> nginx.agent.v1.UpstreamBlock
 	27, // 20: nginx.agent.v1.ServerBlock.locations:type_name -> nginx.agent.v1.LocationBlock
-	86, // 21: nginx.agent.v1.ServerBlock.ssl_config:type_name -> nginx.agent.v1.ServerBlock.SslConfigEntry
-	87, // 22: nginx.agent.v1.ServerBlock.directives:type_name -> nginx.agent.v1.ServerBlock.DirectivesEntry
-	88, // 23: nginx.agent.v1.LocationBlock.directives:type_name -> nginx.agent.v1.LocationBlock.DirectivesEntry
-	89, // 24: nginx.agent.v1.UpstreamBlock.directives:type_name -> nginx.agent.v1.UpstreamBlock.DirectivesEntry
+	89, // 21: nginx.agent.v1.ServerBlock.ssl_config:type_name -> nginx.agent.v1.ServerBlock.SslConfigEntry
+	90, // 22: nginx.agent.v1.ServerBlock.directives:type_name -> nginx.agent.v1.ServerBlock.DirectivesEntry
+	91, // 23: nginx.agent.v1.LocationBlock.directives:type_name -> nginx.agent.v1.LocationBlock.DirectivesEntry
+	92, // 24: nginx.agent.v1.UpstreamBlock.directives:type_name -> nginx.agent.v1.UpstreamBlock.DirectivesEntry
 	41, // 25: nginx.agent.v1.CertListResponse.certificates:type_name -> nginx.agent.v1.Certificate
 	47, // 26: nginx.agent.v1.ListAgentsResponse.agents:type_name -> nginx.agent.v1.AgentInfo
 	52, // 27: nginx.agent.v1.UptimeResponse.reports:type_name -> nginx.agent.v1.UptimeReport
@@ -6544,8 +6895,8 @@ var file_agent_proto_depIdxs = []int32{
 	60, // 38: nginx.agent.v1.AnalyticsResponse.insights:type_name -> nginx.agent.v1.Insight
 	49, // 39: nginx.agent.v1.AnalyticsResponse.recent_requests:type_name -> nginx.agent.v1.LogEntry
 	55, // 40: nginx.agent.v1.AnalyticsResponse.gateway_metrics:type_name -> nginx.agent.v1.GatewayMetricPoint
-	90, // 41: nginx.agent.v1.GatewayMetricPoint.labels:type_name -> nginx.agent.v1.GatewayMetricPoint.LabelsEntry
-	91, // 42: nginx.agent.v1.Span.attributes:type_name -> nginx.agent.v1.Span.AttributesEntry
+	93, // 41: nginx.agent.v1.GatewayMetricPoint.labels:type_name -> nginx.agent.v1.GatewayMetricPoint.LabelsEntry
+	94, // 42: nginx.agent.v1.Span.attributes:type_name -> nginx.agent.v1.Span.AttributesEntry
 	56, // 43: nginx.agent.v1.Trace.spans:type_name -> nginx.agent.v1.Span
 	49, // 44: nginx.agent.v1.Trace.root_entry:type_name -> nginx.agent.v1.LogEntry
 	57, // 45: nginx.agent.v1.TraceList.traces:type_name -> nginx.agent.v1.Trace
@@ -6582,41 +6933,45 @@ var file_agent_proto_depIdxs = []int32{
 	61, // 76: nginx.agent.v1.AgentService.ApplyAugment:input_type -> nginx.agent.v1.ApplyAugmentRequest
 	21, // 77: nginx.agent.v1.AgentService.UpdateAgent:input_type -> nginx.agent.v1.UpdateAgentRequest
 	19, // 78: nginx.agent.v1.AgentService.Execute:input_type -> nginx.agent.v1.ExecRequest
-	76, // 79: nginx.agent.v1.AgentService.GenerateReport:input_type -> nginx.agent.v1.ReportRequest
-	80, // 80: nginx.agent.v1.AgentService.SendReport:input_type -> nginx.agent.v1.SendReportRequest
-	76, // 81: nginx.agent.v1.AgentService.DownloadReport:input_type -> nginx.agent.v1.ReportRequest
-	14, // 82: nginx.agent.v1.AgentService.ListAlertRules:input_type -> nginx.agent.v1.ListAlertRulesRequest
-	18, // 83: nginx.agent.v1.AgentService.CreateAlertRule:input_type -> nginx.agent.v1.AlertRule
-	16, // 84: nginx.agent.v1.AgentService.DeleteAlertRule:input_type -> nginx.agent.v1.DeleteAlertRuleRequest
-	5,  // 85: nginx.agent.v1.Commander.Connect:output_type -> nginx.agent.v1.ServerCommand
-	24, // 86: nginx.agent.v1.AgentService.GetConfig:output_type -> nginx.agent.v1.ConfigResponse
-	30, // 87: nginx.agent.v1.AgentService.UpdateConfig:output_type -> nginx.agent.v1.ConfigUpdateResponse
-	32, // 88: nginx.agent.v1.AgentService.ValidateConfig:output_type -> nginx.agent.v1.ValidationResult
-	34, // 89: nginx.agent.v1.AgentService.ReloadNginx:output_type -> nginx.agent.v1.ReloadResponse
-	36, // 90: nginx.agent.v1.AgentService.RestartNginx:output_type -> nginx.agent.v1.RestartResponse
-	38, // 91: nginx.agent.v1.AgentService.StopNginx:output_type -> nginx.agent.v1.StopResponse
-	40, // 92: nginx.agent.v1.AgentService.ListCertificates:output_type -> nginx.agent.v1.CertListResponse
-	49, // 93: nginx.agent.v1.AgentService.GetLogs:output_type -> nginx.agent.v1.LogEntry
-	43, // 94: nginx.agent.v1.AgentService.ListAgents:output_type -> nginx.agent.v1.ListAgentsResponse
-	47, // 95: nginx.agent.v1.AgentService.GetAgent:output_type -> nginx.agent.v1.AgentInfo
-	45, // 96: nginx.agent.v1.AgentService.RemoveAgent:output_type -> nginx.agent.v1.RemoveAgentResponse
-	51, // 97: nginx.agent.v1.AgentService.GetUptimeReports:output_type -> nginx.agent.v1.UptimeResponse
-	54, // 98: nginx.agent.v1.AgentService.GetAnalytics:output_type -> nginx.agent.v1.AnalyticsResponse
-	54, // 99: nginx.agent.v1.AgentService.StreamAnalytics:output_type -> nginx.agent.v1.AnalyticsResponse
-	59, // 100: nginx.agent.v1.AgentService.GetTraces:output_type -> nginx.agent.v1.TraceList
-	57, // 101: nginx.agent.v1.AgentService.GetTraceDetails:output_type -> nginx.agent.v1.Trace
-	74, // 102: nginx.agent.v1.AgentService.GetRecommendations:output_type -> nginx.agent.v1.RecommendationResponse
-	62, // 103: nginx.agent.v1.AgentService.ApplyAugment:output_type -> nginx.agent.v1.ApplyAugmentResponse
-	22, // 104: nginx.agent.v1.AgentService.UpdateAgent:output_type -> nginx.agent.v1.UpdateAgentResponse
-	20, // 105: nginx.agent.v1.AgentService.Execute:output_type -> nginx.agent.v1.ExecResponse
-	77, // 106: nginx.agent.v1.AgentService.GenerateReport:output_type -> nginx.agent.v1.ReportResponse
-	81, // 107: nginx.agent.v1.AgentService.SendReport:output_type -> nginx.agent.v1.SendReportResponse
-	82, // 108: nginx.agent.v1.AgentService.DownloadReport:output_type -> nginx.agent.v1.ReportDownloadResponse
-	15, // 109: nginx.agent.v1.AgentService.ListAlertRules:output_type -> nginx.agent.v1.AlertRuleList
-	18, // 110: nginx.agent.v1.AgentService.CreateAlertRule:output_type -> nginx.agent.v1.AlertRule
-	17, // 111: nginx.agent.v1.AgentService.DeleteAlertRule:output_type -> nginx.agent.v1.DeleteAlertRuleResponse
-	85, // [85:112] is the sub-list for method output_type
-	58, // [58:85] is the sub-list for method input_type
+	83, // 79: nginx.agent.v1.AgentService.GetAgentConfig:input_type -> nginx.agent.v1.GetAgentConfigRequest
+	84, // 80: nginx.agent.v1.AgentService.UpdateAgentConfig:input_type -> nginx.agent.v1.AgentConfig
+	76, // 81: nginx.agent.v1.AgentService.GenerateReport:input_type -> nginx.agent.v1.ReportRequest
+	80, // 82: nginx.agent.v1.AgentService.SendReport:input_type -> nginx.agent.v1.SendReportRequest
+	76, // 83: nginx.agent.v1.AgentService.DownloadReport:input_type -> nginx.agent.v1.ReportRequest
+	14, // 84: nginx.agent.v1.AgentService.ListAlertRules:input_type -> nginx.agent.v1.ListAlertRulesRequest
+	18, // 85: nginx.agent.v1.AgentService.CreateAlertRule:input_type -> nginx.agent.v1.AlertRule
+	16, // 86: nginx.agent.v1.AgentService.DeleteAlertRule:input_type -> nginx.agent.v1.DeleteAlertRuleRequest
+	5,  // 87: nginx.agent.v1.Commander.Connect:output_type -> nginx.agent.v1.ServerCommand
+	24, // 88: nginx.agent.v1.AgentService.GetConfig:output_type -> nginx.agent.v1.ConfigResponse
+	30, // 89: nginx.agent.v1.AgentService.UpdateConfig:output_type -> nginx.agent.v1.ConfigUpdateResponse
+	32, // 90: nginx.agent.v1.AgentService.ValidateConfig:output_type -> nginx.agent.v1.ValidationResult
+	34, // 91: nginx.agent.v1.AgentService.ReloadNginx:output_type -> nginx.agent.v1.ReloadResponse
+	36, // 92: nginx.agent.v1.AgentService.RestartNginx:output_type -> nginx.agent.v1.RestartResponse
+	38, // 93: nginx.agent.v1.AgentService.StopNginx:output_type -> nginx.agent.v1.StopResponse
+	40, // 94: nginx.agent.v1.AgentService.ListCertificates:output_type -> nginx.agent.v1.CertListResponse
+	49, // 95: nginx.agent.v1.AgentService.GetLogs:output_type -> nginx.agent.v1.LogEntry
+	43, // 96: nginx.agent.v1.AgentService.ListAgents:output_type -> nginx.agent.v1.ListAgentsResponse
+	47, // 97: nginx.agent.v1.AgentService.GetAgent:output_type -> nginx.agent.v1.AgentInfo
+	45, // 98: nginx.agent.v1.AgentService.RemoveAgent:output_type -> nginx.agent.v1.RemoveAgentResponse
+	51, // 99: nginx.agent.v1.AgentService.GetUptimeReports:output_type -> nginx.agent.v1.UptimeResponse
+	54, // 100: nginx.agent.v1.AgentService.GetAnalytics:output_type -> nginx.agent.v1.AnalyticsResponse
+	54, // 101: nginx.agent.v1.AgentService.StreamAnalytics:output_type -> nginx.agent.v1.AnalyticsResponse
+	59, // 102: nginx.agent.v1.AgentService.GetTraces:output_type -> nginx.agent.v1.TraceList
+	57, // 103: nginx.agent.v1.AgentService.GetTraceDetails:output_type -> nginx.agent.v1.Trace
+	74, // 104: nginx.agent.v1.AgentService.GetRecommendations:output_type -> nginx.agent.v1.RecommendationResponse
+	62, // 105: nginx.agent.v1.AgentService.ApplyAugment:output_type -> nginx.agent.v1.ApplyAugmentResponse
+	22, // 106: nginx.agent.v1.AgentService.UpdateAgent:output_type -> nginx.agent.v1.UpdateAgentResponse
+	20, // 107: nginx.agent.v1.AgentService.Execute:output_type -> nginx.agent.v1.ExecResponse
+	84, // 108: nginx.agent.v1.AgentService.GetAgentConfig:output_type -> nginx.agent.v1.AgentConfig
+	85, // 109: nginx.agent.v1.AgentService.UpdateAgentConfig:output_type -> nginx.agent.v1.AgentConfigResponse
+	77, // 110: nginx.agent.v1.AgentService.GenerateReport:output_type -> nginx.agent.v1.ReportResponse
+	81, // 111: nginx.agent.v1.AgentService.SendReport:output_type -> nginx.agent.v1.SendReportResponse
+	82, // 112: nginx.agent.v1.AgentService.DownloadReport:output_type -> nginx.agent.v1.ReportDownloadResponse
+	15, // 113: nginx.agent.v1.AgentService.ListAlertRules:output_type -> nginx.agent.v1.AlertRuleList
+	18, // 114: nginx.agent.v1.AgentService.CreateAlertRule:output_type -> nginx.agent.v1.AlertRule
+	17, // 115: nginx.agent.v1.AgentService.DeleteAlertRule:output_type -> nginx.agent.v1.DeleteAlertRuleResponse
+	87, // [87:116] is the sub-list for method output_type
+	58, // [58:87] is the sub-list for method input_type
 	58, // [58:58] is the sub-list for extension type_name
 	58, // [58:58] is the sub-list for extension extendee
 	0,  // [0:58] is the sub-list for field type_name
@@ -6646,7 +7001,7 @@ func file_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_agent_proto_rawDesc), len(file_agent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   92,
+			NumMessages:   95,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

@@ -45,12 +45,14 @@ func (db *DB) migrate() error {
 			status TEXT,
 			last_seen BIGINT,
 			is_pod BOOLEAN DEFAULT FALSE,
-			pod_ip TEXT
+			pod_ip TEXT,
+			psk_authenticated BOOLEAN DEFAULT FALSE
 		);`,
 		// Migration for existing tables
 		`ALTER TABLE agents ADD COLUMN IF NOT EXISTS is_pod BOOLEAN DEFAULT FALSE;`,
 		`ALTER TABLE agents ADD COLUMN IF NOT EXISTS pod_ip TEXT;`,
 		`ALTER TABLE agents ADD COLUMN IF NOT EXISTS agent_version TEXT;`,
+		`ALTER TABLE agents ADD COLUMN IF NOT EXISTS psk_authenticated BOOLEAN DEFAULT FALSE;`,
 		// Deduplicate existing entries by IP before adding the constraint.
 		// We keep the one with the latest last_seen for each IP.
 		`DELETE FROM agents
@@ -86,8 +88,8 @@ func (db *DB) UpsertAgent(session *AgentSession) error {
 	// We use ip as the unique identifier for a node to prevent duplicates.
 	// If an agent reconnects with a new agent_id but same ip, we update the record.
 	query := `
-	INSERT INTO agents (agent_id, hostname, version, instances_count, uptime, ip, status, last_seen, is_pod, pod_ip, agent_version)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	INSERT INTO agents (agent_id, hostname, version, instances_count, uptime, ip, status, last_seen, is_pod, pod_ip, agent_version, psk_authenticated)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	ON CONFLICT (agent_id) DO UPDATE SET
 		hostname = EXCLUDED.hostname,
 		version = EXCLUDED.version,
@@ -98,7 +100,8 @@ func (db *DB) UpsertAgent(session *AgentSession) error {
 		last_seen = EXCLUDED.last_seen,
 		is_pod = EXCLUDED.is_pod,
 		pod_ip = EXCLUDED.pod_ip,
-		agent_version = EXCLUDED.agent_version;
+		agent_version = EXCLUDED.agent_version,
+		psk_authenticated = EXCLUDED.psk_authenticated;
 	`
 	_, err := db.conn.Exec(query,
 		session.id,
@@ -112,6 +115,7 @@ func (db *DB) UpsertAgent(session *AgentSession) error {
 		session.isPod,
 		session.podIP,
 		session.agentVersion,
+		session.pskAuthenticated,
 	)
 	return err
 }
@@ -129,7 +133,7 @@ func (db *DB) RemoveAgent(agentID string) error {
 }
 
 func (db *DB) LoadAgents(sessions *sync.Map) error {
-	rows, err := db.conn.Query("SELECT agent_id, hostname, version, instances_count, uptime, ip, status, last_seen, is_pod, pod_ip, agent_version FROM agents")
+	rows, err := db.conn.Query("SELECT agent_id, hostname, version, instances_count, uptime, ip, status, last_seen, is_pod, pod_ip, agent_version, psk_authenticated FROM agents")
 	if err != nil {
 		return err
 	}
@@ -139,26 +143,27 @@ func (db *DB) LoadAgents(sessions *sync.Map) error {
 		var id, hostname, version, uptime, ip, status, podIP, agentVersion string
 		var instancesCount int
 		var lastSeen int64
-		var isPod bool
+		var isPod, pskAuthenticated bool
 
-		if err := rows.Scan(&id, &hostname, &version, &instancesCount, &uptime, &ip, &status, &lastSeen, &isPod, &podIP, &agentVersion); err != nil {
+		if err := rows.Scan(&id, &hostname, &version, &instancesCount, &uptime, &ip, &status, &lastSeen, &isPod, &podIP, &agentVersion, &pskAuthenticated); err != nil {
 			log.Printf("Failed to scan agent row: %v", err)
 			continue
 		}
 
 		session := &AgentSession{
-			id:             id,
-			hostname:       hostname,
-			version:        version,
-			instancesCount: instancesCount,
-			uptime:         uptime,
-			ip:             ip,
-			status:         status,
-			lastActive:     time.Unix(lastSeen, 0),
-			isPod:          isPod,
-			podIP:          podIP,
-			agentVersion:   agentVersion,
-			logChans:       make(map[string]chan *pb.LogEntry),
+			id:               id,
+			hostname:         hostname,
+			version:          version,
+			instancesCount:   instancesCount,
+			uptime:           uptime,
+			ip:               ip,
+			status:           status,
+			lastActive:       time.Unix(lastSeen, 0),
+			isPod:            isPod,
+			podIP:            podIP,
+			agentVersion:     agentVersion,
+			pskAuthenticated: pskAuthenticated,
+			logChans:         make(map[string]chan *pb.LogEntry),
 		}
 		sessions.Store(id, session)
 	}

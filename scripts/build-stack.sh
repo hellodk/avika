@@ -99,13 +99,12 @@ if [ -f "$VALUES_FILE" ]; then
     echo -e "${GREEN}📋 Helm values.yaml updated: Avika component image tags → ${VERSION}${NC}"
 fi
 
-# --- 3. Build Agent Binaries (for multi-arch Docker) ---
-echo -e "\n${BLUE}📦 Building Agent binaries...${NC}"
-mkdir -p "$AGENT_DIR"
-echo "  - linux/amd64"
-GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o "$AGENT_DIR/agent-linux-amd64" ./cmd/agent
-echo "  - linux/arm64"
-GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o "$AGENT_DIR/agent-linux-arm64" ./cmd/agent
+# --- 3. Build Agent (via build-agent.sh) ---
+echo -e "\n${BLUE}📦 Building Agent (nginx + agent bundled image)...${NC}"
+BUMP=none ./scripts/build-agent.sh || {
+    echo -e "${RED}❌ Agent build failed${NC}"
+    exit 1
+}
 
 # --- 4. Docker Build & Push Logic ---
 # Function to build and push multi-arch images
@@ -137,15 +136,12 @@ build_image() {
 echo -e "\n${BLUE}🔧 Checking Docker Buildx...${NC}"
 docker buildx create --use --name avika-builder 2>/dev/null || docker buildx use avika-builder
 
-# --- 5. Build all components ---
+# --- 5. Build remaining components (agent already built above) ---
 
-# 1. Agent (Avika Agent)
-build_image "$AGENT_DIR" "avika-agent" "$AGENT_DIR/Dockerfile"
-
-# 2. Gateway
+# Gateway
 build_image "." "gateway" "cmd/gateway/Dockerfile"
 
-# 3. Frontend
+# Frontend
 build_image "frontend" "avika-frontend" "frontend/Dockerfile"
 
 # --- 6. Deploy to Kubernetes ---
@@ -167,7 +163,7 @@ helm upgrade avika ./deploy/helm/avika -n avika \
 echo -e "\n${GREEN}🏁 All builds completed successfully! (Version: ${VERSION})${NC}"
 echo "--------------------------------------------------------"
 echo "Images pushed:"
-echo "  - ${REPO}/avika-agent:${VERSION}"
+echo "  - ${REPO}/avika-agent:${VERSION} (via build-agent.sh)"
 echo "  - ${REPO}/gateway:${VERSION}"
 echo "  - ${REPO}/avika-frontend:${VERSION}"
 echo "--------------------------------------------------------"

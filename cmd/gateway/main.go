@@ -69,6 +69,7 @@ type server struct {
 	alerts     *AlertEngine
 	analytics  *AnalyticsCache // Keep for legacy/fallback or remove later
 	config     *config.Config
+	pskManager *middleware.PSKManager
 
 	// Monitoring stats (atomic)
 	messageCount int64 // total messages received since last tick
@@ -77,23 +78,24 @@ type server struct {
 }
 
 type AgentSession struct {
-	id             string
-	hostname       string
-	version        string // NGINX version
-	agentVersion   string // Agent binary version
-	buildDate      string // Build timestamp
-	gitCommit      string // Git commit hash
-	gitBranch      string // Git branch name
-	instancesCount int
-	uptime         string
-	ip             string
-	stream         pb.Commander_ConnectServer
-	logChans       map[string]chan *pb.LogEntry // subscription_id -> channel
-	mu             sync.Mutex
-	lastActive     time.Time
-	status         string // "online" or "offline"
-	isPod          bool
-	podIP          string
+	id               string
+	hostname         string
+	version          string // NGINX version
+	agentVersion     string // Agent binary version
+	buildDate        string // Build timestamp
+	gitCommit        string // Git commit hash
+	gitBranch        string // Git branch name
+	instancesCount   int
+	uptime           string
+	ip               string
+	stream           pb.Commander_ConnectServer
+	logChans         map[string]chan *pb.LogEntry // subscription_id -> channel
+	mu               sync.Mutex
+	lastActive       time.Time
+	status           string // "online" or "offline"
+	isPod            bool
+	podIP            string
+	pskAuthenticated bool // true if agent connected with valid PSK
 }
 
 func (s *server) Connect(stream pb.Commander_ConnectServer) error {
@@ -171,29 +173,36 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				}
 			}
 
-			// 3. Register/Update session
+			// 3. Check PSK authentication status
+			pskAuthenticated := false
+			if authStatus := middleware.GetPSKAuthStatus(stream.Context()); authStatus != nil {
+				pskAuthenticated = authStatus.Authenticated
+			}
+
+			// 4. Register/Update session
 			val, loaded := s.sessions.Load(agentID)
 			if !loaded {
 				currentSession = &AgentSession{
-					id:             agentID,
-					hostname:       hb.Hostname,
-					version:        nginxVersion,
-					agentVersion:   agentVer,
-					buildDate:      hb.BuildDate,
-					gitCommit:      hb.GitCommit,
-					gitBranch:      hb.GitBranch,
-					instancesCount: len(hb.Instances),
-					uptime:         fmt.Sprintf("%.1fs", hb.Uptime),
-					stream:         stream,
-					logChans:       make(map[string]chan *pb.LogEntry),
-					status:         "online",
-					lastActive:     time.Now(),
-					ip:             ip,
-					isPod:          isPod,
-					podIP:          hb.PodIp,
+					id:               agentID,
+					hostname:         hb.Hostname,
+					version:          nginxVersion,
+					agentVersion:     agentVer,
+					buildDate:        hb.BuildDate,
+					gitCommit:        hb.GitCommit,
+					gitBranch:        hb.GitBranch,
+					instancesCount:   len(hb.Instances),
+					uptime:           fmt.Sprintf("%.1fs", hb.Uptime),
+					stream:           stream,
+					logChans:         make(map[string]chan *pb.LogEntry),
+					status:           "online",
+					lastActive:       time.Now(),
+					ip:               ip,
+					isPod:            isPod,
+					podIP:            hb.PodIp,
+					pskAuthenticated: pskAuthenticated,
 				}
 				s.sessions.Store(agentID, currentSession)
-				log.Printf("Registered agent %s (%s) at %s (Pod: %v)", agentID, hb.Hostname, ip, isPod)
+				log.Printf("Registered agent %s (%s) at %s (Pod: %v, PSK: %v)", agentID, hb.Hostname, ip, isPod, pskAuthenticated)
 			} else {
 				// Reconnecting - update existing session
 				currentSession = val.(*AgentSession)
@@ -211,6 +220,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				currentSession.uptime = fmt.Sprintf("%.2fs", hb.Uptime)
 				currentSession.isPod = isPod
 				currentSession.podIP = hb.PodIp
+				currentSession.pskAuthenticated = pskAuthenticated
 				currentSession.lastActive = time.Now()
 				currentSession.mu.Unlock()
 			}
@@ -461,20 +471,21 @@ func (s *server) ListAgents(ctx context.Context, req *pb.ListAgentsRequest) (*pb
 		}
 
 		agents = append(agents, &pb.AgentInfo{
-			AgentId:        session.id,
-			Hostname:       session.hostname,
-			Version:        session.version,
-			AgentVersion:   session.agentVersion,
-			Status:         status,
-			InstancesCount: int32(session.instancesCount),
-			Uptime:         session.uptime,
-			Ip:             session.ip,
-			LastSeen:       session.lastActive.Unix(),
-			IsPod:          session.isPod,
-			PodIp:          session.podIP,
-			BuildDate:      session.buildDate,
-			GitCommit:      session.gitCommit,
-			GitBranch:      session.gitBranch,
+			AgentId:          session.id,
+			Hostname:         session.hostname,
+			Version:          session.version,
+			AgentVersion:     session.agentVersion,
+			Status:           status,
+			InstancesCount:   int32(session.instancesCount),
+			Uptime:           session.uptime,
+			Ip:               session.ip,
+			LastSeen:         session.lastActive.Unix(),
+			IsPod:            session.isPod,
+			PodIp:            session.podIP,
+			BuildDate:        session.buildDate,
+			GitCommit:        session.gitCommit,
+			GitBranch:        session.gitBranch,
+			PskAuthenticated: session.pskAuthenticated,
 		})
 		return true
 	})
@@ -499,17 +510,18 @@ func (s *server) GetAgent(ctx context.Context, req *pb.GetAgentRequest) (*pb.Age
 	session := val.(*AgentSession)
 
 	return &pb.AgentInfo{
-		AgentId:        session.id,
-		Hostname:       session.hostname,
-		Version:        session.version,
-		Status:         session.status,
-		InstancesCount: int32(session.instancesCount),
-		Uptime:         session.uptime,
-		Ip:             session.ip,
-		LastSeen:       session.lastActive.Unix(),
-		IsPod:          session.isPod,
-		PodIp:          session.podIP,
-		AgentVersion:   session.agentVersion,
+		AgentId:          session.id,
+		Hostname:         session.hostname,
+		Version:          session.version,
+		Status:           session.status,
+		InstancesCount:   int32(session.instancesCount),
+		Uptime:           session.uptime,
+		Ip:               session.ip,
+		LastSeen:         session.lastActive.Unix(),
+		IsPod:            session.isPod,
+		PodIp:            session.podIP,
+		AgentVersion:     session.agentVersion,
+		PskAuthenticated: session.pskAuthenticated,
 	}, nil
 }
 
@@ -1045,10 +1057,33 @@ func main() {
 	// Kafka configuration
 	os.Setenv("KAFKA_BROKERS", cfg.Kafka.Brokers)
 
+	// Initialize PSK Manager for agent authentication
+	timestampWindow := 5 * time.Minute
+	if cfg.PSK.TimestampWindow != "" {
+		if d, err := time.ParseDuration(cfg.PSK.TimestampWindow); err == nil {
+			timestampWindow = d
+		}
+	}
+	pskManager := middleware.NewPSKManager(middleware.PSKConfig{
+		Enabled:          cfg.PSK.Enabled,
+		Key:              cfg.PSK.Key,
+		AllowAutoEnroll:  cfg.PSK.AllowAutoEnroll,
+		TimestampWindow:  timestampWindow,
+		RequireHostMatch: cfg.PSK.RequireHostMatch,
+	})
+
 	// Create gRPC server with options
 	grpcOpts := []grpc.ServerOption{
 		grpc.MaxRecvMsgSize(16 * 1024 * 1024), // 16MB
 		grpc.MaxSendMsgSize(16 * 1024 * 1024),
+	}
+	// Add PSK interceptors if enabled
+	if cfg.PSK.Enabled {
+		grpcOpts = append(grpcOpts,
+			grpc.UnaryInterceptor(pskManager.UnaryPSKInterceptor()),
+			grpc.StreamInterceptor(pskManager.StreamPSKInterceptor()),
+		)
+		log.Printf("PSK authentication enabled for agent connections")
 	}
 	s := grpc.NewServer(grpcOpts...)
 
@@ -1062,8 +1097,9 @@ func main() {
 			EndpointStats:  make(map[string]*EndpointStats),
 			RequestHistory: []*pb.TimeSeriesPoint{},
 		},
-		config: cfg,
-		alerts: NewAlertEngine(db, chDB, cfg),
+		config:     cfg,
+		alerts:     NewAlertEngine(db, chDB, cfg),
+		pskManager: pskManager,
 	}
 
 	// Load agents from DB
@@ -1190,6 +1226,44 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Initialize rate limiter
 	rateLimiter := middleware.NewRateLimiter(cfg.Security.RateLimitRPS, cfg.Security.RateLimitBurst)
 
+	// Initialize auth manager
+	tokenExpiry := 24 * time.Hour
+	if cfg.Auth.TokenExpiry != "" {
+		if d, err := time.ParseDuration(cfg.Auth.TokenExpiry); err == nil {
+			tokenExpiry = d
+		}
+	}
+	authManager := middleware.NewAuthManager(middleware.AuthConfig{
+		Enabled:      cfg.Auth.Enabled,
+		Username:     cfg.Auth.Username,
+		PasswordHash: cfg.Auth.PasswordHash,
+		JWTSecret:    cfg.Auth.JWTSecret,
+		TokenExpiry:  tokenExpiry,
+		CookieName:   "avika_session",
+		CookieSecure: cfg.Auth.CookieSecure,
+		CookieDomain: cfg.Auth.CookieDomain,
+	})
+
+	// Public paths that don't require authentication
+	publicPaths := []string{
+		"/health",
+		"/ready",
+		"/metrics",
+		"/api/auth/login",
+		"/api/auth/logout",
+	}
+
+	// Auth endpoints (always available)
+	mux.HandleFunc("/api/auth/login", authManager.LoginHandler())
+	mux.HandleFunc("/api/auth/logout", authManager.LogoutHandler())
+	mux.HandleFunc("/api/auth/me", authManager.MeHandler())
+
+	if cfg.Auth.Enabled {
+		log.Printf("Authentication enabled for user: %s", cfg.Auth.Username)
+	} else {
+		log.Printf("Authentication disabled - all endpoints are public")
+	}
+
 	// WebSocket upgrader with origin validation
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -1209,13 +1283,13 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		},
 	}
 
-	// Terminal WebSocket endpoint
-	mux.HandleFunc("/terminal", func(w http.ResponseWriter, r *http.Request) {
+	// Terminal WebSocket endpoint (protected by auth)
+	mux.Handle("/terminal", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		srv.handleTerminal(w, r, upgrader)
-	})
+	})))
 
-	// Export report endpoint with rate limiting
-	mux.Handle("/export-report", middleware.RateLimitMiddleware(rateLimiter, cfg.Security.EnableRateLimit)(http.HandlerFunc(srv.handleExportReport)))
+	// Export report endpoint with rate limiting and auth
+	mux.Handle("/export-report", authManager.AuthMiddleware(publicPaths)(middleware.RateLimitMiddleware(rateLimiter, cfg.Security.EnableRateLimit)(http.HandlerFunc(srv.handleExportReport))))
 
 	// Health check endpoint (no rate limiting)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -1302,9 +1376,7 @@ func (srv *server) handleTerminal(w http.ResponseWriter, r *http.Request, upgrad
 	log.Printf("Exec stream established for agent %s", agentID)
 
 	cmd := r.URL.Query().Get("command")
-	if cmd == "" {
-		cmd = "/bin/bash"
-	}
+	// If no command specified, agent will use Lens-style shell fallback
 	if err := stream.Send(&pb.ExecRequest{
 		InstanceId: agentID,
 		Command:    cmd,

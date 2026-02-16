@@ -21,6 +21,34 @@ data:
   token: {{ .Values.vault.token | b64enc | quote }}
 ---
 {{- end }}
+{{- if and .Values.auth .Values.auth.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "avika.fullname" . }}-auth-secrets
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+type: Opaque
+data:
+  password-hash: {{ .Values.auth.passwordHash | b64enc | quote }}
+  jwt-secret: {{ .Values.auth.jwtSecret | default "" | b64enc | quote }}
+---
+{{- end }}
+{{- /* Only create PSK secret if key is provided inline AND no existingSecret is set */}}
+{{- if and .Values.psk .Values.psk.enabled .Values.psk.key (not .Values.psk.existingSecret) }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "avika.fullname" . }}-psk-secrets
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: "keep"
+type: Opaque
+data:
+  psk-key: {{ .Values.psk.key | b64enc | quote }}
+---
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

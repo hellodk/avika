@@ -97,6 +97,27 @@ type VaultConfig struct {
 	Token   string `yaml:"token"`
 }
 
+// AuthConfig holds authentication configuration
+type AuthConfig struct {
+	Enabled           bool   `yaml:"enabled"`
+	Username          string `yaml:"username"`
+	PasswordHash      string `yaml:"password_hash"`       // SHA-256 hash of password
+	JWTSecret         string `yaml:"jwt_secret"`          // Auto-generated if empty
+	TokenExpiry       string `yaml:"token_expiry"`        // e.g., "24h"
+	CookieSecure      bool   `yaml:"cookie_secure"`       // Set to true for HTTPS
+	CookieDomain      string `yaml:"cookie_domain"`
+	InitialSecretPath string `yaml:"initial_secret_path"` // File to write initial secret
+}
+
+// PSKConfig holds Pre-Shared Key authentication for agents
+type PSKConfig struct {
+	Enabled          bool   `yaml:"enabled"`
+	Key              string `yaml:"key"`                // Pre-shared key (hex-encoded, 64 chars = 32 bytes)
+	AllowAutoEnroll  bool   `yaml:"allow_auto_enroll"`  // Allow agents to auto-register
+	TimestampWindow  string `yaml:"timestamp_window"`   // Clock skew tolerance, e.g., "5m"
+	RequireHostMatch bool   `yaml:"require_host_match"` // Require hostname to match
+}
+
 // Config holds all gateway configuration
 type Config struct {
 	Server     ServerConfig     `yaml:"server"`
@@ -107,6 +128,8 @@ type Config struct {
 	SMTP       SMTPConfig       `yaml:"smtp"`
 	Agent      AgentConfig      `yaml:"agent"`
 	Vault      VaultConfig      `yaml:"vault"`
+	Auth       AuthConfig       `yaml:"auth"`
+	PSK        PSKConfig        `yaml:"psk"`
 }
 
 // GetGRPCAddress returns the formatted gRPC listen address
@@ -271,6 +294,23 @@ func defaultConfig() *Config {
 			Address: "http://vault.utilities.svc.cluster.local:8200",
 			Token:   "",
 		},
+		Auth: AuthConfig{
+			Enabled:           false,
+			Username:          "admin",
+			PasswordHash:      "", // Must be set if auth is enabled
+			JWTSecret:         "", // Auto-generated if empty
+			TokenExpiry:       "24h",
+			CookieSecure:      false,
+			CookieDomain:      "",
+			InitialSecretPath: "/var/lib/avika/initial-admin-password",
+		},
+		PSK: PSKConfig{
+			Enabled:          false,
+			Key:              "", // Auto-generated if empty and enabled
+			AllowAutoEnroll:  true,
+			TimestampWindow:  "5m",
+			RequireHostMatch: false,
+		},
 	}
 }
 
@@ -385,5 +425,48 @@ func loadEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("VAULT_TOKEN"); v != "" {
 		cfg.Vault.Token = v
+	}
+
+	// Auth
+	if v := os.Getenv("AUTH_ENABLED"); v != "" {
+		cfg.Auth.Enabled = v == "true" || v == "1"
+	}
+	if v := os.Getenv("AUTH_USERNAME"); v != "" {
+		cfg.Auth.Username = v
+	}
+	if v := os.Getenv("AUTH_PASSWORD_HASH"); v != "" {
+		cfg.Auth.PasswordHash = v
+	}
+	if v := os.Getenv("AUTH_JWT_SECRET"); v != "" {
+		cfg.Auth.JWTSecret = v
+	}
+	if v := os.Getenv("AUTH_TOKEN_EXPIRY"); v != "" {
+		cfg.Auth.TokenExpiry = v
+	}
+	if v := os.Getenv("AUTH_COOKIE_SECURE"); v != "" {
+		cfg.Auth.CookieSecure = v == "true" || v == "1"
+	}
+	if v := os.Getenv("AUTH_COOKIE_DOMAIN"); v != "" {
+		cfg.Auth.CookieDomain = v
+	}
+	if v := os.Getenv("AUTH_INITIAL_SECRET_PATH"); v != "" {
+		cfg.Auth.InitialSecretPath = v
+	}
+
+	// PSK (Pre-Shared Key for Agent Authentication)
+	if v := os.Getenv("PSK_ENABLED"); v != "" {
+		cfg.PSK.Enabled = v == "true" || v == "1"
+	}
+	if v := os.Getenv("PSK_KEY"); v != "" {
+		cfg.PSK.Key = v
+	}
+	if v := os.Getenv("PSK_ALLOW_AUTO_ENROLL"); v != "" {
+		cfg.PSK.AllowAutoEnroll = v == "true" || v == "1"
+	}
+	if v := os.Getenv("PSK_TIMESTAMP_WINDOW"); v != "" {
+		cfg.PSK.TimestampWindow = v
+	}
+	if v := os.Getenv("PSK_REQUIRE_HOST_MATCH"); v != "" {
+		cfg.PSK.RequireHostMatch = v == "true" || v == "1"
 	}
 }

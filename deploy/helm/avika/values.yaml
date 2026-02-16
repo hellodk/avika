@@ -21,7 +21,14 @@ replicaCount: 1
 image:
   repository: avika
   pullPolicy: IfNotPresent
-  tag: "0.1.45"
+  tag: "0.1.50"
+
+# Image pull secrets for private registries
+# Example usage:
+#   imagePullSecrets:
+#     - name: my-registry-secret
+#     - name: another-secret
+imagePullSecrets: []
 
 # -- Component Configurations --
 
@@ -29,7 +36,7 @@ gateway:
   replicaCount: 1
   image:
     repository: hellodk/gateway
-    tag: "0.1.45"
+    tag: "0.1.50"
   service:
     type: ClusterIP
     grpcPort: 5020      # gRPC for agent connections
@@ -69,7 +76,7 @@ gateway:
 agent:
   image:
     repository: hellodk/nginx-agent
-    tag: "0.1.45"
+    tag: "0.1.50"
   config:
     mgmtPort: 5025      # Management gRPC server
     healthPort: 5026    # Health check endpoint
@@ -94,7 +101,7 @@ mockAgent:
   replicaCount: 1
   image:
     repository: hellodk/nginx-agent
-    tag: "0.1.45"
+    tag: "0.1.50"
     pullPolicy: Always
 
 # Mock NGINX instances with Avika agent sidecar
@@ -104,7 +111,7 @@ mockNginx:
   replicaCount: 2
   image:
     repository: hellodk/avika-agent
-    tag: "0.1.45"
+    tag: "0.1.50"
     pullPolicy: Always
   # Gateway configuration
   # For in-cluster: use service.namespace.svc.cluster.local format
@@ -115,11 +122,16 @@ frontend:
   replicaCount: 1
   image:
     repository: hellodk/avika-frontend
-    tag: "0.1.45"
+    tag: "0.1.50"
     pullPolicy: Always
   service:
     type: ClusterIP
     port: 5031          # Frontend HTTP server (5020-5050 range)
+  # Base path for serving frontend under a subpath (e.g., /avika)
+  # This enables routing via custom domains with path-based routing
+  # Example: basePath: "/avika" -> access at https://yourdomain.com/avika
+  # Note: Requires rebuilding the frontend image with NEXT_PUBLIC_BASE_PATH set
+  basePath: "/avika"
   env:
     gatewayUrl: "http://avika-gateway:5020"
     gatewayGrpcAddr: "avika-gateway:5020"  # Server-side gRPC connection (not NEXT_PUBLIC_)
@@ -272,6 +284,58 @@ security:
   # Pod Security Standards
   podSecurityPolicy:
     enabled: false
+
+# -- Authentication --
+# Basic password authentication for the UI and API
+auth:
+  enabled: false
+  username: "admin"
+  # Password hash (SHA-256). Generate with:
+  #   echo -n "your-password" | sha256sum | cut -d' ' -f1
+  # If empty and enabled, an initial password will be auto-generated (like Jenkins)
+  passwordHash: ""
+  # JWT secret for session tokens (auto-generated if empty)
+  jwtSecret: ""
+  # Session token expiry duration (e.g., "24h", "7d")
+  tokenExpiry: "24h"
+  # Set to true when using HTTPS
+  cookieSecure: false
+  # Cookie domain (leave empty for current domain)
+  cookieDomain: ""
+  # Path to write initial generated password (for first-time setup)
+  initialSecretPath: "/var/lib/avika/initial-admin-password"
+
+# -- Pre-Shared Key (PSK) Authentication for Agents --
+# Similar to Zabbix server-agent authentication
+# Prevents unauthorized agents from connecting to the gateway
+#
+# SECURITY WARNING: Never store PSK values in plain text in version control!
+# Use one of these secure methods instead:
+#   1. existingSecret: Reference a pre-created Kubernetes Secret
+#   2. CI/CD injection: --set psk.key=$ENCRYPTED_PSK
+#   3. External Secrets Operator: Sync from Vault/AWS/GCP
+#   4. SOPS: helm upgrade -f <(sops -d secrets.enc.yaml)
+#
+psk:
+  enabled: false
+  # Option 1: Reference existing Kubernetes Secret (RECOMMENDED)
+  # Create with: kubectl create secret generic avika-psk --from-literal=psk=$(openssl rand -hex 32)
+  existingSecret: ""
+  existingSecretKey: "psk"
+  
+  # Option 2: Direct key (NOT recommended for production)
+  # Pre-shared key (hex-encoded, 64 chars = 32 bytes)
+  # Generate with: openssl rand -hex 32
+  # If empty and enabled (without existingSecret), a key will be auto-generated and logged
+  key: ""
+  
+  # Allow agents to auto-register on first connection
+  # Set to false for manual approval mode
+  allowAutoEnroll: true
+  # Clock skew tolerance for replay attack prevention
+  timestampWindow: "5m"
+  # Require agent hostname to match registered hostname
+  requireHostMatch: false
 
 # -- Monitoring --
 monitoring:
