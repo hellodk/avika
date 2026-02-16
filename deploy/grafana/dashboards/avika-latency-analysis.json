@@ -1,0 +1,173 @@
+{
+  "annotations": { "list": [{ "builtIn": 1, "datasource": { "type": "grafana", "uid": "-- Grafana --" }, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard" }] },
+  "description": "Performance analysis - request latency breakdown by agent, URI, and upstream",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [
+    { "asDropdown": false, "icon": "arrow-left", "includeVars": true, "keepTime": true, "tags": [], "targetBlank": false, "title": "← Back to Overview", "type": "link", "url": "/d/avika-nginx-overview" },
+    { "asDropdown": true, "icon": "external-link-alt", "includeVars": true, "keepTime": true, "tags": ["avika"], "targetBlank": false, "title": "Related Dashboards", "type": "dashboards" }
+  ],
+  "panels": [
+    { "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 }, "id": 99, "options": { "content": "# ⚡ Latency Analysis\nPerformance breakdown by request latency percentiles. Identify slow endpoints and upstream bottlenecks.", "mode": "markdown" }, "type": "text" },
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 2 }, "id": 100, "panels": [], "title": "📊 Latency Overview", "type": "row" },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "green", "mode": "fixed" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 3 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT quantile(0.50)(request_time * 1000) as p50\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "title": "P50 Latency",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "yellow", "mode": "fixed" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "yellow", "value": null }] }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 3 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT quantile(0.90)(request_time * 1000) as p90\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "title": "P90 Latency",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 3 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT quantile(0.95)(request_time * 1000) as p95\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "title": "P95 Latency",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "red", "mode": "fixed" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }] }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 3 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT quantile(0.99)(request_time * 1000) as p99\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "title": "P99 Latency",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "purple", "mode": "fixed" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 3 },
+      "id": 5,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT max(request_time * 1000) as max_latency\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "title": "Max Latency",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }, "unit": "percent" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 3 },
+      "id": 6,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT countIf(request_time > 1.0) * 100.0 / count(*) as slow_pct\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "title": "Slow Requests (>1s)",
+      "type": "stat"
+    },
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 }, "id": 101, "panels": [], "title": "📈 Latency Trends", "type": "row" },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "Latency (ms)", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "scheme", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": true, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "ms" }, "overrides": [{ "matcher": { "id": "byName", "options": "p99" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }, { "matcher": { "id": "byName", "options": "p95" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] }, { "matcher": { "id": "byName", "options": "p90" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] }, { "matcher": { "id": "byName", "options": "p50" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] }] },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 8 },
+      "id": 10,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  quantile(0.50)(request_time * 1000) as p50,\n  quantile(0.90)(request_time * 1000) as p90,\n  quantile(0.95)(request_time * 1000) as p95,\n  quantile(0.99)(request_time * 1000) as p99\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY time\nORDER BY time", "refId": "A" }],
+      "title": "Latency Percentiles Over Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "fillOpacity": 80, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineWidth": 1 }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 },
+      "id": 11,
+      "options": { "bucketCount": 30, "bucketSize": 50, "combine": false, "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 2, "queryType": "sql", "rawSql": "SELECT request_time * 1000 as latency_ms\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\n  AND request_time < 2\nLIMIT 10000", "refId": "A" }],
+      "title": "Latency Distribution (Histogram)",
+      "type": "histogram"
+    },
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 }, "id": 102, "panels": [], "title": "🎯 Latency by Dimension", "type": "row" },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "links": [{ "title": "View Agent Details", "url": "/d/avika-agent-detail?var-agent=${__data.fields.agent}&from=${__from}&to=${__to}" }], "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 500 }] } }, "overrides": [{ "matcher": { "id": "byName", "options": "p50" }, "properties": [{ "id": "unit", "value": "ms" }, { "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "gauge" } }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 }] } }] }, { "matcher": { "id": "byName", "options": "p95" }, "properties": [{ "id": "unit", "value": "ms" }] }, { "matcher": { "id": "byName", "options": "p99" }, "properties": [{ "id": "unit", "value": "ms" }] }] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 17 },
+      "id": 20,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "p95" }] },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  instance_id as agent,\n  count(*) as requests,\n  round(quantile(0.50)(request_time * 1000), 2) as p50,\n  round(quantile(0.95)(request_time * 1000), 2) as p95,\n  round(quantile(0.99)(request_time * 1000), 2) as p99\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY agent\nORDER BY p95 DESC\nLIMIT 20", "refId": "A" }],
+      "title": "Latency by Agent (Identify Slow Servers)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 500 }] } }, "overrides": [{ "matcher": { "id": "byName", "options": "p95" }, "properties": [{ "id": "unit", "value": "ms" }, { "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "gauge" } }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 500 }] } }] }, { "matcher": { "id": "byName", "options": "p50" }, "properties": [{ "id": "unit", "value": "ms" }] }, { "matcher": { "id": "byName", "options": "p99" }, "properties": [{ "id": "unit", "value": "ms" }] }] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 17 },
+      "id": 21,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "p95" }] },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  request_uri as uri,\n  count(*) as requests,\n  round(quantile(0.50)(request_time * 1000), 2) as p50,\n  round(quantile(0.95)(request_time * 1000), 2) as p95,\n  round(quantile(0.99)(request_time * 1000), 2) as p99\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY uri\nHAVING requests >= 10\nORDER BY p95 DESC\nLIMIT 20", "refId": "A" }],
+      "title": "Latency by URI (Identify Slow Endpoints)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 500 }] } }, "overrides": [{ "matcher": { "id": "byName", "options": "upstream_p95" }, "properties": [{ "id": "unit", "value": "ms" }, { "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "gauge" } }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 500 }] } }] }, { "matcher": { "id": "byName", "options": "connect_time" }, "properties": [{ "id": "unit", "value": "ms" }] }, { "matcher": { "id": "byName", "options": "header_time" }, "properties": [{ "id": "unit", "value": "ms" }] }] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 17 },
+      "id": 22,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "upstream_p95" }] },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  upstream_addr as upstream,\n  count(*) as requests,\n  round(quantile(0.95)(upstream_response_time * 1000), 2) as upstream_p95,\n  round(avg(upstream_connect_time * 1000), 2) as connect_time,\n  round(avg(upstream_header_time * 1000), 2) as header_time\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\n  AND upstream_addr != ''\nGROUP BY upstream\nHAVING requests >= 5\nORDER BY upstream_p95 DESC\nLIMIT 20", "refId": "A" }],
+      "title": "Latency by Upstream (Backend Performance)",
+      "type": "table"
+    },
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 }, "id": 103, "panels": [], "title": "🐢 Slowest Requests", "type": "row" },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "links": [{ "title": "View Agent ${__data.fields.agent}", "url": "/d/avika-agent-detail?var-agent=${__data.fields.agent}&from=${__from}&to=${__to}" }], "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [{ "matcher": { "id": "byName", "options": "latency_ms" }, "properties": [{ "id": "unit", "value": "ms" }, { "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "gauge" } }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "yellow", "value": null }, { "color": "orange", "value": 500 }, { "color": "red", "value": 1000 }] } }] }, { "matcher": { "id": "byName", "options": "upstream_time" }, "properties": [{ "id": "unit", "value": "ms" }] }, { "matcher": { "id": "byName", "options": "connect_time" }, "properties": [{ "id": "unit", "value": "ms" }] }, { "matcher": { "id": "byName", "options": "timestamp" }, "properties": [{ "id": "custom.width", "value": 180 }] }, { "matcher": { "id": "byName", "options": "status" }, "properties": [{ "id": "custom.width", "value": 70 }] }] },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 26 },
+      "id": 30,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "latency_ms" }] },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  formatDateTime(timestamp, '%Y-%m-%d %H:%M:%S', 'Asia/Kolkata') as timestamp,\n  instance_id as agent,\n  request_method as method,\n  request_uri as uri,\n  status,\n  round(request_time * 1000, 2) as latency_ms,\n  round(upstream_response_time * 1000, 2) as upstream_time,\n  round(upstream_connect_time * 1000, 2) as connect_time,\n  upstream_addr as upstream,\n  remote_addr as client\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nORDER BY request_time DESC\nLIMIT 100", "refId": "A" }],
+      "title": "Slowest Requests (IST)",
+      "type": "table"
+    },
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 38 }, "id": 104, "panels": [], "title": "⏱️ Upstream Timing Breakdown", "type": "row" },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 1, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": true, "stacking": { "group": "A", "mode": "normal" }, "thresholdsStyle": { "mode": "off" } }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "ms" }, "overrides": [{ "matcher": { "id": "byName", "options": "connect" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] }, { "matcher": { "id": "byName", "options": "header" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] }, { "matcher": { "id": "byName", "options": "response" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] }] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 39 },
+      "id": 40,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  avg(upstream_connect_time * 1000) as connect,\n  avg(upstream_header_time * 1000) as header,\n  avg(upstream_response_time * 1000) as response\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\n  AND upstream_addr != ''\nGROUP BY time\nORDER BY time", "refId": "A" }],
+      "title": "Upstream Timing (Connect + Header + Response)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 20, "gradientMode": "scheme", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": true, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 39 },
+      "id": 41,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  upstream_addr,\n  quantile(0.95)(upstream_response_time * 1000) as p95\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\n  AND upstream_addr != ''\nGROUP BY time, upstream_addr\nORDER BY time", "refId": "A" }],
+      "title": "P95 Latency by Upstream",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["avika", "nginx", "latency", "performance"],
+  "templating": {
+    "list": [
+      { "current": { "selected": false, "text": "ClickHouse", "value": "clickhouse" }, "hide": 0, "label": "Data Source", "multi": false, "name": "DS_CLICKHOUSE", "options": [], "query": "grafana-clickhouse-datasource", "refresh": 1, "type": "datasource" },
+      { "current": { "selected": true, "text": "all", "value": "all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "definition": "SELECT DISTINCT instance_id FROM nginx_analytics.access_logs WHERE timestamp > now() - INTERVAL 1 HOUR", "hide": 0, "includeAll": true, "label": "Agent", "multi": false, "name": "agent", "options": [], "query": "SELECT DISTINCT instance_id FROM nginx_analytics.access_logs WHERE timestamp > now() - INTERVAL 1 HOUR", "refresh": 2, "sort": 1, "type": "query" }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "Asia/Kolkata",
+  "title": "Avika Latency Analysis",
+  "uid": "avika-latency-analysis",
+  "version": 1
+}

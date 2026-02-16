@@ -1,0 +1,179 @@
+{
+  "annotations": { "list": [{ "builtIn": 1, "datasource": { "type": "grafana", "uid": "-- Grafana --" }, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard" }] },
+  "description": "Deep analysis of HTTP errors - 4xx and 5xx status codes",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [
+    { "asDropdown": false, "icon": "arrow-left", "includeVars": true, "keepTime": true, "tags": [], "targetBlank": false, "title": "← Back to Overview", "type": "link", "url": "/d/avika-nginx-overview" },
+    { "asDropdown": true, "icon": "external-link-alt", "includeVars": true, "keepTime": true, "tags": ["avika"], "targetBlank": false, "title": "Related Dashboards", "type": "dashboards" }
+  ],
+  "panels": [
+    {
+      "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
+      "id": 99,
+      "options": { "code": { "language": "plaintext", "showLineNumbers": false }, "content": "# 🚨 Error Analysis\nInvestigate HTTP 4xx and 5xx errors across your NGINX fleet. Click on any row to drill down further.", "mode": "markdown" },
+      "type": "text"
+    },
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 2 }, "id": 100, "panels": [], "title": "📊 Error Overview", "type": "row" },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 1000 }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 3 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT count(*) as errors\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND status >= 400\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "title": "Total Errors",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "yellow", "mode": "fixed" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "yellow", "value": null }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 3 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT count(*) as client_errors\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND status >= 400 AND status < 500\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "title": "4xx Client Errors",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "red", "mode": "fixed" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 3 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT count(*) as server_errors\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND status >= 500\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "title": "5xx Server Errors",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }, "unit": "percent" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 3 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  countIf(status >= 400) * 100.0 / count(*) as error_rate\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "title": "Error Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 3 },
+      "id": 5,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT count(DISTINCT request_uri) as unique_error_uris\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND status >= 400\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "title": "Unique Error URIs",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 3 },
+      "id": 6,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT count(DISTINCT remote_addr) as unique_clients\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND status >= 400\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "title": "Affected Clients",
+      "type": "stat"
+    },
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 }, "id": 101, "panels": [], "title": "📈 Error Trends", "type": "row" },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "bars", "fillOpacity": 80, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "normal" }, "thresholdsStyle": { "mode": "off" } }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "short" }, "overrides": [{ "matcher": { "id": "byName", "options": "4xx" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] }, { "matcher": { "id": "byName", "options": "5xx" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }] },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 8 },
+      "id": 10,
+      "options": { "legend": { "calcs": ["sum", "mean"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  countIf(status >= 400 AND status < 500) as \"4xx\",\n  countIf(status >= 500) as \"5xx\"\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY time\nORDER BY time", "refId": "A" }],
+      "title": "Errors Over Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "hideFrom": { "legend": false, "tooltip": false, "viz": false } }, "mappings": [] }, "overrides": [{ "matcher": { "id": "byName", "options": "400" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] }, { "matcher": { "id": "byName", "options": "401" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] }, { "matcher": { "id": "byName", "options": "403" }, "properties": [{ "id": "color", "value": { "fixedColor": "light-orange", "mode": "fixed" } }] }, { "matcher": { "id": "byName", "options": "404" }, "properties": [{ "id": "color", "value": { "fixedColor": "super-light-yellow", "mode": "fixed" } }] }, { "matcher": { "id": "byName", "options": "500" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }, { "matcher": { "id": "byName", "options": "502" }, "properties": [{ "id": "color", "value": { "fixedColor": "dark-red", "mode": "fixed" } }] }, { "matcher": { "id": "byName", "options": "503" }, "properties": [{ "id": "color", "value": { "fixedColor": "semi-dark-red", "mode": "fixed" } }] }, { "matcher": { "id": "byName", "options": "504" }, "properties": [{ "id": "color", "value": { "fixedColor": "light-red", "mode": "fixed" } }] }] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 },
+      "id": 11,
+      "options": { "displayLabels": ["name", "percent"], "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false }, "tooltip": { "mode": "single", "sort": "none" } },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toString(status) as status,\n  count(*) as count\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND status >= 400\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY status\nORDER BY count DESC\nLIMIT 10", "refId": "A" }],
+      "title": "Error Distribution by Status",
+      "type": "piechart"
+    },
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 }, "id": 102, "panels": [], "title": "🎯 Error Breakdown", "type": "row" },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "links": [{ "title": "View Agent Details", "url": "/d/avika-agent-detail?var-agent=${__data.fields.agent}&from=${__from}&to=${__to}" }], "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 500 }] } }, "overrides": [{ "matcher": { "id": "byName", "options": "errors" }, "properties": [{ "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "gauge" } }] }, { "matcher": { "id": "byName", "options": "error_rate" }, "properties": [{ "id": "unit", "value": "percent" }, { "id": "custom.cellOptions", "value": { "mode": "lcd", "type": "gauge" } }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] } }] }] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 17 },
+      "id": 20,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "errors" }] },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  instance_id as agent,\n  countIf(status >= 400) as errors,\n  round(countIf(status >= 400) * 100.0 / count(*), 2) as error_rate\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY agent\nHAVING errors > 0\nORDER BY errors DESC\nLIMIT 20", "refId": "A" }],
+      "title": "Errors by Agent",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 }] } }, "overrides": [{ "matcher": { "id": "byName", "options": "count" }, "properties": [{ "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "gauge" } }] }, { "matcher": { "id": "byName", "options": "status" }, "properties": [{ "id": "custom.width", "value": 70 }] }] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 17 },
+      "id": 21,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "count" }] },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  request_uri as uri,\n  status,\n  count(*) as count\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND status >= 400\n  AND ($agent = 'all' OR instance_id = $agent)\n  AND ($uri_filter = '' OR request_uri LIKE concat('%', $uri_filter, '%'))\nGROUP BY uri, status\nORDER BY count DESC\nLIMIT 20", "refId": "A" }],
+      "title": "Errors by URI",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 20 }, { "color": "red", "value": 100 }] } }, "overrides": [{ "matcher": { "id": "byName", "options": "errors" }, "properties": [{ "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "gauge" } }] }] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 17 },
+      "id": 22,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "errors" }] },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  remote_addr as client_ip,\n  count(*) as errors,\n  count(DISTINCT request_uri) as unique_uris\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND status >= 400\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY client_ip\nORDER BY errors DESC\nLIMIT 20", "refId": "A" }],
+      "title": "Top Error Clients (Potential Issues/Attacks)",
+      "type": "table"
+    },
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 }, "id": 103, "panels": [], "title": "🔥 5xx Server Errors Detail", "type": "row" },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "bars", "fillOpacity": 80, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "normal" }, "thresholdsStyle": { "mode": "off" } }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "short" }, "overrides": [{ "matcher": { "id": "byName", "options": "500" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }, { "matcher": { "id": "byName", "options": "502" }, "properties": [{ "id": "color", "value": { "fixedColor": "dark-red", "mode": "fixed" } }] }, { "matcher": { "id": "byName", "options": "503" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] }, { "matcher": { "id": "byName", "options": "504" }, "properties": [{ "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } }] }] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "id": 30,
+      "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  countIf(status = 500) as \"500\",\n  countIf(status = 502) as \"502\",\n  countIf(status = 503) as \"503\",\n  countIf(status = 504) as \"504\"\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND status >= 500\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY time\nORDER BY time", "refId": "A" }],
+      "title": "5xx Errors by Type",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }] } }, "overrides": [{ "matcher": { "id": "byName", "options": "avg_latency_ms" }, "properties": [{ "id": "unit", "value": "ms" }] }, { "matcher": { "id": "byName", "options": "status" }, "properties": [{ "id": "custom.width", "value": 70 }] }, { "matcher": { "id": "byName", "options": "count" }, "properties": [{ "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "gauge" } }] }] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "id": 31,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "count" }] },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  request_uri as uri,\n  status,\n  count(*) as count,\n  round(avg(request_time * 1000), 2) as avg_latency_ms,\n  upstream_addr as upstream\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND status >= 500\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY uri, status, upstream\nORDER BY count DESC\nLIMIT 25", "refId": "A" }],
+      "title": "5xx Errors with Upstream Info",
+      "type": "table"
+    },
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 }, "id": 104, "panels": [], "title": "📜 Recent Error Logs", "type": "row" },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "links": [{ "title": "View Agent ${__data.fields.agent}", "url": "/d/avika-agent-detail?var-agent=${__data.fields.agent}&from=${__from}&to=${__to}" }], "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [{ "matcher": { "id": "byName", "options": "status" }, "properties": [{ "id": "custom.width", "value": 70 }, { "id": "mappings", "value": [{ "options": { "from": 400, "result": { "color": "yellow", "index": 0 }, "to": 499 }, "type": "range" }, { "options": { "from": 500, "result": { "color": "red", "index": 1 }, "to": 599 }, "type": "range" }] }, { "id": "custom.cellOptions", "value": { "mode": "basic", "type": "color-background" } }] }, { "matcher": { "id": "byName", "options": "latency_ms" }, "properties": [{ "id": "unit", "value": "ms" }, { "id": "custom.width", "value": 100 }] }, { "matcher": { "id": "byName", "options": "timestamp" }, "properties": [{ "id": "custom.width", "value": 180 }] }, { "matcher": { "id": "byName", "options": "method" }, "properties": [{ "id": "custom.width", "value": 70 }] }] },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 35 },
+      "id": 40,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "timestamp" }] },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  formatDateTime(timestamp, '%Y-%m-%d %H:%M:%S', 'Asia/Kolkata') as timestamp,\n  instance_id as agent,\n  request_method as method,\n  request_uri as uri,\n  status,\n  round(request_time * 1000, 2) as latency_ms,\n  remote_addr as client,\n  upstream_addr as upstream,\n  user_agent\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND status >= 400\n  AND ($agent = 'all' OR instance_id = $agent)\n  AND ($uri_filter = '' OR request_uri LIKE concat('%', $uri_filter, '%'))\nORDER BY timestamp DESC\nLIMIT 200", "refId": "A" }],
+      "title": "Error Logs (IST)",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["avika", "nginx", "errors"],
+  "templating": {
+    "list": [
+      { "current": { "selected": false, "text": "ClickHouse", "value": "clickhouse" }, "hide": 0, "includeAll": false, "label": "Data Source", "multi": false, "name": "DS_CLICKHOUSE", "options": [], "query": "grafana-clickhouse-datasource", "refresh": 1, "type": "datasource" },
+      { "current": { "selected": true, "text": "all", "value": "all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" }, "definition": "SELECT DISTINCT instance_id FROM nginx_analytics.access_logs WHERE timestamp > now() - INTERVAL 1 HOUR", "hide": 0, "includeAll": true, "label": "Agent", "multi": false, "name": "agent", "options": [], "query": "SELECT DISTINCT instance_id FROM nginx_analytics.access_logs WHERE timestamp > now() - INTERVAL 1 HOUR", "refresh": 2, "sort": 1, "type": "query" },
+      { "current": { "selected": false, "text": "", "value": "" }, "hide": 0, "label": "URI Filter", "name": "uri_filter", "options": [{ "selected": true, "text": "", "value": "" }], "query": "", "skipUrlSync": false, "type": "textbox" }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "Asia/Kolkata",
+  "title": "Avika Error Analysis",
+  "uid": "avika-error-analysis",
+  "version": 1
+}

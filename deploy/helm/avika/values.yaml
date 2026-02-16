@@ -122,6 +122,7 @@ frontend:
     port: 5031          # Frontend HTTP server (5020-5050 range)
   env:
     gatewayUrl: "http://avika-gateway:5020"
+    gatewayGrpcAddr: "avika-gateway:5020"  # Server-side gRPC connection (not NEXT_PUBLIC_)
     wsUrl: "ws://avika-gateway:5021"
   resources:
     limits:

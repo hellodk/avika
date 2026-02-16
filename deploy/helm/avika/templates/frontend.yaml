@@ -34,6 +34,8 @@ spec:
               value: "http://{{ include "avika.fullname" . }}-gateway:{{ .Values.gateway.service.grpcPort }}"
             - name: NEXT_PUBLIC_WS_URL
               value: "ws://{{ include "avika.fullname" . }}-gateway:{{ .Values.gateway.service.httpPort }}"
+            - name: GATEWAY_GRPC_ADDR
+              value: "{{ include "avika.fullname" . }}-gateway:{{ .Values.gateway.service.grpcPort }}"
             - name: PORT
               value: "{{ .Values.frontend.service.port }}"
             - name: TZ
