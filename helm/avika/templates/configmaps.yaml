@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "avika.fullname" . }}-db-secrets
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+type: Opaque
+data:
+  postgres-password: {{ .Values.postgresql.auth.password | b64enc | quote }}
+  clickhouse-password: {{ .Values.clickhouse.password | b64enc | quote }}
+---
+{{- if .Values.vault.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "avika.fullname" . }}-vault-secrets
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+type: Opaque
+data:
+  token: {{ .Values.vault.token | b64enc | quote }}
+---
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "avika.fullname" . }}-otel-config
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+data:
+  otel-collector-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+          http:
+
+    processors:
+      batch:
+
+    exporters:
+      clickhouse:
+        endpoint: "tcp://{{ .Release.Name }}-clickhouse:9000"
+        database: nginx_analytics
+        username: default
+        password: ${env:CLICKHOUSE_PASSWORD}
+        ttl: 72h
+        logs_table_name: otel_logs
+        traces_table_name: otel_traces
+        metrics_table_name: otel_metrics
+        timeout: 5s
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
+        sending_queue:
+          enabled: true
+          num_consumers: 10
+          queue_size: 1000
+      logging:
+        verbosity: detailed
+
+    service:
+      pipelines:
+        logs:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [clickhouse, logging]
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [clickhouse, logging]
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [clickhouse, logging]

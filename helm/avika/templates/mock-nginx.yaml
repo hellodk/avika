@@ -1,0 +1,164 @@
+{{- if .Values.mockNginx.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mock-nginx-agent-config
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+data:
+  avika-agent.conf: |
+    # Gateway Configuration
+    # Accepts single address or comma-separated list for multi-gateway HA mode
+    {{- if .Values.mockNginx.gateways }}
+    GATEWAYS="{{ join "," .Values.mockNginx.gateways }}"
+    {{- else }}
+    GATEWAYS="{{ include "avika.fullname" . }}-gateway.{{ .Release.Namespace }}.svc.cluster.local:5020"
+    {{- end }}
+    
+    # Agent Identity
+    AGENT_ID=""
+    
+    # Network Ports
+    HEALTH_PORT=5026
+    MGMT_PORT=5025
+    
+    # NGINX Configuration
+    NGINX_CONFIG_PATH="/etc/nginx/nginx.conf"
+    NGINX_STATUS_URL="http://127.0.0.1/nginx_status"
+    
+    # Log Collection
+    ACCESS_LOG_PATH="/var/log/nginx/access.log"
+    ERROR_LOG_PATH="/var/log/nginx/error.log"
+    LOG_FORMAT="combined"
+    
+    # Data Persistence
+    BUFFER_DIR="/var/lib/avika/buffer/"
+    
+    # Logging
+    LOG_LEVEL="info"
+    LOG_FILE=""
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-nginx
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+    component: mock-nginx
+spec:
+  replicas: {{ .Values.mockNginx.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "avika.selectorLabels" . | nindent 6 }}
+      component: mock-nginx
+  template:
+    metadata:
+      labels:
+        {{- include "avika.selectorLabels" . | nindent 8 }}
+        component: mock-nginx
+      annotations:
+        checksum/config: {{ .Values.mockNginx | toJson | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "avika.serviceAccountName" . }}
+      shareProcessNamespace: true  # Allow agent to see NGINX processes
+      containers:
+        - name: nginx
+          image: nginx:alpine
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/status.conf
+              subPath: status.conf
+            - name: nginx-logs
+              mountPath: /var/log/nginx
+          resources:
+            limits:
+              cpu: 100m
+              memory: 64Mi
+            requests:
+              cpu: 50m
+              memory: 32Mi
+        - name: avika-agent
+          image: "{{ .Values.mockNginx.image.repository }}:{{ .Values.mockNginx.image.tag }}"
+          imagePullPolicy: {{ .Values.mockNginx.image.pullPolicy | default "IfNotPresent" }}
+          command: ["/app/agent"]
+          args:
+            - "-config=/etc/avika/avika-agent.conf"
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          ports:
+            - name: health
+              containerPort: 5026
+              protocol: TCP
+            - name: mgmt
+              containerPort: 5025
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: agent-config
+              mountPath: /etc/avika
+            - name: buffer
+              mountPath: /var/lib/avika/buffer
+            - name: nginx-logs
+              mountPath: /var/log/nginx
+              readOnly: true
+          resources:
+            {{- toYaml .Values.agent.resources | nindent 12 }}
+      volumes:
+        - name: agent-config
+          configMap:
+            name: mock-nginx-agent-config
+        - name: nginx-config
+          configMap:
+            name: mock-nginx-status-config
+        - name: buffer
+          emptyDir: {}
+        - name: nginx-logs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mock-nginx-status-config
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+data:
+  status.conf: |
+    server {
+        listen 80 default_server;
+        server_name _;
+        
+        location /nginx_status {
+            stub_status;
+            allow 127.0.0.1;
+            allow 10.0.0.0/8;
+            deny all;
+        }
+        
+        location / {
+            return 200 'OK';
+            add_header Content-Type text/plain;
+        }
+    }
+{{- end }}
