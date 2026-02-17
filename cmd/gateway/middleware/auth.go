@@ -31,11 +31,14 @@ const (
 	UserContextKey contextKey = "user"
 )
 
+// UserLookupFunc is a function that looks up a user by username and returns their password hash and role
+type UserLookupFunc func(username string) (passwordHash string, role string, found bool)
+
 // AuthConfig holds authentication configuration.
 type AuthConfig struct {
 	Enabled            bool          `json:"enabled"`
 	Username           string        `json:"username"`
-	PasswordHash       string        `json:"password_hash"`        // SHA-256 hash
+	PasswordHash       string        `json:"password_hash"`        // SHA-256 hash (fallback if no UserLookup)
 	JWTSecret          string        `json:"jwt_secret"`
 	TokenExpiry        time.Duration `json:"token_expiry"`
 	CookieName         string        `json:"cookie_name"`
@@ -44,6 +47,7 @@ type AuthConfig struct {
 	FirstTimeSetup     bool          `json:"first_time_setup"`     // True if using auto-generated password
 	RequirePassChange  bool          `json:"require_pass_change"`  // Force password change on first login
 	InitialSecretPath  string        `json:"initial_secret_path"`  // File to write initial secret
+	UserLookup         UserLookupFunc `json:"-"`                   // Function to look up users from database
 }
 
 // DefaultAuthConfig returns default auth configuration.
@@ -90,44 +94,32 @@ func NewAuthManager(config AuthConfig) *AuthManager {
 		passwordChangeCache: make(map[string]bool),
 	}
 
-	// Handle first-time setup - generate initial password
+	// Handle first-time setup - use default password "admin"
 	if config.Enabled && config.PasswordHash == "" {
-		initialPassword := am.generateInitialPassword()
-		config.PasswordHash = HashPassword(initialPassword)
+		// Use a well-known default password that users must change
+		defaultPassword := "admin"
+		config.PasswordHash = HashPassword(defaultPassword)
 		am.config = config
 		am.config.FirstTimeSetup = true
 		am.config.RequirePassChange = true
 		am.passwordChangeCache[config.Username] = true
 
-		// Display initial secret (similar to Jenkins)
+		// Display initial credentials (similar to Jenkins)
 		log.Println("")
 		log.Println("*************************************************************")
 		log.Println("*************************************************************")
-		log.Println("*************************************************************")
 		log.Println("")
-		log.Println("Avika initial setup required. An admin user has been created")
-		log.Println("and an initial password generated. Please use the following")
-		log.Println("credentials to login and change your password.")
+		log.Println("  AVIKA FIRST-TIME SETUP")
 		log.Println("")
-		log.Printf("Username: %s", config.Username)
-		log.Printf("Password: %s", initialPassword)
+		log.Println("  Default credentials:")
+		log.Printf("    Username: %s", config.Username)
+		log.Printf("    Password: %s", defaultPassword)
 		log.Println("")
-		log.Println("This may also be found at:", config.InitialSecretPath)
+		log.Println("  You will be required to change your password on first login.")
 		log.Println("")
 		log.Println("*************************************************************")
 		log.Println("*************************************************************")
-		log.Println("*************************************************************")
 		log.Println("")
-
-		// Write to file if path specified
-		if config.InitialSecretPath != "" {
-			secretContent := fmt.Sprintf("Username: %s\nPassword: %s\n\nThis password must be changed on first login.\n", config.Username, initialPassword)
-			if err := os.WriteFile(config.InitialSecretPath, []byte(secretContent), 0600); err != nil {
-				log.Printf("Warning: Could not write initial secret to %s: %v", config.InitialSecretPath, err)
-			} else {
-				log.Printf("Initial password written to: %s", config.InitialSecretPath)
-			}
-		}
 	}
 
 	// Start cleanup goroutine
@@ -155,16 +147,27 @@ func HashPassword(password string) string {
 }
 
 // ValidateCredentials checks if username and password are valid.
-func (am *AuthManager) ValidateCredentials(username, password string) bool {
+// Returns the user's role if valid, empty string if invalid.
+func (am *AuthManager) ValidateCredentials(username, password string) (bool, string) {
 	am.mu.RLock()
 	defer am.mu.RUnlock()
 
-	if username != am.config.Username {
-		return false
+	passwordHash := HashPassword(password)
+
+	// Try database lookup first if available
+	if am.config.UserLookup != nil {
+		storedHash, role, found := am.config.UserLookup(username)
+		if found && storedHash == passwordHash {
+			return true, role
+		}
 	}
 
-	passwordHash := HashPassword(password)
-	return passwordHash == am.config.PasswordHash
+	// Fallback to config-based single user (backwards compatibility)
+	if username == am.config.Username && passwordHash == am.config.PasswordHash {
+		return true, "admin"
+	}
+
+	return false, ""
 }
 
 // GenerateToken creates a new session token for the user.
@@ -273,7 +276,8 @@ func (am *AuthManager) LoginHandler() http.HandlerFunc {
 			return
 		}
 
-		if !am.ValidateCredentials(req.Username, req.Password) {
+		valid, role := am.ValidateCredentials(req.Username, req.Password)
+		if !valid {
 			log.Printf("Failed login attempt for user: %s from IP: %s", req.Username, getClientIP(r))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
@@ -291,7 +295,7 @@ func (am *AuthManager) LoginHandler() http.HandlerFunc {
 
 		user := &User{
 			Username: req.Username,
-			Role:     "admin", // Default role
+			Role:     role,
 		}
 
 		token, expiresAt, err := am.GenerateTokenWithFlags(user, requirePassChange)
@@ -355,7 +359,8 @@ func (am *AuthManager) GenerateTokenWithFlags(user *User, requirePassChange bool
 }
 
 // ChangePasswordHandler returns an HTTP handler for password change requests.
-func (am *AuthManager) ChangePasswordHandler(onPasswordChanged func(newHash string) error) http.HandlerFunc {
+// The callback receives username and newHash to persist to database.
+func (am *AuthManager) ChangePasswordHandler(onPasswordChanged func(username, newHash string) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -386,7 +391,8 @@ func (am *AuthManager) ChangePasswordHandler(onPasswordChanged func(newHash stri
 		}
 
 		// Validate current password
-		if !am.ValidateCredentials(user.Username, req.CurrentPassword) {
+		valid, _ := am.ValidateCredentials(user.Username, req.CurrentPassword)
+		if !valid {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(ChangePasswordResponse{
@@ -417,7 +423,7 @@ func (am *AuthManager) ChangePasswordHandler(onPasswordChanged func(newHash stri
 
 		// Callback to persist new password hash
 		if onPasswordChanged != nil {
-			if err := onPasswordChanged(newHash); err != nil {
+			if err := onPasswordChanged(user.Username, newHash); err != nil {
 				log.Printf("Warning: Failed to persist password change: %v", err)
 			}
 		}

@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/avika-ai/avika/cmd/agent/certs"
 	"github.com/avika-ai/avika/cmd/agent/config"
@@ -260,11 +261,21 @@ func (s *mgmtServer) Execute(stream pb.AgentService_ExecuteServer) error {
 			// Start process on first message with a PTY for interactive shell support
 			shell := req.Command
 			if shell == "" {
-				shell = "/bin/bash"
+				// Use Lens-style shell fallback: try bash, then ash, then sh
+				// This ensures compatibility with all container images (Alpine, Debian, etc.)
+				shell = "/bin/sh -c '(bash || ash || sh)'"
 			}
 			log.Printf("Starting shell with PTY: %s for instance: %s", shell, req.InstanceId)
 			
-			cmd = exec.Command(shell)
+			// Parse command - if it contains spaces, use sh -c to execute
+			var cmdArgs []string
+			if strings.Contains(shell, " ") {
+				cmdArgs = []string{"/bin/sh", "-c", shell}
+			} else {
+				cmdArgs = []string{shell}
+			}
+			
+			cmd = exec.Command(cmdArgs[0], cmdArgs[1:]...)
 			cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 			
 			// Start with PTY

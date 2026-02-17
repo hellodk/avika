@@ -30,9 +30,34 @@ code: 450, message: TTL expression result column should have DateTime or Date ty
 
 ---
 
-### 2. Gateway Config Legacy Port Precedence
+### 2. ClickHouse Authentication Failure (K8s)
+**Status**: Open (2026-02-17)  
+**Severity**: CRITICAL - Logs not being persisted  
+**Found by**: Principal Tester - gateway pod logs
+
+**Problem**: Gateway cannot flush logs to ClickHouse due to authentication failure
+```
+FlushLogs: PrepareBatch failed: code: 516, message: default: 
+Authentication failed: password is incorrect, or there is no user with such name.
+```
+
+**Impact**: 
+- Agent logs are NOT being persisted to ClickHouse
+- Analytics/metrics data loss
+- Log-based features (search, analytics) won't work
+
+**Location**: K8s deployment - gateway-to-clickhouse connection
+
+**Fix Options**:
+1. Update ClickHouse password in K8s secret/configmap
+2. Create proper user in ClickHouse deployment
+3. Verify `clickhouse_dsn` in gateway configuration
+
+---
+
+### 3. Gateway Config Legacy Port Precedence
 **Status**: Open (2026-02-16)  
-**Severity**: HIGH - Causes configuration confusion  
+**Severity**: MEDIUM - Causes configuration confusion  
 **Found by**: Automated testing
 
 **Problem**: Legacy `port`/`ws_port` fields take precedence over new `grpc_port`/`http_port` even when legacy fields are set by defaults
@@ -62,7 +87,7 @@ func (c *Config) GetHTTPAddress() string {
 
 ## High Priority
 
-### 3. AI Engine / Recommendations System
+### 4. AI Engine / Recommendations System
 **Status**: Parked (2026-02-15)  
 **Context**: The AI Engine is currently disabled (`replicaCount: 0`) which means the `/optimization` page shows no recommendations.
 
@@ -94,7 +119,7 @@ Agent → Gateway → Redpanda (Kafka) → AI Engine (anomaly detection) → Red
 
 ## Medium Priority
 
-### 4. Graceful Kafka Connection Handling
+### 5. Graceful Kafka Connection Handling
 **Status**: Open (2026-02-16)  
 **Severity**: MEDIUM - Log noise when Kafka unavailable
 
@@ -114,7 +139,7 @@ Error reading recommendation: fetching message: failed to dial: failed to open c
 
 ---
 
-### 5. Frontend Default Gateway Address
+### 6. Frontend Default Gateway Address
 **Status**: Open (2026-02-16)  
 **Severity**: MEDIUM - Breaks local development
 
@@ -134,7 +159,7 @@ const GATEWAY_GRPC_ADDR = process.env.GATEWAY_GRPC_ADDR || ... || 'avika-gateway
 
 ---
 
-### 6. Database Fallback Logging
+### 7. Database Fallback Logging
 **Status**: Open (2026-02-16)  
 **Severity**: MEDIUM - Debugging difficulty
 
@@ -148,7 +173,7 @@ const GATEWAY_GRPC_ADDR = process.env.GATEWAY_GRPC_ADDR || ... || 'avika-gateway
 
 ## Low Priority
 
-### 7. Root gateway.yaml Cleanup
+### 8. Root gateway.yaml Cleanup
 **Status**: Open (2026-02-16)  
 **Severity**: LOW - Maintenance
 
@@ -158,7 +183,7 @@ const GATEWAY_GRPC_ADDR = process.env.GATEWAY_GRPC_ADDR || ... || 'avika-gateway
 
 ---
 
-### 8. Agent Binary Version Mismatch
+### 9. Agent Binary Version Mismatch
 **Status**: Open (2026-02-16)  
 **Severity**: LOW - Cosmetic
 
@@ -168,13 +193,73 @@ const GATEWAY_GRPC_ADDR = process.env.GATEWAY_GRPC_ADDR || ... || 'avika-gateway
 
 ---
 
-### 9. test_grpc.go Hardcoded Values
+### 10. test_grpc.go Hardcoded Values
 **Status**: Open (2026-02-16)  
 **Severity**: LOW - Developer experience
 
 **Problem**: Port and method hardcoded in test file
 
 **Fix**: Read gateway address from env var or config file
+
+---
+
+### 11. Stale Frontend Unit Tests
+**Status**: ✅ FIXED (2026-02-17)  
+**Severity**: LOW - CI noise  
+**Found by**: Principal Tester
+
+**Problem**: 5 tests in `login.test.tsx` expected old UI elements
+
+**Fix Applied**: Updated test expectations in `frontend/tests/unit/app/login.test.tsx`:
+- "Welcome to Avika" → "Sign In"
+- placeholder="admin" → placeholder="Enter your username"
+- Shield icon selector → Security badge text check
+- CSS class check → Inline style attribute check
+- "signing in" → "Authenticating..."
+
+---
+
+### 12. Stale E2E Tests
+**Status**: ✅ FIXED (2026-02-17)  
+**Severity**: LOW - CI noise  
+**Found by**: Principal Tester
+
+**Problem**: 2 tests in `auth.spec.ts` expected old UI elements
+
+**Fix Applied**: Updated test expectations in `frontend/tests/e2e/auth.spec.ts`:
+- getByText('Welcome to Avika') → getByRole('heading', { name: 'Sign In' })
+- placeholder="admin" → placeholder="Enter your username"
+
+---
+
+### 13. Integration Test DB Credential Mismatch
+**Status**: Open (2026-02-17)  
+**Severity**: LOW - Local development only  
+**Found by**: Principal Tester
+
+**Problem**: 17 integration tests fail with `pq: password authentication failed for user "admin"`
+
+**Root Cause**: Tests expect `TEST_DSN` environment variable but also have hardcoded fallback
+
+**Impact**: Cannot run full integration test suite locally without setup
+
+**Fix Options**:
+1. Document required `TEST_DSN` in README
+2. Add `make setup-test-db` to automatically configure credentials
+3. Use Docker test container with known credentials
+
+---
+
+## Completed Tasks (2026-02-17)
+
+- [x] Full test suite execution (191 Go unit tests PASS)
+- [x] Frontend unit tests: 150/150 PASS (fixed 5 stale tests in `login.test.tsx`)
+- [x] E2E auth tests: 26/26 PASS (fixed 2 stale tests in `auth.spec.ts`)
+- [x] Integration tests (24/41 passed, 17 DB credential issue)
+- [x] Gateway API validation (health, ready, metrics, auth)
+- [x] Agent functionality verified (heartbeats, metrics, logs flowing)
+- [x] Test report generated: `TEST_REPORT_2026-02-17.md`
+- [x] Critical issue found: ClickHouse auth failure in K8s
 
 ---
 
@@ -209,5 +294,17 @@ const GATEWAY_GRPC_ADDR = process.env.GATEWAY_GRPC_ADDR || ... || 'avika-gateway
 
 - Log Aggregator is also disabled - it was for Kafka-based log pipeline but Gateway writes directly to ClickHouse now
 - Current version: **0.1.45**
-- Test report: `TEST_OBSERVATIONS_2026-02-16.md`
+- Latest test report: `TEST_REPORT_2026-02-17.md`
+- Previous test report: `TEST_OBSERVATIONS_2026-02-16.md`
 - K8s Gateway: `10.101.68.5:5020` (gRPC), `10.101.68.5:5021` (HTTP)
+
+## Test Results Summary (2026-02-17)
+
+| Test Category | Passed | Failed | Notes |
+|---------------|--------|--------|-------|
+| Go Unit Tests | 191 | 0 | All pass |
+| Frontend Unit | 150 | 0 | ✅ Fixed stale tests |
+| Integration | 24 | 17 | DB credentials |
+| E2E (Auth) | 26 | 0 | ✅ Fixed stale tests |
+| Gateway APIs | 5 | 0 | All pass |
+| Agent | Working | - | Heartbeats OK |

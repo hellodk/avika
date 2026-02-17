@@ -365,3 +365,72 @@ deploy/grafana/
 | IST Timezone | ✅ Complete |
 | Auto-refresh (30s) | ✅ Complete |
 | Provisioning configs | ✅ Complete |
+
+---
+
+## Frontend Optimization TODO
+
+> Added: 2026-02-16 | Reference: `docs/FRONTEND_OPTIMIZATION.md`
+
+### Completed Optimizations ✅
+
+| Task | Impact |
+|------|--------|
+| Remove unused `reactflow` dependency | -37 packages |
+| Add `optimizePackageImports` to next.config | Better tree-shaking |
+| Add caching headers for static assets | Faster repeat visits |
+| Add `removeConsole` for production builds | Smaller bundle |
+| Configure image optimization (AVIF/WebP) | Faster image loading |
+| Enable React strict mode | Better debugging |
+
+### High Priority (Pending)
+
+- [ ] **Dynamic import recharts** - Lazy load chart components
+  - Expected impact: Reduce initial bundle by ~300KB
+  - Files to modify: `src/app/page.tsx`, `src/app/analytics/page.tsx`
+
+- [ ] **Replace date-fns with lighter alternative**
+  - Option A: Native `Intl` API (zero dependency)
+  - Option B: `dayjs` (2KB vs date-fns 39MB)
+  - Reference: `docs/FRONTEND_OPTIMIZATION.md`
+
+### Medium Priority (Pending)
+
+- [ ] **Lazy load heavy dashboard components**
+  - SystemDashboard, TrafficDashboard, NginxCoreDashboard
+  - Use `next/dynamic` with SSR disabled
+
+- [ ] **Install and configure bundle analyzer**
+  ```bash
+  npm install @next/bundle-analyzer
+  ANALYZE=true npm run build
+  ```
+
+- [ ] **Centralize icon imports**
+  - Create `src/components/icons/index.tsx`
+  - Only export icons that are actually used
+
+### Low Priority (Future)
+
+- [ ] **Evaluate lighter chart libraries**
+  - Chart.js (~60KB) vs Recharts (~300KB)
+  - uPlot (~30KB) for high performance
+  - visx (modular, import what you need)
+
+- [ ] **Add service worker for offline caching**
+  - Install `next-pwa`
+  - Cache static assets and API responses
+
+- [ ] **Add Web Vitals monitoring**
+  - Track LCP, FID, CLS metrics
+  - Send to analytics for monitoring
+
+### Current Metrics
+
+| Metric | Value |
+|--------|-------|
+| Largest JS chunks | 376 KB (4 chunks) |
+| Total .next size | 343 MB |
+| node_modules | 914 MB |
+| Unit tests | 150 passing ✅ |
+| E2E tests | 173 passing ✅ |

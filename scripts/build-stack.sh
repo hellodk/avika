@@ -89,7 +89,7 @@ if [ -f "$VALUES_FILE" ]; then
     # are intentionally NOT updated as they use their own versioning
     
     # Update component image tags using section-aware sed
-    for component in gateway agent frontend mockNginx mockAgent; do
+    for component in gateway agent frontend mockNginx; do
         sed -i "/^${component}:/,/^[a-z]/{s/^\(\s*tag:\s*\).*/\1\"${VERSION}\"/}" "$VALUES_FILE"
     done
     
@@ -159,6 +159,27 @@ helm upgrade avika ./deploy/helm/avika -n avika \
     --set frontend.image.tag="${VERSION}" \
     --set agent.image.tag="${VERSION}" \
     || echo -e "${YELLOW}⚠️  Helm upgrade failed (non-fatal)${NC}"
+
+# --- 7. Cleanup to save disk space ---
+echo -e "\n${BLUE}🧹 Cleaning up to save disk space...${NC}"
+
+# Remove dangling images (untagged images from build process)
+docker image prune -f 2>/dev/null || true
+
+# Remove buildx cache older than 24 hours
+docker buildx prune --keep-storage 2GB -f 2>/dev/null || true
+
+# Remove old versions of our images (keep only current and latest)
+for image_name in avika-agent gateway avika-frontend; do
+    # Get all tags except current version and latest
+    old_tags=$(docker images "${REPO}/${image_name}" --format "{{.Tag}}" 2>/dev/null | grep -v -E "^(${VERSION}|latest)$" || true)
+    for tag in $old_tags; do
+        echo -e "${YELLOW}  Removing old image: ${REPO}/${image_name}:${tag}${NC}"
+        docker rmi "${REPO}/${image_name}:${tag}" 2>/dev/null || true
+    done
+done
+
+echo -e "${GREEN}✅ Cleanup completed${NC}"
 
 echo -e "\n${GREEN}🏁 All builds completed successfully! (Version: ${VERSION})${NC}"
 echo "--------------------------------------------------------"

@@ -72,6 +72,133 @@ A modern React-based UI that provides:
 
 ---
 
+## Deployment Configuration
+
+### Base Path Routing
+
+The frontend supports deployment under a custom base path, enabling path-based routing with reverse proxies or custom domains.
+
+**Use Case**: Deploy Avika at `https://yourdomain.com/avika` instead of root.
+
+#### Configuration
+
+1. **Build-time Environment Variable**:
+   ```bash
+   # Set during Docker image build
+   NEXT_PUBLIC_BASE_PATH=/avika npm run build
+   ```
+
+2. **Helm Values** (`values.yaml`):
+   ```yaml
+   frontend:
+     basePath: "/avika"  # Set your desired base path
+   ```
+
+3. **Ingress Configuration Example**:
+   ```yaml
+   ingress:
+     enabled: true
+     hosts:
+       - host: yourdomain.com
+         paths:
+           - path: /avika
+             pathType: Prefix
+             service: frontend
+   ```
+
+**Important Notes**:
+- `basePath` is a build-time configuration in Next.js - changing it requires rebuilding the frontend image
+- All internal links and assets will be prefixed with the base path automatically
+- API routes within Next.js will also respect the base path
+
+### Authentication
+
+The application supports optional basic password authentication.
+
+#### Configuration
+
+1. **Generate Password Hash**:
+   ```bash
+   # Using shell
+   echo -n "your-secure-password" | sha256sum | cut -d' ' -f1
+   
+   # Example output: 5e884898da28047d9142675c4a5f4e7c8c7c8c...
+   ```
+
+2. **Helm Values** (`values.yaml`):
+   ```yaml
+   auth:
+     enabled: true
+     username: "admin"
+     passwordHash: "5e884898da28047d9142675c4a5f4e7c8c7c8c..."  # SHA-256 hash
+     tokenExpiry: "24h"
+     cookieSecure: true  # Set to true for HTTPS
+   ```
+
+3. **Helm Install**:
+   ```bash
+   helm install avika ./deploy/helm/avika \
+     --set auth.enabled=true \
+     --set auth.username=admin \
+     --set auth.passwordHash=$(echo -n "mypassword" | sha256sum | cut -d' ' -f1)
+   ```
+
+#### How It Works
+
+- **Session-Based**: Uses secure HTTP-only cookies for session management
+- **Token Expiry**: Configurable session duration (default: 24 hours)
+- **Protected Routes**: All routes except `/login`, `/health`, `/ready`, `/metrics` require authentication
+- **API Support**: Supports both cookie-based and Bearer token authentication
+
+#### Security Notes
+
+- Always use `cookieSecure: true` in production with HTTPS
+- The JWT secret is auto-generated if not provided (not persisted across restarts unless set)
+- Password hashes should be managed as Kubernetes secrets in production
+
+### Image Pull Secrets
+
+For deployments using private container registries, the Helm chart supports `imagePullSecrets` at the global level.
+
+#### Configuration
+
+1. **Create the Secret**:
+   ```bash
+   kubectl create secret docker-registry my-registry-secret \
+     --docker-server=registry.example.com \
+     --docker-username=myuser \
+     --docker-password=mypassword \
+     --docker-email=myemail@example.com \
+     -n avika
+   ```
+
+2. **Helm Values** (`values.yaml`):
+   ```yaml
+   imagePullSecrets:
+     - name: my-registry-secret
+     - name: another-secret  # Multiple secrets supported
+   ```
+
+3. **Helm Install**:
+   ```bash
+   helm install avika ./deploy/helm/avika \
+     --set imagePullSecrets[0].name=my-registry-secret
+   ```
+
+**Supported Components**:
+- Frontend
+- Gateway
+- Mock NGINX
+- Mock Agent
+- PostgreSQL
+- ClickHouse
+- Redpanda
+- OTEL Collector
+- AI Engine
+- Log Aggregator
+
+---
+
 ## Technical Stack Summary
 
 - **Backend**: Go (Agent & Gateway)

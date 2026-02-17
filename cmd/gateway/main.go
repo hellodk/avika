@@ -1233,15 +1233,36 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 			tokenExpiry = d
 		}
 	}
+
+	// Set up user lookup function for multi-user auth from database
+	// Default users (admin/admin, superuser/superuser) are created by SQL migrations
+	var userLookup middleware.UserLookupFunc
+	if srv.db != nil {
+		userLookup = func(username string) (passwordHash string, role string, found bool) {
+			user, err := srv.db.GetUser(username)
+			if err != nil || user == nil {
+				return "", "", false
+			}
+			return user.PasswordHash, user.Role, true
+		}
+	}
+
+	// Fallback password hash for single-user mode (if DB not available)
+	passwordHash := cfg.Auth.PasswordHash
+	if passwordHash == "" {
+		passwordHash = middleware.HashPassword("admin")
+	}
+
 	authManager := middleware.NewAuthManager(middleware.AuthConfig{
 		Enabled:      cfg.Auth.Enabled,
 		Username:     cfg.Auth.Username,
-		PasswordHash: cfg.Auth.PasswordHash,
+		PasswordHash: passwordHash,
 		JWTSecret:    cfg.Auth.JWTSecret,
 		TokenExpiry:  tokenExpiry,
 		CookieName:   "avika_session",
 		CookieSecure: cfg.Auth.CookieSecure,
 		CookieDomain: cfg.Auth.CookieDomain,
+		UserLookup:   userLookup,
 	})
 
 	// Public paths that don't require authentication
@@ -1253,10 +1274,21 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		"/api/auth/logout",
 	}
 
+	// Callback to persist password changes to database
+	onPasswordChanged := func(username, newHash string) error {
+		if srv.db != nil {
+			return srv.db.UpdateUserPassword(username, newHash)
+		}
+		return nil
+	}
+
 	// Auth endpoints (always available)
 	mux.HandleFunc("/api/auth/login", authManager.LoginHandler())
 	mux.HandleFunc("/api/auth/logout", authManager.LogoutHandler())
 	mux.HandleFunc("/api/auth/me", authManager.MeHandler())
+	
+	// Change password requires authentication
+	mux.Handle("/api/auth/change-password", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(authManager.ChangePasswordHandler(onPasswordChanged))))
 
 	if cfg.Auth.Enabled {
 		log.Printf("Authentication enabled for user: %s", cfg.Auth.Username)

@@ -9,6 +9,7 @@ import (
 
 	_ "github.com/lib/pq"
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
+	"github.com/avika-ai/avika/cmd/gateway/migrations"
 )
 
 type DB struct {
@@ -26,62 +27,113 @@ func NewDB(dsn string) (*DB, error) {
 	}
 
 	db := &DB{conn: conn}
-	if err := db.migrate(); err != nil {
+	
+	// Run embedded SQL migrations
+	runner := migrations.NewRunner(conn)
+	if err := runner.Run(); err != nil {
 		return nil, fmt.Errorf("migration failed: %w", err)
+	}
+	
+	// Log current schema version
+	if version, err := runner.GetCurrentVersion(); err == nil {
+		log.Printf("Database schema version: %s", version)
 	}
 
 	return db, nil
 }
 
+// migrate is deprecated - migrations are now handled by embedded SQL files in migrations/
+// This function is kept for backwards compatibility but does nothing
 func (db *DB) migrate() error {
-	queries := []string{
-		`CREATE TABLE IF NOT EXISTS agents (
-			agent_id TEXT PRIMARY KEY,
-			hostname TEXT,
-			version TEXT,
-			instances_count INT,
-			uptime TEXT,
-			ip TEXT,
-			status TEXT,
-			last_seen BIGINT,
-			is_pod BOOLEAN DEFAULT FALSE,
-			pod_ip TEXT,
-			psk_authenticated BOOLEAN DEFAULT FALSE
-		);`,
-		// Migration for existing tables
-		`ALTER TABLE agents ADD COLUMN IF NOT EXISTS is_pod BOOLEAN DEFAULT FALSE;`,
-		`ALTER TABLE agents ADD COLUMN IF NOT EXISTS pod_ip TEXT;`,
-		`ALTER TABLE agents ADD COLUMN IF NOT EXISTS agent_version TEXT;`,
-		`ALTER TABLE agents ADD COLUMN IF NOT EXISTS psk_authenticated BOOLEAN DEFAULT FALSE;`,
-		// Deduplicate existing entries by IP before adding the constraint.
-		// We keep the one with the latest last_seen for each IP.
-		`DELETE FROM agents
-		 WHERE agent_id NOT IN (
-			 SELECT DISTINCT ON (ip) agent_id
-			 FROM agents
-			 ORDER BY ip, last_seen DESC
-		 );`,
-		// Drop old composite index if exists
-		`DROP INDEX IF EXISTS idx_agents_hostname_ip;`,
-		// Remove unique constraint on ip if it exists
-		`DROP INDEX IF EXISTS idx_agents_ip;`,
-		`CREATE TABLE IF NOT EXISTS alert_rules (
-			id UUID PRIMARY KEY,
-			name TEXT,
-			metric_type TEXT,
-			threshold FLOAT,
-			comparison TEXT,
-			window_sec INT,
-			enabled BOOLEAN,
-			recipients TEXT
-		);`,
-	}
-	for _, q := range queries {
-		if _, err := db.conn.Exec(q); err != nil {
-			return err
-		}
-	}
+	// Migrations are now handled by migrations.Runner
+	// See cmd/gateway/migrations/*.sql for schema definitions
 	return nil
+}
+
+// GetSetting retrieves a setting value by key
+func (db *DB) GetSetting(key string) (string, error) {
+	var value string
+	err := db.conn.QueryRow("SELECT value FROM settings WHERE key = $1", key).Scan(&value)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return value, err
+}
+
+// SetSetting stores or updates a setting value
+func (db *DB) SetSetting(key, value string) error {
+	query := `
+	INSERT INTO settings (key, value, updated_at)
+	VALUES ($1, $2, CURRENT_TIMESTAMP)
+	ON CONFLICT (key) DO UPDATE SET
+		value = EXCLUDED.value,
+		updated_at = CURRENT_TIMESTAMP;
+	`
+	_, err := db.conn.Exec(query, key, value)
+	return err
+}
+
+// UserRecord represents a user in the database
+type UserRecord struct {
+	Username     string
+	PasswordHash string
+	Role         string
+}
+
+// GetUser retrieves a user by username
+func (db *DB) GetUser(username string) (*UserRecord, error) {
+	var user UserRecord
+	err := db.conn.QueryRow(
+		"SELECT username, password_hash, role FROM users WHERE username = $1",
+		username,
+	).Scan(&user.Username, &user.PasswordHash, &user.Role)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// UpsertUser creates or updates a user
+func (db *DB) UpsertUser(username, passwordHash, role string) error {
+	query := `
+	INSERT INTO users (username, password_hash, role, created_at, updated_at)
+	VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	ON CONFLICT (username) DO UPDATE SET
+		password_hash = EXCLUDED.password_hash,
+		role = EXCLUDED.role,
+		updated_at = CURRENT_TIMESTAMP;
+	`
+	_, err := db.conn.Exec(query, username, passwordHash, role)
+	return err
+}
+
+// UpdateUserPassword updates a user's password
+func (db *DB) UpdateUserPassword(username, passwordHash string) error {
+	query := `UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE username = $2`
+	_, err := db.conn.Exec(query, passwordHash, username)
+	return err
+}
+
+// ListUsers returns all users
+func (db *DB) ListUsers() ([]*UserRecord, error) {
+	rows, err := db.conn.Query("SELECT username, password_hash, role FROM users")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*UserRecord
+	for rows.Next() {
+		var user UserRecord
+		if err := rows.Scan(&user.Username, &user.PasswordHash, &user.Role); err != nil {
+			continue
+		}
+		users = append(users, &user)
+	}
+	return users, nil
 }
 
 func (db *DB) UpsertAgent(session *AgentSession) error {

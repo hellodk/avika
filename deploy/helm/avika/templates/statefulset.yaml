@@ -1,0 +1,201 @@
+{{- /*
+StatefulSet Template for Databases
+Creates StatefulSets for components with kind: StatefulSet
+Used for: PostgreSQL, ClickHouse, Redpanda
+*/ -}}
+{{- range $name, $component := .Values.components }}
+{{- if and $component.enabled (eq $component.kind "StatefulSet") }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "avika.fullname" $ }}-{{ $name }}
+  labels:
+    {{- include "avika.labels" $ | nindent 4 }}
+    component: {{ $name }}
+spec:
+  serviceName: {{ include "avika.fullname" $ }}-{{ $name }}
+  replicas: {{ $component.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "avika.selectorLabels" $ | nindent 6 }}
+      component: {{ $name }}
+  template:
+    metadata:
+      {{- with $component.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "avika.selectorLabels" $ | nindent 8 }}
+        component: {{ $name }}
+    spec:
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if $component.initContainers }}
+      initContainers:
+        {{- range $init := $component.initContainers }}
+        - name: {{ $init.name }}
+          image: {{ $init.image | default "busybox:1.36" }}
+          command:
+            {{- toYaml $init.command | nindent 12 }}
+          {{- if $init.volumeMounts }}
+          volumeMounts:
+            {{- toYaml $init.volumeMounts | nindent 12 }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: {{ $name }}
+          image: "{{ $component.image.repository }}:{{ $component.image.tag | default "latest" }}"
+          imagePullPolicy: {{ $component.image.pullPolicy | default "IfNotPresent" }}
+          {{- if $component.command }}
+          command:
+            {{- toYaml $component.command | nindent 12 }}
+          {{- end }}
+          {{- if $component.args }}
+          args:
+            {{- toYaml $component.args | nindent 12 }}
+          {{- end }}
+          {{- if $component.ports }}
+          ports:
+            {{- range $portName, $port := $component.ports }}
+            - name: {{ $portName }}
+              containerPort: {{ $port.containerPort }}
+              protocol: {{ $port.protocol | default "TCP" }}
+            {{- end }}
+          {{- end }}
+          env:
+            {{- /* Static env vars from values */ -}}
+            {{- range $envName, $envValue := $component.env }}
+            - name: {{ $envName }}
+              value: {{ $envValue | quote }}
+            {{- end }}
+            {{- /* PostgreSQL-specific: password from secret */ -}}
+            {{- if eq $name "postgresql" }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avika.fullname" $ }}-db-secrets
+                  key: postgres-password
+            {{- end }}
+            {{- /* ClickHouse-specific: password from secret */ -}}
+            {{- if eq $name "clickhouse" }}
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avika.fullname" $ }}-db-secrets
+                  key: clickhouse-password
+            {{- end }}
+            - name: TZ
+              value: {{ $.Values.timezone | default "UTC" }}
+          {{- /* Liveness Probe */ -}}
+          {{- if $component.livenessProbe }}
+          livenessProbe:
+            {{- if $component.livenessProbe.httpGet }}
+            httpGet:
+              path: {{ $component.livenessProbe.httpGet.path }}
+              port: {{ $component.livenessProbe.httpGet.port }}
+            {{- else if $component.livenessProbe.exec }}
+            exec:
+              command:
+                {{- toYaml $component.livenessProbe.exec.command | nindent 16 }}
+            {{- else if $component.livenessProbe.tcpSocket }}
+            tcpSocket:
+              port: {{ $component.livenessProbe.tcpSocket.port }}
+            {{- end }}
+            initialDelaySeconds: {{ $component.livenessProbe.initialDelaySeconds | default 30 }}
+            periodSeconds: {{ $component.livenessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ $component.livenessProbe.timeoutSeconds | default 5 }}
+            failureThreshold: {{ $component.livenessProbe.failureThreshold | default 3 }}
+          {{- end }}
+          {{- /* Readiness Probe */ -}}
+          {{- if $component.readinessProbe }}
+          readinessProbe:
+            {{- if $component.readinessProbe.httpGet }}
+            httpGet:
+              path: {{ $component.readinessProbe.httpGet.path }}
+              port: {{ $component.readinessProbe.httpGet.port }}
+            {{- else if $component.readinessProbe.exec }}
+            exec:
+              command:
+                {{- toYaml $component.readinessProbe.exec.command | nindent 16 }}
+            {{- else if $component.readinessProbe.tcpSocket }}
+            tcpSocket:
+              port: {{ $component.readinessProbe.tcpSocket.port }}
+            {{- end }}
+            initialDelaySeconds: {{ $component.readinessProbe.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ $component.readinessProbe.periodSeconds | default 5 }}
+            timeoutSeconds: {{ $component.readinessProbe.timeoutSeconds | default 5 }}
+            failureThreshold: {{ $component.readinessProbe.failureThreshold | default 3 }}
+          {{- end }}
+          {{- /* Volume Mounts */ -}}
+          {{- if $component.volumeMounts }}
+          volumeMounts:
+            {{- toYaml $component.volumeMounts | nindent 12 }}
+          {{- end }}
+          {{- /* Resources */ -}}
+          {{- with $component.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- /* Volumes (non-persistent) */ -}}
+      {{- if $component.volumes }}
+      volumes:
+        {{- toYaml $component.volumes | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- /* Volume Claim Templates for persistent storage */ -}}
+  {{- if $component.persistence }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - {{ $component.persistence.accessMode | default "ReadWriteOnce" }}
+        {{- if $component.persistence.storageClass }}
+        storageClassName: {{ $component.persistence.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $component.persistence.size | default "8Gi" }}
+  {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "avika.fullname" $ }}-{{ $name }}
+  labels:
+    {{- include "avika.labels" $ | nindent 4 }}
+    component: {{ $name }}
+spec:
+  type: ClusterIP
+  ports:
+    {{- range $portName, $port := $component.ports }}
+    - port: {{ $port.servicePort | default $port.containerPort }}
+      targetPort: {{ $portName }}
+      protocol: {{ $port.protocol | default "TCP" }}
+      name: {{ $portName }}
+    {{- end }}
+  selector:
+    {{- include "avika.selectorLabels" $ | nindent 4 }}
+    component: {{ $name }}
+{{- end }}
+{{- end }}
