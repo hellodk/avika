@@ -109,7 +109,7 @@ components:
     replicaCount: 1
     image:
       repository: hellodk/gateway
-      tag: "0.1.66"
+      tag: "0.1.67"
       pullPolicy: IfNotPresent
     terminationGracePeriodSeconds: 35
     
@@ -189,7 +189,7 @@ components:
     replicaCount: 1
     image:
       repository: hellodk/avika-frontend
-      tag: "0.1.66"
+      tag: "0.1.67"
       pullPolicy: Always
     
     ports:
@@ -231,70 +231,6 @@ components:
         memory: 256Mi
 
   # ---------------------------------------------------------------------------
-  # MOCK-NGINX - Test agents with NGINX sidecar
-  # ---------------------------------------------------------------------------
-  mock-nginx:
-    enabled: true
-    replicaCount: 2
-    image:
-      repository: hellodk/avika-agent
-      tag: "0.1.66"
-      pullPolicy: Always
-    
-    ports:
-      grpc:
-        containerPort: 5025
-      health:
-        containerPort: 5026
-    
-    service:
-      type: ClusterIP
-    
-    # Static env vars (GATEWAY_ADDRS handled dynamically in template)
-    env:
-      AGENT_MGMT_PORT: "5025"
-      AGENT_HEALTH_PORT: "5026"
-    
-    livenessProbe:
-      httpGet:
-        path: /healthz
-        port: health
-      initialDelaySeconds: 10
-      periodSeconds: 15
-    
-    readinessProbe:
-      httpGet:
-        path: /readyz
-        port: health
-      initialDelaySeconds: 5
-      periodSeconds: 10
-    
-    # NGINX sidecar
-    sidecars:
-      - name: nginx
-        image:
-          repository: nginx
-          tag: "0.1.66"
-        ports:
-          http:
-            containerPort: 80
-        resources:
-          limits:
-            cpu: 100m
-            memory: 64Mi
-          requests:
-            cpu: 10m
-            memory: 16Mi
-    
-    resources:
-      limits:
-        cpu: 200m
-        memory: 64Mi
-      requests:
-        cpu: 50m
-        memory: 32Mi
-
-  # ---------------------------------------------------------------------------
   # OTEL-COLLECTOR - OpenTelemetry Collector
   # ---------------------------------------------------------------------------
   otel-collector:
@@ -302,7 +238,7 @@ components:
     replicaCount: 1
     image:
       repository: otel/opentelemetry-collector-contrib
-      tag: "0.1.66"
+      tag: "0.1.67"
       pullPolicy: IfNotPresent
     
     ports:
@@ -345,7 +281,7 @@ components:
     replicaCount: 1
     image:
       repository: postgres
-      tag: "0.1.66"
+      tag: "0.1.67"
       pullPolicy: IfNotPresent
     
     ports:
@@ -372,6 +308,7 @@ components:
     volumeMounts:
       - name: data
         mountPath: /var/lib/postgresql/data
+        subPath: pgdata
     
     persistence:
       size: 8Gi
@@ -394,7 +331,7 @@ components:
     replicaCount: 1
     image:
       repository: clickhouse/clickhouse-server
-      tag: "0.1.66"
+      tag: "0.1.67"
       pullPolicy: IfNotPresent
     
     ports:
@@ -442,13 +379,28 @@ components:
   # REDPANDA - Message Queue (StatefulSet)
   # ---------------------------------------------------------------------------
   redpanda:
-    enabled: true
+    enabled: false  # Disabled: io_uring not supported on NFS storage
     kind: StatefulSet
     replicaCount: 1
     image:
       repository: redpandadata/redpanda
-      tag: "0.1.66"
+      tag: "0.1.67"
       pullPolicy: IfNotPresent
+    
+    # Redpanda needs special args for NFS storage (io_uring not supported)
+    command:
+      - rpk
+      - redpanda
+      - start
+    args:
+      - --smp=1
+      - --memory=1G
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --unsafe-bypass-fsync=1
+      - --default-log-level=warn
+      - --kafka-addr=0.0.0.0:9092
+      - --advertise-kafka-addr=avika-redpanda:9092
     
     ports:
       kafka:

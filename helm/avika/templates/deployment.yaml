@@ -49,10 +49,26 @@ spec:
       initContainers:
         - name: wait-for-postgres
           image: busybox:1.36
-          command: ['sh', '-c', 'until nc -z {{ include "avika.fullname" $ }}-postgresql 5432; do echo waiting for postgres...; sleep 2; done']
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for PostgreSQL..."
+              while ! nc -z {{ include "avika.fullname" $ }}-postgresql 5432 2>/dev/null; do
+                sleep 2
+              done
+              echo "PostgreSQL is ready"
         - name: wait-for-clickhouse
           image: busybox:1.36
-          command: ['sh', '-c', 'until nc -z {{ include "avika.fullname" $ }}-clickhouse 9000; do echo waiting for clickhouse...; sleep 2; done']
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for ClickHouse..."
+              while ! nc -z {{ include "avika.fullname" $ }}-clickhouse 9000 2>/dev/null; do
+                sleep 2
+              done
+              echo "ClickHouse is ready"
       {{- else if $component.initContainers }}
       initContainers:
         {{- toYaml $component.initContainers | nindent 8 }}
@@ -91,6 +107,13 @@ spec:
               value: "postgres://admin:$(POSTGRES_PASSWORD)@{{ include "avika.fullname" $ }}-postgresql:5432/avika?sslmode=disable"
             - name: CLICKHOUSE_ADDR
               value: "{{ include "avika.fullname" $ }}-clickhouse:9000"
+            - name: CLICKHOUSE_USER
+              value: "default"
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avika.fullname" $ }}-db-secrets
+                  key: clickhouse-password
             - name: KAFKA_BROKERS
               value: "{{ include "avika.fullname" $ }}-redpanda:9092"
             {{- if $.Values.auth.passwordHash }}
@@ -111,11 +134,6 @@ spec:
               value: "{{ include "avika.fullname" $ }}-gateway:5020"
             - name: GATEWAY_HTTP_URL
               value: "http://{{ include "avika.fullname" $ }}-gateway:5021"
-            {{- end }}
-            {{- /* Mock-nginx specific env vars */ -}}
-            {{- if eq $name "mock-nginx" }}
-            - name: GATEWAY_ADDRS
-              value: "{{ include "avika.fullname" $ }}-gateway.{{ $.Release.Namespace }}.svc.cluster.local:5020"
             {{- end }}
           {{- /* Liveness Probe */ -}}
           {{- if $component.livenessProbe }}

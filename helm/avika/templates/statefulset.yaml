@@ -53,8 +53,16 @@ spec:
       {{- end }}
       containers:
         - name: {{ $name }}
-          image: "{{ $component.image.repository }}:{{ $component.image.tag }}"
+          image: "{{ $component.image.repository }}:{{ $component.image.tag | default "latest" }}"
           imagePullPolicy: {{ $component.image.pullPolicy | default "IfNotPresent" }}
+          {{- if $component.command }}
+          command:
+            {{- toYaml $component.command | nindent 12 }}
+          {{- end }}
+          {{- if $component.args }}
+          args:
+            {{- toYaml $component.args | nindent 12 }}
+          {{- end }}
           {{- if $component.ports }}
           ports:
             {{- range $portName, $port := $component.ports }}
@@ -179,7 +187,6 @@ metadata:
     component: {{ $name }}
 spec:
   type: ClusterIP
-  clusterIP: None
   ports:
     {{- range $portName, $port := $component.ports }}
     - port: {{ $port.servicePort | default $port.containerPort }}
