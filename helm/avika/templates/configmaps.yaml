@@ -1,13 +1,35 @@
+{{- /*
+  Database Secrets - Auto-generate if not provided
+  For production, set passwords explicitly via:
+    --set postgresql.auth.password=<secure-password>
+    --set clickhouse.password=<secure-password>
+  Or use existingSecret to reference pre-created secrets.
+*/ -}}
+{{- $existingSecret := lookup "v1" "Secret" .Release.Namespace (printf "%s-db-secrets" (include "avika.fullname" .)) -}}
+{{- $postgresPassword := "" -}}
+{{- $clickhousePassword := "" -}}
+{{- if $existingSecret -}}
+  {{- $postgresPassword = index $existingSecret.data "postgres-password" | b64dec -}}
+  {{- $clickhousePassword = index $existingSecret.data "clickhouse-password" | b64dec -}}
+{{- end -}}
+{{- if not $postgresPassword -}}
+  {{- $postgresPassword = .Values.postgresql.auth.password | default (randAlphaNum 32) -}}
+{{- end -}}
+{{- if not $clickhousePassword -}}
+  {{- $clickhousePassword = .Values.clickhouse.password | default (randAlphaNum 32) -}}
+{{- end -}}
 apiVersion: v1
 kind: Secret
 metadata:
   name: {{ include "avika.fullname" . }}-db-secrets
   labels:
     {{- include "avika.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/resource-policy": keep
 type: Opaque
 data:
-  postgres-password: {{ .Values.postgresql.auth.password | b64enc | quote }}
-  clickhouse-password: {{ .Values.clickhouse.password | b64enc | quote }}
+  postgres-password: {{ $postgresPassword | b64enc | quote }}
+  clickhouse-password: {{ $clickhousePassword | b64enc | quote }}
 ---
 {{- if .Values.vault.enabled }}
 apiVersion: v1
@@ -19,6 +41,34 @@ metadata:
 type: Opaque
 data:
   token: {{ .Values.vault.token | b64enc | quote }}
+---
+{{- end }}
+{{- if and .Values.auth .Values.auth.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "avika.fullname" . }}-auth-secrets
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+type: Opaque
+data:
+  password-hash: {{ .Values.auth.passwordHash | b64enc | quote }}
+  jwt-secret: {{ .Values.auth.jwtSecret | default "" | b64enc | quote }}
+---
+{{- end }}
+{{- /* Only create PSK secret if key is provided inline AND no existingSecret is set */}}
+{{- if and .Values.psk .Values.psk.enabled .Values.psk.key (not .Values.psk.existingSecret) }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "avika.fullname" . }}-psk-secrets
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: "keep"
+type: Opaque
+data:
+  psk-key: {{ .Values.psk.key | b64enc | quote }}
 ---
 {{- end }}
 apiVersion: v1

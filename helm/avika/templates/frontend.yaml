@@ -17,6 +17,10 @@ spec:
         {{- include "avika.selectorLabels" . | nindent 8 }}
         component: frontend
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -36,22 +40,37 @@ spec:
               value: "ws://{{ include "avika.fullname" . }}-gateway:{{ .Values.gateway.service.httpPort }}"
             - name: GATEWAY_GRPC_ADDR
               value: "{{ include "avika.fullname" . }}-gateway:{{ .Values.gateway.service.grpcPort }}"
+            {{- if .Values.frontend.basePath }}
+            - name: NEXT_PUBLIC_BASE_PATH
+              value: "{{ .Values.frontend.basePath }}"
+            {{- end }}
             - name: PORT
               value: "{{ .Values.frontend.service.port }}"
             - name: TZ
               value: {{ .Values.timezone | default "UTC" }}
+            # Authentication passthrough
+            {{- if and .Values.auth .Values.auth.enabled }}
+            - name: AUTH_ENABLED
+              value: "true"
+            - name: GATEWAY_HTTP_URL
+              value: "http://{{ include "avika.fullname" . }}-gateway:{{ .Values.gateway.service.httpPort }}"
+            {{- end }}
           livenessProbe:
             httpGet:
-              path: /
+              path: {{ if .Values.frontend.basePath }}{{ .Values.frontend.basePath }}{{ end }}/api/health
               port: http
             initialDelaySeconds: 15
             periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /
+              path: {{ if .Values.frontend.basePath }}{{ .Values.frontend.basePath }}{{ end }}/api/health
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}
 ---

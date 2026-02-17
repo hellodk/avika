@@ -24,6 +24,10 @@ spec:
         {{- include "avika.selectorLabels" . | nindent 8 }}
         component: gateway
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       serviceAccountName: {{ include "avika.serviceAccountName" . }}
       terminationGracePeriodSeconds: {{ .Values.gateway.terminationGracePeriodSeconds | default 35 }}
       {{- with .Values.podSecurityContext }}
@@ -95,6 +99,68 @@ spec:
                   name: {{ include "avika.fullname" . }}-vault-secrets
                   key: token
                   optional: true
+            {{- end }}
+            # Authentication configuration
+            {{- if .Values.auth }}
+            - name: AUTH_ENABLED
+              value: "{{ .Values.auth.enabled }}"
+            {{- if .Values.auth.username }}
+            - name: AUTH_USERNAME
+              value: "{{ .Values.auth.username }}"
+            {{- end }}
+            {{- if .Values.auth.passwordHash }}
+            - name: AUTH_PASSWORD_HASH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avika.fullname" . }}-auth-secrets
+                  key: password-hash
+            {{- end }}
+            {{- if .Values.auth.jwtSecret }}
+            - name: AUTH_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avika.fullname" . }}-auth-secrets
+                  key: jwt-secret
+            {{- end }}
+            {{- if .Values.auth.tokenExpiry }}
+            - name: AUTH_TOKEN_EXPIRY
+              value: "{{ .Values.auth.tokenExpiry }}"
+            {{- end }}
+            - name: AUTH_COOKIE_SECURE
+              value: "{{ .Values.auth.cookieSecure | default false }}"
+            {{- if .Values.auth.cookieDomain }}
+            - name: AUTH_COOKIE_DOMAIN
+              value: "{{ .Values.auth.cookieDomain }}"
+            {{- end }}
+            {{- if .Values.auth.initialSecretPath }}
+            - name: AUTH_INITIAL_SECRET_PATH
+              value: "{{ .Values.auth.initialSecretPath }}"
+            {{- end }}
+            {{- end }}
+            # PSK (Pre-Shared Key) for Agent Authentication
+            {{- if .Values.psk }}
+            - name: PSK_ENABLED
+              value: "{{ .Values.psk.enabled }}"
+            {{- if or .Values.psk.existingSecret .Values.psk.key }}
+            - name: PSK_KEY
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.psk.existingSecret }}
+                  name: {{ .Values.psk.existingSecret }}
+                  key: {{ .Values.psk.existingSecretKey | default "psk" }}
+                  {{- else }}
+                  name: {{ include "avika.fullname" . }}-psk-secrets
+                  key: psk-key
+                  {{- end }}
+            {{- end }}
+            - name: PSK_ALLOW_AUTO_ENROLL
+              value: "{{ .Values.psk.allowAutoEnroll | default true }}"
+            {{- if .Values.psk.timestampWindow }}
+            - name: PSK_TIMESTAMP_WINDOW
+              value: "{{ .Values.psk.timestampWindow }}"
+            {{- end }}
+            - name: PSK_REQUIRE_HOST_MATCH
+              value: "{{ .Values.psk.requireHostMatch | default false }}"
             {{- end }}
             # ClickHouse buffer configuration (for high throughput)
             {{- if .Values.clickhouse.config }}

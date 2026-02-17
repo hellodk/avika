@@ -1,0 +1,40 @@
+{{- /*
+Generic Service Template
+Creates Services for all components defined in .Values.components that have ports
+*/ -}}
+{{- range $name, $component := .Values.components }}
+{{- if and $component.enabled $component.ports }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "avika.fullname" $ }}-{{ $name }}
+  labels:
+    {{- include "avika.labels" $ | nindent 4 }}
+    component: {{ $name }}
+  {{- with $component.service }}
+  {{- if .annotations }}
+  annotations:
+    {{- toYaml .annotations | nindent 4 }}
+  {{- end }}
+  {{- end }}
+spec:
+  type: {{ ($component.service).type | default "ClusterIP" }}
+  {{- if and (eq (($component.service).type | default "ClusterIP") "LoadBalancer") (($component.service).loadBalancerIP) }}
+  loadBalancerIP: {{ $component.service.loadBalancerIP }}
+  {{- end }}
+  ports:
+    {{- range $portName, $port := $component.ports }}
+    - port: {{ $port.servicePort | default $port.containerPort }}
+      targetPort: {{ $portName }}
+      protocol: {{ $port.protocol | default "TCP" }}
+      name: {{ $portName }}
+      {{- if and (eq (($component.service).type | default "ClusterIP") "NodePort") $port.nodePort }}
+      nodePort: {{ $port.nodePort }}
+      {{- end }}
+    {{- end }}
+  selector:
+    {{- include "avika.selectorLabels" $ | nindent 4 }}
+    component: {{ $name }}
+{{- end }}
+{{- end }}

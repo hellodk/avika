@@ -59,6 +59,10 @@ spec:
       annotations:
         checksum/config: {{ .Values.mockNginx | toJson | sha256sum }}
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       serviceAccountName: {{ include "avika.serviceAccountName" . }}
       shareProcessNamespace: true  # Allow agent to see NGINX processes
       containers:
@@ -84,7 +88,7 @@ spec:
         - name: avika-agent
           image: "{{ .Values.mockNginx.image.repository }}:{{ .Values.mockNginx.image.tag }}"
           imagePullPolicy: {{ .Values.mockNginx.image.pullPolicy | default "IfNotPresent" }}
-          command: ["/app/agent"]
+          command: ["/usr/local/bin/avika-agent"]
           args:
             - "-config=/etc/avika/avika-agent.conf"
           env:

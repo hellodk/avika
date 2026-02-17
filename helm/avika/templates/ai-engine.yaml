@@ -17,6 +17,10 @@ spec:
         {{- include "avika.selectorLabels" . | nindent 8 }}
         component: ai-engine
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: ai-engine
           image: "{{ .Values.aiEngine.image.repository }}:{{ .Values.aiEngine.image.tag | default .Chart.AppVersion }}"
@@ -47,6 +51,10 @@ spec:
         {{- include "avika.selectorLabels" . | nindent 8 }}
         component: log-aggregator
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: log-aggregator
           image: "{{ .Values.logAggregator.image.repository }}:{{ .Values.logAggregator.image.tag | default .Chart.AppVersion }}"
