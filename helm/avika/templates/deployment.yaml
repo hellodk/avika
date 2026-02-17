@@ -114,8 +114,10 @@ spec:
                 secretKeyRef:
                   name: {{ include "avika.fullname" $ }}-db-secrets
                   key: clickhouse-password
+            {{- if (index $.Values.components "redpanda").enabled }}
             - name: KAFKA_BROKERS
               value: "{{ include "avika.fullname" $ }}-redpanda:9092"
+            {{- end }}
             {{- if $.Values.auth.passwordHash }}
             - name: AUTH_PASSWORD_HASH
               valueFrom:
