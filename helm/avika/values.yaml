@@ -238,7 +238,7 @@ components:
     replicaCount: 1
     image:
       repository: otel/opentelemetry-collector-contrib
-      tag: "0.1.67"
+      tag: "0.91.0"
       pullPolicy: IfNotPresent
     
     ports:
@@ -281,7 +281,7 @@ components:
     replicaCount: 1
     image:
       repository: postgres
-      tag: "0.1.67"
+      tag: "16-alpine"
       pullPolicy: IfNotPresent
     
     ports:
@@ -331,7 +331,7 @@ components:
     replicaCount: 1
     image:
       repository: clickhouse/clickhouse-server
-      tag: "0.1.67"
+      tag: "23.8-alpine"
       pullPolicy: IfNotPresent
     
     ports:
@@ -384,7 +384,7 @@ components:
     replicaCount: 1
     image:
       repository: redpandadata/redpanda
-      tag: "0.1.67"
+      tag: "v23.3.5"
       pullPolicy: IfNotPresent
     
     # Redpanda needs special args for NFS storage (io_uring not supported)
