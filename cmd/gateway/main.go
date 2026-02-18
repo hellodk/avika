@@ -731,8 +731,16 @@ func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.Cl
 	}
 	session := val.(*AgentSession)
 
-	if session.ip == "" {
-		log.Printf("Agent %s has no IP", agentID)
+	// For pods, prefer podIP (the actual pod IP) over connection IP
+	// For VMs, use the connection IP
+	targetIP := session.ip
+	if session.isPod && session.podIP != "" {
+		targetIP = session.podIP
+		log.Printf("Using podIP %s for pod agent %s (connection IP was %s)", targetIP, agentID, session.ip)
+	}
+
+	if targetIP == "" {
+		log.Printf("Agent %s has no IP (isPod: %v, podIP: %s, ip: %s)", agentID, session.isPod, session.podIP, session.ip)
 		return nil, nil, fmt.Errorf("agent %s has no IP", agentID)
 	}
 
@@ -741,8 +749,8 @@ func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.Cl
 	if agentPort == 0 {
 		agentPort = config.DefaultAgentPort // fallback to constant
 	}
-	target := fmt.Sprintf("%s:%d", session.ip, agentPort)
-	log.Printf("Found session for %s, dialing %s", agentID, target)
+	target := fmt.Sprintf("%s:%d", targetIP, agentPort)
+	log.Printf("Found session for %s, dialing %s (isPod: %v)", agentID, target, session.isPod)
 
 	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {

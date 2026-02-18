@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/avika-ai/avika/cmd/agent/certs"
 	"github.com/avika-ai/avika/cmd/agent/config"
@@ -342,6 +343,19 @@ func startMgmtService(ctx context.Context, configPath string, port int) {
 	// Wait for context cancellation
 	<-ctx.Done()
 	log.Println("Shutting down management service...")
-	grpcServer.GracefulStop()
-	log.Println("Management service stopped")
+	
+	// Use a goroutine with timeout for graceful stop
+	stopped := make(chan struct{})
+	go func() {
+		grpcServer.GracefulStop()
+		close(stopped)
+	}()
+	
+	select {
+	case <-stopped:
+		log.Println("Management service stopped gracefully")
+	case <-time.After(3 * time.Second):
+		log.Println("Management service graceful stop timeout, forcing stop")
+		grpcServer.Stop()
+	}
 }

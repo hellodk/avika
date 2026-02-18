@@ -294,26 +294,12 @@ func main() {
 		}()
 	}
 
-	defer func() {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer shutdownCancel()
-		if err := healthServer.Shutdown(shutdownCtx); err != nil {
-			log.Printf("Health server shutdown error: %v", err)
-		}
-	}()
-
 	// 3. Initialize Persistent Buffer
 	wal, err := buffer.NewFileBuffer(*bufferDir + "agent")
 	if err != nil {
 		log.Printf("FATAL: Failed to initialize buffer: %v", err)
 		os.Exit(1)
 	}
-	defer func() {
-		log.Println("Closing buffer...")
-		if err := wal.Close(); err != nil {
-			log.Printf("Error closing buffer: %v", err)
-		}
-	}()
 
 	// Initial backup on node add/start
 	if err := config.BackupNginxConfig("startup"); err != nil {
@@ -484,9 +470,22 @@ func main() {
 	select {
 	case <-done:
 		log.Println("All goroutines stopped gracefully")
-	case <-time.After(30 * time.Second):
-		log.Println("Shutdown timeout exceeded, forcing exit")
+	case <-time.After(10 * time.Second):
+		log.Println("Shutdown timeout exceeded (10s), forcing exit")
 	}
+
+	// Cleanup buffer before final exit
+	log.Println("Closing buffer...")
+	if err := wal.Close(); err != nil {
+		log.Printf("Error closing buffer: %v", err)
+	}
+
+	// Shutdown health server
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	if err := healthServer.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Health server shutdown error: %v", err)
+	}
+	shutdownCancel()
 
 	log.Println("Agent shutdown complete")
 }

@@ -55,6 +55,7 @@ COPY --from=builder /app/cmd/agent/agent-linux-amd64.sha256 /app/updates/bin/
 COPY --from=builder /app/cmd/agent/agent-linux-arm64.sha256 /app/updates/bin/
 COPY --from=builder /app/version.json /app/updates/
 COPY scripts/deploy-agent.sh /app/updates/
+COPY deploy/systemd/avika-agent.service /app/updates/
 
 # Expose ports (5020-5050 range)
 EXPOSE 5020 5021 5022

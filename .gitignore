@@ -143,6 +143,7 @@ ssl/
 # Local configuration overrides
 config.local.yml
 config.override.yml
+scripts/build.conf.local
 
 # ============================================================================
 # CI/CD artifacts

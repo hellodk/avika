@@ -3,9 +3,33 @@ set -e
 
 # Change to project root (script is in scripts/ subdirectory)
 cd "$(dirname "$0")/.."
+PROJECT_ROOT=$(pwd)
 
-# Configuration
-REPO="hellodk"
+# --- Load Configuration ---
+CONFIG_FILE="$PROJECT_ROOT/scripts/build.conf"
+LOCAL_CONFIG="$PROJECT_ROOT/scripts/build.conf.local"
+
+# Default values (can be overridden by config files)
+DOCKER_REGISTRY="${DOCKER_REGISTRY:-docker.io}"
+DOCKER_REPO="${DOCKER_REPO:-hellodk}"
+K8S_NAMESPACE="${K8S_NAMESPACE:-avika}"
+K8S_DEPLOY_ENABLED="${K8S_DEPLOY_ENABLED:-true}"
+BUILD_PLATFORMS="${BUILD_PLATFORMS:-linux/amd64,linux/arm64}"
+BUILDX_BUILDER_NAME="${BUILDX_BUILDER_NAME:-avika-builder}"
+BUILD_COMPONENTS="${BUILD_COMPONENTS:-agent gateway frontend}"
+
+# Load config file
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+fi
+
+# Load local overrides (gitignored)
+if [ -f "$LOCAL_CONFIG" ]; then
+    source "$LOCAL_CONFIG"
+fi
+
+# Computed values
+REPO="${DOCKER_REPO}"
 VERSION_FILE="VERSION"
 AGENT_DIR="nginx-agent"
 
@@ -18,6 +42,50 @@ NC='\033[0m'
 
 echo -e "${BLUE}🏗️  Avika - Full Stack Build System${NC}"
 echo "========================================"
+echo -e "${BLUE}Config: DOCKER_REPO=${DOCKER_REPO}, K8S_NAMESPACE=${K8S_NAMESPACE}${NC}"
+
+# --- Pre-Build Check: Block build if uncommitted changes ---
+echo -e "\n${BLUE}🔍 Pre-build check: Verifying git status...${NC}"
+
+# Check if we're in a git repository
+if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+    echo -e "${RED}❌ Not a git repository. Builds require version control.${NC}"
+    exit 1
+fi
+
+# Check for uncommitted changes (staged or unstaged)
+if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo -e "${RED}❌ BUILD BLOCKED: Uncommitted changes detected!${NC}"
+    echo ""
+    echo -e "${YELLOW}Modified files:${NC}"
+    git status --short
+    echo ""
+    echo -e "${YELLOW}Please commit your changes before building:${NC}"
+    echo "  git add ."
+    echo "  git commit -m 'your commit message'"
+    echo ""
+    echo -e "${YELLOW}Or to skip this check (not recommended):${NC}"
+    echo "  SKIP_GIT_CHECK=1 ./scripts/build-stack.sh"
+    
+    # Allow override with SKIP_GIT_CHECK=1
+    if [ "${SKIP_GIT_CHECK}" != "1" ]; then
+        exit 1
+    fi
+    echo -e "${YELLOW}⚠️  SKIP_GIT_CHECK=1 set, proceeding anyway...${NC}"
+fi
+
+# Check for untracked files that might be important
+UNTRACKED=$(git ls-files --others --exclude-standard | grep -E '\.(go|ts|tsx|js|jsx|yaml|yml|sh|Dockerfile)$' || true)
+if [ -n "$UNTRACKED" ]; then
+    echo -e "${YELLOW}⚠️  Warning: Untracked source files detected:${NC}"
+    echo "$UNTRACKED" | head -10
+    if [ $(echo "$UNTRACKED" | wc -l) -gt 10 ]; then
+        echo "  ... and more"
+    fi
+    echo ""
+fi
+
+echo -e "${GREEN}✅ Git status check passed${NC}"
 
 # --- 1. Versioning Logic ---
 if [ ! -f "$VERSION_FILE" ]; then
@@ -69,8 +137,9 @@ LDFLAGS="-X 'main.Version=${VERSION}' \
          -X 'main.GitBranch=${GIT_BRANCH}'"
 
 # --- 2b. Update Helm Chart Versions ---
-CHART_FILE="deploy/helm/avika/Chart.yaml"
-VALUES_FILE="deploy/helm/avika/values.yaml"
+HELM_CHART_DIR="${HELM_CHART_DIR:-deploy/helm/avika}"
+CHART_FILE="${HELM_CHART_DIR}/Chart.yaml"
+VALUES_FILE="${HELM_CHART_DIR}/values.yaml"
 
 if [ -f "$CHART_FILE" ]; then
     # Update appVersion to match the application version
@@ -101,7 +170,7 @@ fi
 
 # --- 3. Build Agent (via build-agent.sh) ---
 echo -e "\n${BLUE}📦 Building Agent (nginx + agent bundled image)...${NC}"
-BUMP=none ./scripts/build-agent.sh || {
+BUMP=none CALLED_FROM_BUILD_STACK=1 ./scripts/build-agent.sh || {
     echo -e "${RED}❌ Agent build failed${NC}"
     exit 1
 }
@@ -116,8 +185,7 @@ build_image() {
     echo -e "\n${BLUE}🐳 Building multi-arch image: ${REPO}/${image_name}:${VERSION}...${NC}"
     
     # We use --push to push to registry. Ensure you are logged in.
-    # We use --platform linux/amd64,linux/arm64
-    docker buildx build --platform linux/amd64,linux/arm64 \
+    docker buildx build --platform "${BUILD_PLATFORMS}" \
         --build-arg VERSION="${VERSION}" \
         --build-arg BUILD_DATE="${BUILD_DATE}" \
         --build-arg GIT_COMMIT="${GIT_COMMIT}" \
@@ -134,7 +202,7 @@ build_image() {
 
 # Ensure buildx is ready
 echo -e "\n${BLUE}🔧 Checking Docker Buildx...${NC}"
-docker buildx create --use --name avika-builder 2>/dev/null || docker buildx use avika-builder
+docker buildx create --use --name "${BUILDX_BUILDER_NAME}" 2>/dev/null || docker buildx use "${BUILDX_BUILDER_NAME}"
 
 # --- 5. Build remaining components (agent already built above) ---
 
@@ -145,20 +213,35 @@ build_image "." "gateway" "cmd/gateway/Dockerfile"
 build_image "frontend" "avika-frontend" "frontend/Dockerfile"
 
 # --- 6. Deploy to Kubernetes ---
-echo -e "\n${BLUE}☸️  Deploying to Kubernetes...${NC}"
+if [ "${K8S_DEPLOY_ENABLED}" = "true" ]; then
+    echo -e "\n${BLUE}☸️  Deploying to Kubernetes (namespace: ${K8S_NAMESPACE})...${NC}"
 
-# Update Helm values with new version
-sed -i "s/tag: \".*\"/tag: \"${VERSION}\"/" deploy/helm/avika/values.yaml 2>/dev/null || true
+    # Update Helm values with new version
+    sed -i "s/tag: \".*\"/tag: \"${VERSION}\"/" deploy/helm/avika/values.yaml 2>/dev/null || true
 
-# Deploy using Helm
-helm upgrade avika ./deploy/helm/avika -n avika \
-    --set postgresql.auth.password=avika123 \
-    --set clickhouse.password=avika123 \
-    --set mockNginx.image.tag="${VERSION}" \
-    --set gateway.image.tag="${VERSION}" \
-    --set frontend.image.tag="${VERSION}" \
-    --set agent.image.tag="${VERSION}" \
-    || echo -e "${YELLOW}⚠️  Helm upgrade failed (non-fatal)${NC}"
+    # Build helm set arguments for image tags
+    HELM_SET_ARGS=(
+        "--set" "mockNginx.image.tag=${VERSION}"
+        "--set" "gateway.image.tag=${VERSION}"
+        "--set" "frontend.image.tag=${VERSION}"
+        "--set" "agent.image.tag=${VERSION}"
+    )
+    
+    # Add password overrides from environment if provided (avoid hardcoding)
+    if [ -n "${POSTGRES_PASSWORD}" ]; then
+        HELM_SET_ARGS+=("--set" "postgresql.auth.password=${POSTGRES_PASSWORD}")
+    fi
+    if [ -n "${CLICKHOUSE_PASSWORD}" ]; then
+        HELM_SET_ARGS+=("--set" "clickhouse.password=${CLICKHOUSE_PASSWORD}")
+    fi
+
+    # Deploy using Helm
+    helm upgrade avika ./deploy/helm/avika -n "${K8S_NAMESPACE}" \
+        "${HELM_SET_ARGS[@]}" \
+        || echo -e "${YELLOW}⚠️  Helm upgrade failed (non-fatal)${NC}"
+else
+    echo -e "\n${YELLOW}⏭️  Kubernetes deployment disabled (K8S_DEPLOY_ENABLED=${K8S_DEPLOY_ENABLED})${NC}"
+fi
 
 # --- 7. Cleanup to save disk space ---
 echo -e "\n${BLUE}🧹 Cleaning up to save disk space...${NC}"

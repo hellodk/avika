@@ -72,7 +72,7 @@ curl -fsSL $UPDATE_SERVER/deploy-agent.sh | sudo -E bash
 1. Detects system architecture (amd64/arm64)
 2. Downloads the agent binary with checksum verification
 3. Installs to `/usr/local/bin/avika-agent`
-4. Creates configuration at `/etc/avika-agent/agent.conf`
+4. Creates configuration at `/etc/avika/avika-agent.conf`
 5. Sets up and enables systemd service
 6. Starts the agent
 

@@ -22,7 +22,7 @@ Status:   sudo systemctl status avika-agent
 Logs:     sudo journalctl -u avika-agent -f
 Restart:  sudo systemctl restart avika-agent
 Stop:     sudo systemctl stop avika-agent
-Config:   sudo nano /etc/avika-agent/agent.conf
+Config:   sudo nano /etc/avika/avika-agent.conf
 
 🔍 TROUBLESHOOTING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -33,7 +33,7 @@ Test:     sudo /usr/local/bin/avika-agent -server 192.168.1.10:50051 -id test
 📂 FILE LOCATIONS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Binary:   /usr/local/bin/avika-agent
-Config:   /etc/avika-agent/agent.conf
+Config:   /etc/avika/avika-agent.conf
 Service:  /etc/systemd/system/avika-agent.service
 Logs:     /var/log/avika-agent/agent.log
 Buffer:   /var/lib/avika-agent/

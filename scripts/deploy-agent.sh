@@ -146,8 +146,8 @@ cat > "$CONFIG_DIR/avika-agent.conf" <<EOF
 # Avika Agent Configuration
 # Generated on $(date)
 
-# Gateway Server
-GATEWAY_SERVER="$GATEWAY_SERVER"
+# Gateway Server(s) - comma-separated for multi-gateway
+GATEWAYS="$GATEWAY_SERVER"
 
 # Agent Identity (leave empty for auto-detection: hostname-ip)
 AGENT_ID=""
@@ -176,8 +176,8 @@ LOG_LEVEL="info"
 LOG_FILE="/var/log/avika-agent/agent.log"
 EOF
 
-chmod 644 "$CONFIG_DIR/agent.conf"
-log_success "Configuration file created at $CONFIG_DIR/agent.conf"
+chmod 644 "$CONFIG_DIR/avika-agent.conf"
+log_success "Configuration file created at $CONFIG_DIR/avika-agent.conf"
 
 # Download systemd service file
 log_info "Downloading systemd service file..."
@@ -223,7 +223,7 @@ if systemctl is-active --quiet "$SERVICE_NAME"; then
     echo "  Restart service:  systemctl restart $SERVICE_NAME"
     echo "  Stop service:     systemctl stop $SERVICE_NAME"
     echo "  Service status:   systemctl status $SERVICE_NAME"
-    echo "  Edit config:      nano $CONFIG_DIR/agent.conf"
+    echo "  Edit config:      nano $CONFIG_DIR/avika-agent.conf"
     echo ""
     log_success "Avika Agent deployment completed successfully!"
 else

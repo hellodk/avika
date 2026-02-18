@@ -3,15 +3,53 @@ set -e
 
 # Change to project root (script is in scripts/ subdirectory)
 cd "$(dirname "$0")/.."
+PROJECT_ROOT=$(pwd)
+
+# --- Load Configuration ---
+CONFIG_FILE="$PROJECT_ROOT/scripts/build.conf"
+LOCAL_CONFIG="$PROJECT_ROOT/scripts/build.conf.local"
+
+# Default values
+DOCKER_REGISTRY="${DOCKER_REGISTRY:-docker.io}"
+DOCKER_REPO="${DOCKER_REPO:-hellodk}"
+BUILD_PLATFORMS="${BUILD_PLATFORMS:-linux/amd64,linux/arm64}"
+K8S_DEPLOY_ENABLED="${K8S_DEPLOY_ENABLED:-true}"
+AGENT_K8S_MANIFEST="${AGENT_K8S_MANIFEST:-}"
+
+# Load config file
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+fi
+
+# Load local overrides (gitignored)
+if [ -f "$LOCAL_CONFIG" ]; then
+    source "$LOCAL_CONFIG"
+fi
 
 # Configuration
 BINARY_NAME="agent"
 OUTPUT_DIR="nginx-agent"
+REPO="${DOCKER_REPO}"
+
 # Colors
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m'
+
+# --- Pre-Build Check: Block build if uncommitted changes ---
+# Skip if called from build-stack.sh (already checked)
+if [ "${SKIP_GIT_CHECK}" != "1" ] && [ "${CALLED_FROM_BUILD_STACK}" != "1" ]; then
+    if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+        if ! git diff --quiet || ! git diff --cached --quiet; then
+            echo -e "${RED}❌ BUILD BLOCKED: Uncommitted changes detected!${NC}"
+            echo -e "${YELLOW}Please commit your changes before building.${NC}"
+            echo -e "${YELLOW}Or set SKIP_GIT_CHECK=1 to override (not recommended).${NC}"
+            exit 1
+        fi
+    fi
+fi
 
 # Get Version
 VERSION_FILE="VERSION"
@@ -81,22 +119,27 @@ ls -lh "$OUTPUT_DIR"
 
 # Build and push multi-arch Docker image (non-fatal)
 echo ""
-echo -e "${BLUE}🐳 Building multi-arch Docker image hellodk/avika-agent:${VERSION}...${NC}"
-docker buildx build --platform linux/amd64,linux/arm64 \
+echo -e "${BLUE}🐳 Building multi-arch Docker image ${REPO}/avika-agent:${VERSION}...${NC}"
+docker buildx build --platform "${BUILD_PLATFORMS}" \
     --build-arg VERSION="${VERSION}" \
     --build-arg BUILD_DATE="${BUILD_DATE}" \
     --build-arg GIT_COMMIT="${GIT_COMMIT}" \
     --build-arg GIT_BRANCH="${GIT_BRANCH}" \
-    -t "hellodk/avika-agent:${VERSION}" \
-    -t "hellodk/avika-agent:latest" \
+    -t "${REPO}/avika-agent:${VERSION}" \
+    -t "${REPO}/avika-agent:latest" \
     --push "$OUTPUT_DIR" || echo -e "${YELLOW}⚠️  Docker buildx failed (non-fatal)${NC}"
 
-# Deploy to Kubernetes (non-fatal)
-echo ""
-echo -e "${BLUE}☸️  Applying Kubernetes manifest (tag: ${VERSION})...${NC}"
-export IMAGE_TAG="${VERSION}"
-envsubst '${IMAGE_TAG}' < /home/dk/Documents/git/dumpyard/kubernetes/utilities/nginx-lab-with-agent.yaml | kubectl apply -f - \
-    || echo -e "${YELLOW}⚠️  kubectl apply failed (non-fatal)${NC}"
+# Deploy to Kubernetes (non-fatal, optional)
+if [ "${K8S_DEPLOY_ENABLED}" = "true" ] && [ -n "${AGENT_K8S_MANIFEST}" ] && [ -f "${AGENT_K8S_MANIFEST}" ]; then
+    echo ""
+    echo -e "${BLUE}☸️  Applying Kubernetes manifest (tag: ${VERSION})...${NC}"
+    export IMAGE_TAG="${VERSION}"
+    envsubst '${IMAGE_TAG}' < "${AGENT_K8S_MANIFEST}" | kubectl apply -f - \
+        || echo -e "${YELLOW}⚠️  kubectl apply failed (non-fatal)${NC}"
+elif [ -n "${AGENT_K8S_MANIFEST}" ] && [ ! -f "${AGENT_K8S_MANIFEST}" ]; then
+    echo -e "${YELLOW}⚠️  AGENT_K8S_MANIFEST set but file not found: ${AGENT_K8S_MANIFEST}${NC}"
+fi
 
 echo ""
 echo -e "${GREEN}✅ Done!${NC}"
+echo "Image: ${REPO}/avika-agent:${VERSION}"
