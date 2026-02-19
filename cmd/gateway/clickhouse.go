@@ -81,18 +81,23 @@ func getEnvInt(key string, defaultVal int) int {
 	return defaultVal
 }
 
-func NewClickHouseDB(addr string) (*ClickHouseDB, error) {
+func NewClickHouseDB(addr, username, password string) (*ClickHouseDB, error) {
 	// Log configuration for debugging
 	log.Printf("ClickHouse config: buffers(log=%d, span=%d, sys=%d, nginx=%d, gw=%d) batches(log=%d, span=%d) conns(open=%d, idle=%d)",
 		logBufferSize, spanBufferSize, sysBufferSize, nginxBufferSize, gwBufferSize,
 		logBatchSize, spanBatchSize, maxOpenConns, maxIdleConns)
 
+	// Use defaults if not provided
+	if username == "" {
+		username = "default"
+	}
+
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{addr},
 		Auth: clickhouse.Auth{
 			Database: "default",
-			Username: "default",
-			Password: "",
+			Username: username,
+			Password: password,
 		},
 		Settings: clickhouse.Settings{
 			"max_execution_time": 60,

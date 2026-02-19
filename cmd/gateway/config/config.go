@@ -59,6 +59,8 @@ type DatabaseConfig struct {
 type ClickHouseConfig struct {
 	Address         string        `yaml:"address"`
 	Database        string        `yaml:"database"`
+	Username        string        `yaml:"username"`
+	Password        string        `yaml:"password"`
 	MaxOpenConns    int           `yaml:"max_open_conns"`
 	MaxIdleConns    int           `yaml:"max_idle_conns"`
 	ConnMaxLifetime time.Duration `yaml:"conn_max_lifetime"`
@@ -267,6 +269,8 @@ func defaultConfig() *Config {
 		ClickHouse: ClickHouseConfig{
 			Address:         "localhost:9000",
 			Database:        "nginx_analytics",
+			Username:        "default",
+			Password:        "", // Set via CLICKHOUSE_PASSWORD env var or Kubernetes secret
 			MaxOpenConns:    50,
 			MaxIdleConns:    50,
 			ConnMaxLifetime: 30 * time.Minute,
@@ -375,6 +379,12 @@ func loadEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("CLICKHOUSE_DATABASE"); v != "" {
 		cfg.ClickHouse.Database = v
+	}
+	if v := os.Getenv("CLICKHOUSE_USER"); v != "" {
+		cfg.ClickHouse.Username = v
+	}
+	if v := os.Getenv("CLICKHOUSE_PASSWORD"); v != "" {
+		cfg.ClickHouse.Password = v
 	}
 	if v := os.Getenv("CLICKHOUSE_BATCH_SIZE"); v != "" {
 		if size, err := strconv.Atoi(v); err == nil {

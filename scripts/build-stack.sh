@@ -153,19 +153,26 @@ if [ -f "$CHART_FILE" ]; then
 fi
 
 if [ -f "$VALUES_FILE" ]; then
-    # Update image tags in values.yaml for all Avika components
-    # Note: Third-party images like otel-collector, updateServer, aiEngine, logAggregator
-    # are intentionally NOT updated as they use their own versioning
+    # ==========================================================================
+    # IMPORTANT: Only update AVIKA-OWNED component image tags
+    # ==========================================================================
+    # AVIKA-OWNED (auto-update version):
+    #   - gateway, frontend, agent, mockNginx, image (global default)
+    #
+    # THIRD-PARTY (do NOT update - they have their own versioning):
+    #   - postgresql, clickhouse, otel-collector, redis, etc.
+    #   - These are marked with "# THIRD-PARTY: Do not auto-update" in values.yaml
+    # ==========================================================================
     
-    # Update component image tags using section-aware sed
-    for component in gateway agent frontend mockNginx; do
-        sed -i "/^${component}:/,/^[a-z]/{s/^\(\s*tag:\s*\).*/\1\"${VERSION}\"/}" "$VALUES_FILE"
+    # Update only Avika-owned component image tags
+    # Pattern: match section start, then find tag line within that section only
+    for component in gateway frontend mockNginx; do
+        # Match from component: to next top-level key, update only tag line
+        sed -i "/^${component}:/,/^[a-zA-Z]/{/^  *image:/,/^  *[a-zA-Z]/{s/^\(  *tag: *\"\)[^\"]*\"/\1${VERSION}\"/}}" "$VALUES_FILE"
     done
     
-    # Update global image section tag
-    sed -i '/^image:/,/^[a-z]/{s/^\(\s*tag:\s*\).*/\1"'"${VERSION}"'"/}' "$VALUES_FILE"
-    
     echo -e "${GREEN}📋 Helm values.yaml updated: Avika component image tags → ${VERSION}${NC}"
+    echo -e "${YELLOW}   (Third-party images: postgresql, clickhouse, otel-collector NOT updated)${NC}"
 fi
 
 # --- 3. Build Agent (via build-agent.sh) ---
@@ -216,15 +223,16 @@ build_image "frontend" "avika-frontend" "frontend/Dockerfile"
 if [ "${K8S_DEPLOY_ENABLED}" = "true" ]; then
     echo -e "\n${BLUE}☸️  Deploying to Kubernetes (namespace: ${K8S_NAMESPACE})...${NC}"
 
-    # Update Helm values with new version
-    sed -i "s/tag: \".*\"/tag: \"${VERSION}\"/" deploy/helm/avika/values.yaml 2>/dev/null || true
-
-    # Build helm set arguments for image tags
+    # NOTE: values.yaml already updated above - no need for blanket sed here
+    # Only override Avika-owned component tags via --set (not third-party images)
+    
+    # Build helm set arguments for Avika-owned image tags only
+    # NOTE: Third-party images (postgresql, clickhouse, otel-collector) use fixed
+    # versions in values.yaml and are NOT overridden here
     HELM_SET_ARGS=(
-        "--set" "mockNginx.image.tag=${VERSION}"
         "--set" "gateway.image.tag=${VERSION}"
         "--set" "frontend.image.tag=${VERSION}"
-        "--set" "agent.image.tag=${VERSION}"
+        "--set" "mockNginx.image.tag=${VERSION}"
     )
     
     # Add password overrides from environment if provided (avoid hardcoding)

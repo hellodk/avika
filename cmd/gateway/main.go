@@ -1216,10 +1216,14 @@ func connectToDatabase(cfg *config.Config) (*DB, error) {
 
 // connectToClickHouse connects to ClickHouse with fallback
 func connectToClickHouse(cfg *config.Config) (*ClickHouseDB, error) {
-	chDB, err := NewClickHouseDB(cfg.ClickHouse.Address)
+	chDB, err := NewClickHouseDB(
+		cfg.ClickHouse.Address,
+		cfg.ClickHouse.Username,
+		cfg.ClickHouse.Password,
+	)
 	if err != nil {
-		// Try fallback
-		chDB, err = NewClickHouseDB("127.0.0.1:9000")
+		// Try fallback with same credentials
+		chDB, err = NewClickHouseDB("127.0.0.1:9000", cfg.ClickHouse.Username, cfg.ClickHouse.Password)
 		if err != nil {
 			return nil, err
 		}
