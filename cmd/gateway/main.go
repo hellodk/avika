@@ -1344,15 +1344,35 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 
 	// Ready check endpoint (no rate limiting)
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
-		// Check database connectivity
-		if err := srv.db.conn.Ping(); err != nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte(`{"status":"not ready","error":"database unavailable"}`))
-			return
-		}
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ready"}`))
+
+		pgStatus := "connected"
+		chStatus := "connected"
+		allHealthy := true
+
+		// Check PostgreSQL connectivity
+		if err := srv.db.conn.Ping(); err != nil {
+			pgStatus = "disconnected"
+			allHealthy = false
+		}
+
+		// Check ClickHouse connectivity
+		if srv.clickhouse != nil {
+			if err := srv.clickhouse.conn.Ping(r.Context()); err != nil {
+				chStatus = "disconnected"
+				allHealthy = false
+			}
+		}
+
+		status := "ready"
+		httpStatus := http.StatusOK
+		if !allHealthy {
+			status = "degraded"
+			httpStatus = http.StatusServiceUnavailable
+		}
+
+		w.WriteHeader(httpStatus)
+		fmt.Fprintf(w, `{"status":"%s","database":"%s","clickhouse":"%s"}`, status, pgStatus, chStatus)
 	})
 
 	// Prometheus metrics endpoint
@@ -1629,7 +1649,11 @@ func (s *server) ListAlertRules(ctx context.Context, req *pb.ListAlertRulesReque
 }
 
 func (s *server) CreateAlertRule(ctx context.Context, req *pb.AlertRule) (*pb.AlertRule, error) {
+	// Validate or generate UUID for ID (database requires uuid type)
 	if req.Id == "" {
+		req.Id = uuid.New().String()
+	} else if _, err := uuid.Parse(req.Id); err != nil {
+		// Invalid UUID provided, generate a new one
 		req.Id = uuid.New().String()
 	}
 	if err := s.db.UpsertAlertRule(req); err != nil {
