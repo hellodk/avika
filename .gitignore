@@ -184,3 +184,10 @@ gateway.yaml
 curl_output.txt
 home/
 scripts/et
+
+# Temporary test reports
+AVIKA_LOGIN_TEST_REPORT.md
+PASSWORD_CHANGE_FLOW_TEST.md
+TERMINAL_PROOF.txt
+TEST_REPORT_*.md
+terminal_screenshot.html

@@ -269,7 +269,7 @@ ExecStart=/usr/local/bin/avika-agent \
 
 ### 2. Agent Configuration
 ```bash
-# /etc/avika-agent/agent.conf
+# /etc/avika/avika-agent.conf
 UPDATE_SERVER="http://192.168.1.10:8090"
 UPDATE_INTERVAL="168h"
 ```

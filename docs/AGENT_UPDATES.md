@@ -59,7 +59,7 @@ The Avika Agent supports both **automatic periodic updates** and **remote-trigge
 ### Default Settings
 
 ```bash
-# /etc/avika-agent/agent.conf
+# /etc/avika/avika-agent.conf
 UPDATE_SERVER="http://192.168.1.10:8090"
 UPDATE_INTERVAL="168h"  # 1 week
 ```

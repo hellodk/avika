@@ -42,7 +42,7 @@ sudo GATEWAY_SERVER="gateway.example.com:50051" \
 2. **Downloads Binary**: Fetches the latest agent binary from the update server
 3. **Verifies Checksum**: Ensures the downloaded binary hasn't been tampered with
 4. **Installs Agent**: Places the binary at `/usr/local/bin/avika-agent`
-5. **Creates Configuration**: Generates `/etc/avika-agent/agent.conf`
+5. **Creates Configuration**: Generates `/etc/avika/avika-agent.conf`
 6. **Sets Up Service**: Creates and enables a systemd service
 7. **Starts Agent**: Automatically starts the agent service
 
@@ -51,7 +51,7 @@ sudo GATEWAY_SERVER="gateway.example.com:50051" \
 After deployment, you can customize the agent configuration:
 
 ```bash
-sudo nano /etc/avika-agent/agent.conf
+sudo nano /etc/avika/avika-agent.conf
 ```
 
 Key configuration options:
@@ -104,7 +104,7 @@ sudo systemctl disable avika-agent
 ## File Locations
 
 - **Binary**: `/usr/local/bin/avika-agent`
-- **Configuration**: `/etc/avika-agent/agent.conf`
+- **Configuration**: `/etc/avika/avika-agent.conf`
 - **Service File**: `/etc/systemd/system/avika-agent.service`
 - **Logs**: `/var/log/avika-agent/agent.log`
 - **Buffer**: `/var/lib/avika-agent/`
@@ -258,7 +258,7 @@ sudo journalctl -u avika-agent -n 100 --no-pager
 ```
 
 Common issues:
-- **Port 8080 in use**: Change `HEALTH_PORT` in `/etc/avika-agent/agent.conf`
+- **Port 8080 in use**: Change `HEALTH_PORT` in `/etc/avika/avika-agent.conf`
 - **Can't connect to gateway**: Verify `GATEWAY_SERVER` address and network connectivity
 - **Permission denied**: Ensure the service has access to NGINX logs and config directories
 
@@ -288,7 +288,7 @@ sudo systemctl disable avika-agent
 # Remove files
 sudo rm /usr/local/bin/avika-agent
 sudo rm /etc/systemd/system/avika-agent.service
-sudo rm -rf /etc/avika-agent
+sudo rm -rf /etc/avika
 sudo rm -rf /var/lib/avika-agent
 sudo rm -rf /var/log/avika-agent
 
@@ -321,5 +321,5 @@ The agent includes self-update functionality:
 
 For issues or questions:
 - Check logs: `sudo journalctl -u avika-agent -f`
-- Review configuration: `/etc/avika-agent/agent.conf`
+- Review configuration: `/etc/avika/avika-agent.conf`
 - Verify network connectivity to gateway and update server
