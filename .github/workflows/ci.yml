@@ -136,7 +136,7 @@ jobs:
   # Security Scanning
   # ============================================
   security-scan:
-    name: Security Scan
+    name: Security Scan (SAST/SCA)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -146,21 +146,167 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: Run Gosec Security Scanner
+      - name: Run Gosec Security Scanner (SAST)
         uses: securego/gosec@master
         with:
-          args: '-no-fail -fmt sarif -out results.sarif ./...'
+          args: '-no-fail -fmt sarif -out gosec-results.sarif ./...'
 
-      - name: Upload SARIF file
+      - name: Upload Gosec SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: results.sarif
+          sarif_file: gosec-results.sarif
+          category: gosec
         if: always()
 
-      - name: Run Go vulnerability check
+      - name: Run Go vulnerability check (SCA)
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
+
+  secret-scanning:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks Secret Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: false
+
+  frontend-security:
+    name: Frontend Security (SCA)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: NPM Audit (SCA)
+        run: npm audit --audit-level=high || true
+
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+  container-security:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    needs: [go-build]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    strategy:
+      matrix:
+        component: [gateway, agent, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: |
+          if [ "${{ matrix.component }}" = "gateway" ]; then
+            docker build -f cmd/gateway/Dockerfile -t ${{ matrix.component }}:scan .
+          elif [ "${{ matrix.component }}" = "agent" ]; then
+            docker build -f deploy/docker/Dockerfile.agent -t ${{ matrix.component }}:scan .
+          else
+            docker build -f frontend/Dockerfile -t ${{ matrix.component }}:scan ./frontend
+          fi
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ matrix.component }}:scan'
+          format: 'sarif'
+          output: 'trivy-${{ matrix.component }}.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-${{ matrix.component }}.sarif'
+          category: 'trivy-${{ matrix.component }}'
+        if: always()
+
+  owasp-dependency-check:
+    name: OWASP Dependency Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: OWASP Dependency-Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'avika-nginx-manager'
+          path: '.'
+          format: 'HTML,SARIF'
+          args: >
+            --enableExperimental
+            --failOnCVSS 8
+            --suppression .dependency-check-suppression.xml
+        continue-on-error: true
+
+      - name: Upload OWASP results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: owasp-dependency-check
+          path: reports/
+
+      - name: Upload OWASP SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: reports/dependency-check-report.sarif
+          category: owasp-dependency-check
+        if: always()
+
+  sbom-generation:
+    name: SBOM Generation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate SBOM with Syft
+        uses: anchore/sbom-action@v0
+        with:
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json
 
   dependency-review:
     name: Dependency Review

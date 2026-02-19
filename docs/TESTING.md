@@ -1,404 +1,373 @@
-# Testing Guide
-
-> Comprehensive test documentation for Avika NGINX Manager
+# Avika NGINX Manager - Testing Guide
 
 ## Overview
 
-This document describes all test suites, how to run them, and what each test covers.
+This document describes the testing infrastructure, CI/CD pipeline, security scanning, and how to run and view test results.
 
-## Running Tests
+## Test Infrastructure
 
-### All Tests
+### Test Types
 
-```bash
-# Run all tests
-go test ./...
+| Type | Framework | Location | Command |
+|------|-----------|----------|---------|
+| Go Unit Tests | Go `testing` | `cmd/*/`, `internal/*/` | `make test-go` |
+| Frontend Unit Tests | Vitest | `frontend/tests/unit/` | `make test-frontend` |
+| E2E Tests | Playwright | `frontend/tests/e2e/` | `make test-e2e` |
+| Integration Tests | Go `testing` | `cmd/gateway/*_integration_test.go` | `make test-integration` |
 
-# Run with verbose output
-go test -v ./...
-
-# Run with coverage
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out -o coverage.html
-```
-
-### Specific Packages
+### Running Tests
 
 ```bash
-# Middleware tests (auth, PSK, rate limiting)
-go test -v ./cmd/gateway/middleware/...
+# Run all unit tests
+make test-unit
 
-# Gateway tests
-go test -v ./cmd/gateway/...
+# Run Go tests only
+make test-go
 
-# Agent tests
-go test -v ./cmd/agent/...
+# Run frontend tests only
+make test-frontend
+
+# Run E2E tests
+make test-e2e
+
+# Run E2E tests with UI (interactive)
+make test-e2e-ui
+
+# Run all tests including integration
+make test-all
+
+# Run tests with coverage
+make test-coverage
+
+# Generate HTML test reports
+make test-full-report
 ```
 
-### Benchmarks
+## Test Dashboard & Reports
+
+### GitHub Actions Dashboard
+
+When connected to GitHub, test results are visible in:
+
+1. **Actions Tab**: Navigate to `https://github.com/<org>/<repo>/actions`
+2. **Pull Request Checks**: Each PR shows test status
+3. **Artifacts**: Test reports uploaded as artifacts after each run
+
+### Local Test Reports
 
 ```bash
-# Run all benchmarks
-go test -bench=. ./...
+# Generate and open HTML test report
+make test-full-report
 
-# Run specific benchmarks
-go test -bench=BenchmarkHashPassword ./cmd/gateway/middleware/
-go test -bench=BenchmarkValidateToken ./cmd/gateway/middleware/
-go test -bench=BenchmarkComputeSignature ./cmd/gateway/middleware/
+# Generate PDF test report
+make test-full-pdf
+
+# Open Playwright report
+make test-e2e-report
 ```
 
----
+Reports are saved to:
+- Go tests: `test-results/go/`
+- Frontend tests: `frontend/coverage/`
+- E2E tests: `frontend/playwright-report/`
 
-## Test Suites
+### Coverage Reports
 
-### 1. Authentication Tests (`auth_test.go`)
+Coverage data is uploaded to **Codecov** on every push. View at:
+- `https://codecov.io/gh/<org>/<repo>`
 
-Location: `cmd/gateway/middleware/auth_test.go`
-
-| Test Name | Description | Coverage |
-|-----------|-------------|----------|
-| `TestHashPassword` | Verifies SHA-256 password hashing consistency | Password hashing |
-| `TestNewAuthManager` | Tests auth manager creation with various configs | Initialization |
-| `TestValidateCredentials` | Tests username/password validation | Login validation |
-| `TestGenerateAndValidateToken` | Tests token generation and validation | Session tokens |
-| `TestRevokeToken` | Tests token revocation | Logout |
-| `TestTokenExpiry` | Tests that expired tokens are rejected | Session expiry |
-| `TestLoginHandler` | Tests HTTP login endpoint | API endpoint |
-| `TestLogoutHandler` | Tests HTTP logout endpoint | API endpoint |
-| `TestMeHandler` | Tests /me endpoint for user info | API endpoint |
-| `TestAuthMiddleware` | Tests route protection middleware | Authorization |
-| `TestAuthMiddlewareDisabled` | Tests passthrough when auth disabled | Configuration |
-| `TestChangePasswordHandler` | Tests password change functionality | Password management |
-| `TestRequireRole` | Tests role-based access control | RBAC |
-| `TestGetUserFromContext` | Tests context user retrieval | Utilities |
-| `TestIsEnabled` | Tests enabled flag | Configuration |
-| `TestFirstTimeSetup` | Tests Jenkins-style initial password | First-time setup |
-| `TestLoginWithPasswordChangeRequired` | Tests forced password change | Security |
-| `TestGenerateTokenWithFlags` | Tests token with additional flags | Session management |
-| `TestGenerateInitialPassword` | Tests random password generation | Security |
-| `TestPasswordChangeClearsFlag` | Tests flag cleanup after change | State management |
-
-#### First-Time Setup Tests
-
-```go
-// Tests auto-generation of initial password
-func TestFirstTimeSetup(t *testing.T) {
-    am := NewAuthManager(AuthConfig{
-        Enabled:      true,
-        Username:     "admin",
-        PasswordHash: "", // Empty triggers first-time setup
-    })
-    
-    cfg := am.GetConfig()
-    // Verifies:
-    // - PasswordHash is auto-generated
-    // - FirstTimeSetup flag is true
-    // - RequirePassChange flag is true
-}
+Local coverage:
+```bash
+make test-coverage
+cat test-results/coverage/summary.txt
 ```
 
----
+## Security Scanning (SAST/SCA/OWASP)
 
-### 2. PSK Authentication Tests (`psk_test.go`)
+### Static Application Security Testing (SAST)
 
-Location: `cmd/gateway/middleware/psk_test.go`
+| Tool | Target | Trigger | Report |
+|------|--------|---------|--------|
+| **Gosec** | Go code | Every push | SARIF → GitHub Security |
+| **ESLint** | TypeScript/JavaScript | Every push | Console output |
+| **TypeScript** | Frontend | Every push | Type check errors |
 
-| Test Name | Description | Coverage |
-|-----------|-------------|----------|
-| `TestNewPSKManager` | Tests PSK manager creation | Initialization |
-| `TestComputeAgentSignature` | Tests HMAC signature generation | Cryptography |
-| `TestValidateAgentAuth` | Tests agent authentication validation | Authentication |
-| `TestValidateAgentAuth_Disabled` | Tests passthrough when disabled | Configuration |
-| `TestAutoEnrollment` | Tests automatic agent registration | Auto-enroll mode |
-| `TestManualEnrollment` | Tests manual agent registration | Manual mode |
-| `TestPendingApproval` | Tests approval workflow | Approval workflow |
-| `TestRevokeAgent` | Tests agent revocation | Security |
-| `TestHostnameMatch` | Tests hostname verification | Security |
-| `TestListAgents` | Tests agent listing | API |
-| `TestGetMetadataValue` | Tests gRPC metadata extraction | gRPC |
-| `TestUnaryPSKInterceptor` | Tests gRPC unary interceptor | gRPC middleware |
-| `TestUnaryPSKInterceptor_Disabled` | Tests interceptor when disabled | Configuration |
-| `TestPSKIsEnabled` | Tests enabled flag | Configuration |
-| `TestDefaultPSKConfig` | Tests default configuration | Defaults |
-| `TestPSKKeyFormat` | Tests PSK key validation | Input validation |
+### Software Composition Analysis (SCA)
 
-#### PSK Authentication Flow Tests
+| Tool | Target | Trigger | Report |
+|------|--------|---------|--------|
+| **govulncheck** | Go dependencies | Every push | Console output |
+| **npm audit** | Node dependencies | Every push | Console output |
+| **Snyk** (if configured) | All dependencies | Every push | Snyk Dashboard |
+| **Dependency Review** | PRs only | Pull requests | PR comments |
 
-```go
-// Tests complete authentication flow
-func TestValidateAgentAuth(t *testing.T) {
-    psk := "0123456789abcdef..."
-    pm := NewPSKManager(PSKConfig{
-        Enabled:         true,
-        Key:             psk,
-        AllowAutoEnroll: true,
-        TimestampWindow: 5 * time.Minute,
-    })
+### Container Security
 
-    // Generate signature
-    signature, timestamp := ComputeAgentSignature(psk, agentID, hostname)
+| Tool | Target | Trigger | Report |
+|------|--------|---------|--------|
+| **Trivy** | Docker images | Main branch | SARIF → GitHub Security |
 
-    // Validate
-    err := pm.ValidateAgentAuth(agentID, hostname, signature, timestamp)
-    // Should succeed with valid credentials
-}
-```
+### OWASP Compliance
 
-#### Test Cases for Invalid Authentication
+| Check | Tool | Status |
+|-------|------|--------|
+| **OWASP Dependency-Check** | dependency-check-action | ✅ Enabled |
+| **Injection Prevention** | Gosec rules | ✅ Enabled |
+| **Broken Auth** | Manual code review | N/A |
+| **Sensitive Data Exposure** | Gitleaks | ✅ Enabled |
+| **XML External Entities** | N/A (no XML parsing) | N/A |
+| **Broken Access Control** | Manual code review | N/A |
+| **Security Misconfiguration** | Container scanning | ✅ Enabled |
+| **Cross-Site Scripting** | React escaping + ESLint | ✅ Enabled |
+| **Insecure Deserialization** | Go type safety | ✅ Enabled |
+| **Vulnerable Components** | All SCA tools | ✅ Enabled |
+| **Insufficient Logging** | Structured logging | ✅ Implemented |
 
-| Scenario | Expected Result |
-|----------|-----------------|
-| Missing signature | Error: "missing authentication credentials" |
-| Missing timestamp | Error: "missing authentication credentials" |
-| Invalid timestamp format | Error: "invalid timestamp format" |
-| Expired timestamp (>5min old) | Error: "timestamp outside acceptable window" |
-| Future timestamp (>5min ahead) | Error: "timestamp outside acceptable window" |
-| Invalid signature | Error: "invalid signature" |
-| Wrong agent ID | Error: "invalid signature" |
-
----
-
-### 3. Rate Limiting Tests (`ratelimit_test.go`)
-
-Location: `cmd/gateway/middleware/ratelimit_test.go`
-
-| Test Name | Description | Coverage |
-|-----------|-------------|----------|
-| `TestRateLimiter_Allow` | Tests basic rate limiting | Token bucket |
-| `TestRateLimiter_Refill` | Tests token refill over time | Token bucket |
-| `TestRateLimiter_MultipleIPs` | Tests per-IP isolation | Multi-tenancy |
-| `TestRateLimitMiddleware_Enabled` | Tests middleware when enabled | HTTP middleware |
-| `TestRateLimitMiddleware_Disabled` | Tests passthrough when disabled | Configuration |
-| `TestGetClientIP` | Tests IP extraction from headers | Utilities |
-
----
-
-### 4. Validation Tests (`validation_test.go`)
-
-Location: `cmd/gateway/middleware/validation_test.go`
-
-Tests input validation middleware for API requests.
-
----
-
-## Benchmarks
-
-### Performance Targets
-
-| Operation | Target | Actual |
-|-----------|--------|--------|
-| `HashPassword` | <1ms | ~500ns |
-| `ValidateToken` | <100μs | ~50μs |
-| `ComputeSignature` | <100μs | ~2μs |
-| `ValidateAuth` | <200μs | ~100μs |
-
-### Running Benchmarks
+### Running Security Scans Locally
 
 ```bash
-# Password hashing benchmark
-go test -bench=BenchmarkHashPassword -benchmem ./cmd/gateway/middleware/
-# Output: BenchmarkHashPassword-8    2000000    500 ns/op    32 B/op    1 allocs/op
+# Go vulnerability check
+make security-scan
 
-# Token validation benchmark
-go test -bench=BenchmarkValidateToken -benchmem ./cmd/gateway/middleware/
-# Output: BenchmarkValidateToken-8   20000000   50 ns/op     0 B/op    0 allocs/op
+# Install and run gosec
+go install github.com/securego/gosec/v2/cmd/gosec@latest
+gosec ./...
 
-# PSK signature benchmark
-go test -bench=BenchmarkComputeSignature -benchmem ./cmd/gateway/middleware/
-# Output: BenchmarkComputeSignature-8  500000   2000 ns/op   320 B/op  4 allocs/op
+# npm audit
+cd frontend && npm audit
+
+# Check for secrets in code
+# Install gitleaks: https://github.com/gitleaks/gitleaks
+gitleaks detect
 ```
 
----
+## SBOM (Software Bill of Materials)
 
-## Test Coverage Goals
-
-| Package | Target Coverage | Current |
-|---------|-----------------|---------|
-| `middleware/auth` | 80% | ~85% |
-| `middleware/psk` | 80% | ~80% |
-| `middleware/ratelimit` | 70% | ~75% |
-| `gateway` | 60% | ~65% |
-| `agent` | 60% | ~60% |
-
-### Generating Coverage Report
+The CI pipeline generates an SBOM using Syft. Download from the GitHub Actions artifacts.
 
 ```bash
-# Generate coverage for specific package
-go test -coverprofile=cover.out ./cmd/gateway/middleware/
-
-# View coverage in browser
-go tool cover -html=cover.out
-
-# Get coverage percentage
-go tool cover -func=cover.out | grep total
+# View SBOM artifact
+# Go to Actions → Latest workflow run → Artifacts → sbom
 ```
 
----
+## Test Coverage Requirements
 
-## Integration Tests
+### Recommended Coverage Targets
 
-### Gateway Integration Tests
+| Component | Current | Target |
+|-----------|---------|--------|
+| Gateway | ~15% | 60% |
+| Agent | ~25% | 60% |
+| Frontend Pages | ~10% | 50% |
+| API Routes | ~20% | 50% |
+| Components | ~10% | 40% |
 
-Location: `cmd/gateway/http_integration_test.go`, `cmd/gateway/database_integration_test.go`
+### Coverage by Area
+
+```
+Gateway:
+  ✅ gateway_test.go - Basic HTTP handlers
+  ✅ provisions_test.go - Provisioning logic
+  ✅ alerts_test.go - Alert engine
+  ✅ email_test.go - Email functionality
+  ✅ clickhouse_test.go - ClickHouse operations
+  ✅ reports_test.go - Report generation
+
+Agent:
+  ✅ agent_test.go - Core agent functionality
+  ✅ mgmt_service_test.go - Management service
+
+Frontend:
+  ✅ login.test.tsx - Login page
+  ✅ dashboard.test.tsx - Dashboard page
+  ✅ change-password.test.tsx - Password change
+  ✅ api/auth.test.ts - Auth API routes
+  ✅ api/analytics.test.ts - Analytics API routes
+  ✅ api/servers.test.ts - Servers API routes
+```
+
+## CI/CD Pipeline Structure
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         CI Pipeline                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
+│  │   Go Lint    │  │ Frontend     │  │    Secret Scan       │   │
+│  │ (golangci)   │  │   Lint       │  │    (Gitleaks)        │   │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘   │
+│         │                 │                     │                │
+│         ▼                 ▼                     │                │
+│  ┌──────────────┐  ┌──────────────┐             │                │
+│  │   Go Test    │  │ Frontend     │             │                │
+│  │ + Coverage   │  │   Test       │             │                │
+│  └──────────────┘  └──────────────┘             │                │
+│         │                 │                     │                │
+│         ▼                 ▼                     │                │
+│  ┌──────────────┐  ┌──────────────┐             │                │
+│  │   Go Build   │  │ Frontend     │             │                │
+│  │ (multi-arch) │  │   Build      │             │                │
+│  └──────────────┘  └──────────────┘             │                │
+│         │                 │                     │                │
+│         └────────┬────────┘                     │                │
+│                  ▼                              │                │
+│  ┌───────────────────────────────────────┐     │                │
+│  │           Security Scans               │◄────┘                │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐  │                      │
+│  │  │ Gosec   │ │govuln   │ │OWASP DC │  │                      │
+│  │  │ (SAST)  │ │ check   │ │         │  │                      │
+│  │  └─────────┘ └─────────┘ └─────────┘  │                      │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐  │                      │
+│  │  │npm audit│ │ Snyk    │ │ Trivy   │  │                      │
+│  │  │ (SCA)   │ │ (SCA)   │ │Container│  │                      │
+│  │  └─────────┘ └─────────┘ └─────────┘  │                      │
+│  └───────────────────────────────────────┘                      │
+│                  │                                               │
+│                  ▼                                               │
+│  ┌───────────────────────────────────────┐                      │
+│  │    Integration Tests (PRs only)       │                      │
+│  └───────────────────────────────────────┘                      │
+│                  │                                               │
+│                  ▼                                               │
+│  ┌───────────────────────────────────────┐                      │
+│  │      E2E Tests (PRs only)             │                      │
+│  └───────────────────────────────────────┘                      │
+│                  │                                               │
+│                  ▼                                               │
+│  ┌───────────────────────────────────────┐                      │
+│  │  Docker Build & Push (main only)      │                      │
+│  └───────────────────────────────────────┘                      │
+│                  │                                               │
+│                  ▼                                               │
+│  ┌───────────────────────────────────────┐                      │
+│  │       SBOM Generation                 │                      │
+│  └───────────────────────────────────────┘                      │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## GitHub Security Tab
+
+All SARIF reports are uploaded to GitHub's Security tab:
+
+1. Navigate to repository → **Security** tab
+2. View **Code scanning alerts** for:
+   - Gosec findings
+   - Trivy container vulnerabilities
+   - OWASP dependency check results
+
+## Troubleshooting
+
+### Tests Failing Locally
 
 ```bash
-# Run integration tests (requires running infrastructure)
-go test -v -tags=integration ./cmd/gateway/...
+# Ensure dependencies are installed
+make install-tools
+
+# Check Go version (requires 1.22+)
+go version
+
+# Check Node version (requires 20+)
+node --version
+
+# Reset test environment
+make clean
 ```
 
-### Requirements for Integration Tests
-
-1. PostgreSQL running on localhost:5432
-2. ClickHouse running on localhost:9000
-3. Redpanda running on localhost:9092
-
-### Docker Compose for Testing
+### E2E Tests Timing Out
 
 ```bash
-# Start test infrastructure
-docker-compose -f deploy/docker/docker-compose.yaml up -d postgres clickhouse redpanda
+# Install Playwright browsers
+cd frontend && npx playwright install chromium
 
-# Run integration tests
-go test -v -tags=integration ./...
+# Run with headed mode for debugging
+npx playwright test --headed
 
-# Cleanup
-docker-compose -f deploy/docker/docker-compose.yaml down
+# Run specific test
+npx playwright test auth.spec.ts
 ```
 
----
+### Coverage Not Showing
 
-## Test Helpers
+```bash
+# Ensure coverage output is generated
+make test-coverage
 
-### Common Test Fixtures
-
-```go
-// Create test auth manager
-func newTestAuthManager() *AuthManager {
-    return NewAuthManager(AuthConfig{
-        Enabled:      true,
-        Username:     "admin",
-        PasswordHash: HashPassword("test-password"),
-        TokenExpiry:  1 * time.Hour,
-        CookieName:   "test_session",
-    })
-}
-
-// Create test PSK manager
-func newTestPSKManager() *PSKManager {
-    return NewPSKManager(PSKConfig{
-        Enabled:         true,
-        Key:             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        AllowAutoEnroll: true,
-        TimestampWindow: 5 * time.Minute,
-    })
-}
-
-// Create authenticated request context
-func withAuthUser(req *http.Request, user *User) *http.Request {
-    ctx := context.WithValue(req.Context(), UserContextKey, user)
-    return req.WithContext(ctx)
-}
+# Check coverage files exist
+ls test-results/go/coverage-*.out
+ls frontend/coverage/
 ```
-
----
-
-## CI/CD Integration
-
-### GitHub Actions Example
-
-```yaml
-name: Tests
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.22'
-      
-      - name: Run tests
-        run: go test -v -coverprofile=coverage.out ./...
-      
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage.out
-```
-
----
 
 ## Adding New Tests
 
-### Guidelines
+### Go Tests
 
-1. **Naming**: Use `TestXxx` for tests, `BenchmarkXxx` for benchmarks
-2. **Table-driven**: Prefer table-driven tests for multiple scenarios
-3. **Isolation**: Each test should be independent
-4. **Cleanup**: Use `t.Cleanup()` for resource cleanup
-5. **Assertions**: Use clear error messages with context
-
-### Template
+1. Create `*_test.go` file next to the source file
+2. Use table-driven tests for comprehensive coverage
+3. Include benchmarks for performance-critical code
 
 ```go
-func TestNewFeature(t *testing.T) {
+func TestMyFunction(t *testing.T) {
     tests := []struct {
-        name    string
-        input   string
-        want    string
-        wantErr bool
+        name     string
+        input    string
+        expected string
     }{
-        {"valid input", "abc", "ABC", false},
-        {"empty input", "", "", true},
+        {"case1", "input1", "output1"},
     }
-
     for _, tt := range tests {
         t.Run(tt.name, func(t *testing.T) {
-            got, err := NewFeature(tt.input)
-            
-            if (err != nil) != tt.wantErr {
-                t.Errorf("NewFeature() error = %v, wantErr %v", err, tt.wantErr)
-                return
-            }
-            
-            if got != tt.want {
-                t.Errorf("NewFeature() = %v, want %v", got, tt.want)
+            result := MyFunction(tt.input)
+            if result != tt.expected {
+                t.Errorf("got %v, want %v", result, tt.expected)
             }
         })
     }
 }
 ```
 
----
+### Frontend Unit Tests
 
-## Troubleshooting
+1. Create `*.test.tsx` in `frontend/tests/unit/`
+2. Mirror the `src/` directory structure
+3. Use React Testing Library for component tests
 
-### Common Issues
+```typescript
+import { render, screen } from '@testing-library/react';
+import MyComponent from '@/components/MyComponent';
 
-| Issue | Solution |
-|-------|----------|
-| Tests hang | Check for infinite loops, add timeouts |
-| Race conditions | Run with `-race` flag |
-| Flaky tests | Check for timing dependencies |
-| Port conflicts | Use dynamic ports or cleanup properly |
-
-### Debug Commands
-
-```bash
-# Run with race detector
-go test -race ./...
-
-# Run single test with verbose output
-go test -v -run TestSpecificTest ./cmd/gateway/middleware/
-
-# Run tests with timeout
-go test -timeout 30s ./...
-
-# List all tests without running
-go test -list . ./...
+describe('MyComponent', () => {
+    it('renders correctly', () => {
+        render(<MyComponent />);
+        expect(screen.getByText('Expected Text')).toBeInTheDocument();
+    });
+});
 ```
+
+### E2E Tests
+
+1. Create `*.spec.ts` in `frontend/tests/e2e/`
+2. Use Playwright's locators for reliable selection
+3. Add assertions for user flows
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('user can login', async ({ page }) => {
+    await page.goto('/login');
+    await page.fill('[name="username"]', 'admin');
+    await page.fill('[name="password"]', 'password');
+    await page.click('button[type="submit"]');
+    await expect(page).toHaveURL('/');
+});
+```
+
+## References
+
+- [Vitest Documentation](https://vitest.dev/)
+- [Playwright Documentation](https://playwright.dev/)
+- [Go Testing](https://golang.org/pkg/testing/)
+- [Gosec](https://github.com/securego/gosec)
+- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
+- [Trivy](https://aquasecurity.github.io/trivy/)

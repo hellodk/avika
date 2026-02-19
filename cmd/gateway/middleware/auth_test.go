@@ -130,7 +130,7 @@ func TestValidateCredentials(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := am.ValidateCredentials(tt.username, tt.password)
+			got, _ := am.ValidateCredentials(tt.username, tt.password)
 			if got != tt.want {
 				t.Errorf("ValidateCredentials(%q, %q) = %v, want %v", tt.username, tt.password, got, tt.want)
 			}
@@ -592,7 +592,7 @@ func TestChangePasswordHandler(t *testing.T) {
 	})
 
 	var savedHash string
-	onPasswordChanged := func(newHash string) error {
+	onPasswordChanged := func(username, newHash string) error {
 		savedHash = newHash
 		return nil
 	}
