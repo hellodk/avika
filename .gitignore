@@ -196,3 +196,6 @@ terminal_screenshot.html
 # Runtime generated agent ID files
 .agent_id
 nginx-agent/.agent_id
+
+# Profiling and performance test outputs
+profiling_results/
