@@ -14,14 +14,14 @@ This directory contains the deployment script for the Avika NGINX Manager Agent.
 
 ```bash
 # Download and run the deployment script
-curl -fsSL http://192.168.1.10:8090/deploy-agent.sh | sudo bash
+curl -fsSL http://<GATEWAY_HOST>:5021/deploy-agent.sh | sudo bash
 ```
 
 ### Custom Deployment
 
 ```bash
 # Download the script
-curl -fsSL http://192.168.1.10:8090/deploy-agent.sh -o deploy-agent.sh
+curl -fsSL http://<GATEWAY_HOST>:5021/deploy-agent.sh -o deploy-agent.sh
 chmod +x deploy-agent.sh
 
 # Deploy with custom gateway server
@@ -134,7 +134,7 @@ chmod +x scripts/deploy-agent.sh
 sudo ./scripts/deploy-agent.sh
 
 # Or download from update server
-curl -fsSL http://192.168.1.10:8090/deploy-agent.sh | sudo bash
+curl -fsSL http://<GATEWAY_HOST>:5021/deploy-agent.sh | sudo bash
 ```
 
 **Why this happens:** The script's shebang is `#!/bin/bash`, but when you explicitly call `sh deploy-agent.sh`, it ignores the shebang and uses `/bin/sh` which doesn't support bash-specific syntax like `[[` double brackets.
@@ -148,7 +148,7 @@ curl -fsSL http://192.168.1.10:8090/deploy-agent.sh | sudo bash
 **Symptom:**
 ```bash
 curl: (22) The requested URL returned error: 404
-[ERROR] Failed to download agent binary from http://192.168.1.10:8090/agent-linux-amd64
+[ERROR] Failed to download agent binary from http://<GATEWAY_HOST>:5021/agent-linux-amd64
 ```
 
 **Cause:** Either the update server isn't running, or the binaries haven't been built yet.
@@ -183,10 +183,10 @@ curl: (22) The requested URL returned error: 404
 3. **Verify server is running:**
    ```bash
    # Check version manifest
-   curl http://192.168.1.10:8090/version.json
+   curl http://<GATEWAY_HOST>:5021/version.json
    
    # Check binary availability
-   curl -I http://192.168.1.10:8090/agent-linux-amd64
+   curl -I http://<GATEWAY_HOST>:5021/agent-linux-amd64
    
    # Should return: HTTP/1.1 200 OK
    ```
@@ -217,7 +217,7 @@ sudo bash scripts/deploy-agent.sh
 
 **Symptom:**
 ```bash
-[ERROR] Failed to fetch version manifest from http://192.168.1.10:8090/version.json
+[ERROR] Failed to fetch version manifest from http://<GATEWAY_HOST>:5021/version.json
 Is the update server running?
 ```
 
@@ -225,7 +225,7 @@ Is the update server running?
 
 1. **Check if server is running:**
    ```bash
-   curl http://192.168.1.10:8090/version.json
+   curl http://<GATEWAY_HOST>:5021/version.json
    ```
 
 2. **If not running, start it:**
@@ -242,8 +242,8 @@ Is the update server running?
 
 4. **Verify network connectivity:**
    ```bash
-   ping 192.168.1.10
-   telnet 192.168.1.10 8090
+   ping <GATEWAY_HOST>
+   telnet <GATEWAY_HOST> 8090
    ```
 
 ---
@@ -275,7 +275,7 @@ Common issues:
 sudo systemctl stop avika-agent
 
 # Run manually to see output
-sudo /usr/local/bin/avika-agent -server 192.168.1.10:50051 -id test-agent
+sudo /usr/local/bin/avika-agent -server <GATEWAY_HOST>:5020 -id test-agent
 ```
 
 ## Uninstallation

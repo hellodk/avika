@@ -109,7 +109,7 @@ components:
     replicaCount: 1
     image:
       repository: hellodk/gateway
-      tag: "0.1.68"
+      tag: "0.1.72"
       pullPolicy: Always
     terminationGracePeriodSeconds: 35
     
@@ -189,7 +189,7 @@ components:
     replicaCount: 1
     image:
       repository: hellodk/avika-frontend
-      tag: "0.1.68"
+      tag: "0.1.72"
       pullPolicy: Always
     
     ports:
@@ -238,7 +238,7 @@ components:
     replicaCount: 1
     image:
       repository: otel/opentelemetry-collector-contrib
-      tag: "0.91.0"  # Use stable OTEL collector version, not app version
+      tag: "0.96.0"
       pullPolicy: IfNotPresent
     
     ports:
@@ -281,7 +281,7 @@ components:
     replicaCount: 1
     image:
       repository: postgres
-      tag: "16-alpine"  # Use stable PostgreSQL version, not app version
+      tag: "16-alpine"
       pullPolicy: IfNotPresent
     
     ports:
@@ -331,7 +331,7 @@ components:
     replicaCount: 1
     image:
       repository: clickhouse/clickhouse-server
-      tag: "23.8-alpine"  # Use stable ClickHouse version, not app version
+      tag: "23.8-alpine"
       pullPolicy: IfNotPresent
     
     ports:
@@ -384,7 +384,7 @@ components:
     replicaCount: 1
     image:
       repository: redpandadata/redpanda
-      tag: "v23.3.5"  # Use stable Redpanda version, not app version
+      tag: "0.1.72"  # Use stable Redpanda version, not app version
       pullPolicy: IfNotPresent
     
     # Redpanda needs special args for NFS storage (io_uring not supported)

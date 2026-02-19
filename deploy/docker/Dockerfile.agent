@@ -100,8 +100,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # USER avika
 
 # Default command with conservative settings
+# Note: In Kubernetes, these are overridden by environment variables from ConfigMap
 CMD ["/app/agent", \
-     "-server", "avika-gateway:5020", \
+     "-gateway", "avika-gateway:5020", \
      "-buffer-dir", "/var/lib/avika/buffer/", \
      "-health-port", "5026", \
      "-mgmt-port", "5025"]

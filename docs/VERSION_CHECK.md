@@ -6,7 +6,7 @@
 
 ```bash
 # Query the version manifest
-curl http://192.168.1.10:8090/version.json
+curl http://<GATEWAY_HOST>:5021/version.json
 
 # Output:
 # {
@@ -16,15 +16,15 @@ curl http://192.168.1.10:8090/version.json
 # }
 
 # Extract just the version
-curl -s http://192.168.1.10:8090/version.json | grep -o '"version":"[^"]*' | cut -d'"' -f4
+curl -s http://<GATEWAY_HOST>:5021/version.json | grep -o '"version":"[^"]*' | cut -d'"' -f4
 ```
 
 ### 2. **From System Health UI**
 
-1. Open `http://192.168.1.10:3000/system`
+1. Open `http://<FRONTEND_HOST>:5031/system`
 2. Look at any agent's "Orchestration Trace" column
 3. If you see **"UPDATE AVAILABLE"** badge → hover to see latest version
-4. The UI automatically fetches from `http://192.168.1.10:8090/version.json`
+4. The UI automatically fetches from `http://<GATEWAY_HOST>:5021/version.json`
 
 ### 3. **From Source Code**
 
@@ -80,7 +80,7 @@ echo ""
 
 # 2. Update server version
 echo "🌐 Update Server (Latest Available):"
-curl -s http://192.168.1.10:8090/version.json | grep -o '"version":"[^"]*' | cut -d'"' -f4
+curl -s http://<GATEWAY_HOST>:5021/version.json | grep -o '"version":"[^"]*' | cut -d'"' -f4
 echo ""
 
 # 3. Installed agent version
@@ -99,9 +99,9 @@ systemctl show avika-agent -p ExecStart 2>/dev/null | grep -o 'avika-agent' && \
 | Source | Location | Command |
 |--------|----------|---------|
 | **Source Code** | `VERSION` file | `cat VERSION` |
-| **Update Server** | `http://192.168.1.10:8090/version.json` | `curl http://192.168.1.10:8090/version.json` |
+| **Update Server** | `http://<GATEWAY_HOST>:5021/version.json` | `curl http://<GATEWAY_HOST>:5021/version.json` |
 | **Installed Binary** | `/usr/local/bin/avika-agent` | `/usr/local/bin/avika-agent -version` |
-| **System Health UI** | `http://192.168.1.10:3000/system` | Check agent table |
+| **System Health UI** | `http://<FRONTEND_HOST>:5031/system` | Check agent table |
 | **Git Tags** | Repository | `git describe --tags` |
 | **Release Dist** | `dist/version.json` | `cat dist/version.json` |
 
@@ -129,7 +129,7 @@ Examples:
 
 ```bash
 # Query all connected agents
-curl http://192.168.1.10:3000/api/servers | jq '.[] | {hostname, version: .agent_version}'
+curl http://<FRONTEND_HOST>:5031/api/servers | jq '.[] | {hostname, version: .agent_version}'
 ```
 
 ### From Agent Host
@@ -164,7 +164,7 @@ ls -lh dist/bin/agent-*
 #!/bin/bash
 # save as: /usr/local/bin/check-avika-version
 
-LATEST=$(curl -s http://192.168.1.10:8090/version.json | grep -o '"version":"[^"]*' | cut -d'"' -f4)
+LATEST=$(curl -s http://<GATEWAY_HOST>:5021/version.json | grep -o '"version":"[^"]*' | cut -d'"' -f4)
 CURRENT=$(/usr/local/bin/avika-agent -version 2>/dev/null | grep "Version:" | awk '{print $2}')
 
 echo "Current: $CURRENT"
@@ -192,7 +192,7 @@ fi
 
 ```bash
 # Check if update server is running
-curl -I http://192.168.1.10:8090/version.json
+curl -I http://<GATEWAY_HOST>:5021/version.json
 
 # Expected: HTTP/1.1 200 OK
 # If not, start the server:
@@ -237,7 +237,7 @@ sudo systemctl restart avika-agent
 
 📦 LATEST AVAILABLE VERSION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-curl -s http://192.168.1.10:8090/version.json | \
+curl -s http://<GATEWAY_HOST>:5021/version.json | \
   grep -o '"version":"[^"]*' | cut -d'"' -f4
 
 💻 INSTALLED VERSION
@@ -246,7 +246,7 @@ curl -s http://192.168.1.10:8090/version.json | \
 
 🌐 UI CHECK
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-http://192.168.1.10:3000/system
+http://<FRONTEND_HOST>:5031/system
 (Look for "UPDATE AVAILABLE" or "UP-TO-DATE" badges)
 
 📝 SOURCE VERSION
@@ -258,7 +258,7 @@ cat VERSION
 
 **Fastest way to check latest version:**
 ```bash
-curl -s http://192.168.1.10:8090/version.json | grep version
+curl -s http://<GATEWAY_HOST>:5021/version.json | grep version
 ```
 
 **Fastest way to check installed version:**
@@ -267,4 +267,4 @@ curl -s http://192.168.1.10:8090/version.json | grep version
 ```
 
 **Easiest way (UI):**
-Open `http://192.168.1.10:3000/system` and look at the agent table badges.
+Open `http://<FRONTEND_HOST>:5031/system` and look at the agent table badges.

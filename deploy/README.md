@@ -13,11 +13,11 @@ curl -fsSL http://<MANAGER_IP>:8090/deploy-agent.sh | \
   sudo -E bash
 ```
 
-**Example:**
+**Example (replace with your gateway IP):**
 ```bash
-curl -fsSL http://192.168.1.10:8090/deploy-agent.sh | \
-  GATEWAY_SERVER=192.168.1.10:50051 \
-  UPDATE_SERVER=http://192.168.1.10:8090 \
+curl -fsSL http://your-gateway:5021/deploy-agent.sh | \
+  GATEWAY_SERVER=your-gateway:5020 \
+  UPDATE_SERVER=http://your-gateway:5021 \
   sudo -E bash
 ```
 
@@ -69,17 +69,17 @@ sudo systemctl restart avika-agent
 After deployment, customize the agent by editing `/etc/avika/avika-agent.conf`:
 
 ```bash
-# Gateway Server (required)
-GATEWAY_SERVER="192.168.1.10:50051"
+# Gateway Server (required) - replace with your gateway address
+GATEWAY_SERVER="your-gateway:5020"
 
 # Agent Identity (optional, auto-detected if empty)
 AGENT_ID=""
 
 # Health Check Port
-HEALTH_PORT=8080
+HEALTH_PORT=5026
 
 # Self-Update Configuration
-UPDATE_SERVER="http://192.168.1.10:8090"
+UPDATE_SERVER="http://your-gateway:5021"
 UPDATE_INTERVAL="168h"
 
 # NGINX Configuration

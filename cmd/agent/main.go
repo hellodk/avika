@@ -55,7 +55,7 @@ var (
 	nginxConfigPath = flag.String("nginx-config-path", "/etc/nginx/nginx.conf", "Path to NGINX configuration file")
 
 	// Self-Update
-	updateServer   = flag.String("update-server", "", "URL of the update server (e.g., http://192.168.1.10:8090). If empty, self-update is disabled")
+	updateServer   = flag.String("update-server", "", "URL of the update server (e.g., http://gateway:5021). If empty, auto-derived from gateway address. Set to 'disabled' to turn off")
 	updateInterval = flag.Duration("update-interval", 168*time.Hour, "Interval between update checks (default: 1 week)")
 
 	// Config File
@@ -172,6 +172,60 @@ func loadConfig(path string) error {
 	return scanner.Err()
 }
 
+// loadEnv reads configuration from environment variables.
+// Priority: CLI flags > env vars > config file
+func loadEnv() {
+	setFlags := make(map[string]bool)
+	flag.Visit(func(f *flag.Flag) {
+		setFlags[f.Name] = true
+	})
+
+	// Map of env var name to (flag name, current value pointer, value type)
+	envMappings := []struct {
+		envKey   string
+		flagName string
+		apply    func(val string)
+	}{
+		// Support both GATEWAYS and GATEWAY_SERVER for compatibility
+		{"GATEWAYS", "gateway", func(val string) { *gatewayAddr = val }},
+		{"GATEWAY_SERVER", "gateway", func(val string) { *gatewayAddr = val }},
+		{"AGENT_ID", "id", func(val string) { *agentID = val }},
+		{"UPDATE_SERVER", "update-server", func(val string) { *updateServer = val }},
+		{"UPDATE_INTERVAL", "update-interval", func(val string) {
+			if d, err := time.ParseDuration(val); err == nil {
+				*updateInterval = d
+			}
+		}},
+		{"HEALTH_PORT", "health-port", func(val string) {
+			if i, err := strconv.Atoi(val); err == nil {
+				*healthPort = i
+			}
+		}},
+		{"MGMT_PORT", "mgmt-port", func(val string) {
+			if i, err := strconv.Atoi(val); err == nil {
+				*mgmtPort = i
+			}
+		}},
+		{"NGINX_STATUS_URL", "nginx-status-url", func(val string) { *nginxStatusURL = val }},
+		{"ACCESS_LOG_PATH", "access-log-path", func(val string) { *accessLogPath = val }},
+		{"ERROR_LOG_PATH", "error-log-path", func(val string) { *errorLogPath = val }},
+		{"LOG_FORMAT", "log-format", func(val string) { *logFormat = val }},
+		{"NGINX_CONFIG_PATH", "nginx-config-path", func(val string) { *nginxConfigPath = val }},
+		{"BUFFER_DIR", "buffer-dir", func(val string) { *bufferDir = val }},
+		{"LOG_LEVEL", "log-level", func(val string) { *logLevel = val }},
+		{"LOG_FILE", "log-file", func(val string) { *logFile = val }},
+	}
+
+	for _, m := range envMappings {
+		if setFlags[m.flagName] {
+			continue // CLI flag takes precedence
+		}
+		if val := os.Getenv(m.envKey); val != "" {
+			m.apply(val)
+		}
+	}
+}
+
 // getGatewayAddresses returns the list of gateway addresses to connect to
 // The -gateway flag (and GATEWAYS config) accepts comma-separated values for multi-gateway mode
 func getGatewayAddresses() []string {
@@ -197,15 +251,52 @@ func getGatewayAddresses() []string {
 	return addresses
 }
 
+// deriveUpdateServerFromGateway constructs the update server URL from the gateway address.
+// Gateway gRPC runs on port 5020, HTTP (with updates) runs on port 5021.
+func deriveUpdateServerFromGateway(gatewayAddr string) string {
+	// Take the first gateway if multiple are specified
+	firstGateway := strings.Split(gatewayAddr, ",")[0]
+	firstGateway = strings.TrimSpace(firstGateway)
+
+	// Strip any scheme prefix (http://, https://)
+	firstGateway = strings.TrimPrefix(firstGateway, "http://")
+	firstGateway = strings.TrimPrefix(firstGateway, "https://")
+
+	// Try to split host:port
+	host, port, err := net.SplitHostPort(firstGateway)
+	if err != nil {
+		// No port specified - use the whole string as host with default gRPC port
+		host = firstGateway
+		port = strconv.Itoa(DefaultGatewayPort)
+	}
+
+	if host == "" {
+		return ""
+	}
+
+	// Convert gRPC port to HTTP port (5020 -> 5021, or gRPC+1)
+	httpPort := "5021"
+	if port == "5020" || port == "50051" {
+		httpPort = "5021"
+	} else if p, err := strconv.Atoi(port); err == nil {
+		httpPort = strconv.Itoa(p + 1)
+	}
+
+	return fmt.Sprintf("http://%s:%s/updates", host, httpPort)
+}
+
 func main() {
 	flag.Parse()
 
-	// Load configuration
+	// Load configuration from file (if exists)
 	if err := loadConfig(*configFile); err != nil {
 		if !os.IsNotExist(err) {
 			fmt.Fprintf(os.Stderr, "Warning: Failed to load config file: %v\n", err)
 		}
 	}
+
+	// Load configuration from environment variables (overrides config file, but not CLI flags)
+	loadEnv()
 
 	if *version {
 		fmt.Printf("NGINX Manager Agent\n")
@@ -264,21 +355,12 @@ func main() {
 
 	// 3. Start Self-Updater (if enabled or auto-derived from gateway)
 	effectiveUpdateServer := *updateServer
-	if effectiveUpdateServer == "" {
+	if effectiveUpdateServer == "" && *gatewayAddr != "" {
 		// Auto-derive from first gateway address
 		// Gateway gRPC is on port 5020, HTTP (with updates) is on port 5021
-		firstGateway := strings.Split(*gatewayAddr, ",")[0]
-		if host, port, err := net.SplitHostPort(firstGateway); err == nil {
-			// Replace gRPC port (5020) with HTTP port (5021)
-			httpPort := "5021"
-			if port == "5020" || port == "50051" {
-				httpPort = "5021"
-			} else if p, err := strconv.Atoi(port); err == nil {
-				// Assume HTTP port is gRPC port + 1
-				httpPort = strconv.Itoa(p + 1)
-			}
-			effectiveUpdateServer = fmt.Sprintf("http://%s:%s/updates", host, httpPort)
-			log.Printf("Auto-derived update server: %s", effectiveUpdateServer)
+		effectiveUpdateServer = deriveUpdateServerFromGateway(*gatewayAddr)
+		if effectiveUpdateServer != "" {
+			log.Printf("Auto-derived update server from gateway: %s", effectiveUpdateServer)
 		}
 	} else if strings.ToLower(effectiveUpdateServer) == "disabled" {
 		effectiveUpdateServer = ""

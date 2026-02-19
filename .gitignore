@@ -192,3 +192,7 @@ TERMINAL_PROOF.txt
 TEST_REPORT_*.md
 terminal_screenshot.html
 .cursor/
+
+# Runtime generated agent ID files
+.agent_id
+nginx-agent/.agent_id

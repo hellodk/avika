@@ -4,8 +4,12 @@ metadata:
   name: avika-agent-config
   namespace: default
 data:
-  GATEWAY_SERVER: "192.168.1.10:50051"
-  UPDATE_SERVER: "http://192.168.1.10:8090"
+  # Gateway address - use Kubernetes service DNS name
+  # For external agents, override with actual gateway IP/hostname
+  GATEWAY_SERVER: "avika-gateway.avika.svc.cluster.local:5020"
+  # Update server URL - use Kubernetes service DNS name
+  # For external agents, override with actual gateway HTTP URL
+  UPDATE_SERVER: "http://avika-gateway.avika.svc.cluster.local:5021"
   UPDATE_INTERVAL: "168h"
   NGINX_STATUS_URL: "http://127.0.0.1/nginx_status"
   ACCESS_LOG_PATH: "/var/log/nginx/access.log"

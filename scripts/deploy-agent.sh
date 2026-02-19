@@ -39,7 +39,7 @@ if [ -z "$UPDATE_SERVER" ]; then
     fi
 fi
 
-# Example: GATEWAY_SERVER=192.168.1.10:50051 UPDATE_SERVER=http://192.168.1.10:8090 ./deploy-agent.sh
+# Example: GATEWAY_SERVER=<GATEWAY_HOST>:5020 UPDATE_SERVER=http://<GATEWAY_HOST>:5021 ./deploy-agent.sh
 UPDATE_SERVER="${UPDATE_SERVER:-}"
 GATEWAY_SERVER="${GATEWAY_SERVER:-localhost:50051}"
 INSTALL_DIR="/usr/local/bin"
@@ -50,7 +50,7 @@ AGENT_USER="${AGENT_USER:-root}"
 # Validate required configuration
 if [ -z "$UPDATE_SERVER" ]; then
     log_error "UPDATE_SERVER environment variable is required"
-    log_error "Example: curl -fsSL http://192.168.1.10:8090/deploy-agent.sh | UPDATE_SERVER=http://192.168.1.10:8090 GATEWAY_SERVER=192.168.1.10:50051 sudo -E bash"
+    log_error "Example: curl -fsSL http://<GATEWAY_HOST>:5021/deploy-agent.sh | UPDATE_SERVER=http://<GATEWAY_HOST>:5021 GATEWAY_SERVER=<GATEWAY_HOST>:5020 sudo -E bash"
     exit 1
 fi
 

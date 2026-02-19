@@ -355,7 +355,7 @@ scrape_configs:
       - targets:
         - 'avika-gateway.labs.svc.cluster.local:5022'
         - 'avika-gateway.avika.svc.cluster.local:50051'
-        - '192.168.1.10:5022'
+        - '<GATEWAY_HOST>:5022'
 ```
 
 ---
