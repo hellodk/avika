@@ -65,7 +65,7 @@ spec:
             - -c
             - |
               echo "Waiting for ClickHouse..."
-              while ! nc -z {{ include "avika.fullname" $ }}-clickhouse 9000 2>/dev/null; do
+              while ! wget -q -O /dev/null http://{{ include "avika.fullname" $ }}-clickhouse:8123/ping 2>/dev/null; do
                 sleep 2
               done
               echo "ClickHouse is ready"

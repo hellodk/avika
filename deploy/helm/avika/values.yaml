@@ -295,13 +295,13 @@ components:
     
     livenessProbe:
       exec:
-        command: ["pg_isready", "-U", "admin"]
+        command: ["pg_isready", "-U", "admin", "-d", "postgres"]
       initialDelaySeconds: 30
       periodSeconds: 10
     
     readinessProbe:
       exec:
-        command: ["pg_isready", "-U", "admin"]
+        command: ["pg_isready", "-U", "admin", "-d", "postgres"]
       initialDelaySeconds: 5
       periodSeconds: 5
     
