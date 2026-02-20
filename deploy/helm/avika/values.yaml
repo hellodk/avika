@@ -108,8 +108,8 @@ components:
     enabled: true
     replicaCount: 1
     image:
-      repository: hellodk/gateway
-      tag: "0.1.73"
+      repository: hellodk/avika-gateway
+      tag: "0.1.81"  # AVIKA SERVICE: Update with app version
       pullPolicy: Always
     terminationGracePeriodSeconds: 35
     
@@ -189,7 +189,7 @@ components:
     replicaCount: 1
     image:
       repository: hellodk/avika-frontend
-      tag: "0.1.73"
+      tag: "0.1.81"  # AVIKA SERVICE: Update with app version
       pullPolicy: Always
     
     ports:
@@ -384,7 +384,7 @@ components:
     replicaCount: 1
     image:
       repository: redpandadata/redpanda
-      tag: "0.1.73"  # Use stable Redpanda version, not app version
+      tag: "v24.1.1"  # THIRD-PARTY: Do not auto-update with app version
       pullPolicy: IfNotPresent
     
     # Redpanda needs special args for NFS storage (io_uring not supported)

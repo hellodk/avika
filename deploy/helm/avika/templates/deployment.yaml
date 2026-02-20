@@ -65,7 +65,8 @@ spec:
             - -c
             - |
               echo "Waiting for ClickHouse..."
-              while ! wget -q -O /dev/null http://{{ include "avika.fullname" $ }}-clickhouse:8123/ping 2>/dev/null; do
+              CH_HOST="{{ include "avika.fullname" $ }}-clickhouse-0.{{ include "avika.fullname" $ }}-clickhouse.{{ $.Release.Namespace }}.svc.cluster.local"
+              while ! wget -q -O /dev/null http://${CH_HOST}:8123/ping 2>/dev/null; do
                 sleep 2
               done
               echo "ClickHouse is ready"
@@ -106,7 +107,7 @@ spec:
             - name: DB_DSN
               value: "postgres://admin:$(POSTGRES_PASSWORD)@{{ include "avika.fullname" $ }}-postgresql:5432/avika?sslmode=disable"
             - name: CLICKHOUSE_ADDR
-              value: "{{ include "avika.fullname" $ }}-clickhouse:9000"
+              value: "{{ include "avika.fullname" $ }}-clickhouse-0.{{ include "avika.fullname" $ }}-clickhouse.{{ $.Release.Namespace }}.svc.cluster.local:9000"
             - name: CLICKHOUSE_USER
               value: "default"
             - name: CLICKHOUSE_PASSWORD

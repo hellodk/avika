@@ -86,6 +86,13 @@ func NewClickHouseDB(addr, username, password string) (*ClickHouseDB, error) {
 	log.Printf("ClickHouse config: buffers(log=%d, span=%d, sys=%d, nginx=%d, gw=%d) batches(log=%d, span=%d) conns(open=%d, idle=%d)",
 		logBufferSize, spanBufferSize, sysBufferSize, nginxBufferSize, gwBufferSize,
 		logBatchSize, spanBatchSize, maxOpenConns, maxIdleConns)
+	
+	// Debug: log connection parameters (password masked)
+	pwMask := "***"
+	if len(password) > 0 {
+		pwMask = password[:3] + "***" + password[len(password)-3:]
+	}
+	log.Printf("ClickHouse connecting to: %s user=%s password=%s", addr, username, pwMask)
 
 	// Use defaults if not provided
 	if username == "" {
@@ -215,12 +222,12 @@ func (db *ClickHouseDB) migrate() error {
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS labels Map(String, String)",
 		"ALTER TABLE nginx_analytics.system_metrics ADD COLUMN IF NOT EXISTS labels Map(String, String)",
 		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS labels Map(String, String)",
-		// Phase 5: Retention Policies
-		"ALTER TABLE nginx_analytics.access_logs MODIFY TTL timestamp + INTERVAL 7 DAY",
-		"ALTER TABLE nginx_analytics.spans MODIFY TTL start_time + INTERVAL 7 DAY",
-		"ALTER TABLE nginx_analytics.system_metrics MODIFY TTL timestamp + INTERVAL 30 DAY",
-		"ALTER TABLE nginx_analytics.nginx_metrics MODIFY TTL timestamp + INTERVAL 30 DAY",
-		"ALTER TABLE nginx_analytics.gateway_metrics MODIFY TTL timestamp + INTERVAL 30 DAY",
+		// Phase 5: Retention Policies (using toDateTime() for DateTime64 compatibility)
+		"ALTER TABLE nginx_analytics.access_logs MODIFY TTL toDateTime(timestamp) + INTERVAL 7 DAY",
+		"ALTER TABLE nginx_analytics.spans MODIFY TTL toDateTime(start_time) + INTERVAL 7 DAY",
+		"ALTER TABLE nginx_analytics.system_metrics MODIFY TTL toDateTime(timestamp) + INTERVAL 30 DAY",
+		"ALTER TABLE nginx_analytics.nginx_metrics MODIFY TTL toDateTime(timestamp) + INTERVAL 30 DAY",
+		"ALTER TABLE nginx_analytics.gateway_metrics MODIFY TTL toDateTime(timestamp) + INTERVAL 30 DAY",
 	}
 
 	for _, q := range queries {
