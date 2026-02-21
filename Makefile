@@ -3,7 +3,8 @@
 
 .PHONY: all test test-unit test-integration test-e2e test-coverage test-report \
         lint lint-go lint-frontend build clean help install-tools \
-        docker-test setup-test-db teardown-test-db
+        check-version docker-all docker-gateway docker-frontend docker-push docker-push-gateway docker-push-frontend \
+        docker-test setup-test-db teardown-test-db test-regression test-regression-local
 
 # Colors for output
 GREEN := \033[0;32m
@@ -42,9 +43,17 @@ help:
 	@echo "  make build-frontend    - Build frontend"
 	@echo ""
 	@echo "$(YELLOW)Docker:$(NC)"
+	@echo "  make docker-all        - Build all Docker images"
+	@echo "  make docker-gateway    - Build gateway Docker image"
+	@echo "  make docker-frontend   - Build frontend Docker image"
+	@echo "  make docker-push       - Build and push all images"
 	@echo "  make docker-test       - Run tests in Docker containers"
 	@echo "  make setup-test-db     - Start test PostgreSQL container"
 	@echo "  make teardown-test-db  - Stop test PostgreSQL container"
+	@echo ""
+	@echo "$(YELLOW)Regression Tests:$(NC)"
+	@echo "  make test-regression   - Run all regression tests (requires K8s)"
+	@echo "  make test-regression-local - Run local tests only (no K8s)"
 	@echo ""
 	@echo "$(YELLOW)Utilities:$(NC)"
 	@echo "  make install-tools     - Install required development tools"
@@ -216,6 +225,63 @@ build-frontend:
 	@echo "$(GREEN)Frontend built$(NC)"
 
 #------------------------------------------------------------------------------
+# Docker Builds
+#------------------------------------------------------------------------------
+# Read version from VERSION file - REQUIRED, no fallback
+DOCKER_REPO := hellodk
+
+# Check VERSION file exists and read it
+check-version:
+	@if [ ! -f VERSION ]; then \
+		echo ""; \
+		echo "$(RED)========================================$(NC)"; \
+		echo "$(RED)ERROR: VERSION file not found!$(NC)"; \
+		echo "$(RED)========================================$(NC)"; \
+		echo ""; \
+		echo "Please create a VERSION file in the project root:"; \
+		echo "  echo '1.0.0' > VERSION"; \
+		echo ""; \
+		exit 1; \
+	fi
+
+# Read VERSION only after confirming it exists
+VERSION = $(shell cat VERSION)
+
+docker-all: check-version docker-gateway docker-frontend
+	@echo "$(GREEN)All Docker images built$(NC)"
+
+docker-gateway: check-version
+	@echo "$(GREEN)Building gateway Docker image v$(VERSION)...$(NC)"
+	docker build -t $(DOCKER_REPO)/avika-gateway:$(VERSION) \
+		--build-arg VERSION=$(VERSION) \
+		-f cmd/gateway/Dockerfile .
+	@echo "$(GREEN)Gateway image built: $(DOCKER_REPO)/avika-gateway:$(VERSION)$(NC)"
+
+docker-frontend: check-version
+	@echo "$(GREEN)Building frontend Docker image v$(VERSION)...$(NC)"
+	@# Copy VERSION file to frontend for build context
+	cp VERSION frontend/VERSION
+	docker build -t $(DOCKER_REPO)/avika-frontend:$(VERSION) \
+		--build-arg VERSION=$(VERSION) \
+		-f frontend/Dockerfile frontend/
+	@rm -f frontend/VERSION
+	@echo "$(GREEN)Frontend image built: $(DOCKER_REPO)/avika-frontend:$(VERSION)$(NC)"
+
+docker-push: check-version docker-all
+	@echo "$(GREEN)Pushing Docker images v$(VERSION)...$(NC)"
+	docker push $(DOCKER_REPO)/avika-gateway:$(VERSION)
+	docker push $(DOCKER_REPO)/avika-frontend:$(VERSION)
+	@echo "$(GREEN)Images pushed to $(DOCKER_REPO)$(NC)"
+
+docker-push-gateway: check-version
+	@echo "$(GREEN)Pushing gateway image v$(VERSION)...$(NC)"
+	docker push $(DOCKER_REPO)/avika-gateway:$(VERSION)
+
+docker-push-frontend: check-version
+	@echo "$(GREEN)Pushing frontend image v$(VERSION)...$(NC)"
+	docker push $(DOCKER_REPO)/avika-frontend:$(VERSION)
+
+#------------------------------------------------------------------------------
 # Docker Tests
 #------------------------------------------------------------------------------
 docker-test:
@@ -245,6 +311,19 @@ clean:
 #------------------------------------------------------------------------------
 check: lint test-unit
 	@echo "$(GREEN)Pre-commit check passed$(NC)"
+
+#------------------------------------------------------------------------------
+# Regression Tests
+#------------------------------------------------------------------------------
+test-regression:
+	@echo "$(GREEN)Running regression tests...$(NC)"
+	./scripts/regression_tests.sh
+	@echo "$(GREEN)Regression tests completed$(NC)"
+
+test-regression-local:
+	@echo "$(GREEN)Running local regression tests (no K8s required)...$(NC)"
+	@./scripts/regression_tests.sh 2>&1 | grep -E '^\[(PASS|FAIL|SKIP|INFO)\]|^━|^Test|^Expected|^Timestamp' || true
+	@echo "$(GREEN)Local regression tests completed$(NC)"
 
 #------------------------------------------------------------------------------
 # Comprehensive Test Runner with Reports
