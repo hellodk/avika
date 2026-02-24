@@ -1,0 +1,26 @@
+{{- /*
+Grafana Dashboard ConfigMaps for kube-prometheus-stack integration.
+Creates separate ConfigMaps for each dashboard to avoid size limits.
+The Grafana sidecar in kube-prometheus-stack watches for ConfigMaps with
+label grafana_dashboard: "1" and automatically provisions them.
+*/ -}}
+{{- if .Values.grafana.dashboards.enabled }}
+{{- $root := . }}
+{{- $clickhouseService := printf "%s-clickhouse-0.%s-clickhouse.%s.svc.cluster.local" (include "avika.fullname" $root) (include "avika.fullname" $root) $root.Release.Namespace }}
+{{- range $path, $_ := .Files.Glob "dashboards/*.json" }}
+{{- $name := base $path | trimSuffix ".json" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "avika.fullname" $root }}-dashboard-{{ $name }}
+  labels:
+    {{- include "avika.labels" $root | nindent 4 }}
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: {{ $root.Values.grafana.dashboards.folder | quote }}
+data:
+  {{ $name }}.json: |
+{{ $root.Files.Get $path | indent 4 }}
+{{- end }}
+{{- end }}

@@ -466,3 +466,24 @@ monitoring:
     scrape: true
     interval: 30s
     path: /metrics
+
+# =============================================================================
+# GRAFANA INTEGRATION (kube-prometheus-stack)
+# =============================================================================
+# Creates ConfigMaps with appropriate labels for Grafana sidecar discovery.
+# The kube-prometheus-stack Grafana sidecar scans all namespaces for ConfigMaps
+# with grafana_dashboard: "1" and grafana_datasource: "1" labels.
+grafana:
+  dashboards:
+    enabled: true
+    folder: "Avika"
+  
+  datasources:
+    enabled: true
+    clickhouse:
+      name: "ClickHouse"
+      uid: "DS_CLICKHOUSE"
+      port: 8123
+      database: "nginx_analytics"
+      username: "default"
+      password: ""  # Set via --set grafana.datasources.clickhouse.password

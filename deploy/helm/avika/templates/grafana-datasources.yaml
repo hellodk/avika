@@ -1,0 +1,32 @@
+{{- /*
+Grafana Datasource ConfigMap for kube-prometheus-stack integration.
+Creates a ConfigMap with label grafana_datasource: "1" that the Grafana
+sidecar will pick up and provision as a datasource.
+*/ -}}
+{{- if .Values.grafana.datasources.enabled }}
+{{- $clickhouseHost := printf "%s-clickhouse.%s.svc.cluster.local" (include "avika.fullname" .) .Release.Namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "avika.fullname" . }}-clickhouse-datasource
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+    grafana_datasource: "1"
+data:
+  clickhouse-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: {{ .Values.grafana.datasources.clickhouse.name }}
+        type: grafana-clickhouse-datasource
+        uid: {{ .Values.grafana.datasources.clickhouse.uid }}
+        access: proxy
+        jsonData:
+          host: {{ $clickhouseHost }}
+          port: {{ .Values.grafana.datasources.clickhouse.port }}
+          protocol: http
+          defaultDatabase: {{ .Values.grafana.datasources.clickhouse.database }}
+          username: {{ .Values.grafana.datasources.clickhouse.username }}
+        secureJsonData:
+          password: {{ .Values.grafana.datasources.clickhouse.password | quote }}
+{{- end }}

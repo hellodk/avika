@@ -86,25 +86,80 @@ Comprehensive monitoring dashboards for NGINX Manager with full drill-down capab
    systemctl restart grafana-server
    ```
 
-### Option 3: Kubernetes ConfigMap
+### Option 3: Helm Chart (Recommended for kube-prometheus-stack)
+
+The Avika Helm chart includes Grafana dashboard and datasource ConfigMaps that integrate with kube-prometheus-stack's sidecar provisioning.
+
+```bash
+# Dashboards and datasources are enabled by default
+helm upgrade --install avika ./deploy/helm/avika -n avika
+
+# Customize Grafana settings
+helm upgrade --install avika ./deploy/helm/avika -n avika \
+  --set grafana.dashboards.folder="Custom Folder" \
+  --set grafana.datasources.clickhouse.password=\$CLICKHOUSE_PASSWORD
+
+# Disable Grafana integration if not using kube-prometheus-stack
+helm upgrade --install avika ./deploy/helm/avika -n avika \
+  --set grafana.dashboards.enabled=false \
+  --set grafana.datasources.enabled=false
+```
+
+**Prerequisites for kube-prometheus-stack:**
+
+1. Install the ClickHouse plugin in Grafana (add to kube-prometheus-stack values):
+   ```yaml
+   grafana:
+     plugins:
+       - grafana-clickhouse-datasource
+     
+     sidecar:
+       dashboards:
+         enabled: true
+         searchNamespace: ALL  # or "avika,monitoring"
+       datasources:
+         enabled: true
+         searchNamespace: ALL
+   ```
+
+2. The Avika chart creates:
+   - **4 Dashboard ConfigMaps** with `grafana_dashboard: "1"` label
+   - **1 Datasource ConfigMap** with `grafana_datasource: "1"` label
+   - All with `grafana_folder: "Avika"` annotation
+
+3. **Organizing dashboards into Avika folder** (optional):
+   
+   After deployment, run the setup script to create the Avika folder:
+   ```bash
+   ./scripts/grafana-setup.sh
+   ```
+   
+   Note: Provisioned dashboards are read-only and cannot be moved via API.
+   To have dashboards in a dedicated folder, configure kube-prometheus-stack with:
+   ```yaml
+   grafana:
+     sidecar:
+       dashboards:
+         folderAnnotation: grafana_folder
+         provider:
+           foldersFromFilesStructure: true
+   ```
+
+### Option 4: Manual Kubernetes ConfigMap
 
 ```yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: avika-grafana-dashboards
-  namespace: monitoring
+  namespace: avika
   labels:
     grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "Avika"
 data:
   avika-nginx-overview.json: |
     <contents of avika-nginx-overview.json>
-  avika-agent-detail.json: |
-    <contents of avika-agent-detail.json>
-  avika-error-analysis.json: |
-    <contents of avika-error-analysis.json>
-  avika-latency-analysis.json: |
-    <contents of avika-latency-analysis.json>
 ```
 
 ## Required Grafana Plugin
