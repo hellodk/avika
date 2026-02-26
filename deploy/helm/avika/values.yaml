@@ -474,6 +474,10 @@ monitoring:
 # The kube-prometheus-stack Grafana sidecar scans all namespaces for ConfigMaps
 # with grafana_dashboard: "1" and grafana_datasource: "1" labels.
 grafana:
+  # URL for Grafana (used for embedded dashboards in frontend)
+  # Should be browser-accessible URL to Grafana
+  url: ""  # e.g., http://grafana.monitoring.svc.cluster.local:3000 or external URL
+  
   dashboards:
     enabled: true
     folder: "Avika"

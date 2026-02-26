@@ -137,6 +137,10 @@ spec:
               value: "{{ include "avika.fullname" $ }}-gateway:5020"
             - name: GATEWAY_HTTP_URL
               value: "http://{{ include "avika.fullname" $ }}-gateway:5021"
+            {{- if $.Values.grafana.url }}
+            - name: NEXT_PUBLIC_GRAFANA_URL
+              value: {{ $.Values.grafana.url | quote }}
+            {{- end }}
             {{- end }}
           {{- /* Liveness Probe */ -}}
           {{- if $component.livenessProbe }}
