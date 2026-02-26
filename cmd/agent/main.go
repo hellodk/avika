@@ -488,10 +488,26 @@ func main() {
 				}
 				writeToBuffer(wal, hbMsg)
 
-				// Metrics
+				// Metrics - always try to send even if NGINX metrics fail
 				nginxMetrics, err := metricsCollector.Collect()
 				if err != nil {
-					log.Printf("Metrics collection failed: %v", err)
+					log.Printf("NGINX metrics collection failed: %v", err)
+					// Still send system metrics even if NGINX metrics fail
+					systemMetrics, sysErr := metricsCollector.CollectSystemOnly()
+					if sysErr == nil && systemMetrics != nil {
+						// Create a minimal NginxMetrics with just system data
+						fallbackMetrics := &pb.NginxMetrics{
+							System: systemMetrics,
+						}
+						metricMsg := &pb.AgentMessage{
+							AgentId:   *agentID,
+							Timestamp: time.Now().Unix(),
+							Payload: &pb.AgentMessage_Metrics{
+								Metrics: fallbackMetrics,
+							},
+						}
+						writeToBuffer(wal, metricMsg)
+					}
 				} else {
 					metricMsg := &pb.AgentMessage{
 						AgentId:   *agentID,

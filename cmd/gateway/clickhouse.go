@@ -13,6 +13,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/google/uuid"
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
+	"github.com/avika-ai/avika/cmd/gateway/geo"
 )
 
 type ClickHouseDB struct {
@@ -22,11 +23,21 @@ type ClickHouseDB struct {
 	sysChan   chan sysBatchItem
 	nginxChan chan nginxBatchItem
 	gwChan    chan gwBatchItem
+	geoLookup *geo.GeoIPLookup
 }
 
 type logBatchItem struct {
-	entry   *pb.LogEntry
-	agentID string
+	entry       *pb.LogEntry
+	agentID     string
+	clientIP    string
+	country     string
+	countryCode string
+	city        string
+	region      string
+	latitude    float64
+	longitude   float64
+	timezone    string
+	isp         string
 }
 
 type spanBatchItem struct {
@@ -129,7 +140,10 @@ func NewClickHouseDB(addr, username, password string) (*ClickHouseDB, error) {
 		sysChan:   make(chan sysBatchItem, sysBufferSize),
 		nginxChan: make(chan nginxBatchItem, nginxBufferSize),
 		gwChan:    make(chan gwBatchItem, gwBufferSize),
+		geoLookup: geo.NewGeoIPLookup(),
 	}
+
+	log.Printf("GeoIP lookup initialized with well-known IP database")
 
 	if err := db.migrate(); err != nil {
 		log.Printf("Warning: ClickHouse migration failed: %v", err)
@@ -222,7 +236,32 @@ func (db *ClickHouseDB) migrate() error {
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS labels Map(String, String)",
 		"ALTER TABLE nginx_analytics.system_metrics ADD COLUMN IF NOT EXISTS labels Map(String, String)",
 		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS labels Map(String, String)",
-		// Phase 5: Retention Policies (using toDateTime() for DateTime64 compatibility)
+		// Phase 5: Geo columns for access_logs
+		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS client_ip String DEFAULT ''",
+		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS country String DEFAULT ''",
+		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS country_code String DEFAULT ''",
+		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS city String DEFAULT ''",
+		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS region String DEFAULT ''",
+		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS latitude Float64 DEFAULT 0",
+		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS longitude Float64 DEFAULT 0",
+		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS timezone String DEFAULT ''",
+		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS isp String DEFAULT ''",
+		// Phase 6: Materialized view for geo aggregation (hourly)
+		`CREATE TABLE IF NOT EXISTS nginx_analytics.geo_requests_hourly (
+			hour DateTime,
+			country String,
+			country_code String,
+			city String,
+			latitude Float64,
+			longitude Float64,
+			request_count UInt64,
+			error_count UInt64,
+			total_bytes UInt64,
+			avg_latency Float64
+		) ENGINE = SummingMergeTree()
+		ORDER BY (hour, country_code, city)
+		TTL hour + INTERVAL 90 DAY`,
+		// Phase 7: Retention Policies (using toDateTime() for DateTime64 compatibility)
 		"ALTER TABLE nginx_analytics.access_logs MODIFY TTL toDateTime(timestamp) + INTERVAL 7 DAY",
 		"ALTER TABLE nginx_analytics.spans MODIFY TTL toDateTime(start_time) + INTERVAL 7 DAY",
 		"ALTER TABLE nginx_analytics.system_metrics MODIFY TTL toDateTime(timestamp) + INTERVAL 30 DAY",
@@ -241,8 +280,32 @@ func (db *ClickHouseDB) migrate() error {
 }
 
 func (db *ClickHouseDB) InsertAccessLog(entry *pb.LogEntry, agentID string) error {
+	// Extract client IP from X-Forwarded-For or remote_addr
+	clientIP := geo.ExtractClientIP(entry.XForwardedFor, entry.RemoteAddr)
+	
+	// Perform geo lookup
+	item := logBatchItem{
+		entry:   entry,
+		agentID: agentID,
+		clientIP: clientIP,
+	}
+	
+	if db.geoLookup != nil && clientIP != "" {
+		loc := db.geoLookup.Lookup(clientIP)
+		if loc != nil {
+			item.country = loc.Country
+			item.countryCode = loc.CountryCode
+			item.city = loc.City
+			item.region = loc.Region
+			item.latitude = loc.Latitude
+			item.longitude = loc.Longitude
+			item.timezone = loc.Timezone
+			item.isp = loc.ISP
+		}
+	}
+	
 	select {
-	case db.logChan <- logBatchItem{entry: entry, agentID: agentID}:
+	case db.logChan <- item:
 		return nil
 	default:
 		return fmt.Errorf("access log queue full, dropping record")
@@ -402,7 +465,13 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 		rows.Close()
 	}
 
-	// 2. Status Distribution
+	// 2. Status Distribution (filter out invalid status codes like 0)
+	statusWhereClause := whereClause
+	if statusWhereClause == "" {
+		statusWhereClause = "WHERE status > 0"
+	} else {
+		statusWhereClause = statusWhereClause + " AND status > 0"
+	}
 	rows, err = db.conn.Query(ctx, fmt.Sprintf(`
 		SELECT
 			toString(status) as code,
@@ -410,7 +479,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 		FROM nginx_analytics.access_logs
 		%s
 		GROUP BY code
-	`, whereClause), args...)
+	`, statusWhereClause), args...)
 	if err == nil {
 		for rows.Next() {
 			var code string
@@ -499,11 +568,20 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 	}
 
 	// 5. Summary KPIs & Deltas
+	// Filter out invalid status codes (0) for accurate metrics
 	prevStartTime := startTime.Add(-duration)
 	var currReqs, prevReqs uint64
 	var currErrors, prevErrors uint64
 	var currBytes, prevBytes uint64
 	var currLat, prevLat float64
+
+	// Add status > 0 filter to exclude invalid log entries
+	currStatsWhereClause := whereClause
+	if currStatsWhereClause == "" {
+		currStatsWhereClause = "WHERE status > 0"
+	} else {
+		currStatsWhereClause = currStatsWhereClause + " AND status > 0"
+	}
 
 	db.conn.QueryRow(ctx, fmt.Sprintf(`
 		SELECT 
@@ -511,10 +589,10 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 			countIf(status >= 400), 
 			sum(body_bytes_sent), 
 			avg(request_time) 
-		FROM nginx_analytics.access_logs %s`, whereClause), args...).Scan(&currReqs, &currErrors, &currBytes, &currLat)
+		FROM nginx_analytics.access_logs %s`, currStatsWhereClause), args...).Scan(&currReqs, &currErrors, &currBytes, &currLat)
 
 	// Deltas need a slightly different filter
-	prevWhereClause := "WHERE timestamp >= ? AND timestamp < ?"
+	prevWhereClause := "WHERE timestamp >= ? AND timestamp < ? AND status > 0"
 	prevArgs := []interface{}{prevStartTime, startTime}
 	if agentID != "" && agentID != "all" {
 		prevWhereClause += " AND instance_id = ?"
@@ -1274,7 +1352,8 @@ func (db *ClickHouseDB) flushLogs(batch []logBatchItem) {
 	b, err := db.conn.PrepareBatch(ctx, `INSERT INTO nginx_analytics.access_logs (
 		timestamp, instance_id, remote_addr, request_method,
 		request_uri, status, body_bytes_sent, request_time,
-		request_id, upstream_addr, upstream_status, user_agent, referer
+		request_id, upstream_addr, upstream_status, user_agent, referer,
+		client_ip, country, country_code, city, region, latitude, longitude, timezone, isp
 	)`)
 	if err != nil {
 		log.Printf("FlushLogs: PrepareBatch failed: %v", err)
@@ -1289,7 +1368,9 @@ func (db *ClickHouseDB) flushLogs(batch []logBatchItem) {
 		b.Append(ts, item.agentID, item.entry.RemoteAddr, item.entry.RequestMethod,
 			item.entry.RequestUri, uint16(item.entry.Status), uint64(item.entry.BodyBytesSent),
 			float32(item.entry.RequestTime), item.entry.RequestId, item.entry.UpstreamAddr,
-			item.entry.UpstreamStatus, item.entry.UserAgent, item.entry.Referer)
+			item.entry.UpstreamStatus, item.entry.UserAgent, item.entry.Referer,
+			item.clientIP, item.country, item.countryCode, item.city, item.region,
+			item.latitude, item.longitude, item.timezone, item.isp)
 	}
 
 	if err := b.Send(); err != nil {
@@ -1356,14 +1437,31 @@ func (db *ClickHouseDB) runSysFlusher() {
 
 func (db *ClickHouseDB) flushSys(batch []sysBatchItem) {
 	ctx := context.Background()
-	b, err := db.conn.PrepareBatch(ctx, "INSERT INTO nginx_analytics.system_metrics (timestamp, instance_id, cpu_usage, memory_usage)")
+	b, err := db.conn.PrepareBatch(ctx, "INSERT INTO nginx_analytics.system_metrics (timestamp, instance_id, cpu_usage, memory_usage, memory_total, memory_used, network_rx_bytes, network_tx_bytes, network_rx_rate, network_tx_rate, cpu_user, cpu_system, cpu_iowait)")
 	if err != nil {
+		log.Printf("Failed to prepare system metrics batch: %v", err)
 		return
 	}
 	for _, item := range batch {
-		b.Append(time.Now(), item.agentID, float32(item.entry.CpuUsagePercent), float32(item.entry.MemoryUsagePercent))
+		b.Append(
+			time.Now(),
+			item.agentID,
+			float32(item.entry.CpuUsagePercent),
+			float32(item.entry.MemoryUsagePercent),
+			uint64(item.entry.MemoryTotalBytes),
+			uint64(item.entry.MemoryUsedBytes),
+			uint64(item.entry.NetworkRxBytes),
+			uint64(item.entry.NetworkTxBytes),
+			float32(item.entry.NetworkRxRate),
+			float32(item.entry.NetworkTxRate),
+			float32(item.entry.CpuUserPercent),
+			float32(item.entry.CpuSystemPercent),
+			float32(item.entry.CpuIowaitPercent),
+		)
 	}
-	b.Send()
+	if err := b.Send(); err != nil {
+		log.Printf("Failed to send system metrics batch: %v", err)
+	}
 }
 
 func (db *ClickHouseDB) runNginxFlusher() {
@@ -1388,14 +1486,33 @@ func (db *ClickHouseDB) runNginxFlusher() {
 
 func (db *ClickHouseDB) flushNginx(batch []nginxBatchItem) {
 	ctx := context.Background()
-	b, err := db.conn.PrepareBatch(ctx, "INSERT INTO nginx_analytics.nginx_metrics (timestamp, instance_id, active_connections, total_requests)")
+	b, err := db.conn.PrepareBatch(ctx, "INSERT INTO nginx_analytics.nginx_metrics (timestamp, instance_id, active_connections, accepted_connections, handled_connections, total_requests, reading, writing, waiting, requests_per_second)")
 	if err != nil {
+		log.Printf("Failed to prepare nginx metrics batch: %v", err)
 		return
 	}
 	for _, item := range batch {
-		b.Append(time.Now(), item.agentID, uint32(item.entry.ActiveConnections), uint64(item.entry.TotalRequests))
+		// Calculate requests per second based on active connections as a rough estimate
+		rps := float64(0)
+		if item.entry.ActiveConnections > 0 {
+			rps = float64(item.entry.TotalRequests) / 60.0 // Rough estimate per minute
+		}
+		b.Append(
+			time.Now(),
+			item.agentID,
+			uint32(item.entry.ActiveConnections),
+			uint64(item.entry.AcceptedConnections),
+			uint64(item.entry.HandledConnections),
+			uint64(item.entry.TotalRequests),
+			uint32(item.entry.Reading),
+			uint32(item.entry.Writing),
+			uint32(item.entry.Waiting),
+			rps,
+		)
 	}
-	b.Send()
+	if err := b.Send(); err != nil {
+		log.Printf("Failed to send nginx metrics batch: %v", err)
+	}
 }
 func (db *ClickHouseDB) runGwFlusher() {
 	ticker := time.NewTicker(5 * time.Second)
@@ -1433,4 +1550,226 @@ func (db *ClickHouseDB) flushGw(batch []gwBatchItem) {
 			item.metrics.metrics.DbLatency)
 	}
 	b.Send()
+}
+
+// GeoDataResponse represents geo analytics data
+type GeoDataResponse struct {
+	Locations       []GeoLocation       `json:"locations"`
+	CountryStats    []CountryStat       `json:"country_stats"`
+	CityStats       []CityStat          `json:"city_stats"`
+	RecentRequests  []GeoRequest        `json:"recent_requests"`
+	TotalCountries  uint64              `json:"total_countries"`
+	TotalCities     uint64              `json:"total_cities"`
+	TotalRequests   uint64              `json:"total_requests"`
+	TopCountryCode  string              `json:"top_country_code"`
+}
+
+type GeoLocation struct {
+	Country     string  `json:"country"`
+	CountryCode string  `json:"country_code"`
+	City        string  `json:"city"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
+	Requests    uint64  `json:"requests"`
+	Errors      uint64  `json:"errors"`
+	AvgLatency  float64 `json:"avg_latency"`
+}
+
+type CountryStat struct {
+	Country     string  `json:"country"`
+	CountryCode string  `json:"country_code"`
+	Requests    uint64  `json:"requests"`
+	Errors      uint64  `json:"errors"`
+	Bandwidth   uint64  `json:"bandwidth"`
+	ErrorRate   float64 `json:"error_rate"`
+}
+
+type CityStat struct {
+	City        string  `json:"city"`
+	Country     string  `json:"country"`
+	CountryCode string  `json:"country_code"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
+	Requests    uint64  `json:"requests"`
+}
+
+type GeoRequest struct {
+	Timestamp   uint32  `json:"timestamp"`
+	ClientIP    string  `json:"client_ip"`
+	Country     string  `json:"country"`
+	CountryCode string  `json:"country_code"`
+	City        string  `json:"city"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
+	Method      string  `json:"method"`
+	URI         string  `json:"uri"`
+	Status      uint16  `json:"status"`
+}
+
+// GetGeoData retrieves geo analytics data
+func (db *ClickHouseDB) GetGeoData(ctx context.Context, window string) (*GeoDataResponse, error) {
+	duration := 24 * time.Hour
+	switch window {
+	case "1h":
+		duration = time.Hour
+	case "6h":
+		duration = 6 * time.Hour
+	case "12h":
+		duration = 12 * time.Hour
+	case "7d":
+		duration = 7 * 24 * time.Hour
+	}
+
+	startTime := time.Now().Add(-duration)
+	resp := &GeoDataResponse{
+		Locations:      []GeoLocation{},
+		CountryStats:   []CountryStat{},
+		CityStats:      []CityStat{},
+		RecentRequests: []GeoRequest{},
+	}
+
+	// 1. Get unique locations with aggregated stats
+	queryLocations := `
+		SELECT
+			country,
+			country_code,
+			city,
+			latitude,
+			longitude,
+			count(*) as requests,
+			countIf(status >= 400) as errors,
+			avg(request_time) * 1000 as avg_latency
+		FROM nginx_analytics.access_logs
+		WHERE timestamp >= ? AND country != '' AND latitude != 0
+		GROUP BY country, country_code, city, latitude, longitude
+		ORDER BY requests DESC
+		LIMIT 100
+	`
+	rows, err := db.conn.Query(ctx, queryLocations, startTime)
+	if err != nil {
+		log.Printf("GetGeoData: locations query failed: %v", err)
+	} else {
+		for rows.Next() {
+			var loc GeoLocation
+			if err := rows.Scan(&loc.Country, &loc.CountryCode, &loc.City,
+				&loc.Latitude, &loc.Longitude, &loc.Requests, &loc.Errors, &loc.AvgLatency); err == nil {
+				resp.Locations = append(resp.Locations, loc)
+			}
+		}
+		rows.Close()
+	}
+
+	// 2. Get country-level stats
+	queryCountries := `
+		SELECT
+			country,
+			country_code,
+			count(*) as requests,
+			countIf(status >= 400) as errors,
+			sum(body_bytes_sent) as bandwidth
+		FROM nginx_analytics.access_logs
+		WHERE timestamp >= ? AND country != ''
+		GROUP BY country, country_code
+		ORDER BY requests DESC
+		LIMIT 50
+	`
+	rows, err = db.conn.Query(ctx, queryCountries, startTime)
+	if err != nil {
+		log.Printf("GetGeoData: countries query failed: %v", err)
+	} else {
+		for rows.Next() {
+			var stat CountryStat
+			if err := rows.Scan(&stat.Country, &stat.CountryCode, &stat.Requests,
+				&stat.Errors, &stat.Bandwidth); err == nil {
+				if stat.Requests > 0 {
+					stat.ErrorRate = float64(stat.Errors) / float64(stat.Requests) * 100
+				}
+				resp.CountryStats = append(resp.CountryStats, stat)
+			}
+		}
+		rows.Close()
+	}
+
+	// 3. Get city-level stats
+	queryCities := `
+		SELECT
+			city,
+			country,
+			country_code,
+			any(latitude) as lat,
+			any(longitude) as lon,
+			count(*) as requests
+		FROM nginx_analytics.access_logs
+		WHERE timestamp >= ? AND city != '' AND city != 'Unknown'
+		GROUP BY city, country, country_code
+		ORDER BY requests DESC
+		LIMIT 100
+	`
+	rows, err = db.conn.Query(ctx, queryCities, startTime)
+	if err != nil {
+		log.Printf("GetGeoData: cities query failed: %v", err)
+	} else {
+		for rows.Next() {
+			var stat CityStat
+			if err := rows.Scan(&stat.City, &stat.Country, &stat.CountryCode,
+				&stat.Latitude, &stat.Longitude, &stat.Requests); err == nil {
+				resp.CityStats = append(resp.CityStats, stat)
+			}
+		}
+		rows.Close()
+	}
+
+	// 4. Get recent geo-located requests
+	queryRecent := `
+		SELECT
+			toUnixTimestamp(timestamp),
+			client_ip,
+			country,
+			country_code,
+			city,
+			latitude,
+			longitude,
+			request_method,
+			request_uri,
+			status
+		FROM nginx_analytics.access_logs
+		WHERE timestamp >= ? AND country != '' AND latitude != 0
+		ORDER BY timestamp DESC
+		LIMIT 50
+	`
+	rows, err = db.conn.Query(ctx, queryRecent, startTime)
+	if err != nil {
+		log.Printf("GetGeoData: recent requests query failed: %v", err)
+	} else {
+		for rows.Next() {
+			var req GeoRequest
+			if err := rows.Scan(&req.Timestamp, &req.ClientIP, &req.Country, &req.CountryCode,
+				&req.City, &req.Latitude, &req.Longitude, &req.Method, &req.URI, &req.Status); err == nil {
+				resp.RecentRequests = append(resp.RecentRequests, req)
+			}
+		}
+		rows.Close()
+	}
+
+	// 5. Get summary stats
+	querySummary := `
+		SELECT
+			uniqExact(country_code) as countries,
+			uniqExact(city) as cities,
+			count(*) as total
+		FROM nginx_analytics.access_logs
+		WHERE timestamp >= ? AND country != ''
+	`
+	var countries, cities, total uint64
+	db.conn.QueryRow(ctx, querySummary, startTime).Scan(&countries, &cities, &total)
+	resp.TotalCountries = countries
+	resp.TotalCities = cities
+	resp.TotalRequests = total
+
+	// Get top country
+	if len(resp.CountryStats) > 0 {
+		resp.TopCountryCode = resp.CountryStats[0].CountryCode
+	}
+
+	return resp, nil
 }

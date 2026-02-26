@@ -21,6 +21,7 @@ type jsonLog struct {
 	Ts       string  `json:"ts"`
 	ReqID    string  `json:"req_id"`
 	Client   string  `json:"client"`
+	XFF      string  `json:"xff"` // X-Forwarded-For header for geo lookup
 	Method   string  `json:"method"`
 	Path     string  `json:"path"`
 	Status   int32   `json:"status"`
@@ -99,6 +100,7 @@ func (p *Parser) parseJSON(line string) (*pb.LogEntry, error) {
 		UpstreamResponseTime: parseFloat(jl.Urt),
 		Referer:              jl.Referer,
 		UserAgent:            jl.UA,
+		XForwardedFor:        jl.XFF,
 	}, nil
 }
 

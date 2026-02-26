@@ -89,6 +89,11 @@ func (c *NginxCollector) Collect() (*pb.NginxMetrics, error) {
 	return metrics, nil
 }
 
+// CollectSystemOnly collects only system metrics, useful as fallback when NGINX metrics fail
+func (c *NginxCollector) CollectSystemOnly() (*pb.SystemMetrics, error) {
+	return c.systemCollector.Collect()
+}
+
 // parseStubStatus parses the standard NGINX stub_status output
 // Example:
 // Active connections: 291

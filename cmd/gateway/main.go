@@ -1335,6 +1335,9 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Export report endpoint with rate limiting and auth
 	mux.Handle("/export-report", authManager.AuthMiddleware(publicPaths)(middleware.RateLimitMiddleware(rateLimiter, cfg.Security.EnableRateLimit)(http.HandlerFunc(srv.handleExportReport))))
 
+	// Geo API endpoint
+	mux.Handle("/api/geo", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGeoData)))
+
 	// Health check endpoint (no rate limiting)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -1667,4 +1670,36 @@ func (s *server) DeleteAlertRule(ctx context.Context, req *pb.DeleteAlertRuleReq
 		return &pb.DeleteAlertRuleResponse{Success: false}, err
 	}
 	return &pb.DeleteAlertRuleResponse{Success: true}, nil
+}
+
+// handleGeoData handles the /api/geo endpoint for geo analytics
+func (srv *server) handleGeoData(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if srv.clickhouse == nil {
+		http.Error(w, `{"error":"ClickHouse connection not available"}`, http.StatusServiceUnavailable)
+		return
+	}
+
+	window := r.URL.Query().Get("window")
+	if window == "" {
+		window = "24h"
+	}
+
+	ctx := r.Context()
+	geoData, err := srv.clickhouse.GetGeoData(ctx, window)
+	if err != nil {
+		log.Printf("GetGeoData error: %v", err)
+		http.Error(w, fmt.Sprintf(`{"error":"Failed to get geo data: %v"}`, err), http.StatusInternalServerError)
+		return
+	}
+
+	data, err := json.Marshal(geoData)
+	if err != nil {
+		http.Error(w, `{"error":"Failed to marshal response"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }

@@ -3258,6 +3258,7 @@ type LogEntry struct {
 	UpstreamResponseTime float32                `protobuf:"fixed32,15,opt,name=upstream_response_time,json=upstreamResponseTime,proto3" json:"upstream_response_time,omitempty"`
 	Referer              string                 `protobuf:"bytes,16,opt,name=referer,proto3" json:"referer,omitempty"`
 	UserAgent            string                 `protobuf:"bytes,17,opt,name=user_agent,json=userAgent,proto3" json:"user_agent,omitempty"`
+	XForwardedFor        string                 `protobuf:"bytes,18,opt,name=x_forwarded_for,json=xForwardedFor,proto3" json:"x_forwarded_for,omitempty"` // Client IP from X-Forwarded-For header for geo lookup
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -3407,6 +3408,13 @@ func (x *LogEntry) GetReferer() string {
 func (x *LogEntry) GetUserAgent() string {
 	if x != nil {
 		return x.UserAgent
+	}
+	return ""
+}
+
+func (x *LogEntry) GetXForwardedFor() string {
+	if x != nil {
+		return x.XForwardedFor
 	}
 	return ""
 }
@@ -6429,7 +6437,7 @@ const file_agent_proto_rawDesc = "" +
 	"\blog_type\x18\x02 \x01(\tR\alogType\x12\x1d\n" +
 	"\n" +
 	"tail_lines\x18\x03 \x01(\x05R\ttailLines\x12\x16\n" +
-	"\x06follow\x18\x04 \x01(\bR\x06follow\"\xeb\x04\n" +
+	"\x06follow\x18\x04 \x01(\bR\x06follow\"\x93\x05\n" +
 	"\bLogEntry\x12\x1c\n" +
 	"\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x12\x19\n" +
 	"\blog_type\x18\x02 \x01(\tR\alogType\x12\x18\n" +
@@ -6452,7 +6460,8 @@ const file_agent_proto_rawDesc = "" +
 	"\x16upstream_response_time\x18\x0f \x01(\x02R\x14upstreamResponseTime\x12\x18\n" +
 	"\areferer\x18\x10 \x01(\tR\areferer\x12\x1d\n" +
 	"\n" +
-	"user_agent\x18\x11 \x01(\tR\tuserAgent\"@\n" +
+	"user_agent\x18\x11 \x01(\tR\tuserAgent\x12&\n" +
+	"\x0fx_forwarded_for\x18\x12 \x01(\tR\rxForwardedFor\"@\n" +
 	"\rUptimeRequest\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\"H\n" +

@@ -421,6 +421,7 @@ message LogEntry {
   float upstream_response_time = 15;
   string referer = 16;
   string user_agent = 17;
+  string x_forwarded_for = 18;  // Client IP from X-Forwarded-For header for geo lookup
 }
 
 // ============ Uptime Monitoring ============
