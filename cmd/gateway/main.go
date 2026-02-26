@@ -1338,6 +1338,46 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Geo API endpoint
 	mux.Handle("/api/geo", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGeoData)))
 
+	// ============================================================================
+	// RBAC / Multi-Tenancy API Endpoints
+	// ============================================================================
+
+	// Projects API
+	mux.Handle("GET /api/projects", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListProjects)))
+	mux.Handle("POST /api/projects", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateProject)))
+	mux.Handle("GET /api/projects/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetProject)))
+	mux.Handle("PUT /api/projects/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateProject)))
+	mux.Handle("DELETE /api/projects/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeleteProject)))
+
+	// Environments API
+	mux.Handle("GET /api/projects/{id}/environments", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListEnvironments)))
+	mux.Handle("POST /api/projects/{id}/environments", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateEnvironment)))
+	mux.Handle("PUT /api/environments/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateEnvironment)))
+	mux.Handle("DELETE /api/environments/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeleteEnvironment)))
+
+	// Server Assignment API
+	mux.Handle("GET /api/servers/unassigned", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListUnassignedServers)))
+	mux.Handle("POST /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAssignServer)))
+	mux.Handle("DELETE /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUnassignServer)))
+	mux.Handle("PUT /api/servers/{agentId}/tags", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateServerTags)))
+
+	// Teams API
+	mux.Handle("GET /api/teams", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListTeams)))
+	mux.Handle("POST /api/teams", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateTeam)))
+	mux.Handle("GET /api/teams/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetTeam)))
+	mux.Handle("PUT /api/teams/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateTeam)))
+	mux.Handle("DELETE /api/teams/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeleteTeam)))
+
+	// Team Members API
+	mux.Handle("GET /api/teams/{id}/members", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListTeamMembers)))
+	mux.Handle("POST /api/teams/{id}/members", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAddTeamMember)))
+	mux.Handle("DELETE /api/teams/{id}/members/{username}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRemoveTeamMember)))
+
+	// Team Project Access API
+	mux.Handle("GET /api/teams/{id}/projects", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListTeamProjects)))
+	mux.Handle("POST /api/teams/{id}/projects", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGrantProjectAccess)))
+	mux.Handle("DELETE /api/teams/{id}/projects/{projectId}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRevokeProjectAccess)))
+
 	// Health check endpoint (no rate limiting)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
