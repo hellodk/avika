@@ -120,6 +120,20 @@ type PSKConfig struct {
 	RequireHostMatch bool   `yaml:"require_host_match"` // Require hostname to match
 }
 
+// OIDCConfig holds OpenID Connect SSO configuration
+type OIDCConfig struct {
+	Enabled       bool              `yaml:"enabled"`
+	ProviderURL   string            `yaml:"provider_url"`    // e.g., https://accounts.google.com, https://login.microsoftonline.com/{tenant}/v2.0
+	ClientID      string            `yaml:"client_id"`
+	ClientSecret  string            `yaml:"client_secret"`
+	RedirectURL   string            `yaml:"redirect_url"`    // Callback URL, e.g., https://avika.example.com/api/auth/oidc/callback
+	Scopes        []string          `yaml:"scopes"`          // OIDC scopes, typically ["openid", "profile", "email", "groups"]
+	GroupsClaim   string            `yaml:"groups_claim"`    // JWT claim containing groups, e.g., "groups" or "roles"
+	GroupMapping  map[string]string `yaml:"group_mapping"`   // Map OIDC groups to Avika teams, e.g., {"admins": "platform-admins"}
+	DefaultRole   string            `yaml:"default_role"`    // Role for SSO users without team mapping: "viewer" or "admin"
+	AutoProvision bool              `yaml:"auto_provision"`  // Auto-create users on first SSO login
+}
+
 // Config holds all gateway configuration
 type Config struct {
 	Server     ServerConfig     `yaml:"server"`
@@ -132,6 +146,7 @@ type Config struct {
 	Vault      VaultConfig      `yaml:"vault"`
 	Auth       AuthConfig       `yaml:"auth"`
 	PSK        PSKConfig        `yaml:"psk"`
+	OIDC       OIDCConfig       `yaml:"oidc"`
 }
 
 // GetGRPCAddress returns the formatted gRPC listen address
@@ -315,6 +330,18 @@ func defaultConfig() *Config {
 			TimestampWindow:  "5m",
 			RequireHostMatch: false,
 		},
+		OIDC: OIDCConfig{
+			Enabled:       false,
+			ProviderURL:   "",
+			ClientID:      "",
+			ClientSecret:  "",
+			RedirectURL:   "",
+			Scopes:        []string{"openid", "profile", "email", "groups"},
+			GroupsClaim:   "groups",
+			GroupMapping:  make(map[string]string),
+			DefaultRole:   "viewer",
+			AutoProvision: true,
+		},
 	}
 }
 
@@ -478,5 +505,34 @@ func loadEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("PSK_REQUIRE_HOST_MATCH"); v != "" {
 		cfg.PSK.RequireHostMatch = v == "true" || v == "1"
+	}
+
+	// OIDC (OpenID Connect SSO)
+	if v := os.Getenv("OIDC_ENABLED"); v != "" {
+		cfg.OIDC.Enabled = v == "true" || v == "1"
+	}
+	if v := os.Getenv("OIDC_PROVIDER_URL"); v != "" {
+		cfg.OIDC.ProviderURL = v
+	}
+	if v := os.Getenv("OIDC_CLIENT_ID"); v != "" {
+		cfg.OIDC.ClientID = v
+	}
+	if v := os.Getenv("OIDC_CLIENT_SECRET"); v != "" {
+		cfg.OIDC.ClientSecret = v
+	}
+	if v := os.Getenv("OIDC_REDIRECT_URL"); v != "" {
+		cfg.OIDC.RedirectURL = v
+	}
+	if v := os.Getenv("OIDC_SCOPES"); v != "" {
+		cfg.OIDC.Scopes = strings.Split(v, ",")
+	}
+	if v := os.Getenv("OIDC_GROUPS_CLAIM"); v != "" {
+		cfg.OIDC.GroupsClaim = v
+	}
+	if v := os.Getenv("OIDC_DEFAULT_ROLE"); v != "" {
+		cfg.OIDC.DefaultRole = v
+	}
+	if v := os.Getenv("OIDC_AUTO_PROVISION"); v != "" {
+		cfg.OIDC.AutoProvision = v == "true" || v == "1"
 	}
 }

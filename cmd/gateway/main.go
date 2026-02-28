@@ -95,7 +95,8 @@ type AgentSession struct {
 	status           string // "online" or "offline"
 	isPod            bool
 	podIP            string
-	pskAuthenticated bool // true if agent connected with valid PSK
+	pskAuthenticated bool              // true if agent connected with valid PSK
+	labels           map[string]string // Agent labels for auto-assignment (project, environment)
 }
 
 func (s *server) Connect(stream pb.Commander_ConnectServer) error {
@@ -200,9 +201,15 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 					isPod:            isPod,
 					podIP:            hb.PodIp,
 					pskAuthenticated: pskAuthenticated,
+					labels:           hb.Labels,
 				}
 				s.sessions.Store(agentID, currentSession)
 				log.Printf("Registered agent %s (%s) at %s (Pod: %v, PSK: %v)", agentID, hb.Hostname, ip, isPod, pskAuthenticated)
+
+				// 4a. Auto-assign to environment based on labels
+				if len(hb.Labels) > 0 {
+					s.autoAssignAgentToEnvironment(agentID, hb.Labels)
+				}
 			} else {
 				// Reconnecting - update existing session
 				currentSession = val.(*AgentSession)
@@ -222,6 +229,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				currentSession.podIP = hb.PodIp
 				currentSession.pskAuthenticated = pskAuthenticated
 				currentSession.lastActive = time.Now()
+				currentSession.labels = hb.Labels
 				currentSession.mu.Unlock()
 			}
 
@@ -1306,6 +1314,43 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Change password requires authentication
 	mux.Handle("/api/auth/change-password", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(authManager.ChangePasswordHandler(onPasswordChanged))))
 
+	// OIDC SSO endpoints
+	if cfg.OIDC.Enabled {
+		oidcProvider, err := middleware.NewOIDCProvider(
+			middleware.OIDCConfig{
+				Enabled:       cfg.OIDC.Enabled,
+				ProviderURL:   cfg.OIDC.ProviderURL,
+				ClientID:      cfg.OIDC.ClientID,
+				ClientSecret:  cfg.OIDC.ClientSecret,
+				RedirectURL:   cfg.OIDC.RedirectURL,
+				Scopes:        cfg.OIDC.Scopes,
+				GroupsClaim:   cfg.OIDC.GroupsClaim,
+				GroupMapping:  cfg.OIDC.GroupMapping,
+				DefaultRole:   cfg.OIDC.DefaultRole,
+				AutoProvision: cfg.OIDC.AutoProvision,
+			},
+			authManager,
+			srv.db, // implements UserProvisioner
+			srv.db, // implements TeamMapper
+		)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize OIDC provider: %v", err)
+		} else {
+			mux.HandleFunc("/api/auth/oidc/login", oidcProvider.InitHandler())
+			mux.HandleFunc("/api/auth/oidc/callback", oidcProvider.CallbackHandler())
+			mux.HandleFunc("/api/auth/oidc/status", oidcProvider.StatusHandler())
+			log.Printf("OIDC SSO enabled with provider: %s", cfg.OIDC.ProviderURL)
+		}
+	}
+
+	// OIDC status endpoint (always available so frontend knows if SSO is enabled)
+	mux.HandleFunc("/api/auth/sso-config", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"oidc_enabled": cfg.OIDC.Enabled,
+		})
+	})
+
 	if cfg.Auth.Enabled {
 		log.Printf("Authentication enabled for user: %s", cfg.Auth.Username)
 	} else {
@@ -1360,6 +1405,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.Handle("DELETE /api/environments/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeleteEnvironment)))
 
 	// Server Assignment API
+	mux.Handle("GET /api/server-assignments", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListServerAssignments)))
 	mux.Handle("GET /api/servers/unassigned", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListUnassignedServers)))
 	mux.Handle("POST /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAssignServer)))
 	mux.Handle("DELETE /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUnassignServer)))
@@ -1381,6 +1427,12 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.Handle("GET /api/teams/{id}/projects", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListTeamProjects)))
 	mux.Handle("POST /api/teams/{id}/projects", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGrantProjectAccess)))
 	mux.Handle("DELETE /api/teams/{id}/projects/{projectId}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRevokeProjectAccess)))
+
+	// Enrollment Tokens API
+	mux.Handle("GET /api/environments/{id}/enrollment-tokens", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListEnrollmentTokens)))
+	mux.Handle("POST /api/environments/{id}/enrollment-tokens", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateEnrollmentToken)))
+	mux.Handle("DELETE /api/enrollment-tokens/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeleteEnrollmentToken)))
+	mux.HandleFunc("POST /api/enrollment-tokens/validate", srv.handleValidateEnrollmentToken) // No auth - agents use tokens
 
 	// Health check endpoint (no rate limiting)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -1454,6 +1506,30 @@ func (srv *server) handleTerminal(w http.ResponseWriter, r *http.Request, upgrad
 	if agentID == "" {
 		http.Error(w, "agent_id is required", http.StatusBadRequest)
 		return
+	}
+
+	// RBAC: Check if user has access to this agent
+	user := middleware.GetUserFromContext(r.Context())
+	if user != nil {
+		visibleAgents, err := srv.db.GetVisibleAgentIDs(user.Username)
+		if err != nil {
+			log.Printf("Terminal RBAC error for user %s: %v", user.Username, err)
+			http.Error(w, "Failed to check access permissions", http.StatusInternalServerError)
+			return
+		}
+		// Check if agentID is in visible agents list
+		hasAccess := false
+		for _, a := range visibleAgents {
+			if a == agentID {
+				hasAccess = true
+				break
+			}
+		}
+		if !hasAccess {
+			log.Printf("Terminal access denied: user %s cannot access agent %s", user.Username, agentID)
+			http.Error(w, "Access denied: you don't have permission to access this server", http.StatusForbidden)
+			return
+		}
 	}
 
 	ws, err := upgrader.Upgrade(w, r, nil)
@@ -1553,6 +1629,35 @@ func (srv *server) handleExportReport(w http.ResponseWriter, r *http.Request) {
 	}
 	if endUnix == 0 {
 		endUnix = time.Now().Unix()
+	}
+
+	// RBAC: Filter agent IDs to only those the user can access
+	user := middleware.GetUserFromContext(r.Context())
+	if user != nil {
+		visibleAgents, err := srv.db.GetVisibleAgentIDs(user.Username)
+		if err != nil {
+			log.Printf("Export report RBAC error for user %s: %v", user.Username, err)
+			http.Error(w, "Failed to check access permissions", http.StatusInternalServerError)
+			return
+		}
+		// Build set of visible agents for fast lookup
+		visibleSet := make(map[string]bool)
+		for _, a := range visibleAgents {
+			visibleSet[a] = true
+		}
+		// Filter requested agent IDs
+		if len(agentIDs) > 0 {
+			filteredIDs := make([]string, 0, len(agentIDs))
+			for _, id := range agentIDs {
+				if visibleSet[id] {
+					filteredIDs = append(filteredIDs, id)
+				}
+			}
+			agentIDs = filteredIDs
+		} else {
+			// No specific agents requested, use all visible agents
+			agentIDs = visibleAgents
+		}
 	}
 
 	ctx := context.Background()
@@ -1730,8 +1835,21 @@ func (srv *server) handleGeoData(w http.ResponseWriter, r *http.Request) {
 		window = "24h"
 	}
 
+	// RBAC: Get visible agents for the user to filter geo data
+	var agentFilter []string
+	user := middleware.GetUserFromContext(r.Context())
+	if user != nil {
+		visibleAgents, err := srv.db.GetVisibleAgentIDs(user.Username)
+		if err != nil {
+			log.Printf("Geo data RBAC error for user %s: %v", user.Username, err)
+			http.Error(w, `{"error":"Failed to check access permissions"}`, http.StatusInternalServerError)
+			return
+		}
+		agentFilter = visibleAgents
+	}
+
 	ctx := r.Context()
-	geoData, err := srv.clickhouse.GetGeoData(ctx, window)
+	geoData, err := srv.clickhouse.GetGeoDataFiltered(ctx, window, agentFilter)
 	if err != nil {
 		log.Printf("GetGeoData error: %v", err)
 		http.Error(w, fmt.Sprintf(`{"error":"Failed to get geo data: %v"}`, err), http.StatusInternalServerError)
@@ -1746,4 +1864,59 @@ func (srv *server) handleGeoData(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write(data)
+}
+
+// autoAssignAgentToEnvironment automatically assigns an agent to an environment based on its labels
+// Labels like "project" and "environment" are matched against project/environment slugs
+func (s *server) autoAssignAgentToEnvironment(agentID string, labels map[string]string) {
+	if s.db == nil {
+		return
+	}
+
+	// Check for project label
+	projectSlug, hasProject := labels["project"]
+	if !hasProject {
+		return
+	}
+
+	// Check for environment label
+	envSlug, hasEnv := labels["environment"]
+	if !hasEnv {
+		envSlug = "production" // Default to production if not specified
+	}
+
+	// Find project by slug
+	project, err := s.db.GetProjectBySlug(projectSlug)
+	if err != nil || project == nil {
+		log.Printf("Auto-assign: project '%s' not found for agent %s", projectSlug, agentID)
+		return
+	}
+
+	// Find environment by project and slug
+	env, err := s.db.GetEnvironmentBySlug(project.ID, envSlug)
+	if err != nil || env == nil {
+		log.Printf("Auto-assign: environment '%s' not found in project '%s' for agent %s", envSlug, projectSlug, agentID)
+		return
+	}
+
+	// Check if already assigned
+	existing, err := s.db.GetServerAssignment(agentID)
+	if err == nil && existing != nil {
+		// Already assigned, skip
+		log.Printf("Auto-assign: agent %s already assigned to environment %s", agentID, existing.EnvironmentID)
+		return
+	}
+
+	// Auto-assign to environment
+	displayName := ""
+	if name, ok := labels["name"]; ok {
+		displayName = name
+	}
+	_, err = s.db.AssignServer(agentID, env.ID, displayName, "auto-assign", nil)
+	if err != nil {
+		log.Printf("Auto-assign failed for agent %s: %v", agentID, err)
+		return
+	}
+
+	log.Printf("Auto-assigned agent %s to project '%s', environment '%s'", agentID, project.Name, env.Name)
 }

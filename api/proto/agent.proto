@@ -96,6 +96,7 @@ message Heartbeat {
   string build_date = 8;       // Build timestamp
   string git_commit = 9;       // Git commit hash
   string git_branch = 10;      // Git branch name
+  map<string, string> labels = 11;  // Agent labels for auto-assignment (project, environment, etc.)
 }
 
 message NginxInstance {
@@ -394,6 +395,7 @@ message AgentInfo {
   string git_commit = 13;    // Git commit hash
   string git_branch = 14;    // Git branch name
   bool psk_authenticated = 15; // true if agent connected with valid PSK
+  map<string, string> labels = 16;  // Agent labels for project/environment assignment
 }
 
 message LogRequest {

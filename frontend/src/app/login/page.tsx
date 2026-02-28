@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, Loader2, Activity, Shield, Lock, Zap, Server, Eye, EyeOff } from "lucide-react";
+import { AlertCircle, Loader2, Activity, Shield, Lock, Zap, Server, Eye, EyeOff, KeyRound } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Base path for API calls (set at build time)
@@ -21,6 +21,29 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [ssoEnabled, setSsoEnabled] = useState(false);
+  const [ssoLoading, setSsoLoading] = useState(false);
+
+  // Check if SSO is enabled
+  useEffect(() => {
+    fetch(`${BASE_PATH}/api/auth/sso-config`)
+      .then(res => res.json())
+      .then(data => {
+        setSsoEnabled(data.oidc_enabled === true);
+      })
+      .catch(() => {
+        setSsoEnabled(false);
+      });
+  }, []);
+
+  const handleSsoLogin = () => {
+    setSsoLoading(true);
+    // Get the redirect URL from query params
+    const params = new URLSearchParams(window.location.search);
+    const redirect = params.get("redirect") || "/";
+    // Redirect to OIDC login endpoint
+    window.location.href = `${BASE_PATH}/api/auth/oidc/login?redirect=${encodeURIComponent(redirect)}`;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,6 +251,40 @@ export default function LoginPage() {
                 )}
               </Button>
             </form>
+
+            {/* SSO Login */}
+            {ssoEnabled && (
+              <>
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-700/50" />
+                  </div>
+                  <div className="relative flex justify-center text-xs">
+                    <span className="bg-slate-800/50 px-2 text-slate-400">or continue with</span>
+                  </div>
+                </div>
+                
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleSsoLogin}
+                  disabled={ssoLoading}
+                  className="w-full h-12 border-slate-600/50 text-slate-300 hover:bg-slate-700/50 hover:text-white rounded-lg"
+                >
+                  {ssoLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Redirecting...
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="mr-2 h-5 w-5" />
+                      Single Sign-On (SSO)
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
 
             {/* Security Note */}
             <div className="mt-6 pt-6 border-t border-slate-700/50 text-center">

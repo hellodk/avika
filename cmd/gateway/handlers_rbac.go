@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/avika-ai/avika/cmd/gateway/middleware"
 )
@@ -538,6 +540,30 @@ func (srv *server) handleUnassignServer(w http.ResponseWriter, r *http.Request) 
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "unassigned"})
+}
+
+// handleListServerAssignments handles GET /api/server-assignments
+func (srv *server) handleListServerAssignments(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	assignments, err := srv.db.ListAllServerAssignments()
+	if err != nil {
+		http.Error(w, `{"error":"failed to list server assignments"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if assignments == nil {
+		assignments = []ServerAssignmentWithDetails{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"assignments": assignments,
+	})
 }
 
 // handleListUnassignedServers handles GET /api/servers/unassigned
@@ -1084,4 +1110,211 @@ func (srv *server) handleListTeamProjects(w http.ResponseWriter, r *http.Request
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(access)
+}
+
+// ============================================================================
+// Enrollment Token Handlers
+// ============================================================================
+
+// handleCreateEnrollmentToken handles POST /api/environments/:id/enrollment-tokens
+func (srv *server) handleCreateEnrollmentToken(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	envID := r.PathValue("id")
+	if envID == "" {
+		http.Error(w, `{"error":"environment ID required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Get environment to check project access
+	env, err := srv.db.GetEnvironment(envID)
+	if err != nil || env == nil {
+		http.Error(w, `{"error":"environment not found"}`, http.StatusNotFound)
+		return
+	}
+
+	// Check if user has admin access to the project (or is superadmin)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	if !isSuperAdmin {
+		hasAccess, _ := srv.db.HasProjectAccess(user.Username, env.ProjectID, PermissionAdmin)
+		if !hasAccess {
+			http.Error(w, `{"error":"forbidden","message":"admin access required to create enrollment tokens"}`, http.StatusForbidden)
+			return
+		}
+	}
+
+	var req struct {
+		Description string `json:"description"`
+		ExpiresIn   string `json:"expires_in"` // e.g., "24h", "7d"
+		MaxUses     *int   `json:"max_uses"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Parse expires_in
+	var expiresAt *time.Time
+	if req.ExpiresIn != "" {
+		d, err := time.ParseDuration(req.ExpiresIn)
+		if err != nil {
+			http.Error(w, `{"error":"invalid expires_in format"}`, http.StatusBadRequest)
+			return
+		}
+		t := time.Now().Add(d)
+		expiresAt = &t
+	}
+
+	token, plainToken, err := srv.db.CreateEnrollmentToken(envID, req.Description, user.Username, expiresAt, req.MaxUses)
+	if err != nil {
+		http.Error(w, `{"error":"failed to create enrollment token"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Audit log
+	srv.db.CreateAuditLog(user.Username, "create", "enrollment_token", token.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
+		"environment_id": envID,
+	})
+
+	// Return token with plaintext (only time it's shown)
+	response := map[string]interface{}{
+		"id":             token.ID,
+		"environment_id": token.EnvironmentID,
+		"token":          plainToken, // Only returned on creation
+		"description":    token.Description,
+		"expires_at":     token.ExpiresAt,
+		"max_uses":       token.MaxUses,
+		"created_at":     token.CreatedAt,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(response)
+}
+
+// handleListEnrollmentTokens handles GET /api/environments/:id/enrollment-tokens
+func (srv *server) handleListEnrollmentTokens(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	envID := r.PathValue("id")
+	if envID == "" {
+		http.Error(w, `{"error":"environment ID required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Get environment to check project access
+	env, err := srv.db.GetEnvironment(envID)
+	if err != nil || env == nil {
+		http.Error(w, `{"error":"environment not found"}`, http.StatusNotFound)
+		return
+	}
+
+	// Check if user has access to the project
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	if !isSuperAdmin {
+		hasAccess, _ := srv.db.HasProjectAccess(user.Username, env.ProjectID, PermissionRead)
+		if !hasAccess {
+			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+	}
+
+	tokens, err := srv.db.ListEnrollmentTokens(envID)
+	if err != nil {
+		http.Error(w, `{"error":"failed to list enrollment tokens"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if tokens == nil {
+		tokens = []EnrollmentToken{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tokens)
+}
+
+// handleDeleteEnrollmentToken handles DELETE /api/enrollment-tokens/:id
+func (srv *server) handleDeleteEnrollmentToken(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	tokenID := r.PathValue("id")
+	if tokenID == "" {
+		http.Error(w, `{"error":"token ID required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Only superadmins can delete tokens (for now)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	if !isSuperAdmin {
+		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
+		return
+	}
+
+	if err := srv.db.DeleteEnrollmentToken(tokenID); err != nil {
+		http.Error(w, `{"error":"failed to delete enrollment token"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Audit log
+	srv.db.CreateAuditLog(user.Username, "delete", "enrollment_token", tokenID, r.RemoteAddr, r.UserAgent(), nil)
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+}
+
+// handleValidateEnrollmentToken handles POST /api/enrollment-tokens/validate
+// This is used by agents to validate a token during registration
+func (srv *server) handleValidateEnrollmentToken(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Token == "" {
+		http.Error(w, `{"error":"token is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	envID, err := srv.db.ValidateEnrollmentToken(req.Token)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusUnauthorized)
+		return
+	}
+
+	// Get environment details
+	env, err := srv.db.GetEnvironment(envID)
+	if err != nil || env == nil {
+		http.Error(w, `{"error":"environment not found"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Get project details
+	project, err := srv.db.GetProject(env.ProjectID)
+	if err != nil || project == nil {
+		http.Error(w, `{"error":"project not found"}`, http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"valid":            true,
+		"environment_id":   env.ID,
+		"environment_name": env.Name,
+		"environment_slug": env.Slug,
+		"project_id":       project.ID,
+		"project_name":     project.Name,
+		"project_slug":     project.Slug,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }

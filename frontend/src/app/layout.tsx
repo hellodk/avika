@@ -5,6 +5,7 @@ import DashboardLayout from "@/components/dashboard-layout";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth-provider";
+import { ProjectProvider } from "@/lib/project-context";
 
 const inter = Inter({ subsets: ["latin"] });
 const orbitron = Orbitron({
@@ -28,7 +29,9 @@ export default function RootLayout({
       <body className={`${inter.className} ${orbitron.variable}`}>
         <ThemeProvider>
           <AuthProvider>
-            <DashboardLayout>{children}</DashboardLayout>
+            <ProjectProvider>
+              <DashboardLayout>{children}</DashboardLayout>
+            </ProjectProvider>
           </AuthProvider>
           <Toaster 
             position="top-right" 
