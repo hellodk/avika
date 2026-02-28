@@ -1,3 +1,4 @@
+# Release workflow for Avika - automatically builds and publishes releases
 name: Release
 
 on:
