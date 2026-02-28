@@ -2,6 +2,7 @@
 name: Release
 
 on:
+  # Manual trigger for releases
   workflow_dispatch:
     inputs:
       bump_type:
@@ -16,6 +17,18 @@ on:
       prerelease:
         description: 'Pre-release suffix (e.g., rc.1, beta.1, leave empty for stable)'
         required: false
+        default: ''
+  # Allow calling from other workflows
+  workflow_call:
+    inputs:
+      bump_type:
+        description: 'Version bump type'
+        required: true
+        type: string
+      prerelease:
+        description: 'Pre-release suffix'
+        required: false
+        type: string
         default: ''
 
 env:
