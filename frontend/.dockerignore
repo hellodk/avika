@@ -1,0 +1,48 @@
+# Common
+**/.git
+**/.idea
+**/.vscode
+**/.DS_Store
+
+# Go
+bin/
+*.exe
+*.test
+*.prof
+vendor/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+.next/
+out/
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# Data directories (from docker-compose)
+*.log
+docker/clickhouse-data
+docker/postgres-data
+docker/redpanda-data
+
+# Build artifacts
+dist/
+build/
+output/
+tmp/
+temp/
+coverage/
+test-results/
+playwright-report/
+bin/
+nginx-agent/
+frontend/node_modules/
+frontend/.next/
