@@ -169,5 +169,7 @@ jobs:
           file: ./frontend/Dockerfile
           push: false
           tags: avika-frontend:test
+          build-args: |
+            VERSION=test
           cache-from: type=gha
           cache-to: type=gha,mode=max
