@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
-const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:5050';
+const GATEWAY_URL = process.env.GATEWAY_HTTP_URL || process.env.GATEWAY_URL || 'http://localhost:5050';
 
 async function fetchWithAuth(url: string, options: RequestInit = {}) {
     const cookieStore = await cookies();

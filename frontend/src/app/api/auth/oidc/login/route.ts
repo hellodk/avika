@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:5050';
+const GATEWAY_URL = process.env.GATEWAY_HTTP_URL || process.env.GATEWAY_URL || 'http://localhost:5050';
 
 export async function GET(request: NextRequest) {
     try {
