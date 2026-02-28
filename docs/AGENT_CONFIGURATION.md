@@ -5,6 +5,7 @@ This document describes how to configure the NGINX Manager Agent, including mult
 ## Table of Contents
 
 - [Multi-Gateway Support](#multi-gateway-support)
+- [Project and Environment Labels](#project-and-environment-labels)
 - [Configuration Methods](#configuration-methods)
 - [UI-Based Configuration](#ui-based-configuration)
 - [Configuration File Reference](#configuration-file-reference)
@@ -89,6 +90,208 @@ Configuration is resolved in this order (first match wins):
                     │   (Shared DB)   │
                     └─────────────────┘
 ```
+
+---
+
+## Project and Environment Labels
+
+The agent supports labeling for multi-tenancy and RBAC (Role-Based Access Control). Labels allow agents to be automatically assigned to specific projects and environments, enabling teams to organize and manage NGINX servers by project, environment, or custom attributes.
+
+### How It Works
+
+1. Agent sends labels in heartbeat messages to the gateway
+2. Gateway uses labels to auto-assign agents to matching projects/environments
+3. RBAC rules filter which agents users can see based on team permissions
+4. Labels are displayed in the UI for easy identification and filtering
+
+### Label Configuration
+
+Labels are configured using the `AVIKA_LABEL_` prefix for environment variables or `LABEL_` prefix in the configuration file.
+
+#### Via Environment Variables (Recommended for Kubernetes)
+
+```bash
+# Set project and environment labels
+export AVIKA_LABEL_PROJECT=alpha
+export AVIKA_LABEL_ENVIRONMENT=production
+export AVIKA_LABEL_TEAM=platform
+
+./nginx-agent
+```
+
+#### Via Configuration File
+
+Edit `/etc/avika/avika-agent.conf`:
+
+```ini
+# Project/Environment Labels
+LABEL_PROJECT=alpha
+LABEL_ENVIRONMENT=production
+LABEL_TEAM=platform
+LABEL_REGION=us-east-1
+LABEL_DATACENTER=dc1
+```
+
+### Kubernetes Deployment Example
+
+For Kubernetes deployments, set labels via pod environment variables:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-alpha-production
+  labels:
+    project: alpha
+    environment: production
+spec:
+  template:
+    spec:
+      containers:
+      - name: avika-agent
+        image: hellodk/avika-agent:latest
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: AVIKA_LABEL_PROJECT
+          value: "alpha"
+        - name: AVIKA_LABEL_ENVIRONMENT
+          value: "production"
+        - name: AVIKA_LABEL_TEAM
+          value: "platform"
+```
+
+### Auto-Assignment
+
+When the gateway receives heartbeats with project and environment labels:
+
+1. It looks up the project by slug (e.g., `alpha` → Project Alpha)
+2. It looks up the environment within that project (e.g., `production`)
+3. If both exist and the agent isn't already assigned, it auto-assigns the agent
+
+```
+Agent Heartbeat with Labels
+         │
+         ▼
+┌─────────────────────┐
+│  Look up Project    │──── Not Found ──► Skip Assignment
+│  by label "project" │
+└─────────┬───────────┘
+          │ Found
+          ▼
+┌─────────────────────┐
+│ Look up Environment │──── Not Found ──► Skip Assignment
+│ by label "environment"│
+└─────────┬───────────┘
+          │ Found
+          ▼
+┌─────────────────────┐
+│  Auto-Assign Agent  │
+│  to Environment     │
+└─────────────────────┘
+```
+
+### Standard Label Keys
+
+| Label Key | Description | Example Values |
+|-----------|-------------|----------------|
+| `PROJECT` | Project identifier (slug) | `alpha`, `beta`, `platform` |
+| `ENVIRONMENT` | Environment identifier (slug) | `dev`, `stage`, `uat`, `production` |
+| `TEAM` | Team or owner identifier | `platform`, `engineering`, `devops` |
+| `REGION` | Geographic region | `us-east-1`, `eu-west-1`, `ap-south-1` |
+| `DATACENTER` | Datacenter identifier | `dc1`, `dc2`, `cloud` |
+| `CLUSTER` | Kubernetes cluster name | `prod-cluster`, `dev-cluster` |
+
+### Example: Multi-Project Setup
+
+Here's a complete example deploying agents for two projects with multiple environments:
+
+**Project Structure:**
+```
+├── Project Alpha
+│   ├── dev
+│   ├── stage
+│   └── uat
+└── Project Beta
+    ├── dev
+    ├── stage
+    └── uat
+```
+
+**Deployment Commands:**
+
+```bash
+# Deploy Alpha environments
+kubectl apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-alpha-dev
+  namespace: avika
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-sidecar
+      project: alpha
+      environment: dev
+  template:
+    metadata:
+      labels:
+        app: nginx-sidecar
+        project: alpha
+        environment: dev
+    spec:
+      containers:
+      - name: avika-agent
+        image: hellodk/avika-agent:0.1.93
+        env:
+        - name: AVIKA_LABEL_PROJECT
+          value: "alpha"
+        - name: AVIKA_LABEL_ENVIRONMENT
+          value: "dev"
+        - name: AVIKA_LABEL_TEAM
+          value: "platform"
+EOF
+```
+
+### Creating Projects and Environments
+
+Before labels can auto-assign agents, create the projects and environments via the API:
+
+```bash
+# Login
+curl -c cookies.txt -X POST "http://gateway:5021/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin"}'
+
+# Create Project
+curl -b cookies.txt -X POST "http://gateway:5021/api/projects" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Project Alpha","description":"Platform team services"}'
+
+# Create Environments (use project ID from response)
+curl -b cookies.txt -X POST "http://gateway:5021/api/projects/{project_id}/environments" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Development","slug":"dev","color":"#22c55e"}'
+
+curl -b cookies.txt -X POST "http://gateway:5021/api/projects/{project_id}/environments" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Staging","slug":"stage","color":"#f59e0b"}'
+
+curl -b cookies.txt -X POST "http://gateway:5021/api/projects/{project_id}/environments" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"UAT","slug":"uat","color":"#8b5cf6"}'
+```
+
+### Viewing Labels in UI
+
+Labels are visible in the:
+- **Inventory page**: Filter and view agents by project/environment
+- **Server detail page**: See all labels in the Agent Info section
+- **Project selector**: Quick switch between projects in the header
 
 ---
 
@@ -240,6 +443,17 @@ GATEWAY_SERVERS=gateway1.example.com:5020,gateway2.example.com:5020
 # Unique agent identifier (auto-generated if empty)
 # Format: hostname+ip or custom string
 AGENT_ID=
+
+# ============================================================
+# PROJECT/ENVIRONMENT LABELS (Multi-Tenancy)
+# ============================================================
+
+# Labels for auto-assignment to projects and environments
+# Use LABEL_ prefix in config file, AVIKA_LABEL_ for env vars
+LABEL_PROJECT=alpha
+LABEL_ENVIRONMENT=production
+LABEL_TEAM=platform
+LABEL_REGION=us-east-1
 
 # ============================================================
 # NGINX CONFIGURATION
