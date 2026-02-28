@@ -1287,6 +1287,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		"/metrics",
 		"/api/auth/login",
 		"/api/auth/logout",
+		"/terminal", // WebSocket terminal - TODO: add token-based auth
 	}
 
 	// Callback to persist password changes to database

@@ -137,7 +137,7 @@ components:
       GATEWAY_HTTP_PORT: "5021"
       GATEWAY_METRICS_PORT: "5022"
       AGENT_MGMT_PORT: "5025"
-      ALLOWED_ORIGINS: "http://localhost:5031,http://localhost:3000"
+      ALLOWED_ORIGINS: "*"
       ENABLE_RATE_LIMIT: "true"
       RATE_LIMIT_RPS: "100"
       AUTH_ENABLED: "true"
