@@ -31,7 +31,10 @@ func main() {
 	for rows.Next() {
 		var id, hostname, version, agentVersion, podIP string
 		var isPod bool
-		rows.Scan(&id, &hostname, &version, &agentVersion, &isPod, &podIP)
+		if err := rows.Scan(&id, &hostname, &version, &agentVersion, &isPod, &podIP); err != nil {
+			log.Printf("warning: failed to scan row: %v", err)
+			continue
+		}
 		fmt.Printf("%s | %s | %s | %s | %v | %s\n", id, hostname, version, agentVersion, isPod, podIP)
 	}
 }
