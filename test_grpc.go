@@ -14,7 +14,7 @@ import (
 
 func main() {
 	fmt.Println("Attempting to connect to 10.101.68.5:5020...")
-	conn, err := grpc.Dial("10.101.68.5:5020", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient("10.101.68.5:5020", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
