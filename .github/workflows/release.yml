@@ -1,117 +1,179 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Release version (e.g., v1.2.3)'
+      bump_type:
+        description: 'Version bump type'
         required: true
-        type: string
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      prerelease:
+        description: 'Pre-release suffix (e.g., rc.1, beta.1, leave empty for stable)'
+        required: false
+        default: ''
 
 env:
-  GO_VERSION: '1.22'
+  GO_VERSION: '1.23'
   NODE_VERSION: '20'
-
-permissions:
-  contents: write
-  packages: write
+  DOCKERHUB_USERNAME: hellodk
 
 jobs:
-  # ============================================
-  # Build Release Binaries
-  # ============================================
+  version-bump:
+    name: Bump Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "hellodk"
+          git config user.email "hello.dk@outlook.com"
+
+      - name: Bump version
+        id: bump
+        run: |
+          # Read current version
+          CURRENT_VERSION=$(cat VERSION | tr -d '[:space:]')
+          echo "Current version: $CURRENT_VERSION"
+          
+          # Parse version components
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+          
+          # Bump based on type
+          case "${{ inputs.bump_type }}" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+          
+          # Construct new version
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          
+          # Add prerelease suffix if specified
+          if [ -n "${{ inputs.prerelease }}" ]; then
+            NEW_VERSION="${NEW_VERSION}-${{ inputs.prerelease }}"
+          fi
+          
+          echo "New version: $NEW_VERSION"
+          
+          # Update VERSION file
+          echo "$NEW_VERSION" > VERSION
+          
+          # Commit and tag
+          git add VERSION
+          git commit -m "chore: Bump version to ${NEW_VERSION}"
+          git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
+          
+          # Push changes
+          git push origin HEAD
+          git push origin "v${NEW_VERSION}"
+          
+          # Set outputs
+          echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=v${NEW_VERSION}" >> $GITHUB_OUTPUT
+
   build-binaries:
     name: Build Binaries
     runs-on: ubuntu-latest
+    needs: version-bump
     strategy:
       matrix:
-        goos: [linux, darwin, windows]
-        goarch: [amd64, arm64]
-        exclude:
-          - goos: windows
+        include:
+          # Linux
+          - goos: linux
+            goarch: amd64
+            suffix: linux-amd64
+          - goos: linux
             goarch: arm64
+            suffix: linux-arm64
+          # macOS
+          - goos: darwin
+            goarch: amd64
+            suffix: darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            suffix: darwin-arm64
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.version-bump.outputs.version }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-
-      - name: Get version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
+          cache: true
 
       - name: Build Gateway
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 0
         run: |
           cd cmd/gateway
-          EXT=""
-          if [ "${{ matrix.goos }}" == "windows" ]; then
-            EXT=".exe"
-          fi
-          go build -ldflags="-s -w \
-            -X main.Version=${{ steps.version.outputs.VERSION }} \
-            -X main.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
-            -X main.GitCommit=${{ github.sha }}" \
-            -o ../../dist/gateway-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} .
+          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+            go build -ldflags="-s -w -X main.Version=${{ needs.version-bump.outputs.version }}" \
+            -o gateway-${{ matrix.suffix }} .
 
       - name: Build Agent
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 0
         run: |
           cd cmd/agent
-          EXT=""
-          if [ "${{ matrix.goos }}" == "windows" ]; then
-            EXT=".exe"
-          fi
-          go build -ldflags="-s -w \
-            -X main.Version=${{ steps.version.outputs.VERSION }} \
-            -X main.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
-            -X main.GitCommit=${{ github.sha }}" \
-            -o ../../dist/agent-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} .
+          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+            go build -ldflags="-s -w -X main.Version=${{ needs.version-bump.outputs.version }}" \
+            -o agent-${{ matrix.suffix }} .
 
-      - name: Create checksums
-        run: |
-          cd dist
-          sha256sum * > checksums-${{ matrix.goos }}-${{ matrix.goarch }}.txt
-
-      - name: Upload artifacts
+      - name: Upload Gateway artifact
         uses: actions/upload-artifact@v4
         with:
-          name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/
+          name: gateway-${{ matrix.suffix }}
+          path: cmd/gateway/gateway-${{ matrix.suffix }}
 
-  # ============================================
-  # Build Docker Images
-  # ============================================
-  build-docker:
-    name: Build Docker Images
+      - name: Upload Agent artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-${{ matrix.suffix }}
+          path: cmd/agent/agent-${{ matrix.suffix }}
+
+  build-push-images:
+    name: Build & Push Docker Images
     runs-on: ubuntu-latest
+    needs: version-bump
+    strategy:
+      matrix:
+        image:
+          - name: gateway
+            dockerfile: cmd/gateway/Dockerfile
+            context: .
+          - name: frontend
+            dockerfile: frontend/Dockerfile
+            context: ./frontend
+          - name: agent
+            dockerfile: deploy/docker/Dockerfile.agent
+            context: .
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Get version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.version-bump.outputs.version }}
+          submodules: recursive
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -119,193 +181,175 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Docker Hub
+      - name: Login to DockerHub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          images: ${{ env.DOCKERHUB_USERNAME }}/avika-${{ matrix.image.name }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.version-bump.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.version-bump.outputs.version }}
+            type=raw,value=latest,enable=${{ !contains(needs.version-bump.outputs.version, '-') }}
+            type=sha,prefix=sha-
 
-      - name: Build and push Gateway
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./cmd/gateway/Dockerfile
+          context: ${{ matrix.image.context }}
+          file: ${{ matrix.image.dockerfile }}
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-gateway:${{ steps.version.outputs.VERSION }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-gateway:latest
-            ghcr.io/${{ github.repository_owner }}/nginx-gateway:${{ steps.version.outputs.VERSION }}
-            ghcr.io/${{ github.repository_owner }}/nginx-gateway:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           build-args: |
-            VERSION=${{ steps.version.outputs.VERSION }}
-            BUILD_DATE=${{ github.event.head_commit.timestamp }}
-            GIT_COMMIT=${{ github.sha }}
+            VERSION=${{ needs.version-bump.outputs.version }}
 
-      - name: Build and push Agent
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./deploy/docker/Dockerfile.agent
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-agent:${{ steps.version.outputs.VERSION }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-agent:latest
-            ghcr.io/${{ github.repository_owner }}/nginx-agent:${{ steps.version.outputs.VERSION }}
-            ghcr.io/${{ github.repository_owner }}/nginx-agent:latest
-
-      - name: Build and push Frontend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-frontend:${{ steps.version.outputs.VERSION }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-frontend:latest
-            ghcr.io/${{ github.repository_owner }}/nginx-frontend:${{ steps.version.outputs.VERSION }}
-            ghcr.io/${{ github.repository_owner }}/nginx-frontend:latest
-
-  # ============================================
-  # Create GitHub Release
-  # ============================================
-  create-release:
-    name: Create Release
+  package-helm:
+    name: Package Helm Chart
     runs-on: ubuntu-latest
-    needs: [build-binaries, build-docker]
+    needs: version-bump
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          ref: v${{ needs.version-bump.outputs.version }}
 
-      - name: Get version
-        id: version
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.13.0
+
+      - name: Update Chart version
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
+          cd deploy/helm/avika
+          # Update Chart.yaml with new version
+          sed -i "s/^version:.*/version: ${{ needs.version-bump.outputs.version }}/" Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${{ needs.version-bump.outputs.version }}\"/" Chart.yaml
+
+      - name: Package Helm chart
+        run: |
+          helm package deploy/helm/avika --destination ./helm-package
+
+      - name: Upload Helm chart artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-chart
+          path: ./helm-package/*.tgz
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [version-bump, build-binaries, build-push-images, package-helm]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.version-bump.outputs.version }}
+          fetch-depth: 0
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts/
+          path: ./artifacts
 
-      - name: Organize release files
+      - name: Prepare release assets
         run: |
-          mkdir -p release
-          cp artifacts/binaries-*/* release/ || true
-
-      - name: Generate changelog
-        id: changelog
-        run: |
-          # Get the previous tag
-          PREV_TAG=$(git describe --abbrev=0 --tags HEAD^ 2>/dev/null || echo "")
+          mkdir -p release-assets
           
-          if [ -z "$PREV_TAG" ]; then
-            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-            echo "## Initial Release" >> $GITHUB_OUTPUT
-            echo "" >> $GITHUB_OUTPUT
-            git log --pretty=format:"- %s" | head -20 >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-            echo "## Changes since $PREV_TAG" >> $GITHUB_OUTPUT
-            echo "" >> $GITHUB_OUTPUT
-            git log ${PREV_TAG}..HEAD --pretty=format:"- %s" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          fi
+          # Move binaries
+          find ./artifacts -name 'gateway-*' -type f -exec mv {} release-assets/ \;
+          find ./artifacts -name 'agent-*' -type f -exec mv {} release-assets/ \;
+          
+          # Move Helm chart
+          find ./artifacts -name '*.tgz' -type f -exec mv {} release-assets/ \;
+          
+          # Make binaries executable
+          chmod +x release-assets/gateway-* release-assets/agent-* 2>/dev/null || true
+          
+          # Generate checksums
+          cd release-assets
+          sha256sum * > checksums.txt
+          cat checksums.txt
 
-      - name: Create Release
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          # Get commits since last tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [ -n "$PREV_TAG" ]; then
+            echo "Generating notes from $PREV_TAG to v${{ needs.version-bump.outputs.version }}"
+            COMMITS=$(git log --pretty=format:"- %s (%h)" $PREV_TAG..HEAD)
+          else
+            echo "No previous tag found, using recent commits"
+            COMMITS=$(git log --pretty=format:"- %s (%h)" -20)
+          fi
+          
+          # Create release notes
+          cat << EOF > release-notes.md
+          ## What's Changed
+          
+          $COMMITS
+          
+          ## Docker Images
+          
+          \`\`\`bash
+          docker pull hellodk/avika-gateway:${{ needs.version-bump.outputs.version }}
+          docker pull hellodk/avika-frontend:${{ needs.version-bump.outputs.version }}
+          docker pull hellodk/avika-agent:${{ needs.version-bump.outputs.version }}
+          \`\`\`
+          
+          ## Binaries
+          
+          | Platform | Gateway | Agent |
+          |----------|---------|-------|
+          | Linux amd64 | gateway-linux-amd64 | agent-linux-amd64 |
+          | Linux arm64 | gateway-linux-arm64 | agent-linux-arm64 |
+          | macOS amd64 | gateway-darwin-amd64 | agent-darwin-amd64 |
+          | macOS arm64 | gateway-darwin-arm64 | agent-darwin-arm64 |
+          
+          ## Helm Chart
+          
+          \`\`\`bash
+          helm install avika ./avika-${{ needs.version-bump.outputs.version }}.tgz
+          \`\`\`
+          
+          ## Checksums
+          
+          See \`checksums.txt\` for SHA256 checksums of all artifacts.
+          EOF
+
+      - name: Create GitHub Release (Draft)
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ steps.version.outputs.VERSION }}
-          name: Release ${{ steps.version.outputs.VERSION }}
-          body: |
-            ## NGINX Manager ${{ steps.version.outputs.VERSION }}
-
-            ${{ steps.changelog.outputs.CHANGELOG }}
-
-            ## Docker Images
-
-            ```bash
-            # Docker Hub
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/nginx-gateway:${{ steps.version.outputs.VERSION }}
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/nginx-agent:${{ steps.version.outputs.VERSION }}
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/nginx-frontend:${{ steps.version.outputs.VERSION }}
-
-            # GitHub Container Registry
-            docker pull ghcr.io/${{ github.repository_owner }}/nginx-gateway:${{ steps.version.outputs.VERSION }}
-            docker pull ghcr.io/${{ github.repository_owner }}/nginx-agent:${{ steps.version.outputs.VERSION }}
-            docker pull ghcr.io/${{ github.repository_owner }}/nginx-frontend:${{ steps.version.outputs.VERSION }}
-            ```
-
-            ## Installation
-
-            ### Binary Installation
-            Download the appropriate binary for your platform from the assets below.
-
-            ### Helm Installation
-            ```bash
-            helm repo add nginx-manager https://your-helm-repo.example.com
-            helm install nginx-manager nginx-manager/nginx-manager --version ${{ steps.version.outputs.VERSION }}
-            ```
-
-            ## Checksums
-            See checksums files in the release assets for verification.
-          files: release/*
-          draft: false
-          prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}
+          tag_name: v${{ needs.version-bump.outputs.version }}
+          name: Avika v${{ needs.version-bump.outputs.version }}
+          body_path: release-notes.md
+          draft: true
+          prerelease: ${{ contains(needs.version-bump.outputs.version, '-') }}
+          files: |
+            release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ============================================
-  # Publish Helm Chart
-  # ============================================
-  publish-helm:
-    name: Publish Helm Chart
-    runs-on: ubuntu-latest
-    needs: [create-release]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Get version
-        id: version
+      - name: Release Summary
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-          else
-            VERSION="${GITHUB_REF#refs/tags/}"
-          fi
-          # Remove 'v' prefix for Helm version
-          echo "VERSION=${VERSION#v}" >> $GITHUB_OUTPUT
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v3
-        with:
-          version: v3.12.0
-
-      - name: Update Chart version
-        run: |
-          sed -i "s/^version:.*/version: ${{ steps.version.outputs.VERSION }}/" deploy/helm/nginx-manager/Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: \"${{ steps.version.outputs.VERSION }}\"/" deploy/helm/nginx-manager/Chart.yaml
-
-      - name: Package Helm chart
-        run: |
-          helm package deploy/helm/nginx-manager -d .cr-release-packages
-
-      - name: Upload Helm chart as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: helm-chart
-          path: .cr-release-packages/
+          echo "## Release v${{ needs.version-bump.outputs.version }} created!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Docker Images" >> $GITHUB_STEP_SUMMARY
+          echo "- hellodk/avika-gateway:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- hellodk/avika-frontend:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- hellodk/avika-agent:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Review the draft release at: https://github.com/${{ github.repository }}/releases" >> $GITHUB_STEP_SUMMARY
+          echo "2. Edit release notes if needed" >> $GITHUB_STEP_SUMMARY
+          echo "3. Publish the release" >> $GITHUB_STEP_SUMMARY

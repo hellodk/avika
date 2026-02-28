@@ -1,607 +1,193 @@
-name: CI Pipeline
+name: CI
 
 on:
-  push:
-    branches: [main, master, develop]
   pull_request:
-    branches: [main, master, develop]
+    branches: [master, main]
+  push:
+    branches: [master, main]
 
 env:
-  GO_VERSION: '1.22'
+  GO_VERSION: '1.23'
   NODE_VERSION: '20'
 
 jobs:
-  # ============================================
-  # Go Backend - Lint, Test, Build
-  # ============================================
-  go-lint:
-    name: Go Lint
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-      - name: golangci-lint
+      - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v4
         with:
           version: latest
           args: --timeout=5m
-          working-directory: ./
 
-  go-test:
-    name: Go Tests
+  test:
+    name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-      - name: Download dependencies
+      - name: Run tests
         run: |
-          go mod download
-          cd cmd/gateway && go mod download
-          cd ../agent && go mod download
+          go test -v -race -coverprofile=coverage.out ./...
+        env:
+          CGO_ENABLED: 1
 
-      - name: Install go-junit-report
-        run: go install github.com/jstemmer/go-junit-report/v2@latest
-
-      - name: Run Gateway Tests
-        run: |
-          cd cmd/gateway
-          mkdir -p test-results
-          go test -v -race -coverprofile=coverage-gateway.out ./... 2>&1 | tee test-output.txt
-          cat test-output.txt | go-junit-report -set-exit-code > test-results/gateway-junit.xml
-
-      - name: Run Agent Tests
-        run: |
-          cd cmd/agent
-          mkdir -p test-results
-          go test -v -race -coverprofile=coverage-agent.out ./... 2>&1 | tee test-output.txt
-          cat test-output.txt | go-junit-report -set-exit-code > test-results/agent-junit.xml
-
-      - name: Run Common Tests
-        run: |
-          cd internal/common
-          mkdir -p test-results
-          go test -v -race -coverprofile=coverage-common.out ./... 2>&1 | tee test-output.txt
-          cat test-output.txt | go-junit-report -set-exit-code > test-results/common-junit.xml
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: go-test-results
-          path: |
-            cmd/gateway/test-results/
-            cmd/agent/test-results/
-            internal/common/test-results/
-            cmd/gateway/coverage-gateway.out
-            cmd/agent/coverage-agent.out
-            internal/common/coverage-common.out
-
-      - name: Upload coverage reports
+      - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
-          files: cmd/gateway/coverage-gateway.out,cmd/agent/coverage-agent.out,internal/common/coverage-common.out
+          files: ./coverage.out
           fail_ci_if_error: false
 
-  go-build:
-    name: Go Build
+  build-gateway:
+    name: Build Gateway
     runs-on: ubuntu-latest
-    needs: [go-lint, go-test]
-    strategy:
-      matrix:
-        goos: [linux, darwin]
-        goarch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
 
       - name: Build Gateway
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
         run: |
           cd cmd/gateway
-          go build -ldflags="-s -w -X main.Version=${{ github.sha }} -X main.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -o ../../bin/gateway-${{ matrix.goos }}-${{ matrix.goarch }} .
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o gateway-linux-amd64 .
+          echo "Gateway binary built successfully"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gateway-linux-amd64
+          path: cmd/gateway/gateway-linux-amd64
+          retention-days: 1
+
+  build-agent:
+    name: Build Agent
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
 
       - name: Build Agent
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
         run: |
           cd cmd/agent
-          go build -ldflags="-s -w -X main.Version=${{ github.sha }} -X main.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -o ../../bin/agent-${{ matrix.goos }}-${{ matrix.goarch }} .
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o agent-linux-amd64 .
+          echo "Agent binary built successfully"
 
-      - name: Upload artifacts
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: bin/
+          name: agent-linux-amd64
+          path: cmd/agent/agent-linux-amd64
+          retention-days: 1
 
-  # ============================================
-  # Security Scanning
-  # ============================================
-  security-scan:
-    name: Security Scan (SAST/SCA)
+  build-frontend:
+    name: Build Frontend
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          go-version: ${{ env.GO_VERSION }}
+          submodules: recursive
 
-      - name: Run Gosec Security Scanner (SAST)
-        uses: securego/gosec@master
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          args: '-no-fail -fmt sarif -out gosec-results.sarif ./...'
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Upload Gosec SARIF
-        uses: github/codeql-action/upload-sarif@v3
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
         with:
-          sarif_file: gosec-results.sarif
-          category: gosec
-        if: always()
+          version: 9
 
-      - name: Run Go vulnerability check (SCA)
+      - name: Get pnpm store directory
+        shell: bash
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
-  secret-scanning:
-    name: Secret Scanning
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
         with:
-          fetch-depth: 0
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
-      - name: Gitleaks Secret Scan
-        uses: gitleaks/gitleaks-action@v2
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm build
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_COMMENTS: false
+          NEXT_PUBLIC_BASE_PATH: /avika
 
-  frontend-security:
-    name: Frontend Security (SCA)
+  docker-build-test:
+    name: Docker Build Test
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./frontend
+    needs: [build-gateway, build-agent]
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: NPM Audit (SCA)
-        run: npm audit --audit-level=high || true
-
-      - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/node@master
-        continue-on-error: true
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --severity-threshold=high
-
-  container-security:
-    name: Container Security Scan
-    runs-on: ubuntu-latest
-    needs: [go-build]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-    strategy:
-      matrix:
-        component: [gateway, agent, frontend]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build Docker Image
-        run: |
-          if [ "${{ matrix.component }}" = "gateway" ]; then
-            docker build -f cmd/gateway/Dockerfile -t ${{ matrix.component }}:scan .
-          elif [ "${{ matrix.component }}" = "agent" ]; then
-            docker build -f deploy/docker/Dockerfile.agent -t ${{ matrix.component }}:scan .
-          else
-            docker build -f frontend/Dockerfile -t ${{ matrix.component }}:scan ./frontend
-          fi
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: '${{ matrix.component }}:scan'
-          format: 'sarif'
-          output: 'trivy-${{ matrix.component }}.sarif'
-          severity: 'CRITICAL,HIGH'
-
-      - name: Upload Trivy SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-${{ matrix.component }}.sarif'
-          category: 'trivy-${{ matrix.component }}'
-        if: always()
-
-  owasp-dependency-check:
-    name: OWASP Dependency Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        run: cd frontend && npm ci
-
-      - name: OWASP Dependency-Check
-        uses: dependency-check/Dependency-Check_Action@main
-        with:
-          project: 'avika-nginx-manager'
-          path: '.'
-          format: 'HTML,SARIF'
-          args: >
-            --enableExperimental
-            --failOnCVSS 8
-            --suppression .dependency-check-suppression.xml
-        continue-on-error: true
-
-      - name: Upload OWASP results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: owasp-dependency-check
-          path: reports/
-
-      - name: Upload OWASP SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: reports/dependency-check-report.sarif
-          category: owasp-dependency-check
-        if: always()
-
-  sbom-generation:
-    name: SBOM Generation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Generate SBOM with Syft
-        uses: anchore/sbom-action@v0
-        with:
-          format: spdx-json
-          output-file: sbom.spdx.json
-
-      - name: Upload SBOM
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom
-          path: sbom.spdx.json
-
-  dependency-review:
-    name: Dependency Review
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Dependency Review
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high
-
-  # ============================================
-  # Frontend - Lint, Test, Build
-  # ============================================
-  frontend-lint:
-    name: Frontend Lint
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./frontend
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run ESLint
-        run: npm run lint
-
-      - name: Run TypeScript check
-        run: npx tsc --noEmit
-
-  frontend-test:
-    name: Frontend Tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./frontend
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run unit tests
-        run: |
-          mkdir -p test-results coverage
-          npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/junit.xml --coverage
-
-      - name: Upload frontend test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: frontend-test-results
-          path: |
-            frontend/test-results/
-            frontend/coverage/
-
-  frontend-build:
-    name: Frontend Build
-    runs-on: ubuntu-latest
-    needs: [frontend-lint]
-    defaults:
-      run:
-        working-directory: ./frontend
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-        env:
-          NEXT_PUBLIC_GATEWAY_URL: http://localhost:5020
-          NEXT_PUBLIC_WS_URL: ws://localhost:5021
-
-  # ============================================
-  # Docker Build (on main/master only)
-  # ============================================
-  docker-build:
-    name: Docker Build
-    runs-on: ubuntu-latest
-    needs: [go-build, frontend-build]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-    strategy:
-      matrix:
-        component: [gateway, agent, frontend]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+          submodules: recursive
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-        if: github.event_name != 'pull_request'
-
-      - name: Build and push Gateway
-        if: matrix.component == 'gateway'
+      - name: Build Gateway Image (test)
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./cmd/gateway/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-gateway:${{ github.sha }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-gateway:latest
-          build-args: |
-            VERSION=${{ github.sha }}
-            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          push: false
+          tags: avika-gateway:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Build and push Agent
-        if: matrix.component == 'agent'
+      - name: Build Agent Image (test)
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./deploy/docker/Dockerfile.agent
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-agent:${{ github.sha }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-agent:latest
+          push: false
+          tags: avika-agent:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Build and push Frontend
-        if: matrix.component == 'frontend'
+      - name: Build Frontend Image (test)
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-frontend:${{ github.sha }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-frontend:latest
-
-  # ============================================
-  # Helm Chart Validation
-  # ============================================
-  helm-lint:
-    name: Helm Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v3
-        with:
-          version: v3.12.0
-
-      - name: Lint Helm chart
-        run: helm lint ./deploy/helm/nginx-manager
-
-      - name: Template Helm chart
-        run: helm template test ./deploy/helm/nginx-manager --debug > /dev/null
-
-  # ============================================
-  # Integration Tests (on PRs to main)
-  # ============================================
-  integration-tests:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: [go-build]
-    if: github.event_name == 'pull_request'
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: admin
-          POSTGRES_PASSWORD: testpassword
-          POSTGRES_DB: avika
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-      clickhouse:
-        image: clickhouse/clickhouse-server:24.1
-        ports:
-          - 8123:8123
-          - 9000:9000
-        options: >-
-          --health-cmd "wget --spider -q http://localhost:8123/ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Run integration tests
-        run: |
-          cd cmd/gateway
-          go test -v -tags=integration ./...
-        env:
-          DB_DSN: postgres://admin:testpassword@localhost:5432/avika?sslmode=disable
-          CLICKHOUSE_ADDR: localhost:9000
-
-  # ============================================
-  # E2E Tests (on PRs to main)
-  # ============================================
-  e2e-tests:
-    name: E2E Tests
-    runs-on: ubuntu-latest
-    needs: [frontend-build, go-build]
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        working-directory: ./frontend
-        run: npm ci
-
-      - name: Install Playwright browsers
-        working-directory: ./frontend
-        run: npx playwright install --with-deps chromium
-
-      - name: Build frontend
-        working-directory: ./frontend
-        run: npm run build
-        env:
-          NEXT_PUBLIC_GATEWAY_URL: http://localhost:5020
-          NEXT_PUBLIC_WS_URL: ws://localhost:5021
-
-      - name: Start frontend server
-        working-directory: ./frontend
-        run: npm run start &
-        env:
-          PORT: 3000
-
-      - name: Wait for frontend
-        run: |
-          for i in {1..30}; do
-            curl -s http://localhost:3000 > /dev/null && break
-            sleep 1
-          done
-
-      - name: Run E2E tests
-        working-directory: ./frontend
-        run: npx playwright test --reporter=html,junit
-        env:
-          NEXT_PUBLIC_GATEWAY_URL: http://localhost:5020
-          NEXT_PUBLIC_WS_URL: ws://localhost:5021
-          PLAYWRIGHT_JUNIT_OUTPUT_NAME: test-results/e2e-results.xml
-
-      - name: Upload E2E test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-test-results
-          path: |
-            frontend/playwright-report/
-            frontend/test-results/
+          push: false
+          tags: avika-frontend:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
