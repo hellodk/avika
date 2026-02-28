@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { apiFetch } from "./api";
 
 export interface Project {
   id: string;
@@ -52,7 +53,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const fetchProjects = useCallback(async () => {
     try {
-      const response = await fetch("/api/projects", {
+      const response = await apiFetch("/api/projects", {
         credentials: "include",
       });
       if (!response.ok) {
@@ -83,7 +84,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
     
     try {
-      const response = await fetch(`/api/projects/${selectedProject.id}/environments`, {
+      const response = await apiFetch(`/api/projects/${selectedProject.id}/environments`, {
         credentials: "include",
       });
       if (!response.ok) {
@@ -114,7 +115,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const fetchUserInfo = useCallback(async () => {
     try {
-      const response = await fetch("/api/auth/me", {
+      const response = await apiFetch("/api/auth/me", {
         credentials: "include",
       });
       if (response.ok) {
