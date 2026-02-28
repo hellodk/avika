@@ -180,14 +180,14 @@ docker inspect hellodk/avika-agent:latest | \
 ### Check Update Manifest
 
 ```bash
-curl http://192.168.1.10:8090/version.json | jq .version
+curl http://<GATEWAY_HOST>:5021/version.json | jq .version
 ```
 
 ### Check Running Agent
 
 ```bash
 # Via API
-curl http://192.168.1.10:3000/api/servers | jq '.[].agent_version'
+curl http://<FRONTEND_HOST>:5031/api/servers | jq '.[].agent_version'
 
 # Via UI
 # Navigate to http://localhost:3000/inventory

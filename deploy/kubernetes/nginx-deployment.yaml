@@ -4,8 +4,12 @@ metadata:
   name: avika-agent-config
   namespace: default
 data:
-  GATEWAY_SERVER: "192.168.1.10:50051"
-  UPDATE_SERVER: "http://192.168.1.10:8090"
+  # Gateway address - use Kubernetes service DNS name
+  # For external agents, override with actual gateway IP/hostname
+  GATEWAY_SERVER: "avika-gateway.avika.svc.cluster.local:5020"
+  # Update server URL - use Kubernetes service DNS name
+  # For external agents, override with actual gateway HTTP URL
+  UPDATE_SERVER: "http://avika-gateway.avika.svc.cluster.local:5021"
   UPDATE_INTERVAL: "168h"
   NGINX_STATUS_URL: "http://127.0.0.1/nginx_status"
   ACCESS_LOG_PATH: "/var/log/nginx/access.log"
@@ -13,7 +17,8 @@ data:
   LOG_FORMAT: "combined"
   BUFFER_DIR: "/var/lib/avika-agent/"
   LOG_LEVEL: "info"
-  HEALTH_PORT: "8080"
+  HEALTH_PORT: "5026"
+  MGMT_PORT: "5025"
   TZ: "Asia/Kolkata"
 ---
 apiVersion: apps/v1
@@ -39,7 +44,9 @@ spec:
         ports:
         - containerPort: 80
           name: http
-        - containerPort: 8080
+        - containerPort: 5025
+          name: mgmt
+        - containerPort: 5026
           name: health
         envFrom:
         - configMapRef:
@@ -66,14 +73,14 @@ spec:
             memory: 512Mi
         livenessProbe:
           httpGet:
-            path: /health
-            port: 8080
+            path: /healthz
+            port: 5026
           initialDelaySeconds: 10
           periodSeconds: 30
         readinessProbe:
           httpGet:
-            path: /health
-            port: 8080
+            path: /readyz
+            port: 5026
           initialDelaySeconds: 5
           periodSeconds: 10
 ---
@@ -89,7 +96,10 @@ spec:
   - name: http
     port: 80
     targetPort: 80
+  - name: mgmt
+    port: 5025
+    targetPort: 5025
   - name: health
-    port: 8080
-    targetPort: 8080
+    port: 5026
+    targetPort: 5026
   type: ClusterIP

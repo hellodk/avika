@@ -35,6 +35,7 @@ message SystemMetrics {
   float cpu_user_percent = 9;
   float cpu_system_percent = 10;
   float cpu_iowait_percent = 11;
+  map<string, string> labels = 12;
 }
 
 message HttpStatusMetrics {
@@ -58,6 +59,15 @@ message NginxMetrics {
   double requests_per_second = 8;
   SystemMetrics system = 9;
   HttpStatusMetrics http_status = 10;
+  
+  // High-performance observability extensions
+  map<string, string> labels = 11; // prometheus-style labels: server, upstream, route, etc.
+  repeated HistogramBucket latency_distribution = 12;
+}
+
+message HistogramBucket {
+  float le = 1; // less than or equal to (ms)
+  int64 count = 2;
 }
 
 message ServerCommand {
@@ -153,6 +163,13 @@ service AgentService {
 
   // Analytics
   rpc GetAnalytics(AnalyticsRequest) returns (AnalyticsResponse);
+  
+  // Stream Analytics for real-time dashboards
+  rpc StreamAnalytics(AnalyticsRequest) returns (stream AnalyticsResponse);
+
+  // Tracing
+  rpc GetTraces(TraceRequest) returns (TraceList);
+  rpc GetTraceDetails(TraceRequest) returns (Trace);
 
   // AI Tuner
   rpc GetRecommendations(RecommendationRequest) returns (RecommendationResponse);
@@ -165,6 +182,45 @@ service AgentService {
 
   // Command Execution (Shell)
   rpc Execute(stream ExecRequest) returns (stream ExecResponse);
+
+  // Agent Configuration
+  rpc GetAgentConfig(GetAgentConfigRequest) returns (AgentConfig);
+  rpc UpdateAgentConfig(AgentConfig) returns (AgentConfigResponse);
+
+  // Reporting
+  rpc GenerateReport(ReportRequest) returns (ReportResponse);
+  rpc SendReport(SendReportRequest) returns (SendReportResponse);
+  rpc DownloadReport(ReportRequest) returns (ReportDownloadResponse);
+
+  // Alerting
+  rpc ListAlertRules(ListAlertRulesRequest) returns (AlertRuleList);
+  rpc CreateAlertRule(AlertRule) returns (AlertRule);
+  rpc DeleteAlertRule(DeleteAlertRuleRequest) returns (DeleteAlertRuleResponse);
+}
+
+message ListAlertRulesRequest {}
+
+message AlertRuleList {
+  repeated AlertRule rules = 1;
+}
+
+message DeleteAlertRuleRequest {
+  string id = 1;
+}
+
+message DeleteAlertRuleResponse {
+  bool success = 1;
+}
+
+message AlertRule {
+  string id = 1;
+  string name = 2;
+  string metric_type = 3; // "cpu", "memory", "rps", "error_rate"
+  float threshold = 4;
+  string comparison = 5; // "gt", "lt"
+  int32 window_sec = 6;
+  bool enabled = 7;
+  string recipients = 8; // comma-separated emails or webhooks
 }
 
 message ExecRequest {
@@ -337,6 +393,7 @@ message AgentInfo {
   string build_date = 12;    // Build timestamp
   string git_commit = 13;    // Git commit hash
   string git_branch = 14;    // Git branch name
+  bool psk_authenticated = 15; // true if agent connected with valid PSK
 }
 
 message LogRequest {
@@ -364,6 +421,7 @@ message LogEntry {
   float upstream_response_time = 15;
   string referer = 16;
   string user_agent = 17;
+  string x_forwarded_for = 18;  // Client IP from X-Forwarded-For header for geo lookup
 }
 
 // ============ Uptime Monitoring ============
@@ -429,6 +487,39 @@ message GatewayMetricPoint {
   float memory_mb = 5;
   int32 goroutines = 6;
   float db_latency = 7;
+  map<string, string> labels = 8;
+}
+
+message Span {
+  string trace_id = 1;
+  string span_id = 2;
+  string parent_span_id = 3;
+  string name = 4; // e.g., "rewrite", "access", "content"
+  int64 start_time = 5; // Unix nano
+  int64 end_time = 6;   // Unix nano
+  map<string, string> attributes = 7;
+}
+
+message Trace {
+  string request_id = 1;
+  repeated Span spans = 2;
+  LogEntry root_entry = 3;
+}
+
+message TraceRequest {
+  string agent_id = 1;
+  string trace_id = 2;
+  string time_window = 3;
+  int32 limit = 4;
+
+  // Search filters
+  string status_filter = 5; // e.g. "404", "5xx"
+  string method_filter = 6; // e.g. "GET", "POST"
+  string uri_filter = 7;    // e.g. "/api/v1"
+}
+
+message TraceList {
+  repeated Trace traces = 1;
 }
 
 message Insight {
@@ -558,4 +649,101 @@ message Recommendation {
   string suggested_config = 10;
   string server = 11;
   int64 timestamp = 12;
+}
+
+// ============ Reporting Messages ============
+
+message ReportRequest {
+  int64 start_time = 1; // Unix timestamp
+  int64 end_time = 2;   // Unix timestamp
+  repeated string agent_ids = 3; // Optional filter
+  string report_type = 4; // "summary", "detailed", "security"
+}
+
+message ReportResponse {
+  int64 generated_at = 1;
+  ReportSummary summary = 2;
+  repeated TimeSeriesPoint traffic_trend = 3; // Reusing TimeSeriesPoint
+  repeated EndpointStat top_uris = 4;         // Reusing EndpointStat
+  repeated ServerStat top_servers = 5;        // Reusing ServerStat
+  repeated SecurityEvent security_events = 6;
+}
+
+message ReportSummary {
+  int64 total_requests = 1;
+  float error_rate = 2;
+  uint64 total_bandwidth = 3;
+  float avg_latency = 4;
+  int64 unique_visitors = 5;
+}
+
+message SecurityEvent {
+  string type = 1; // "WAF", "RateLimit", "AuthFailure"
+  int64 count = 2;
+  string severity = 3;
+}
+
+message SendReportRequest {
+  ReportRequest request = 1;
+  repeated string recipients = 2;
+  string subject = 3;
+  string body = 4;
+}
+
+message SendReportResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ReportDownloadResponse {
+  bytes content = 1;
+  string file_name = 2;
+  string content_type = 3;
+}
+
+// ============ Agent Configuration Messages ============
+
+message GetAgentConfigRequest {
+  string agent_id = 1;
+}
+
+message AgentConfig {
+  string agent_id = 1;
+  
+  // Gateway Configuration
+  repeated string gateway_addresses = 2;  // Multiple gateway addresses for redundancy
+  bool multi_gateway_mode = 3;            // Enable sending to multiple gateways
+  
+  // NGINX Configuration
+  string nginx_status_url = 4;
+  string access_log_path = 5;
+  string error_log_path = 6;
+  string nginx_config_path = 7;
+  string log_format = 8;
+  
+  // Agent Settings
+  int32 health_port = 9;
+  int32 mgmt_port = 10;
+  string log_level = 11;
+  string buffer_dir = 12;
+  
+  // Update Settings
+  string update_server = 13;
+  int64 update_interval_seconds = 14;
+  
+  // Telemetry Settings
+  int32 metrics_interval_seconds = 15;
+  int32 heartbeat_interval_seconds = 16;
+  
+  // Feature Flags
+  bool enable_vts_metrics = 17;
+  bool enable_log_streaming = 18;
+  bool auto_apply_config = 19;
+}
+
+message AgentConfigResponse {
+  bool success = 1;
+  string error = 2;
+  string message = 3;
+  bool requires_restart = 4;
 }

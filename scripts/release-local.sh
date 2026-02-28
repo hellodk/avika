@@ -6,7 +6,20 @@ set -e
 # Configuration
 VERSION_FILE="VERSION"
 DIST_DIR="dist"
-SERVER_URL="http://192.168.1.10:8090" # Change this to your server IP for remote agents
+
+# Server URL - can be set via environment variable or deploy/.env
+# Default: empty (will prompt if not set)
+if [ -f "deploy/.env" ]; then
+    source deploy/.env
+fi
+SERVER_URL="${SERVER_URL:-${EXTERNAL_GATEWAY_HTTP:-}}"
+
+if [ -z "$SERVER_URL" ]; then
+    echo "⚠️  SERVER_URL is not set."
+    echo "   Set it via environment variable or in deploy/.env"
+    echo "   Example: SERVER_URL=http://your-server:5021 ./scripts/release-local.sh"
+    exit 1
+fi
 
 # Colors
 GREEN='\033[0;32m'
@@ -109,13 +122,13 @@ echo "📦 Preparing deployment script..."
 cp scripts/deploy-agent.sh "$DIST_DIR/deploy-agent.sh"
 
 # Extract host from SERVER_URL (remove protocol and port)
-# e.g., http://192.168.1.10:8090 -> 192.168.1.10
+# e.g., http://gateway.example.com:5021 -> gateway.example.com
 SERVER_HOST="${SERVER_URL#*://}" # Remove protocol
 SERVER_HOST="${SERVER_HOST%:*}"  # Remove port
 
 # Inject variables into deployment script
 sed -i "s|UPDATE_SERVER=\"\${UPDATE_SERVER:-}\"|UPDATE_SERVER=\"\${UPDATE_SERVER:-$SERVER_URL}\"|g" "$DIST_DIR/deploy-agent.sh"
-sed -i "s|GATEWAY_SERVER=\"\${GATEWAY_SERVER:-localhost:50051}\"|GATEWAY_SERVER=\"\${GATEWAY_SERVER:-${SERVER_HOST}:50051}\"|g" "$DIST_DIR/deploy-agent.sh"
+sed -i "s|GATEWAY_SERVER=\"\${GATEWAY_SERVER:-localhost:5020}\"|GATEWAY_SERVER=\"\${GATEWAY_SERVER:-${SERVER_HOST}:5020}\"|g" "$DIST_DIR/deploy-agent.sh"
 
 chmod +x "$DIST_DIR/deploy-agent.sh"
 

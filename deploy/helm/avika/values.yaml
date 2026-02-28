@@ -1,0 +1,493 @@
+# =============================================================================
+# AVIKA HELM CHART - values.yaml
+# =============================================================================
+# This chart uses a generic component structure for easy extensibility.
+# To add a new service, simply add a new block under 'components'.
+#
+# Port assignments: 5020-5050 range to avoid collisions
+# =============================================================================
+
+# -- Global Settings --
+nameOverride: ""
+fullnameOverride: ""
+timezone: UTC
+
+# Image pull secrets for private registries
+imagePullSecrets: []
+
+# Service Account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod settings (applied to all components)
+podAnnotations: {}
+podSecurityContext:
+  runAsNonRoot: false
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# =============================================================================
+# SECRETS
+# =============================================================================
+# Credentials for databases. Auto-generated if empty.
+# For production, set via: --set secrets.postgres.password=<secure>
+secrets:
+  postgres:
+    password: ""  # Auto-generated if empty
+  clickhouse:
+    password: ""  # Auto-generated if empty
+
+# =============================================================================
+# AUTHENTICATION
+# =============================================================================
+auth:
+  enabled: true
+  username: "admin"
+  # SHA-256 hash of password. Default: "admin"
+  # Generate: echo -n "your-password" | sha256sum | cut -d' ' -f1
+  passwordHash: "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"
+  jwtSecret: ""  # Auto-generated if empty
+  tokenExpiry: "24h"
+  cookieSecure: false
+  cookieDomain: ""
+  initialSecretPath: "/var/lib/avika/initial-admin-password"
+
+# =============================================================================
+# PSK (Pre-Shared Key) for Agent Authentication
+# =============================================================================
+psk:
+  enabled: false
+  existingSecret: ""
+  existingSecretKey: "psk"
+  key: ""  # Generate: openssl rand -hex 32
+  allowAutoEnroll: true
+  timestampWindow: "5m"
+  requireHostMatch: false
+
+# =============================================================================
+# VAULT INTEGRATION
+# =============================================================================
+vault:
+  enabled: false
+  address: "http://vault.utilities.svc.cluster.local:8200"
+  token: ""
+  secretsPath: "avika"
+
+# =============================================================================
+# COMPONENTS
+# =============================================================================
+# Each component follows a standard structure:
+#   enabled: true/false
+#   kind: Deployment (default) or StatefulSet
+#   replicaCount: number of replicas
+#   image: {repository, tag, pullPolicy}
+#   ports: {name: {containerPort, servicePort}}
+#   env: environment variables
+#   livenessProbe / readinessProbe: health checks
+#   resources: CPU/memory limits
+#   service: {type, annotations}
+#   persistence: (StatefulSet only) {size, storageClass}
+# =============================================================================
+
+components:
+
+  # ---------------------------------------------------------------------------
+  # GATEWAY - Core API server
+  # ---------------------------------------------------------------------------
+  gateway:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: hellodk/avika-gateway
+      tag: "0.1.88"  # AVIKA SERVICE: Update with app version
+      pullPolicy: Always
+    terminationGracePeriodSeconds: 35
+    
+    ports:
+      grpc:
+        containerPort: 5020
+      http:
+        containerPort: 5021
+      metrics:
+        containerPort: 5022
+    
+    service:
+      type: ClusterIP
+    
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "5022"
+      prometheus.io/path: "/metrics"
+    
+    # Init containers are handled specially in deployment.yaml template
+    
+    # Environment variables (static values only - dynamic values handled in template)
+    env:
+      GATEWAY_GRPC_PORT: "5020"
+      GATEWAY_HTTP_PORT: "5021"
+      GATEWAY_METRICS_PORT: "5022"
+      AGENT_MGMT_PORT: "5025"
+      ALLOWED_ORIGINS: "http://localhost:5031,http://localhost:3000"
+      ENABLE_RATE_LIMIT: "true"
+      RATE_LIMIT_RPS: "100"
+      AUTH_ENABLED: "true"
+      AUTH_USERNAME: "admin"
+      CH_LOG_BUFFER_SIZE: "100000"
+      CH_SPAN_BUFFER_SIZE: "200000"
+      CH_LOG_BATCH_SIZE: "10000"
+      CH_SPAN_BATCH_SIZE: "20000"
+      CH_FLUSH_INTERVAL_MS: "100"
+    
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: http
+      initialDelaySeconds: 15
+      periodSeconds: 15
+    
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: http
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    
+    autoscaling:
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+    
+    podDisruptionBudget:
+      enabled: false
+      minAvailable: 1
+
+  # ---------------------------------------------------------------------------
+  # FRONTEND - Next.js Web UI
+  # ---------------------------------------------------------------------------
+  frontend:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: hellodk/avika-frontend
+      tag: "0.1.88"  # AVIKA SERVICE: Update with app version
+      pullPolicy: Always
+    
+    ports:
+      http:
+        containerPort: 5031
+    
+    service:
+      type: ClusterIP
+    
+    # Base path for subpath routing (e.g., /avika)
+    basePath: "/avika"
+    
+    # Static env vars (dynamic ones like gateway URLs handled in template)
+    env:
+      PORT: "5031"
+      NEXT_PUBLIC_BASE_PATH: "/avika"
+      AUTH_ENABLED: "true"
+    
+    livenessProbe:
+      httpGet:
+        path: /avika/api/health
+        port: http
+      initialDelaySeconds: 15
+      periodSeconds: 20
+    
+    readinessProbe:
+      httpGet:
+        path: /avika/api/health
+        port: http
+      initialDelaySeconds: 5
+      periodSeconds: 10
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+  # ---------------------------------------------------------------------------
+  # OTEL-COLLECTOR - OpenTelemetry Collector
+  # ---------------------------------------------------------------------------
+  otel-collector:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: otel/opentelemetry-collector-contrib
+      tag: "0.96.0"  # THIRD-PARTY: Do not auto-update
+      pullPolicy: IfNotPresent
+    
+    ports:
+      grpc:
+        containerPort: 4317
+      http:
+        containerPort: 4318
+    
+    service:
+      type: ClusterIP
+    
+    livenessProbe:
+      httpGet:
+        path: /
+        port: 13133
+      initialDelaySeconds: 10
+      periodSeconds: 15
+    
+    readinessProbe:
+      httpGet:
+        path: /
+        port: 13133
+      initialDelaySeconds: 5
+      periodSeconds: 10
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+  # ---------------------------------------------------------------------------
+  # POSTGRESQL - Primary Database (StatefulSet)
+  # ---------------------------------------------------------------------------
+  postgresql:
+    enabled: true
+    kind: StatefulSet
+    replicaCount: 1
+    image:
+      repository: postgres
+      tag: "16-alpine"  # THIRD-PARTY: Do not auto-update
+      pullPolicy: IfNotPresent
+    
+    ports:
+      tcp:
+        containerPort: 5432
+    
+    # Env vars (password secret handled in template)
+    env:
+      POSTGRES_DB: "avika"
+      POSTGRES_USER: "admin"
+    
+    livenessProbe:
+      exec:
+        command: ["pg_isready", "-U", "admin", "-d", "postgres"]
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    
+    readinessProbe:
+      exec:
+        command: ["pg_isready", "-U", "admin", "-d", "postgres"]
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    
+    volumeMounts:
+      - name: data
+        mountPath: /var/lib/postgresql/data
+        subPath: pgdata
+    
+    persistence:
+      size: 8Gi
+      accessMode: ReadWriteOnce
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+  # ---------------------------------------------------------------------------
+  # CLICKHOUSE - Analytics Database (StatefulSet)
+  # ---------------------------------------------------------------------------
+  clickhouse:
+    enabled: true
+    kind: StatefulSet
+    replicaCount: 1
+    image:
+      repository: clickhouse/clickhouse-server
+      tag: "23.8-alpine"  # THIRD-PARTY: Do not auto-update
+      pullPolicy: IfNotPresent
+    
+    ports:
+      http:
+        containerPort: 8123
+      native:
+        containerPort: 9000
+    
+    # Env vars (password secret handled in template)
+    env:
+      CLICKHOUSE_DB: "avika"
+      CLICKHOUSE_USER: "default"
+    
+    livenessProbe:
+      httpGet:
+        path: /ping
+        port: http
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    
+    readinessProbe:
+      httpGet:
+        path: /ping
+        port: http
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    
+    volumeMounts:
+      - name: data
+        mountPath: /var/lib/clickhouse
+    
+    persistence:
+      size: 10Gi
+      accessMode: ReadWriteOnce
+    
+    resources:
+      limits:
+        cpu: 2
+        memory: 4Gi
+      requests:
+        cpu: 500m
+        memory: 2Gi
+
+  # ---------------------------------------------------------------------------
+  # REDPANDA - Message Queue (StatefulSet)
+  # ---------------------------------------------------------------------------
+  redpanda:
+    enabled: false  # Disabled: io_uring not supported on NFS storage
+    kind: StatefulSet
+    replicaCount: 1
+    image:
+      repository: redpandadata/redpanda
+      tag: "v24.1.1"  # THIRD-PARTY: Do not auto-update with app version
+      pullPolicy: IfNotPresent
+    
+    # Redpanda needs special args for NFS storage (io_uring not supported)
+    command:
+      - rpk
+      - redpanda
+      - start
+    args:
+      - --smp=1
+      - --memory=1G
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --unsafe-bypass-fsync=1
+      - --default-log-level=warn
+      - --kafka-addr=0.0.0.0:9092
+      - --advertise-kafka-addr=avika-redpanda:9092
+    
+    ports:
+      kafka:
+        containerPort: 9092
+      admin:
+        containerPort: 9644
+    
+    env:
+      REDPANDA_SEED_SERVERS: ""
+    
+    livenessProbe:
+      tcpSocket:
+        port: kafka
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    
+    readinessProbe:
+      tcpSocket:
+        port: kafka
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    
+    volumeMounts:
+      - name: data
+        mountPath: /var/lib/redpanda/data
+    
+    persistence:
+      size: 10Gi
+      accessMode: ReadWriteOnce
+    
+    resources:
+      limits:
+        cpu: 1
+        memory: 2Gi
+      requests:
+        cpu: 200m
+        memory: 512Mi
+
+# =============================================================================
+# INGRESS (Optional)
+# =============================================================================
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: avika.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+        - path: /api
+          pathType: Prefix
+          service: gateway
+  tls: []
+
+# =============================================================================
+# MONITORING
+# =============================================================================
+monitoring:
+  prometheus:
+    enabled: true
+    scrape: true
+    interval: 30s
+    path: /metrics
+
+# =============================================================================
+# GRAFANA INTEGRATION (kube-prometheus-stack)
+# =============================================================================
+# Creates ConfigMaps with appropriate labels for Grafana sidecar discovery.
+# The kube-prometheus-stack Grafana sidecar scans all namespaces for ConfigMaps
+# with grafana_dashboard: "1" and grafana_datasource: "1" labels.
+grafana:
+  # URL for Grafana (used for embedded dashboards in frontend)
+  # Should be browser-accessible URL to Grafana
+  url: ""  # e.g., http://grafana.monitoring.svc.cluster.local:3000 or external URL
+  
+  dashboards:
+    enabled: true
+    folder: "Avika"
+  
+  datasources:
+    enabled: true
+    clickhouse:
+      name: "ClickHouse"
+      uid: "DS_CLICKHOUSE"
+      port: 8123
+      database: "nginx_analytics"
+      username: "default"
+      password: ""  # Set via --set grafana.datasources.clickhouse.password

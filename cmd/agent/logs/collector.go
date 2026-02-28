@@ -5,7 +5,7 @@ import (
 	"log"
 	"sync"
 
-	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 )
 
 type LogCollector struct {

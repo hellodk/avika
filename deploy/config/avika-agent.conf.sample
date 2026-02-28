@@ -1,0 +1,237 @@
+# =============================================================================
+# Avika NGINX Manager Agent - Sample Configuration File
+# =============================================================================
+# 
+# Installation:
+#   Copy this file to /etc/avika/avika-agent.conf
+#   sudo cp avika-agent.conf.sample /etc/avika/avika-agent.conf
+#   sudo chmod 600 /etc/avika/avika-agent.conf
+#
+# The agent reads this file on startup. CLI flags take precedence over config.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# GATEWAY CONNECTION
+# -----------------------------------------------------------------------------
+
+# Gateway address(es) - single value or comma-separated for multi-gateway HA mode
+# Format: host:port (gRPC endpoint)
+# Default: localhost:5020
+#
+# Examples:
+#   Single gateway:
+#     GATEWAYS="gateway.example.com:5020"
+#
+#   Multi-gateway (high availability / redundancy mode):
+#   Agent connects to ALL gateways simultaneously - each receives the same data
+#     GATEWAYS="gw1.example.com:5020,gw2.example.com:5020"
+#
+#   Multi-region:
+#     GATEWAYS="us-east.avika.io:5020,us-west.avika.io:5020,eu.avika.io:5020"
+#
+#   Kubernetes (use full DNS name):
+#     GATEWAYS="avika-gateway.avika.svc.cluster.local:5020"
+#
+GATEWAYS="gateway.avika.local:5020"
+
+# -----------------------------------------------------------------------------
+# AGENT IDENTITY
+# -----------------------------------------------------------------------------
+
+# Agent ID (optional)
+# Unique identifier for this agent in the fleet
+# If empty, auto-generated as: hostname+IP (e.g., "nginx-prod-01+192.168.1.50")
+# The ID is persisted to .agent_id file after first generation
+#
+# Examples:
+#   AGENT_ID="nginx-prod-east-1"
+#   AGENT_ID="k8s-ingress-pool-a"
+#   AGENT_ID=""  # Auto-detect
+AGENT_ID=""
+
+# -----------------------------------------------------------------------------
+# NETWORK PORTS
+# -----------------------------------------------------------------------------
+
+# Health Check Port
+# Exposes /healthz (liveness) and /readyz (readiness) endpoints
+# Used by Kubernetes probes or external health checkers
+# Default: 5026
+HEALTH_PORT=5026
+
+# Management gRPC Port
+# Port for management service (configuration updates, remote commands)
+# Default: 5025
+MGMT_PORT=5025
+
+# -----------------------------------------------------------------------------
+# NGINX CONFIGURATION
+# -----------------------------------------------------------------------------
+
+# NGINX Configuration File Path
+# Main nginx.conf location for configuration management and backups
+# Default: /etc/nginx/nginx.conf
+NGINX_CONFIG_PATH="/etc/nginx/nginx.conf"
+
+# NGINX stub_status URL
+# Enable stub_status in NGINX:
+#   location /nginx_status {
+#       stub_status;
+#       allow 127.0.0.1;
+#       deny all;
+#   }
+# Default: http://127.0.0.1/nginx_status
+NGINX_STATUS_URL="http://127.0.0.1/nginx_status"
+
+# NGINX VTS Module URL (optional, auto-detected)
+# If nginx-module-vts is installed, provides richer metrics
+# The agent auto-detects this from stub_status URL
+# Format: http://host/status/format/json
+# VTS_STATUS_URL="http://127.0.0.1/status/format/json"
+
+# -----------------------------------------------------------------------------
+# LOG COLLECTION
+# -----------------------------------------------------------------------------
+
+# NGINX Access Log Path
+# Path to the access log file for real-time parsing
+# Supports standard combined format and JSON format
+# Default: /var/log/nginx/access.log
+ACCESS_LOG_PATH="/var/log/nginx/access.log"
+
+# NGINX Error Log Path
+# Path to the error log file
+# Default: /var/log/nginx/error.log
+ERROR_LOG_PATH="/var/log/nginx/error.log"
+
+# Log Format
+# "combined" - Standard NGINX combined log format (default)
+# "json"     - JSON format (recommended for rich telemetry)
+#
+# For JSON format, configure NGINX:
+#   log_format json_combined escape=json '{'
+#     '"time_local":"$time_local",'
+#     '"remote_addr":"$remote_addr",'
+#     '"request":"$request",'
+#     '"status":$status,'
+#     '"body_bytes_sent":$body_bytes_sent,'
+#     '"request_time":$request_time,'
+#     '"upstream_response_time":"$upstream_response_time"'
+#   '}';
+#   access_log /var/log/nginx/access.log json_combined;
+#
+LOG_FORMAT="combined"
+
+# -----------------------------------------------------------------------------
+# DATA PERSISTENCE
+# -----------------------------------------------------------------------------
+
+# Buffer Directory
+# Directory for Write-Ahead Log (WAL) - persistent message buffer
+# Ensures no data loss if gateway connection is temporarily lost
+# Agent buffers messages here and replays them when connection restores
+# Requires write permissions; ~100MB recommended free space
+# Default: ./ (current directory)
+BUFFER_DIR="/var/lib/avika/"
+
+# Backup Directory
+# Directory for NGINX configuration backups
+# Created automatically on agent start and before config changes
+# Default: /var/lib/avika/backups
+BACKUP_DIR="/var/lib/avika/backups"
+
+# -----------------------------------------------------------------------------
+# SELF-UPDATE (Optional)
+# -----------------------------------------------------------------------------
+
+# Update Server URL
+# Server hosting agent binaries for self-update
+#
+# Behavior:
+#   Empty string (""): Auto-derive from gateway address
+#     The agent constructs: http://<gateway-host>:5021/updates
+#     This is the recommended default - gateway serves updates
+#
+#   "disabled": Explicitly disable self-updates
+#
+#   Custom URL: Use a separate update server
+#     Example: UPDATE_SERVER="http://updates.example.com:8090"
+#
+# The agent checks for updates at:
+#   GET ${UPDATE_SERVER}/version.json      - Returns manifest with latest version
+#   GET ${UPDATE_SERVER}/agent-linux-amd64 - Downloads binary (by arch)
+#
+# Examples:
+#   UPDATE_SERVER=""                          # Auto-derive from gateway (default)
+#   UPDATE_SERVER="disabled"                  # Disable self-updates
+#   UPDATE_SERVER="http://updates.local:8090" # Custom server
+#
+UPDATE_SERVER=""
+
+# Update Check Interval
+# How often to check for updates
+# Format: Go duration (e.g., "1h", "24h", "168h" for 1 week)
+# Default: 168h (1 week)
+UPDATE_INTERVAL="168h"
+
+# -----------------------------------------------------------------------------
+# LOGGING & DEBUGGING
+# -----------------------------------------------------------------------------
+
+# Log Level
+# Controls verbosity of agent logs
+# Options: debug, info, warn, error
+# Default: info
+LOG_LEVEL="info"
+
+# Log File Path
+# Path to agent log file. The agent auto-creates the directory if needed.
+#
+# Deployment-specific recommendations:
+#   Containers/Kubernetes: LOG_FILE=""
+#     → stdout captured by container runtime, view with 'kubectl logs'
+#
+#   VMs with systemd: LOG_FILE=""
+#     → stdout captured by journald, view with 'journalctl -u avika-agent'
+#
+#   VMs without systemd: LOG_FILE="/var/log/avika/agent.log"
+#     → persistent file logging (directory auto-created)
+#
+# Default: "" (stdout)
+LOG_FILE=""
+
+# =============================================================================
+# EXAMPLE CONFIGURATIONS
+# =============================================================================
+
+# --- Minimal (single gateway, auto-detect everything) ---
+# GATEWAYS="gateway.example.com:5020"
+
+# --- Production (multi-gateway, explicit settings) ---
+# GATEWAYS="gw1.prod.example.com:5020,gw2.prod.example.com:5020"
+# AGENT_ID="nginx-prod-web-01"
+# NGINX_CONFIG_PATH="/etc/nginx/nginx.conf"
+# NGINX_STATUS_URL="http://127.0.0.1:8080/nginx_status"
+# LOG_FORMAT="json"
+# UPDATE_SERVER="http://releases.example.com:8090"
+# LOG_LEVEL="info"
+
+# --- Kubernetes (in-cluster) ---
+# GATEWAYS="avika-gateway.avika.svc.cluster.local:5020"
+# HEALTH_PORT=5026
+# NGINX_STATUS_URL="http://127.0.0.1/nginx_status"
+# BUFFER_DIR="/tmp/avika/"
+# LOG_FILE=""  # stdout - captured by container runtime
+
+# --- VM with systemd ---
+# GATEWAYS="gateway.example.com:5020"
+# LOG_FILE=""  # stdout - captured by journald
+
+# --- VM without systemd ---
+# GATEWAYS="gateway.example.com:5020"
+# LOG_FILE="/var/log/avika/agent.log"  # persistent file logging
+
+# --- Development (local testing) ---
+# GATEWAYS="localhost:5020"
+# LOG_LEVEL="debug"
+# BUFFER_DIR="./"

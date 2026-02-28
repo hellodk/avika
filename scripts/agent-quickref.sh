@@ -8,12 +8,14 @@ cat << 'EOF'
 
 📦 ONE-LINE DEPLOYMENT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-curl -fsSL http://192.168.1.10:8090/deploy-agent.sh | sudo bash
+curl -fsSL http://<GATEWAY_HOST>:5021/deploy-agent.sh | \
+     GATEWAY_SERVER=<GATEWAY_HOST>:5020 \
+     UPDATE_SERVER=http://<GATEWAY_HOST>:5021 sudo -E bash
 
 🔧 CUSTOM DEPLOYMENT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-sudo GATEWAY_SERVER="gateway.example.com:50051" \
-     UPDATE_SERVER="http://updates.example.com:8090" \
+sudo GATEWAY_SERVER="your-gateway:5020" \
+     UPDATE_SERVER="http://your-gateway:5021" \
      ./deploy-agent.sh
 
 📋 SERVICE MANAGEMENT
@@ -22,18 +24,18 @@ Status:   sudo systemctl status avika-agent
 Logs:     sudo journalctl -u avika-agent -f
 Restart:  sudo systemctl restart avika-agent
 Stop:     sudo systemctl stop avika-agent
-Config:   sudo nano /etc/avika-agent/agent.conf
+Config:   sudo nano /etc/avika/avika-agent.conf
 
 🔍 TROUBLESHOOTING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Version:  /usr/local/bin/avika-agent -version
 Logs:     sudo journalctl -u avika-agent -n 100 --no-pager
-Test:     sudo /usr/local/bin/avika-agent -server 192.168.1.10:50051 -id test
+Test:     sudo /usr/local/bin/avika-agent -server <GATEWAY_HOST>:5020 -id test
 
 📂 FILE LOCATIONS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Binary:   /usr/local/bin/avika-agent
-Config:   /etc/avika-agent/agent.conf
+Config:   /etc/avika/avika-agent.conf
 Service:  /etc/systemd/system/avika-agent.service
 Logs:     /var/log/avika-agent/agent.log
 Buffer:   /var/lib/avika-agent/

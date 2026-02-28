@@ -1,0 +1,72 @@
+2026/02/15 09:00:38 main.go:266: Starting agent cylon+192.168.1.10 (version 0.1.0-dev) with server localhost:15020
+2026/02/15 09:00:38 server.go:117: Starting health check server on :5026
+2026/02/15 09:00:38 backup.go:24: Creating NGINX config backup at /var/lib/avika/backups/20260215090038_startup (reason: startup)
+2026/02/15 09:00:38 main.go:311: Warning: startup backup failed: failed to create backup directory: mkdir /var/lib/avika: permission denied
+2026/02/15 09:00:38 main.go:442: Agent is ready
+2026/02/15 09:00:38 main.go:448: Connecting to 1 gateway(s): [localhost:15020]
+2026/02/15 09:00:38 main.go:680: Connecting to gateway localhost:15020...
+2026/02/15 09:00:38 main.go:436: Starting Management Service with NGINX config: /etc/nginx/nginx.conf
+2026/02/15 09:00:38 Seeked /var/log/nginx/error.log - &{Offset:0 Whence:2}
+2026/02/15 09:00:38 mgmt_service.go:325: Agent Management Service listening on :5025
+2026/02/15 09:00:38 Seeked /var/log/nginx/access.log - &{Offset:0 Whence:2}
+2026/02/15 09:00:38 main.go:698: Stream creation failed: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp 127.0.0.1:15020: connect: connection refused". Retrying in 5s...
+2026/02/15 09:00:39 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:39 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:40 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:40 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:41 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:41 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:42 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:42 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:43 main.go:680: Connecting to gateway localhost:15020...
+2026/02/15 09:00:43 main.go:698: Stream creation failed: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp 127.0.0.1:15020: connect: connection refused". Retrying in 5s...
+2026/02/15 09:00:43 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:43 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:44 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:44 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:45 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:45 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:46 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:46 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:47 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:47 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:48 main.go:680: Connecting to gateway localhost:15020...
+2026/02/15 09:00:48 main.go:698: Stream creation failed: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp 127.0.0.1:15020: connect: connection refused". Retrying in 5s...
+2026/02/15 09:00:48 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:48 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:49 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:49 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:50 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:50 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:51 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:51 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:52 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:52 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:53 main.go:680: Connecting to gateway localhost:15020...
+2026/02/15 09:00:53 main.go:698: Stream creation failed: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp 127.0.0.1:15020: connect: connection refused". Retrying in 5s...
+2026/02/15 09:00:53 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:53 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:54 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:54 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:55 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:55 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:56 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:56 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:57 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:57 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:58 main.go:680: Connecting to gateway localhost:15020...
+2026/02/15 09:00:58 main.go:698: Stream creation failed: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp 127.0.0.1:15020: connect: connection refused". Retrying in 5s...
+2026/02/15 09:00:58 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:58 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:00:59 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:00:59 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:01:00 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:01:00 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:01:01 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:01:01 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:01:02 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:01:02 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics
+2026/02/15 09:01:03 main.go:680: Connecting to gateway localhost:15020...
+2026/02/15 09:01:03 main.go:698: Stream creation failed: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp 127.0.0.1:15020: connect: connection refused". Retrying in 5s...
+2026/02/15 09:01:03 main.go:524: Writing message to buffer: type *agent.AgentMessage_Heartbeat
+2026/02/15 09:01:03 main.go:524: Writing message to buffer: type *agent.AgentMessage_Metrics

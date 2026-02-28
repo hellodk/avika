@@ -1,11 +1,11 @@
-module github.com/user/nginx-manager/cmd/agent
+module github.com/avika-ai/avika/cmd/agent
 
-go 1.25.4
+go 1.24
 
 require (
 	github.com/hpcloud/tail v1.0.0
 	github.com/shirou/gopsutil/v3 v3.24.5
-	github.com/user/nginx-manager/internal/common v0.0.0-00010101000000-000000000000
+	github.com/avika-ai/avika/internal/common v0.0.0-00010101000000-000000000000
 	go.opentelemetry.io/proto/otlp v1.9.0
 	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
@@ -32,6 +32,6 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 )
 
-replace github.com/user/nginx-manager/internal/common => ../../internal/common
+replace github.com/avika-ai/avika/internal/common => ../../internal/common
 
-replace github.com/user/nginx-manager => ../../
+replace github.com/avika-ai/avika => ../../

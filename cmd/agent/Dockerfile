@@ -1,4 +1,4 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # Build arguments for versioning
 ARG VERSION=dev
@@ -48,7 +48,9 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD ["/app/agent", "-health-check"] || exit 1
 
 # Expose management port
-EXPOSE 50052
+# Application ports (5020-5050 range)
+EXPOSE 5025
+EXPOSE 5026
 
 # Labels for metadata
 LABEL org.opencontainers.image.title="NGINX Manager Agent"
@@ -56,6 +58,6 @@ LABEL org.opencontainers.image.description="Agent for NGINX fleet management"
 LABEL org.opencontainers.image.version="${VERSION}"
 LABEL org.opencontainers.image.created="${BUILD_DATE}"
 LABEL org.opencontainers.image.revision="${GIT_COMMIT}"
-LABEL org.opencontainers.image.source="https://github.com/yourusername/nginx-manager"
+LABEL org.opencontainers.image.source="https://github.com/yourusername/avika"
 
 CMD ["./agent"]

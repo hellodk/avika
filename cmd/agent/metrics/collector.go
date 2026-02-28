@@ -4,55 +4,81 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 )
 
 // NginxCollector collects metrics from NGINX stub_status
 type NginxCollector struct {
 	stubStatusURL   string
+	vtsURL          string
 	client          *http.Client
 	systemCollector *SystemCollector
+	vtsCollector    *VtsCollector
 }
 
 func NewNginxCollector(url string) *NginxCollector {
 	if url == "" {
 		url = "http://127.0.0.1/nginx_status"
 	}
+	// Derive VTS URL from stub status URL as a heuristic
+	vtsURL := strings.Replace(url, "nginx_status", "status/format/json", 1)
+	if !strings.Contains(vtsURL, "status/format/json") {
+		vtsURL = "http://127.0.0.1/status/format/json"
+	}
+
 	return &NginxCollector{
 		stubStatusURL: url,
+		vtsURL:        vtsURL,
 		client: &http.Client{
 			Timeout: 2 * time.Second,
 		},
 		systemCollector: NewSystemCollector(),
+		vtsCollector:    NewVtsCollector(vtsURL),
 	}
 }
 
 // Collect scrapes the stub_status page and returns metrics
 func (c *NginxCollector) Collect() (*pb.NginxMetrics, error) {
-	resp, err := c.client.Get(c.stubStatusURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch stub_status: %v", err)
-	}
-	defer resp.Body.Close()
+	var metrics *pb.NginxMetrics
+	var err error
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("stub_status returned %s", resp.Status)
+	// Try VTS first
+	metrics, err = c.vtsCollector.Collect()
+	if err != nil {
+		// Fallback to stub_status
+		resp, err := c.client.Get(c.stubStatusURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch metrics (VTS and stub_status failed): %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("stub_status (%s) returned %s", c.stubStatusURL, resp.Status)
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read body: %v", err)
+		}
+
+		metrics, err = parseStubStatus(string(body))
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read body: %v", err)
+	// Add hostname and basic labels
+	hostname, _ := os.Hostname()
+	if metrics.Labels == nil {
+		metrics.Labels = make(map[string]string)
 	}
-
-	metrics, err := parseStubStatus(string(body))
-	if err != nil {
-		return nil, err
-	}
+	metrics.Labels["server"] = hostname
 
 	// Collect system metrics
 	systemMetrics, err := c.systemCollector.Collect()
@@ -61,6 +87,11 @@ func (c *NginxCollector) Collect() (*pb.NginxMetrics, error) {
 	}
 
 	return metrics, nil
+}
+
+// CollectSystemOnly collects only system metrics, useful as fallback when NGINX metrics fail
+func (c *NginxCollector) CollectSystemOnly() (*pb.SystemMetrics, error) {
+	return c.systemCollector.Collect()
 }
 
 // parseStubStatus parses the standard NGINX stub_status output

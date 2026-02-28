@@ -59,8 +59,8 @@ The Avika Agent supports both **automatic periodic updates** and **remote-trigge
 ### Default Settings
 
 ```bash
-# /etc/avika-agent/agent.conf
-UPDATE_SERVER="http://192.168.1.10:8090"
+# /etc/avika/avika-agent.conf
+UPDATE_SERVER="http://<GATEWAY_HOST>:5021"
 UPDATE_INTERVAL="168h"  # 1 week
 ```
 
@@ -176,10 +176,10 @@ sudo journalctl -u avika-agent -n 100 | grep -i update
 
 ```bash
 # Check version manifest
-curl http://192.168.1.10:8090/version.json
+curl http://<GATEWAY_HOST>:5021/version.json
 
 # Check binary availability
-curl -I http://192.168.1.10:8090/agent-linux-amd64
+curl -I http://<GATEWAY_HOST>:5021/agent-linux-amd64
 ```
 
 ## Troubleshooting
@@ -192,7 +192,7 @@ curl -I http://192.168.1.10:8090/agent-linux-amd64
 systemctl cat avika-agent | grep update-server
 
 # Should show:
-# -update-server "http://192.168.1.10:8090"
+# -update-server "http://<GATEWAY_HOST>:5021"
 ```
 
 **Check agent logs:**
@@ -207,7 +207,7 @@ sudo journalctl -u avika-agent -n 50 | grep -i "updater\|update"
 1. **Update server unreachable**
    ```bash
    # Test connectivity
-   curl http://192.168.1.10:8090/version.json
+   curl http://<GATEWAY_HOST>:5021/version.json
    ```
 
 2. **Checksum mismatch**
@@ -228,10 +228,10 @@ If automatic updates fail, you can manually update:
 sudo systemctl stop avika-agent
 
 # Download new binary
-curl -fsSL http://192.168.1.10:8090/agent-linux-amd64 -o /tmp/agent-new
+curl -fsSL http://<GATEWAY_HOST>:5021/agent-linux-amd64 -o /tmp/agent-new
 
 # Verify checksum
-curl -fsSL http://192.168.1.10:8090/agent-linux-amd64.sha256
+curl -fsSL http://<GATEWAY_HOST>:5021/agent-linux-amd64.sha256
 sha256sum /tmp/agent-new
 
 # Replace binary
@@ -268,7 +268,7 @@ The gateway (`cmd/gateway/main.go`) provides the `/api/servers/:id` endpoint:
 
 ```bash
 # Trigger update for specific agent
-curl -X POST http://192.168.1.10:3000/api/servers/AGENT_ID \
+curl -X POST http://<FRONTEND_HOST>:5031/api/servers/AGENT_ID \
   -H "Content-Type: application/json" \
   -d '{"action": "update_agent"}'
 ```

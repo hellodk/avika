@@ -12,7 +12,7 @@ import (
 func main() {
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
-		dsn = "postgres://admin:password@localhost:5432/nginx_manager?sslmode=disable"
+		log.Fatal("DB_DSN environment variable is required. Example: postgres://user:pass@localhost:5432/avika?sslmode=disable")
 	}
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {

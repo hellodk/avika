@@ -2,17 +2,20 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
-
-	"io"
 	"os/exec"
+	"strings"
+	"time"
 
-	"github.com/user/nginx-manager/cmd/agent/certs"
-	"github.com/user/nginx-manager/cmd/agent/config"
-	"github.com/user/nginx-manager/cmd/agent/logs"
-	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+	"github.com/avika-ai/avika/cmd/agent/certs"
+	"github.com/avika-ai/avika/cmd/agent/config"
+	"github.com/avika-ai/avika/cmd/agent/logs"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
+	"github.com/creack/pty"
 	"google.golang.org/grpc"
 )
 
@@ -22,9 +25,9 @@ type mgmtServer struct {
 	certManager   *certs.Manager
 }
 
-func newMgmtServer() *mgmtServer {
+func newMgmtServer(configPath string) *mgmtServer {
 	return &mgmtServer{
-		configManager: config.NewManager("/etc/nginx/nginx.conf"),
+		configManager: config.NewManager(configPath),
 		certManager:   certs.NewManager([]string{"/etc/nginx/ssl", "/etc/ssl/certs"}),
 	}
 }
@@ -190,26 +193,45 @@ func (s *mgmtServer) ApplyAugment(ctx context.Context, req *pb.ApplyAugmentReque
 
 	log.Printf("Applying augment: %s (context: %s)", req.Augment.Name, req.Augment.Context)
 
-	// For now, just return the preview
-	// In production, this would:
-	// 1. Read current NGINX config
-	// 2. Merge the augment snippet into appropriate context
-	// 3. Validate the merged config
-	// 4. Apply if valid
+	// 1. Apply Snippet
+	backupPath, err := s.configManager.UpdateSnippet(req.Augment.Snippet, req.Augment.Context)
+	if err != nil {
+		return &pb.ApplyAugmentResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to update config: %v", err),
+		}, nil
+	}
 
-	preview := req.Augment.Snippet
+	// 2. Reload NGINX
+	if err := s.configManager.Reload(); err != nil {
+		log.Printf("Reload failed, rolling back... Error: %v", err)
+
+		// 3. Rollback on failure
+		if rbErr := s.configManager.Rollback(); rbErr != nil {
+			return &pb.ApplyAugmentResponse{
+				Success: false,
+				Error:   fmt.Sprintf("Reload failed: %v. Critical: Rollback also failed: %v", err, rbErr),
+				Preview: req.Augment.Snippet,
+			}, nil
+		}
+
+		return &pb.ApplyAugmentResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Config invalid, rolled back. Error: %v", err),
+			Preview: req.Augment.Snippet,
+		}, nil
+	}
 
 	return &pb.ApplyAugmentResponse{
 		Success: true,
-		Preview: preview,
+		Preview: req.Augment.Snippet + " (Applied & Backup at " + backupPath + ")",
 	}, nil
 }
 
 func (s *mgmtServer) Execute(stream pb.AgentService_ExecuteServer) error {
 	var cmd *exec.Cmd
-	var stdin io.WriteCloser
-	var stdout io.ReadCloser
-	var stderr io.ReadCloser
+	var ptmx *os.File
+	var done = make(chan struct{})
 
 	log.Printf("New Execute session started")
 
@@ -217,90 +239,99 @@ func (s *mgmtServer) Execute(stream pb.AgentService_ExecuteServer) error {
 		req, err := stream.Recv()
 		if err == io.EOF {
 			log.Printf("Execute session ended (EOF)")
+			if ptmx != nil {
+				ptmx.Close()
+			}
+			if cmd != nil && cmd.Process != nil {
+				cmd.Process.Kill()
+			}
 			return nil
 		}
 		if err != nil {
 			log.Printf("Execute session recv error: %v", err)
+			if ptmx != nil {
+				ptmx.Close()
+			}
+			if cmd != nil && cmd.Process != nil {
+				cmd.Process.Kill()
+			}
 			return err
 		}
 
 		if cmd == nil {
-			// Start process on first message
+			// Start process on first message with a PTY for interactive shell support
 			shell := req.Command
 			if shell == "" {
-				shell = "/bin/bash"
+				// Use Lens-style shell fallback: try bash, then ash, then sh
+				// This ensures compatibility with all container images (Alpine, Debian, etc.)
+				shell = "/bin/sh -c '(bash || ash || sh)'"
 			}
-			log.Printf("Starting shell: %s for instance: %s", shell, req.InstanceId)
-			cmd = exec.Command(shell)
-			stdin, _ = cmd.StdinPipe()
-			stdout, _ = cmd.StdoutPipe()
-			stderr, _ = cmd.StderrPipe()
-
-			if err := cmd.Start(); err != nil {
-				log.Printf("Failed to start shell %s: %v", shell, err)
+			log.Printf("Starting shell with PTY: %s for instance: %s", shell, req.InstanceId)
+			
+			// Parse command - if it contains spaces, use sh -c to execute
+			var cmdArgs []string
+			if strings.Contains(shell, " ") {
+				cmdArgs = []string{"/bin/sh", "-c", shell}
+			} else {
+				cmdArgs = []string{shell}
+			}
+			
+			cmd = exec.Command(cmdArgs[0], cmdArgs[1:]...)
+			cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+			
+			// Start with PTY
+			var err error
+			ptmx, err = pty.Start(cmd)
+			if err != nil {
+				log.Printf("Failed to start shell with PTY %s: %v", shell, err)
 				return stream.Send(&pb.ExecResponse{Error: err.Error()})
 			}
 
-			// Goroutine to stream stdout back
-			go func() {
-				buf := make([]byte, 1024)
-				for {
-					n, err := stdout.Read(buf)
-					if n > 0 {
-						if err := stream.Send(&pb.ExecResponse{Output: buf[:n]}); err != nil {
-							log.Printf("Failed to send stdout: %v", err)
-							break
-						}
-					}
-					if err != nil {
-						if err != io.EOF {
-							log.Printf("Stdout read error: %v", err)
-						}
-						break
-					}
-				}
-				log.Printf("Stdout streaming ended")
-			}()
+			log.Printf("Shell started with PTY, streaming output...")
 
-			// Goroutine to stream stderr back
+			// Goroutine to stream PTY output back
 			go func() {
-				buf := make([]byte, 1024)
+				defer close(done)
+				buf := make([]byte, 4096)
 				for {
-					n, err := stderr.Read(buf)
+					n, err := ptmx.Read(buf)
 					if n > 0 {
-						if err := stream.Send(&pb.ExecResponse{Output: buf[:n]}); err != nil {
-							log.Printf("Failed to send stderr: %v", err)
-							break
+						if sendErr := stream.Send(&pb.ExecResponse{Output: buf[:n]}); sendErr != nil {
+							log.Printf("Failed to send PTY output: %v", sendErr)
+							return
 						}
 					}
 					if err != nil {
 						if err != io.EOF {
-							log.Printf("Stderr read error: %v", err)
+							log.Printf("PTY read error: %v", err)
 						}
-						break
+						return
 					}
 				}
-				log.Printf("Stderr streaming ended")
 			}()
 		}
 
-		if len(req.Input) > 0 && stdin != nil {
-			stdin.Write(req.Input)
+		// Write input to PTY
+		if len(req.Input) > 0 && ptmx != nil {
+			if _, err := ptmx.Write(req.Input); err != nil {
+				log.Printf("PTY write error: %v", err)
+			}
 		}
 	}
 }
 
-func startMgmtService(ctx context.Context) {
-	lis, err := net.Listen("tcp", ":50052")
+func startMgmtService(ctx context.Context, configPath string, port int) {
+	addr := fmt.Sprintf(":%d", port)
+	lis, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Printf("Failed to listen on :50052: %v", err)
+		log.Printf("Failed to listen on %s: %v", addr, err)
 		return
 	}
 
 	grpcServer := grpc.NewServer()
-	pb.RegisterAgentServiceServer(grpcServer, newMgmtServer())
+	pb.RegisterAgentServiceServer(grpcServer, newMgmtServer(configPath))
 
-	log.Println("Agent Management Service listening on :50052")
+	log.Printf("Agent Management Service listening on %s", addr)
 
 	// Start server in goroutine
 	go func() {
@@ -312,6 +343,19 @@ func startMgmtService(ctx context.Context) {
 	// Wait for context cancellation
 	<-ctx.Done()
 	log.Println("Shutting down management service...")
-	grpcServer.GracefulStop()
-	log.Println("Management service stopped")
+	
+	// Use a goroutine with timeout for graceful stop
+	stopped := make(chan struct{})
+	go func() {
+		grpcServer.GracefulStop()
+		close(stopped)
+	}()
+	
+	select {
+	case <-stopped:
+		log.Println("Management service stopped gracefully")
+	case <-time.After(3 * time.Second):
+		log.Println("Management service graceful stop timeout, forcing stop")
+		grpcServer.Stop()
+	}
 }

@@ -6,7 +6,7 @@ import (
 
 	//	"github.com/tufanbarisyildirim/gonginx"
 	//	"github.com/tufanbarisyildirim/gonginx/parser"
-	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 )
 
 type Parser struct {

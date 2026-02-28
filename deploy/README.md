@@ -13,11 +13,11 @@ curl -fsSL http://<MANAGER_IP>:8090/deploy-agent.sh | \
   sudo -E bash
 ```
 
-**Example:**
+**Example (replace with your gateway IP):**
 ```bash
-curl -fsSL http://192.168.1.10:8090/deploy-agent.sh | \
-  GATEWAY_SERVER=192.168.1.10:50051 \
-  UPDATE_SERVER=http://192.168.1.10:8090 \
+curl -fsSL http://your-gateway:5021/deploy-agent.sh | \
+  GATEWAY_SERVER=your-gateway:5020 \
+  UPDATE_SERVER=http://your-gateway:5021 \
   sudo -E bash
 ```
 
@@ -27,7 +27,7 @@ If you already have an agent installed and need to update its configuration:
 
 ```bash
 # Edit the configuration file
-sudo nano /etc/avika-agent/agent.conf
+sudo nano /etc/avika/avika-agent.conf
 
 # Update GATEWAY_SERVER and UPDATE_SERVER values
 # Then restart the service
@@ -64,22 +64,22 @@ sudo systemctl restart avika-agent
 | `UPDATE_SERVER` | Yes | _(none)_ | Update server URL for self-updates |
 | `AGENT_USER` | No | `root` | User to run the agent as |
 
-### Configuration File (`/etc/avika-agent/agent.conf`)
+### Configuration File (`/etc/avika/avika-agent.conf`)
 
-After deployment, customize the agent by editing `/etc/avika-agent/agent.conf`:
+After deployment, customize the agent by editing `/etc/avika/avika-agent.conf`:
 
 ```bash
-# Gateway Server (required)
-GATEWAY_SERVER="192.168.1.10:50051"
+# Gateway Server (required) - replace with your gateway address
+GATEWAY_SERVER="your-gateway:5020"
 
 # Agent Identity (optional, auto-detected if empty)
 AGENT_ID=""
 
 # Health Check Port
-HEALTH_PORT=8080
+HEALTH_PORT=5026
 
 # Self-Update Configuration
-UPDATE_SERVER="http://192.168.1.10:8090"
+UPDATE_SERVER="http://your-gateway:5021"
 UPDATE_INTERVAL="168h"
 
 # NGINX Configuration
@@ -187,7 +187,7 @@ sudo systemctl disable avika-agent
 # Remove files
 sudo rm -f /usr/local/bin/avika-agent
 sudo rm -f /etc/systemd/system/avika-agent.service
-sudo rm -rf /etc/avika-agent
+sudo rm -rf /etc/avika
 sudo rm -rf /var/lib/avika-agent
 sudo rm -rf /var/lib/nginx-manager
 

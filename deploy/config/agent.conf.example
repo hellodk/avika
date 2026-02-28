@@ -1,48 +1,39 @@
-# Avika NGINX Manager Agent Configuration
-# Copy this file to /etc/avika-agent/agent.conf and customize for your environment
+# =============================================================================
+# Avika NGINX Manager Agent - Example Configuration
+# =============================================================================
+# Copy to /etc/avika/avika-agent.conf and customize
+# See avika-agent.conf.sample for detailed documentation
 
-# Gateway Server (required)
-# The central management server that this agent connects to
-GATEWAY_SERVER="localhost:50051"
+# --- Gateway Connection ---
+# Single or comma-separated for multi-gateway HA
+GATEWAYS="localhost:5020"
 
-# Agent Identity (optional)
-# Leave empty for auto-detection (hostname+IP)
-# Format: custom-name or leave blank
+# --- Agent Identity ---
 AGENT_ID=""
 
-# Health Check Port
-# Port for agent health check endpoint
-HEALTH_PORT=8080
+# --- Network Ports ---
+HEALTH_PORT=5026
+MGMT_PORT=5025
 
-# Self-Update Configuration
-# URL of the update server for automatic agent updates
-# Leave empty to disable self-updates
+# --- NGINX Configuration ---
+NGINX_CONFIG_PATH="/etc/nginx/nginx.conf"
+NGINX_STATUS_URL="http://127.0.0.1/nginx_status"
+
+# --- Log Collection ---
+ACCESS_LOG_PATH="/var/log/nginx/access.log"
+ERROR_LOG_PATH="/var/log/nginx/error.log"
+LOG_FORMAT="combined"
+
+# --- Data Persistence ---
+BUFFER_DIR="/var/lib/avika/"
+BACKUP_DIR="/var/lib/avika/backups"
+
+# --- Self-Update (optional) ---
 UPDATE_SERVER=""
 UPDATE_INTERVAL="168h"
 
-# NGINX Configuration
-# URL for NGINX stub_status endpoint
-NGINX_STATUS_URL="http://127.0.0.1/nginx_status"
-
-# NGINX log file paths
-ACCESS_LOG_PATH="/var/log/nginx/access.log"
-ERROR_LOG_PATH="/var/log/nginx/error.log"
-
-# Log format: "combined" or "json"
-# Use "json" for high-fidelity telemetry with detailed request metadata
-LOG_FORMAT="combined"
-
-# Buffer Directory
-# Directory for persistent message buffer (WAL)
-BUFFER_DIR="/var/lib/avika-agent/"
-
-# Backup Directory
-# Directory for NGINX configuration backups
-BACKUP_DIR="/var/lib/nginx-manager/backups"
-
-# Logging
-# Agent log level: debug, info, warn, error
+# --- Logging ---
+# Containers/systemd: LOG_FILE="" (stdout)
+# VMs without systemd: LOG_FILE="/var/log/avika/agent.log"
 LOG_LEVEL="info"
-
-# Agent log file (leave empty for stdout/journald)
 LOG_FILE=""

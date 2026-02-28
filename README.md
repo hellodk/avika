@@ -20,6 +20,16 @@ The system consists of four primary components (see [docs/ARCHITECTURE.md](./doc
 
 ## Getting Started
 
+### Kubernetes Deployment
+
+Deploy the complete Avika stack using Helm:
+
+```bash
+helm upgrade --install avika deploy/helm/avika -n avika --create-namespace
+```
+
+### Docker Compose (Development)
+
 To run the complete infrastructure and background services:
 
 ```bash
@@ -28,6 +38,58 @@ docker-compose up -d
 ```
 
 For detailed instructions on configuration, ports, and external components, see [deploy/docker/README.md](./deploy/docker/README.md).
+
+## Agent Deployment
+
+### Auto-Install Agent on VMs
+
+The gateway serves agent binaries and deployment scripts. Install the agent on any VM with a single command:
+
+```bash
+curl -fsSL http://<GATEWAY_IP>:5021/updates/deploy-agent.sh | \
+  sudo UPDATE_SERVER="http://<GATEWAY_IP>:5021/updates" \
+  GATEWAY_SERVER="<GATEWAY_IP>:5020" bash
+```
+
+**Example** (using Kubernetes ClusterIP):
+
+```bash
+curl -fsSL http://10.106.98.165:5021/updates/deploy-agent.sh | \
+  sudo UPDATE_SERVER="http://10.106.98.165:5021/updates" \
+  GATEWAY_SERVER="10.106.98.165:5020" bash
+```
+
+**Alternative** (using environment variables):
+
+```bash
+export UPDATE_SERVER="http://<GATEWAY_IP>:5021/updates"
+export GATEWAY_SERVER="<GATEWAY_IP>:5020"
+curl -fsSL $UPDATE_SERVER/deploy-agent.sh | sudo -E bash
+```
+
+### What the Install Script Does
+
+1. Detects system architecture (amd64/arm64)
+2. Downloads the agent binary with checksum verification
+3. Installs to `/usr/local/bin/avika-agent`
+4. Creates configuration at `/etc/avika/avika-agent.conf`
+5. Sets up and enables systemd service
+6. Starts the agent
+
+### Agent Management
+
+```bash
+# View status
+sudo systemctl status avika-agent
+
+# View logs
+sudo journalctl -u avika-agent -f
+
+# Restart
+sudo systemctl restart avika-agent
+```
+
+For more details, see [docs/AGENT_DEPLOYMENT.md](./docs/AGENT_DEPLOYMENT.md).
 
 ## Development
 

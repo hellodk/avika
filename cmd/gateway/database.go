@@ -8,7 +8,8 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
+	"github.com/avika-ai/avika/cmd/gateway/migrations"
 )
 
 type DB struct {
@@ -26,58 +27,121 @@ func NewDB(dsn string) (*DB, error) {
 	}
 
 	db := &DB{conn: conn}
-	if err := db.migrate(); err != nil {
+	
+	// Run embedded SQL migrations
+	runner := migrations.NewRunner(conn)
+	if err := runner.Run(); err != nil {
 		return nil, fmt.Errorf("migration failed: %w", err)
+	}
+	
+	// Log current schema version
+	if version, err := runner.GetCurrentVersion(); err == nil {
+		log.Printf("Database schema version: %s", version)
 	}
 
 	return db, nil
 }
 
+// migrate is deprecated - migrations are now handled by embedded SQL files in migrations/
+// This function is kept for backwards compatibility but does nothing
 func (db *DB) migrate() error {
-	queries := []string{
-		`CREATE TABLE IF NOT EXISTS agents (
-			agent_id TEXT PRIMARY KEY,
-			hostname TEXT,
-			version TEXT,
-			instances_count INT,
-			uptime TEXT,
-			ip TEXT,
-			status TEXT,
-			last_seen BIGINT,
-			is_pod BOOLEAN DEFAULT FALSE,
-			pod_ip TEXT
-		);`,
-		// Migration for existing tables
-		`ALTER TABLE agents ADD COLUMN IF NOT EXISTS is_pod BOOLEAN DEFAULT FALSE;`,
-		`ALTER TABLE agents ADD COLUMN IF NOT EXISTS pod_ip TEXT;`,
-		`ALTER TABLE agents ADD COLUMN IF NOT EXISTS agent_version TEXT;`,
-		// Deduplicate existing entries by IP before adding the constraint.
-		// We keep the one with the latest last_seen for each IP.
-		`DELETE FROM agents
-		 WHERE agent_id NOT IN (
-			 SELECT DISTINCT ON (ip) agent_id
-			 FROM agents
-			 ORDER BY ip, last_seen DESC
-		 );`,
-		// Drop old composite index if exists
-		`DROP INDEX IF EXISTS idx_agents_hostname_ip;`,
-		// Remove unique constraint on ip if it exists
-		`DROP INDEX IF EXISTS idx_agents_ip;`,
-	}
-	for _, q := range queries {
-		if _, err := db.conn.Exec(q); err != nil {
-			return err
-		}
-	}
+	// Migrations are now handled by migrations.Runner
+	// See cmd/gateway/migrations/*.sql for schema definitions
 	return nil
+}
+
+// GetSetting retrieves a setting value by key
+func (db *DB) GetSetting(key string) (string, error) {
+	var value string
+	err := db.conn.QueryRow("SELECT value FROM settings WHERE key = $1", key).Scan(&value)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return value, err
+}
+
+// SetSetting stores or updates a setting value
+func (db *DB) SetSetting(key, value string) error {
+	query := `
+	INSERT INTO settings (key, value, updated_at)
+	VALUES ($1, $2, CURRENT_TIMESTAMP)
+	ON CONFLICT (key) DO UPDATE SET
+		value = EXCLUDED.value,
+		updated_at = CURRENT_TIMESTAMP;
+	`
+	_, err := db.conn.Exec(query, key, value)
+	return err
+}
+
+// UserRecord represents a user in the database
+type UserRecord struct {
+	Username     string
+	PasswordHash string
+	Role         string
+}
+
+// GetUser retrieves a user by username
+func (db *DB) GetUser(username string) (*UserRecord, error) {
+	var user UserRecord
+	err := db.conn.QueryRow(
+		"SELECT username, password_hash, role FROM users WHERE username = $1",
+		username,
+	).Scan(&user.Username, &user.PasswordHash, &user.Role)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// UpsertUser creates or updates a user
+func (db *DB) UpsertUser(username, passwordHash, role string) error {
+	query := `
+	INSERT INTO users (username, password_hash, role, created_at, updated_at)
+	VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	ON CONFLICT (username) DO UPDATE SET
+		password_hash = EXCLUDED.password_hash,
+		role = EXCLUDED.role,
+		updated_at = CURRENT_TIMESTAMP;
+	`
+	_, err := db.conn.Exec(query, username, passwordHash, role)
+	return err
+}
+
+// UpdateUserPassword updates a user's password
+func (db *DB) UpdateUserPassword(username, passwordHash string) error {
+	query := `UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE username = $2`
+	_, err := db.conn.Exec(query, passwordHash, username)
+	return err
+}
+
+// ListUsers returns all users
+func (db *DB) ListUsers() ([]*UserRecord, error) {
+	rows, err := db.conn.Query("SELECT username, password_hash, role FROM users")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*UserRecord
+	for rows.Next() {
+		var user UserRecord
+		if err := rows.Scan(&user.Username, &user.PasswordHash, &user.Role); err != nil {
+			continue
+		}
+		users = append(users, &user)
+	}
+	return users, nil
 }
 
 func (db *DB) UpsertAgent(session *AgentSession) error {
 	// We use ip as the unique identifier for a node to prevent duplicates.
 	// If an agent reconnects with a new agent_id but same ip, we update the record.
 	query := `
-	INSERT INTO agents (agent_id, hostname, version, instances_count, uptime, ip, status, last_seen, is_pod, pod_ip, agent_version)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	INSERT INTO agents (agent_id, hostname, version, instances_count, uptime, ip, status, last_seen, is_pod, pod_ip, agent_version, psk_authenticated)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	ON CONFLICT (agent_id) DO UPDATE SET
 		hostname = EXCLUDED.hostname,
 		version = EXCLUDED.version,
@@ -88,7 +152,8 @@ func (db *DB) UpsertAgent(session *AgentSession) error {
 		last_seen = EXCLUDED.last_seen,
 		is_pod = EXCLUDED.is_pod,
 		pod_ip = EXCLUDED.pod_ip,
-		agent_version = EXCLUDED.agent_version;
+		agent_version = EXCLUDED.agent_version,
+		psk_authenticated = EXCLUDED.psk_authenticated;
 	`
 	_, err := db.conn.Exec(query,
 		session.id,
@@ -102,6 +167,7 @@ func (db *DB) UpsertAgent(session *AgentSession) error {
 		session.isPod,
 		session.podIP,
 		session.agentVersion,
+		session.pskAuthenticated,
 	)
 	return err
 }
@@ -119,7 +185,7 @@ func (db *DB) RemoveAgent(agentID string) error {
 }
 
 func (db *DB) LoadAgents(sessions *sync.Map) error {
-	rows, err := db.conn.Query("SELECT agent_id, hostname, version, instances_count, uptime, ip, status, last_seen, is_pod, pod_ip, agent_version FROM agents")
+	rows, err := db.conn.Query("SELECT agent_id, hostname, version, instances_count, uptime, ip, status, last_seen, is_pod, pod_ip, agent_version, psk_authenticated FROM agents")
 	if err != nil {
 		return err
 	}
@@ -129,26 +195,27 @@ func (db *DB) LoadAgents(sessions *sync.Map) error {
 		var id, hostname, version, uptime, ip, status, podIP, agentVersion string
 		var instancesCount int
 		var lastSeen int64
-		var isPod bool
+		var isPod, pskAuthenticated bool
 
-		if err := rows.Scan(&id, &hostname, &version, &instancesCount, &uptime, &ip, &status, &lastSeen, &isPod, &podIP, &agentVersion); err != nil {
+		if err := rows.Scan(&id, &hostname, &version, &instancesCount, &uptime, &ip, &status, &lastSeen, &isPod, &podIP, &agentVersion, &pskAuthenticated); err != nil {
 			log.Printf("Failed to scan agent row: %v", err)
 			continue
 		}
 
 		session := &AgentSession{
-			id:             id,
-			hostname:       hostname,
-			version:        version,
-			instancesCount: instancesCount,
-			uptime:         uptime,
-			ip:             ip,
-			status:         status,
-			lastActive:     time.Unix(lastSeen, 0),
-			isPod:          isPod,
-			podIP:          podIP,
-			agentVersion:   agentVersion,
-			logChans:       make(map[string]chan *pb.LogEntry),
+			id:               id,
+			hostname:         hostname,
+			version:          version,
+			instancesCount:   instancesCount,
+			uptime:           uptime,
+			ip:               ip,
+			status:           status,
+			lastActive:       time.Unix(lastSeen, 0),
+			isPod:            isPod,
+			podIP:            podIP,
+			agentVersion:     agentVersion,
+			pskAuthenticated: pskAuthenticated,
+			logChans:         make(map[string]chan *pb.LogEntry),
 		}
 		sessions.Store(id, session)
 	}
@@ -177,4 +244,55 @@ func (db *DB) PruneStaleAgents(maxAge time.Duration) ([]string, error) {
 		return nil, err
 	}
 	return ids, nil
+}
+
+func (db *DB) UpsertAlertRule(rule *pb.AlertRule) error {
+	query := `
+	INSERT INTO alert_rules (id, name, metric_type, threshold, comparison, window_sec, enabled, recipients)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	ON CONFLICT (id) DO UPDATE SET
+		name = EXCLUDED.name,
+		metric_type = EXCLUDED.metric_type,
+		threshold = EXCLUDED.threshold,
+		comparison = EXCLUDED.comparison,
+		window_sec = EXCLUDED.window_sec,
+		enabled = EXCLUDED.enabled,
+		recipients = EXCLUDED.recipients;
+	`
+	_, err := db.conn.Exec(query,
+		rule.Id,
+		rule.Name,
+		rule.MetricType,
+		rule.Threshold,
+		rule.Comparison,
+		rule.WindowSec,
+		rule.Enabled,
+		rule.Recipients,
+	)
+	return err
+}
+
+func (db *DB) DeleteAlertRule(id string) error {
+	query := `DELETE FROM alert_rules WHERE id = $1`
+	_, err := db.conn.Exec(query, id)
+	return err
+}
+
+func (db *DB) ListAlertRules() ([]*pb.AlertRule, error) {
+	rows, err := db.conn.Query("SELECT id, name, metric_type, threshold, comparison, window_sec, enabled, recipients FROM alert_rules")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var rules []*pb.AlertRule
+	for rows.Next() {
+		rule := &pb.AlertRule{}
+		if err := rows.Scan(&rule.Id, &rule.Name, &rule.MetricType, &rule.Threshold, &rule.Comparison, &rule.WindowSec, &rule.Enabled, &rule.Recipients); err != nil {
+			log.Printf("Failed to scan alert rule row: %v", err)
+			continue
+		}
+		rules = append(rules, rule)
+	}
+	return rules, nil
 }

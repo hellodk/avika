@@ -89,6 +89,12 @@ coverage/
 .hypothesis/
 .pytest_cache/
 .tox/
+test-reports/
+test-results/
+playwright-report/
+frontend/playwright-report/
+frontend/test-results/
+frontend/coverage/
 
 # ============================================================================
 # Database files
@@ -137,9 +143,59 @@ ssl/
 # Local configuration overrides
 config.local.yml
 config.override.yml
+scripts/build.conf.local
 
 # ============================================================================
 # CI/CD artifacts
 # ============================================================================
 
 .github/workflows/*.log
+
+# Compiled binaries
+bin/
+
+# PID files
+*.pid
+
+# Test artifacts
+test-report.pdf
+test_visual.html
+test_website.md
+
+# Agent binaries in nginx-agent folder
+nginx-agent/agent-linux-*
+
+# Simulator binary
+simulator
+
+# Workspace files
+*.code-workspace
+
+# Temporary build scripts
+build-1.sh
+build.sh
+build_images.sh
+setup_stack.sh
+check_ch.go
+check_grpc.go
+
+# Generated files
+gateway.yaml
+curl_output.txt
+home/
+scripts/et
+
+# Temporary test reports
+AVIKA_LOGIN_TEST_REPORT.md
+PASSWORD_CHANGE_FLOW_TEST.md
+TERMINAL_PROOF.txt
+TEST_REPORT_*.md
+terminal_screenshot.html
+.cursor/
+
+# Runtime generated agent ID files
+.agent_id
+nginx-agent/.agent_id
+
+# Profiling and performance test outputs
+profiling_results/

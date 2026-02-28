@@ -7,27 +7,27 @@ import (
 	"log"
 	"time"
 
-	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
-	fmt.Println("Attempting to connect to localhost:50051...")
-	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	fmt.Println("Attempting to connect to 10.101.68.5:5020...")
+	conn, err := grpc.Dial("10.101.68.5:5020", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
 	c := pb.NewAgentServiceClient(conn)
 
-	fmt.Println("Calling GetAnalytics...")
+	fmt.Println("Calling ListAgents...")
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	r, err := c.GetAnalytics(ctx, &pb.AnalyticsRequest{TimeWindow: "24h"})
+	r, err := c.ListAgents(ctx, &pb.ListAgentsRequest{})
 	if err != nil {
-		log.Fatalf("could not get analytics: %v", err)
+		log.Fatalf("could not list agents: %v", err)
 	}
 
 	fmt.Println("Response received. Marshaling...")

@@ -3,23 +3,28 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
+	"os/signal"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/segmentio/kafka-go"
-	pb "github.com/user/nginx-manager/internal/common/proto/agent"
-
-	"net/http"
-
+	"github.com/avika-ai/avika/cmd/gateway/config"
+	"github.com/avika-ai/avika/cmd/gateway/middleware"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/peer"
@@ -61,7 +66,10 @@ type server struct {
 
 	db         *DB
 	clickhouse *ClickHouseDB
+	alerts     *AlertEngine
 	analytics  *AnalyticsCache // Keep for legacy/fallback or remove later
+	config     *config.Config
+	pskManager *middleware.PSKManager
 
 	// Monitoring stats (atomic)
 	messageCount int64 // total messages received since last tick
@@ -70,23 +78,24 @@ type server struct {
 }
 
 type AgentSession struct {
-	id             string
-	hostname       string
-	version        string // NGINX version
-	agentVersion   string // Agent binary version
-	buildDate      string // Build timestamp
-	gitCommit      string // Git commit hash
-	gitBranch      string // Git branch name
-	instancesCount int
-	uptime         string
-	ip             string
-	stream         pb.Commander_ConnectServer
-	logChans       map[string]chan *pb.LogEntry // subscription_id -> channel
-	mu             sync.Mutex
-	lastActive     time.Time
-	status         string // "online" or "offline"
-	isPod          bool
-	podIP          string
+	id               string
+	hostname         string
+	version          string // NGINX version
+	agentVersion     string // Agent binary version
+	buildDate        string // Build timestamp
+	gitCommit        string // Git commit hash
+	gitBranch        string // Git branch name
+	instancesCount   int
+	uptime           string
+	ip               string
+	stream           pb.Commander_ConnectServer
+	logChans         map[string]chan *pb.LogEntry // subscription_id -> channel
+	mu               sync.Mutex
+	lastActive       time.Time
+	status           string // "online" or "offline"
+	isPod            bool
+	podIP            string
+	pskAuthenticated bool // true if agent connected with valid PSK
 }
 
 func (s *server) Connect(stream pb.Commander_ConnectServer) error {
@@ -164,29 +173,36 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				}
 			}
 
-			// 3. Register/Update session
+			// 3. Check PSK authentication status
+			pskAuthenticated := false
+			if authStatus := middleware.GetPSKAuthStatus(stream.Context()); authStatus != nil {
+				pskAuthenticated = authStatus.Authenticated
+			}
+
+			// 4. Register/Update session
 			val, loaded := s.sessions.Load(agentID)
 			if !loaded {
 				currentSession = &AgentSession{
-					id:             agentID,
-					hostname:       hb.Hostname,
-					version:        nginxVersion,
-					agentVersion:   agentVer,
-					buildDate:      hb.BuildDate,
-					gitCommit:      hb.GitCommit,
-					gitBranch:      hb.GitBranch,
-					instancesCount: len(hb.Instances),
-					uptime:         fmt.Sprintf("%.1fs", hb.Uptime),
-					stream:         stream,
-					logChans:       make(map[string]chan *pb.LogEntry),
-					status:         "online",
-					lastActive:     time.Now(),
-					ip:             ip,
-					isPod:          isPod,
-					podIP:          hb.PodIp,
+					id:               agentID,
+					hostname:         hb.Hostname,
+					version:          nginxVersion,
+					agentVersion:     agentVer,
+					buildDate:        hb.BuildDate,
+					gitCommit:        hb.GitCommit,
+					gitBranch:        hb.GitBranch,
+					instancesCount:   len(hb.Instances),
+					uptime:           fmt.Sprintf("%.1fs", hb.Uptime),
+					stream:           stream,
+					logChans:         make(map[string]chan *pb.LogEntry),
+					status:           "online",
+					lastActive:       time.Now(),
+					ip:               ip,
+					isPod:            isPod,
+					podIP:            hb.PodIp,
+					pskAuthenticated: pskAuthenticated,
 				}
 				s.sessions.Store(agentID, currentSession)
-				log.Printf("Registered agent %s (%s) at %s (Pod: %v)", agentID, hb.Hostname, ip, isPod)
+				log.Printf("Registered agent %s (%s) at %s (Pod: %v, PSK: %v)", agentID, hb.Hostname, ip, isPod, pskAuthenticated)
 			} else {
 				// Reconnecting - update existing session
 				currentSession = val.(*AgentSession)
@@ -204,6 +220,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				currentSession.uptime = fmt.Sprintf("%.2fs", hb.Uptime)
 				currentSession.isPod = isPod
 				currentSession.podIP = hb.PodIp
+				currentSession.pskAuthenticated = pskAuthenticated
 				currentSession.lastActive = time.Now()
 				currentSession.mu.Unlock()
 			}
@@ -454,20 +471,21 @@ func (s *server) ListAgents(ctx context.Context, req *pb.ListAgentsRequest) (*pb
 		}
 
 		agents = append(agents, &pb.AgentInfo{
-			AgentId:        session.id,
-			Hostname:       session.hostname,
-			Version:        session.version,
-			AgentVersion:   session.agentVersion,
-			Status:         status,
-			InstancesCount: int32(session.instancesCount),
-			Uptime:         session.uptime,
-			Ip:             session.ip,
-			LastSeen:       session.lastActive.Unix(),
-			IsPod:          session.isPod,
-			PodIp:          session.podIP,
-			BuildDate:      session.buildDate,
-			GitCommit:      session.gitCommit,
-			GitBranch:      session.gitBranch,
+			AgentId:          session.id,
+			Hostname:         session.hostname,
+			Version:          session.version,
+			AgentVersion:     session.agentVersion,
+			Status:           status,
+			InstancesCount:   int32(session.instancesCount),
+			Uptime:           session.uptime,
+			Ip:               session.ip,
+			LastSeen:         session.lastActive.Unix(),
+			IsPod:            session.isPod,
+			PodIp:            session.podIP,
+			BuildDate:        session.buildDate,
+			GitCommit:        session.gitCommit,
+			GitBranch:        session.gitBranch,
+			PskAuthenticated: session.pskAuthenticated,
 		})
 		return true
 	})
@@ -492,17 +510,18 @@ func (s *server) GetAgent(ctx context.Context, req *pb.GetAgentRequest) (*pb.Age
 	session := val.(*AgentSession)
 
 	return &pb.AgentInfo{
-		AgentId:        session.id,
-		Hostname:       session.hostname,
-		Version:        session.version,
-		Status:         session.status,
-		InstancesCount: int32(session.instancesCount),
-		Uptime:         session.uptime,
-		Ip:             session.ip,
-		LastSeen:       session.lastActive.Unix(),
-		IsPod:          session.isPod,
-		PodIp:          session.podIP,
-		AgentVersion:   session.agentVersion,
+		AgentId:          session.id,
+		Hostname:         session.hostname,
+		Version:          session.version,
+		Status:           session.status,
+		InstancesCount:   int32(session.instancesCount),
+		Uptime:           session.uptime,
+		Ip:               session.ip,
+		LastSeen:         session.lastActive.Unix(),
+		IsPod:            session.isPod,
+		PodIp:            session.podIP,
+		AgentVersion:     session.agentVersion,
+		PskAuthenticated: session.pskAuthenticated,
 	}, nil
 }
 
@@ -539,13 +558,17 @@ func (s *server) UpdateAgent(ctx context.Context, req *pb.UpdateAgentRequest) (*
 		}, nil
 	}
 
+	// Construct the update URL from gateway's HTTP address
+	// The gateway serves updates at /updates/ on its HTTP port
+	updateURL := fmt.Sprintf("http://%s/updates", s.config.GetHTTPAddress())
+
 	// Send update command
 	err := session.stream.Send(&pb.ServerCommand{
 		CommandId: fmt.Sprintf("upd-%d", time.Now().Unix()),
 		Payload: &pb.ServerCommand_Update{
 			Update: &pb.Update{
 				Version:   "latest",
-				UpdateUrl: "http://192.168.1.10:8090", // Hardcoded LAN IP for now, should be configurable
+				UpdateUrl: updateURL,
 			},
 		},
 	})
@@ -598,7 +621,7 @@ func (s *server) GetAnalytics(ctx context.Context, req *pb.AnalyticsRequest) (*p
 	case "30m":
 		maxPoints = 30 // 1-minute buckets
 	case "1h":
-		maxPoints = 12 // 5-minute buckets
+		maxPoints = 60 // 1-minute buckets
 	case "3h":
 		maxPoints = 36 // 5-minute buckets
 	case "6h":
@@ -652,6 +675,39 @@ func (s *server) GetAnalytics(ctx context.Context, req *pb.AnalyticsRequest) (*p
 	}, nil
 }
 
+func (s *server) StreamAnalytics(req *pb.AnalyticsRequest, stream pb.AgentService_StreamAnalyticsServer) error {
+	log.Printf("Starting analytics stream for agent %s (window: %s)", req.AgentId, req.TimeWindow)
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	// Send initial data immediately
+	if resp, err := s.GetAnalytics(stream.Context(), req); err == nil {
+		if err := stream.Send(resp); err != nil {
+			log.Printf("StreamAnalytics initial send error: %v", err)
+			return err
+		}
+	} else {
+		log.Printf("StreamAnalytics initial fetch error: %v", err)
+	}
+
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-ticker.C:
+			resp, err := s.GetAnalytics(stream.Context(), req)
+			if err != nil {
+				log.Printf("StreamAnalytics error: %v", err)
+				continue
+			}
+			if err := stream.Send(resp); err != nil {
+				log.Printf("StreamAnalytics send error: %v", err)
+				return err
+			}
+		}
+	}
+}
+
 // ... startRecommendationConsumer ...
 
 func (s *server) GetRecommendations(ctx context.Context, req *pb.RecommendationRequest) (*pb.RecommendationResponse, error) {
@@ -674,15 +730,28 @@ func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.Cl
 		return nil, nil, fmt.Errorf("agent %s not found", agentID)
 	}
 	session := val.(*AgentSession)
-	log.Printf("Found session for %s, dialing %s:50052", agentID, session.ip)
 
-	if session.ip == "" {
-		log.Printf("Agent %s has no IP", agentID)
+	// For pods, prefer podIP (the actual pod IP) over connection IP
+	// For VMs, use the connection IP
+	targetIP := session.ip
+	if session.isPod && session.podIP != "" {
+		targetIP = session.podIP
+		log.Printf("Using podIP %s for pod agent %s (connection IP was %s)", targetIP, agentID, session.ip)
+	}
+
+	if targetIP == "" {
+		log.Printf("Agent %s has no IP (isPod: %v, podIP: %s, ip: %s)", agentID, session.isPod, session.podIP, session.ip)
 		return nil, nil, fmt.Errorf("agent %s has no IP", agentID)
 	}
 
-	// Dial agent on port 50052
-	target := fmt.Sprintf("%s:50052", session.ip)
+	// Get agent management port from config
+	agentPort := s.config.Agent.MgmtPort
+	if agentPort == 0 {
+		agentPort = config.DefaultAgentPort // fallback to constant
+	}
+	target := fmt.Sprintf("%s:%d", targetIP, agentPort)
+	log.Printf("Found session for %s, dialing %s (isPod: %v)", agentID, target, session.isPod)
+
 	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to agent %s: %v", agentID, err)
@@ -944,57 +1013,89 @@ func (srv *server) startBackgroundPruning() {
 	}()
 }
 
+var (
+	configFile  = flag.String("config", "gateway.yaml", "Path to configuration file")
+	versionFlag = flag.Bool("version", false, "Display version and exit")
+)
+
+var (
+	Version   = "0.0.1-dev"
+	BuildDate = "unknown"
+	GitCommit = "unknown"
+)
+
 func main() {
-	lis, err := net.Listen("tcp", ":50051")
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+	flag.Parse()
+	if *versionFlag {
+		fmt.Printf("NGINX Gateway v%s (%s) [%s]\n", Version, BuildDate, GitCommit)
+		os.Exit(0)
 	}
 
-	// Connect to DB
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		dsn = "postgres://admin:password@localhost:5432/nginx_manager?sslmode=disable"
+	cfg, err := config.LoadConfig(*configFile)
+	if err != nil {
+		log.Printf("Failed to load config: %v", err)
 	}
 
-	db, err := NewDB(dsn)
+	// Log startup configuration
+	log.Printf("Starting NGINX Gateway v%s", Version)
+	log.Printf("Configuration: gRPC=%s HTTP=%s", cfg.GetGRPCAddress(), cfg.GetHTTPAddress())
+
+	// Setup graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
+
+	// Connect to DB with retries
+	db, err := connectToDatabase(cfg)
 	if err != nil {
-		log.Printf("Failed to connect to DB (%s): %v. Trying fallback...", dsn, err)
-		// Check fallback for local dev
-		dsnFallback := "postgres://admin:password@postgres:5432/nginx_manager?sslmode=disable"
-		db, err = NewDB(dsnFallback)
-		if err != nil {
-			log.Fatalf("Failed to connect to database: %v", err)
-		}
+		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	log.Println("Connected to PostgreSQL database")
 
 	// Connect to ClickHouse
-	chAddr := os.Getenv("CLICKHOUSE_ADDR")
-	if chAddr == "" {
-		chAddr = "localhost:9000"
-	}
-	chDB, err := NewClickHouseDB(chAddr)
+	chDB, err := connectToClickHouse(cfg)
 	if err != nil {
-		log.Printf("Failed to connect to ClickHouse (%s): %v. Trying fallback...", chAddr, err)
-		chDB, err = NewClickHouseDB("clickhouse:9000")
-		if err != nil {
-			log.Printf("Failed to connect to ClickHouse: %v. Analytics will be in-memory only.", err)
-		} else {
-			log.Println("Connected to ClickHouse database")
-		}
+		log.Printf("Warning: ClickHouse not available: %v. Analytics will be in-memory only.", err)
 	} else {
 		log.Println("Connected to ClickHouse database")
 	}
 
 	// Kafka configuration
-	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
-	if kafkaBrokers == "" {
-		kafkaBrokers = "redpanda:9092"
-	}
-	os.Setenv("KAFKA_BROKERS", kafkaBrokers) // Set for consumer usage
+	os.Setenv("KAFKA_BROKERS", cfg.Kafka.Brokers)
 
-	s := grpc.NewServer()
-	// Register services
+	// Initialize PSK Manager for agent authentication
+	timestampWindow := 5 * time.Minute
+	if cfg.PSK.TimestampWindow != "" {
+		if d, err := time.ParseDuration(cfg.PSK.TimestampWindow); err == nil {
+			timestampWindow = d
+		}
+	}
+	pskManager := middleware.NewPSKManager(middleware.PSKConfig{
+		Enabled:          cfg.PSK.Enabled,
+		Key:              cfg.PSK.Key,
+		AllowAutoEnroll:  cfg.PSK.AllowAutoEnroll,
+		TimestampWindow:  timestampWindow,
+		RequireHostMatch: cfg.PSK.RequireHostMatch,
+	})
+
+	// Create gRPC server with options
+	grpcOpts := []grpc.ServerOption{
+		grpc.MaxRecvMsgSize(16 * 1024 * 1024), // 16MB
+		grpc.MaxSendMsgSize(16 * 1024 * 1024),
+	}
+	// Add PSK interceptors if enabled
+	if cfg.PSK.Enabled {
+		grpcOpts = append(grpcOpts,
+			grpc.UnaryInterceptor(pskManager.UnaryPSKInterceptor()),
+			grpc.StreamInterceptor(pskManager.StreamPSKInterceptor()),
+		)
+		log.Printf("PSK authentication enabled for agent connections")
+	}
+	s := grpc.NewServer(grpcOpts...)
+
+	// Initialize server
 	srv := &server{
 		recommendations: []*pb.Recommendation{},
 		db:              db,
@@ -1004,13 +1105,15 @@ func main() {
 			EndpointStats:  make(map[string]*EndpointStats),
 			RequestHistory: []*pb.TimeSeriesPoint{},
 		},
+		config:     cfg,
+		alerts:     NewAlertEngine(db, chDB, cfg),
+		pskManager: pskManager,
 	}
 
 	// Load agents from DB
 	if err := srv.db.LoadAgents(&srv.sessions); err != nil {
 		log.Printf("Failed to load agents from DB: %v", err)
 	} else {
-		// Count loaded agents
 		count := 0
 		srv.sessions.Range(func(k, v interface{}) bool {
 			count++
@@ -1019,128 +1122,542 @@ func main() {
 		log.Printf("Loaded %d agents from database", count)
 	}
 
+	// Start background services
 	srv.startUptimeCrawler()
 	srv.startRecommendationConsumer()
 	srv.startBackgroundPruning()
 	srv.startGatewayMonitoring()
-	go srv.startWebSocketServer()
+	srv.alerts.Start()
+
+	// Start HTTP/WebSocket server
+	httpServer := srv.createHTTPServer(cfg)
+	go func() {
+		log.Printf("HTTP/WebSocket server listening on %s", cfg.GetHTTPAddress())
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("HTTP server error: %v", err)
+		}
+	}()
+
+	// Start gRPC server
+	lis, err := net.Listen("tcp", cfg.GetGRPCAddress())
+	if err != nil {
+		log.Fatalf("Failed to listen on %s: %v", cfg.GetGRPCAddress(), err)
+	}
 
 	pb.RegisterCommanderServer(s, srv)
 	pb.RegisterAgentServiceServer(s, srv)
-	log.Printf("Gateway listening on :50051")
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+
+	// Run gRPC server in goroutine
+	go func() {
+		log.Printf("gRPC server listening on %s", cfg.GetGRPCAddress())
+		if err := s.Serve(lis); err != nil {
+			log.Printf("gRPC server error: %v", err)
+		}
+	}()
+
+	// Wait for shutdown signal
+	sig := <-sigChan
+	log.Printf("Received signal %v, initiating graceful shutdown...", sig)
+
+	// Create shutdown context with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, cfg.Security.ShutdownTimeout)
+	defer shutdownCancel()
+
+	// Shutdown HTTP server
+	log.Println("Shutting down HTTP server...")
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		log.Printf("HTTP server shutdown error: %v", err)
 	}
+
+	// Gracefully stop gRPC server
+	log.Println("Shutting down gRPC server...")
+	stopped := make(chan struct{})
+	go func() {
+		s.GracefulStop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+		log.Println("gRPC server stopped gracefully")
+	case <-shutdownCtx.Done():
+		log.Println("Shutdown timeout, forcing gRPC stop")
+		s.Stop()
+	}
+
+	// Stop alert engine
+	srv.alerts.Stop()
+
+	log.Println("Gateway shutdown complete")
 }
 
-func (srv *server) startWebSocketServer() {
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
+// connectToDatabase connects to PostgreSQL with retries
+func connectToDatabase(cfg *config.Config) (*DB, error) {
+	var db *DB
+	var err error
+
+	for i := 0; i < cfg.Database.MaxRetries; i++ {
+		db, err = NewDB(cfg.Database.DSN)
+		if err == nil {
+			return db, nil
+		}
+		log.Printf("Database connection attempt %d/%d failed: %v", i+1, cfg.Database.MaxRetries, err)
+		time.Sleep(cfg.Database.RetryInterval)
 	}
 
-	http.HandleFunc("/terminal", func(w http.ResponseWriter, r *http.Request) {
-		agentID := r.URL.Query().Get("agent_id")
-		log.Printf("Terminal request for agent: %s", agentID)
-		if agentID == "" {
-			http.Error(w, "agent_id is required", 400)
-			return
+	// Try fallback using DB_DSN environment variable
+	fallbackDSN := os.Getenv("DB_DSN")
+	if fallbackDSN != "" {
+		log.Println("Trying fallback database connection from DB_DSN...")
+		db, err = NewDB(fallbackDSN)
+		if err == nil {
+			return db, nil
 		}
+	}
+	return nil, fmt.Errorf("all connection attempts failed: %w", err)
+}
 
-		ws, err := upgrader.Upgrade(w, r, nil)
+// connectToClickHouse connects to ClickHouse with fallback
+func connectToClickHouse(cfg *config.Config) (*ClickHouseDB, error) {
+	chDB, err := NewClickHouseDB(
+		cfg.ClickHouse.Address,
+		cfg.ClickHouse.Username,
+		cfg.ClickHouse.Password,
+	)
+	if err != nil {
+		// Try fallback with same credentials
+		chDB, err = NewClickHouseDB("127.0.0.1:9000", cfg.ClickHouse.Username, cfg.ClickHouse.Password)
 		if err != nil {
-			log.Printf("WS upgrade error for agent %s: %v", agentID, err)
-			return
+			return nil, err
 		}
-		log.Printf("WS upgraded for agent %s", agentID)
-		defer ws.Close()
+	}
+	return chDB, nil
+}
 
-		client, conn, err := srv.getAgentClient(agentID)
-		if err != nil {
-			log.Printf("Terminal error: agent %s client failed: %v", agentID, err)
-			ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nError connecting to agent: %v\r\n", err)))
-			return
+// createHTTPServer creates the HTTP server for WebSocket and reports
+func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
+	mux := http.NewServeMux()
+
+	// Initialize rate limiter
+	rateLimiter := middleware.NewRateLimiter(cfg.Security.RateLimitRPS, cfg.Security.RateLimitBurst)
+
+	// Initialize auth manager
+	tokenExpiry := 24 * time.Hour
+	if cfg.Auth.TokenExpiry != "" {
+		if d, err := time.ParseDuration(cfg.Auth.TokenExpiry); err == nil {
+			tokenExpiry = d
 		}
-		defer func() {
-			log.Printf("Closing gRPC connection for terminal session %s", agentID)
-			conn.Close()
-		}()
+	}
 
-		// Create a persistent context for the whole session
-		sessionCtx, sessionCancel := context.WithCancel(context.Background())
-		defer sessionCancel()
-
-		stream, err := client.Execute(sessionCtx)
-		if err != nil {
-			log.Printf("Terminal error: exec stream failed for %s: %v", agentID, err)
-			ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nError starting exec: %v\r\n", err)))
-			return
-		}
-		log.Printf("Exec stream established for agent %s", agentID)
-
-		// Initial message to set instance_id and command
-		cmd := r.URL.Query().Get("command")
-		if cmd == "" {
-			cmd = "/bin/bash"
-		}
-		if err := stream.Send(&pb.ExecRequest{
-			InstanceId: agentID,
-			Command:    cmd,
-		}); err != nil {
-			log.Printf("Terminal error: failed to send initial request to %s: %v", agentID, err)
-			ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nError initializing: %v\r\n", err)))
-			return
-		}
-		log.Printf("Initial exec request sent for agent %s (cmd: %s)", agentID, cmd)
-
-		// WS -> gRPC
-		go func() {
-			defer sessionCancel()
-			for {
-				_, msg, err := ws.ReadMessage()
-				if err != nil {
-					log.Printf("WS read error for agent %s: %v", agentID, err)
-					return
-				}
-				if err := stream.Send(&pb.ExecRequest{Input: msg}); err != nil {
-					log.Printf("gRPC send error for agent %s: %v", agentID, err)
-					return
-				}
+	// Set up user lookup function for multi-user auth from database
+	// Default users (admin/admin, superuser/superuser) are created by SQL migrations
+	var userLookup middleware.UserLookupFunc
+	if srv.db != nil {
+		userLookup = func(username string) (passwordHash string, role string, found bool) {
+			user, err := srv.db.GetUser(username)
+			if err != nil || user == nil {
+				return "", "", false
 			}
-		}()
-
-		// gRPC -> WS
-		log.Printf("Starting gRPC -> WS proxy for agent %s", agentID)
-		for {
-			resp, err := stream.Recv()
-			if err == io.EOF {
-				log.Printf("gRPC stream closed (EOF) for %s", agentID)
-				break
-			}
-			if err != nil {
-				log.Printf("gRPC recv error for agent %s: %v", agentID, err)
-				ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nTerminal stream error: %v\r\n", err)))
-				break
-			}
-			if len(resp.Output) > 0 {
-				if err := ws.WriteMessage(websocket.BinaryMessage, resp.Output); err != nil {
-					log.Printf("WS write error for agent %s: %v", agentID, err)
-					break
-				}
-			}
-			if resp.Error != "" {
-				log.Printf("Exec error reported by agent %s: %s", agentID, resp.Error)
-				ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nError from agent: %s\r\n", resp.Error)))
-				break
-			}
+			return user.PasswordHash, user.Role, true
 		}
-		log.Printf("Terminal session ended for agent %s", agentID)
+	}
+
+	// Fallback password hash for single-user mode (if DB not available)
+	passwordHash := cfg.Auth.PasswordHash
+	if passwordHash == "" {
+		passwordHash = middleware.HashPassword("admin")
+	}
+
+	authManager := middleware.NewAuthManager(middleware.AuthConfig{
+		Enabled:      cfg.Auth.Enabled,
+		Username:     cfg.Auth.Username,
+		PasswordHash: passwordHash,
+		JWTSecret:    cfg.Auth.JWTSecret,
+		TokenExpiry:  tokenExpiry,
+		CookieName:   "avika_session",
+		CookieSecure: cfg.Auth.CookieSecure,
+		CookieDomain: cfg.Auth.CookieDomain,
+		UserLookup:   userLookup,
 	})
 
-	log.Printf("Terminal WebSocket server listening on :50053")
-	if err := http.ListenAndServe(":50053", nil); err != nil {
-		log.Printf("WS server error: %v", err)
+	// Public paths that don't require authentication
+	publicPaths := []string{
+		"/health",
+		"/ready",
+		"/metrics",
+		"/api/auth/login",
+		"/api/auth/logout",
+	}
+
+	// Callback to persist password changes to database
+	onPasswordChanged := func(username, newHash string) error {
+		if srv.db != nil {
+			return srv.db.UpdateUserPassword(username, newHash)
+		}
+		return nil
+	}
+
+	// Auth endpoints (always available)
+	mux.HandleFunc("/api/auth/login", authManager.LoginHandler())
+	mux.HandleFunc("/api/auth/logout", authManager.LogoutHandler())
+	mux.HandleFunc("/api/auth/me", authManager.MeHandler())
+	
+	// Change password requires authentication
+	mux.Handle("/api/auth/change-password", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(authManager.ChangePasswordHandler(onPasswordChanged))))
+
+	if cfg.Auth.Enabled {
+		log.Printf("Authentication enabled for user: %s", cfg.Auth.Username)
+	} else {
+		log.Printf("Authentication disabled - all endpoints are public")
+	}
+
+	// WebSocket upgrader with origin validation
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				return true // Allow requests without Origin (e.g., curl)
+			}
+			for _, allowed := range cfg.Security.AllowedOrigins {
+				if allowed == "*" || origin == allowed {
+					return true
+				}
+			}
+			log.Printf("Rejected WebSocket connection from origin: %s", origin)
+			return false
+		},
+	}
+
+	// Terminal WebSocket endpoint (protected by auth)
+	mux.Handle("/terminal", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv.handleTerminal(w, r, upgrader)
+	})))
+
+	// Export report endpoint with rate limiting and auth
+	mux.Handle("/export-report", authManager.AuthMiddleware(publicPaths)(middleware.RateLimitMiddleware(rateLimiter, cfg.Security.EnableRateLimit)(http.HandlerFunc(srv.handleExportReport))))
+
+	// Geo API endpoint
+	mux.Handle("/api/geo", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGeoData)))
+
+	// ============================================================================
+	// RBAC / Multi-Tenancy API Endpoints
+	// ============================================================================
+
+	// Projects API
+	mux.Handle("GET /api/projects", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListProjects)))
+	mux.Handle("POST /api/projects", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateProject)))
+	mux.Handle("GET /api/projects/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetProject)))
+	mux.Handle("PUT /api/projects/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateProject)))
+	mux.Handle("DELETE /api/projects/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeleteProject)))
+
+	// Environments API
+	mux.Handle("GET /api/projects/{id}/environments", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListEnvironments)))
+	mux.Handle("POST /api/projects/{id}/environments", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateEnvironment)))
+	mux.Handle("PUT /api/environments/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateEnvironment)))
+	mux.Handle("DELETE /api/environments/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeleteEnvironment)))
+
+	// Server Assignment API
+	mux.Handle("GET /api/servers/unassigned", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListUnassignedServers)))
+	mux.Handle("POST /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAssignServer)))
+	mux.Handle("DELETE /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUnassignServer)))
+	mux.Handle("PUT /api/servers/{agentId}/tags", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateServerTags)))
+
+	// Teams API
+	mux.Handle("GET /api/teams", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListTeams)))
+	mux.Handle("POST /api/teams", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateTeam)))
+	mux.Handle("GET /api/teams/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetTeam)))
+	mux.Handle("PUT /api/teams/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateTeam)))
+	mux.Handle("DELETE /api/teams/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeleteTeam)))
+
+	// Team Members API
+	mux.Handle("GET /api/teams/{id}/members", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListTeamMembers)))
+	mux.Handle("POST /api/teams/{id}/members", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAddTeamMember)))
+	mux.Handle("DELETE /api/teams/{id}/members/{username}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRemoveTeamMember)))
+
+	// Team Project Access API
+	mux.Handle("GET /api/teams/{id}/projects", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListTeamProjects)))
+	mux.Handle("POST /api/teams/{id}/projects", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGrantProjectAccess)))
+	mux.Handle("DELETE /api/teams/{id}/projects/{projectId}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRevokeProjectAccess)))
+
+	// Health check endpoint (no rate limiting)
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"healthy","version":"` + Version + `"}`))
+	})
+
+	// Ready check endpoint (no rate limiting)
+	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		pgStatus := "connected"
+		chStatus := "connected"
+		allHealthy := true
+
+		// Check PostgreSQL connectivity
+		if err := srv.db.conn.Ping(); err != nil {
+			pgStatus = "disconnected"
+			allHealthy = false
+		}
+
+		// Check ClickHouse connectivity
+		if srv.clickhouse != nil {
+			if err := srv.clickhouse.conn.Ping(r.Context()); err != nil {
+				chStatus = "disconnected"
+				allHealthy = false
+			}
+		}
+
+		status := "ready"
+		httpStatus := http.StatusOK
+		if !allHealthy {
+			status = "degraded"
+			httpStatus = http.StatusServiceUnavailable
+		}
+
+		w.WriteHeader(httpStatus)
+		fmt.Fprintf(w, `{"status":"%s","database":"%s","clickhouse":"%s"}`, status, pgStatus, chStatus)
+	})
+
+	// Prometheus metrics endpoint
+	mux.HandleFunc("/metrics", srv.handleMetrics)
+
+	// Agent update distribution endpoint
+	// Serves agent binaries and version.json from the updates directory
+	updatesDir := cfg.Server.UpdatesDir
+	if updatesDir == "" {
+		updatesDir = "./updates" // Default directory
+	}
+	if _, err := os.Stat(updatesDir); err == nil {
+		log.Printf("Serving agent updates from %s on /updates/", updatesDir)
+		mux.Handle("/updates/", http.StripPrefix("/updates/", http.FileServer(http.Dir(updatesDir))))
+	} else {
+		log.Printf("Updates directory not found (%s), update serving disabled", updatesDir)
+	}
+
+	return &http.Server{
+		Addr:         cfg.GetHTTPAddress(),
+		Handler:      mux,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 }
+
+// handleTerminal handles WebSocket terminal connections
+func (srv *server) handleTerminal(w http.ResponseWriter, r *http.Request, upgrader websocket.Upgrader) {
+	agentID := r.URL.Query().Get("agent_id")
+	log.Printf("Terminal request for agent: %s", agentID)
+	if agentID == "" {
+		http.Error(w, "agent_id is required", http.StatusBadRequest)
+		return
+	}
+
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("WS upgrade error for agent %s: %v", agentID, err)
+		return
+	}
+	log.Printf("WS upgraded for agent %s", agentID)
+	defer ws.Close()
+
+	client, conn, err := srv.getAgentClient(agentID)
+	if err != nil {
+		log.Printf("Terminal error: agent %s client failed: %v", agentID, err)
+		ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nError connecting to agent: %v\r\n", err)))
+		return
+	}
+	defer func() {
+		log.Printf("Closing gRPC connection for terminal session %s", agentID)
+		conn.Close()
+	}()
+
+	sessionCtx, sessionCancel := context.WithCancel(context.Background())
+	defer sessionCancel()
+
+	stream, err := client.Execute(sessionCtx)
+	if err != nil {
+		log.Printf("Terminal error: exec stream failed for %s: %v", agentID, err)
+		ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nError starting exec: %v\r\n", err)))
+		return
+	}
+	log.Printf("Exec stream established for agent %s", agentID)
+
+	cmd := r.URL.Query().Get("command")
+	// If no command specified, agent will use Lens-style shell fallback
+	if err := stream.Send(&pb.ExecRequest{
+		InstanceId: agentID,
+		Command:    cmd,
+	}); err != nil {
+		log.Printf("Terminal error: failed to send initial request to %s: %v", agentID, err)
+		ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nError initializing: %v\r\n", err)))
+		return
+	}
+	log.Printf("Initial exec request sent for agent %s (cmd: %s)", agentID, cmd)
+
+	// WS -> gRPC
+	go func() {
+		defer sessionCancel()
+		for {
+			_, msg, err := ws.ReadMessage()
+			if err != nil {
+				log.Printf("WS read error for agent %s: %v", agentID, err)
+				return
+			}
+			if err := stream.Send(&pb.ExecRequest{Input: msg}); err != nil {
+				log.Printf("gRPC send error for agent %s: %v", agentID, err)
+				return
+			}
+		}
+	}()
+
+	// gRPC -> WS
+	log.Printf("Starting gRPC -> WS proxy for agent %s", agentID)
+	for {
+		resp, err := stream.Recv()
+		if err == io.EOF {
+			log.Printf("gRPC stream closed (EOF) for %s", agentID)
+			break
+		}
+		if err != nil {
+			log.Printf("gRPC recv error for agent %s: %v", agentID, err)
+			ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nTerminal stream error: %v\r\n", err)))
+			break
+		}
+		if len(resp.Output) > 0 {
+			if err := ws.WriteMessage(websocket.BinaryMessage, resp.Output); err != nil {
+				log.Printf("WS write error for agent %s: %v", agentID, err)
+				break
+			}
+		}
+		if resp.Error != "" {
+			log.Printf("Exec error reported by agent %s: %s", agentID, resp.Error)
+			ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nError from agent: %s\r\n", resp.Error)))
+			break
+		}
+	}
+	log.Printf("Terminal session ended for agent %s", agentID)
+}
+
+// handleExportReport handles PDF report export requests
+func (srv *server) handleExportReport(w http.ResponseWriter, r *http.Request) {
+	startUnix, _ := strconv.ParseInt(r.URL.Query().Get("start"), 10, 64)
+	endUnix, _ := strconv.ParseInt(r.URL.Query().Get("end"), 10, 64)
+	agentIDs := r.URL.Query()["agent_ids"]
+
+	if startUnix == 0 {
+		startUnix = time.Now().Add(-24 * time.Hour).Unix()
+	}
+	if endUnix == 0 {
+		endUnix = time.Now().Unix()
+	}
+
+	ctx := context.Background()
+	if srv.clickhouse == nil {
+		http.Error(w, "ClickHouse connection not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	report, err := srv.clickhouse.GetReportData(ctx, time.Unix(startUnix, 0), time.Unix(endUnix, 0), agentIDs)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to generate report data: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	pdfData, err := GeneratePDFReport(report, time.Unix(startUnix, 0), time.Unix(endUnix, 0))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to generate PDF: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=nginx-report-%d.pdf", time.Now().Unix()))
+	w.Write(pdfData)
+}
+
+// handleMetrics exposes Prometheus-format metrics
+func (srv *server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+
+	// Count connected agents
+	onlineCount := 0
+	offlineCount := 0
+	srv.sessions.Range(func(k, v interface{}) bool {
+		session := v.(*AgentSession)
+		if session.status == "online" {
+			onlineCount++
+		} else {
+			offlineCount++
+		}
+		return true
+	})
+
+	// Get atomic counters
+	msgCount := atomic.LoadInt64(&srv.messageCount)
+	dbLatSum := atomic.LoadInt64(&srv.dbLatencySum)
+	dbOps := atomic.LoadInt64(&srv.dbOpCount)
+
+	avgDbLatency := float64(0)
+	if dbOps > 0 {
+		avgDbLatency = float64(dbLatSum) / float64(dbOps) / 1e6 // Convert ns to ms
+	}
+
+	// Runtime stats
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+
+	// Write metrics in Prometheus format
+	fmt.Fprintf(w, "# HELP nginx_gateway_info Gateway version information\n")
+	fmt.Fprintf(w, "# TYPE nginx_gateway_info gauge\n")
+	fmt.Fprintf(w, "nginx_gateway_info{version=\"%s\",build_date=\"%s\",git_commit=\"%s\"} 1\n", Version, BuildDate, GitCommit)
+
+	fmt.Fprintf(w, "# HELP nginx_gateway_agents_total Total number of registered agents\n")
+	fmt.Fprintf(w, "# TYPE nginx_gateway_agents_total gauge\n")
+	fmt.Fprintf(w, "nginx_gateway_agents_total{status=\"online\"} %d\n", onlineCount)
+	fmt.Fprintf(w, "nginx_gateway_agents_total{status=\"offline\"} %d\n", offlineCount)
+
+	fmt.Fprintf(w, "# HELP nginx_gateway_messages_total Total messages received from agents\n")
+	fmt.Fprintf(w, "# TYPE nginx_gateway_messages_total counter\n")
+	fmt.Fprintf(w, "nginx_gateway_messages_total %d\n", msgCount)
+
+	fmt.Fprintf(w, "# HELP nginx_gateway_db_operations_total Total database operations\n")
+	fmt.Fprintf(w, "# TYPE nginx_gateway_db_operations_total counter\n")
+	fmt.Fprintf(w, "nginx_gateway_db_operations_total %d\n", dbOps)
+
+	fmt.Fprintf(w, "# HELP nginx_gateway_db_latency_avg_ms Average database latency in milliseconds\n")
+	fmt.Fprintf(w, "# TYPE nginx_gateway_db_latency_avg_ms gauge\n")
+	fmt.Fprintf(w, "nginx_gateway_db_latency_avg_ms %.2f\n", avgDbLatency)
+
+	fmt.Fprintf(w, "# HELP nginx_gateway_goroutines Number of goroutines\n")
+	fmt.Fprintf(w, "# TYPE nginx_gateway_goroutines gauge\n")
+	fmt.Fprintf(w, "nginx_gateway_goroutines %d\n", runtime.NumGoroutine())
+
+	fmt.Fprintf(w, "# HELP nginx_gateway_memory_alloc_bytes Allocated memory in bytes\n")
+	fmt.Fprintf(w, "# TYPE nginx_gateway_memory_alloc_bytes gauge\n")
+	fmt.Fprintf(w, "nginx_gateway_memory_alloc_bytes %d\n", memStats.Alloc)
+
+	fmt.Fprintf(w, "# HELP nginx_gateway_memory_sys_bytes Total memory obtained from system\n")
+	fmt.Fprintf(w, "# TYPE nginx_gateway_memory_sys_bytes gauge\n")
+	fmt.Fprintf(w, "nginx_gateway_memory_sys_bytes %d\n", memStats.Sys)
+
+	fmt.Fprintf(w, "# HELP nginx_gateway_gc_pause_total_ns Total GC pause time in nanoseconds\n")
+	fmt.Fprintf(w, "# TYPE nginx_gateway_gc_pause_total_ns counter\n")
+	fmt.Fprintf(w, "nginx_gateway_gc_pause_total_ns %d\n", memStats.PauseTotalNs)
+
+	// Recommendations count
+	srv.recMu.RLock()
+	recCount := len(srv.recommendations)
+	srv.recMu.RUnlock()
+
+	fmt.Fprintf(w, "# HELP nginx_gateway_recommendations_count Number of pending recommendations\n")
+	fmt.Fprintf(w, "# TYPE nginx_gateway_recommendations_count gauge\n")
+	fmt.Fprintf(w, "nginx_gateway_recommendations_count %d\n", recCount)
+}
+
+// startWebSocketServer is deprecated - use createHTTPServer instead
+// Kept for reference only
 
 func formatBytes(b int64) string {
 	const unit = 1024
@@ -1153,4 +1670,79 @@ func formatBytes(b int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
+func (s *server) GetTraces(ctx context.Context, req *pb.TraceRequest) (*pb.TraceList, error) {
+	if s.clickhouse == nil {
+		return &pb.TraceList{}, nil
+	}
+	return s.clickhouse.GetTraces(ctx, req)
+}
+
+func (s *server) GetTraceDetails(ctx context.Context, req *pb.TraceRequest) (*pb.Trace, error) {
+	if s.clickhouse == nil {
+		return &pb.Trace{}, fmt.Errorf("clickhouse not configured")
+	}
+	return s.clickhouse.GetTraceDetails(ctx, req.AgentId, req.TraceId)
+}
+
+func (s *server) ListAlertRules(ctx context.Context, req *pb.ListAlertRulesRequest) (*pb.AlertRuleList, error) {
+	rules, err := s.db.ListAlertRules()
+	if err != nil {
+		return nil, err
+	}
+	return &pb.AlertRuleList{Rules: rules}, nil
+}
+
+func (s *server) CreateAlertRule(ctx context.Context, req *pb.AlertRule) (*pb.AlertRule, error) {
+	// Validate or generate UUID for ID (database requires uuid type)
+	if req.Id == "" {
+		req.Id = uuid.New().String()
+	} else if _, err := uuid.Parse(req.Id); err != nil {
+		// Invalid UUID provided, generate a new one
+		req.Id = uuid.New().String()
+	}
+	if err := s.db.UpsertAlertRule(req); err != nil {
+		return nil, err
+	}
+	return req, nil
+}
+
+func (s *server) DeleteAlertRule(ctx context.Context, req *pb.DeleteAlertRuleRequest) (*pb.DeleteAlertRuleResponse, error) {
+	if err := s.db.DeleteAlertRule(req.Id); err != nil {
+		return &pb.DeleteAlertRuleResponse{Success: false}, err
+	}
+	return &pb.DeleteAlertRuleResponse{Success: true}, nil
+}
+
+// handleGeoData handles the /api/geo endpoint for geo analytics
+func (srv *server) handleGeoData(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if srv.clickhouse == nil {
+		http.Error(w, `{"error":"ClickHouse connection not available"}`, http.StatusServiceUnavailable)
+		return
+	}
+
+	window := r.URL.Query().Get("window")
+	if window == "" {
+		window = "24h"
+	}
+
+	ctx := r.Context()
+	geoData, err := srv.clickhouse.GetGeoData(ctx, window)
+	if err != nil {
+		log.Printf("GetGeoData error: %v", err)
+		http.Error(w, fmt.Sprintf(`{"error":"Failed to get geo data: %v"}`, err), http.StatusInternalServerError)
+		return
+	}
+
+	data, err := json.Marshal(geoData)
+	if err != nil {
+		http.Error(w, `{"error":"Failed to marshal response"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }

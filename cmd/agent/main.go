@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -16,36 +17,45 @@ import (
 
 	"sync"
 
-	"github.com/user/nginx-manager/cmd/agent/buffer"
-	"github.com/user/nginx-manager/cmd/agent/config"
-	"github.com/user/nginx-manager/cmd/agent/discovery"
-	"github.com/user/nginx-manager/cmd/agent/health"
-	"github.com/user/nginx-manager/cmd/agent/logs"
-	"github.com/user/nginx-manager/cmd/agent/metrics"
-	"github.com/user/nginx-manager/cmd/agent/updater"
-	pb "github.com/user/nginx-manager/internal/common/proto/agent"
+	"github.com/avika-ai/avika/cmd/agent/buffer"
+	"github.com/avika-ai/avika/cmd/agent/config"
+	"github.com/avika-ai/avika/cmd/agent/discovery"
+	"github.com/avika-ai/avika/cmd/agent/health"
+	"github.com/avika-ai/avika/cmd/agent/logs"
+	"github.com/avika-ai/avika/cmd/agent/metrics"
+	"github.com/avika-ai/avika/cmd/agent/updater"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 )
 
+// Port constants - application ports in range 5020-5050
+const (
+	DefaultGatewayPort = 5020 // Gateway gRPC port
+	DefaultHealthPort  = 5026 // Agent health check port
+	DefaultMgmtPort    = 5025 // Agent management gRPC port
+)
+
 var (
-	serverAddr = flag.String("server", "localhost:50051", "The server address in the format of host:port")
-	agentID    = flag.String("id", "", "The agent ID (default: hostname-ip)")
-	logLevel   = flag.String("log-level", "info", "Log level (debug, info, error)")
-	logFile    = flag.String("log-file", "", "Path to log file. If empty, logs to stdout")
-	bufferDir  = flag.String("buffer-dir", "./", "Directory to store the persistent buffer")
-	version    = flag.Bool("version", false, "Display version and exit")
-	healthPort = flag.Int("health-port", 8080, "Port for health check endpoints")
+	gatewayAddr = flag.String("gateway", "", "Gateway address(es) - comma-separated for multi-gateway (e.g., 'gw1:5020,gw2:5020')")
+	agentID     = flag.String("id", "", "The agent ID (default: hostname)")
+	logLevel    = flag.String("log-level", "info", "Log level (debug, info, error)")
+	logFile     = flag.String("log-file", "", "Path to log file. If empty, logs to stdout")
+	bufferDir   = flag.String("buffer-dir", "./", "Directory to store the persistent buffer")
+	version     = flag.Bool("version", false, "Display version and exit")
+	healthPort  = flag.Int("health-port", DefaultHealthPort, "Port for health check endpoints")
+	mgmtPort    = flag.Int("mgmt-port", DefaultMgmtPort, "Port for management gRPC server")
 
 	// NGINX configuration
-	nginxStatusURL = flag.String("nginx-status-url", "http://127.0.0.1/nginx_status", "URL for NGINX stub_status")
-	accessLogPath  = flag.String("access-log-path", "/var/log/nginx/access.log", "Path to NGINX access log")
-	errorLogPath   = flag.String("error-log-path", "/var/log/nginx/error.log", "Path to NGINX error log")
-	logFormat      = flag.String("log-format", "combined", "Log format (combined or json)")
+	nginxStatusURL  = flag.String("nginx-status-url", "http://127.0.0.1/nginx_status", "URL for NGINX stub_status")
+	accessLogPath   = flag.String("access-log-path", "/var/log/nginx/access.log", "Path to NGINX access log")
+	errorLogPath    = flag.String("error-log-path", "/var/log/nginx/error.log", "Path to NGINX error log")
+	logFormat       = flag.String("log-format", "combined", "Log format (combined or json)")
+	nginxConfigPath = flag.String("nginx-config-path", "/etc/nginx/nginx.conf", "Path to NGINX configuration file")
 
 	// Self-Update
-	updateServer   = flag.String("update-server", "", "URL of the update server (e.g., http://192.168.1.10:8090). If empty, self-update is disabled")
+	updateServer   = flag.String("update-server", "", "URL of the update server (e.g., http://gateway:5021). If empty, auto-derived from gateway address. Set to 'disabled' to turn off")
 	updateInterval = flag.Duration("update-interval", 168*time.Hour, "Interval between update checks (default: 1 week)")
 
 	// Config File
@@ -94,9 +104,10 @@ func loadConfig(path string) error {
 
 		// Mapping config keys to flags
 		switch key {
-		case "GATEWAY_SERVER":
-			if !setFlags["server"] {
-				*serverAddr = val
+		case "GATEWAYS":
+			// Gateway address(es) - single or comma-separated for multi-gateway
+			if !setFlags["gateway"] {
+				*gatewayAddr = val
 			}
 		case "AGENT_ID":
 			if !setFlags["id"] {
@@ -134,6 +145,10 @@ func loadConfig(path string) error {
 			if !setFlags["log-format"] {
 				*logFormat = val
 			}
+		case "NGINX_CONFIG_PATH":
+			if !setFlags["nginx-config-path"] {
+				*nginxConfigPath = val
+			}
 		case "BUFFER_DIR":
 			if !setFlags["buffer-dir"] {
 				*bufferDir = val
@@ -146,20 +161,142 @@ func loadConfig(path string) error {
 			if !setFlags["log-file"] {
 				*logFile = val
 			}
+		case "MGMT_PORT":
+			if !setFlags["mgmt-port"] {
+				if i, err := strconv.Atoi(val); err == nil {
+					*mgmtPort = i
+				}
+			}
 		}
 	}
 	return scanner.Err()
 }
 
+// loadEnv reads configuration from environment variables.
+// Priority: CLI flags > env vars > config file
+func loadEnv() {
+	setFlags := make(map[string]bool)
+	flag.Visit(func(f *flag.Flag) {
+		setFlags[f.Name] = true
+	})
+
+	// Map of env var name to (flag name, current value pointer, value type)
+	envMappings := []struct {
+		envKey   string
+		flagName string
+		apply    func(val string)
+	}{
+		// Support both GATEWAYS and GATEWAY_SERVER for compatibility
+		{"GATEWAYS", "gateway", func(val string) { *gatewayAddr = val }},
+		{"GATEWAY_SERVER", "gateway", func(val string) { *gatewayAddr = val }},
+		{"AGENT_ID", "id", func(val string) { *agentID = val }},
+		{"UPDATE_SERVER", "update-server", func(val string) { *updateServer = val }},
+		{"UPDATE_INTERVAL", "update-interval", func(val string) {
+			if d, err := time.ParseDuration(val); err == nil {
+				*updateInterval = d
+			}
+		}},
+		{"HEALTH_PORT", "health-port", func(val string) {
+			if i, err := strconv.Atoi(val); err == nil {
+				*healthPort = i
+			}
+		}},
+		{"MGMT_PORT", "mgmt-port", func(val string) {
+			if i, err := strconv.Atoi(val); err == nil {
+				*mgmtPort = i
+			}
+		}},
+		{"NGINX_STATUS_URL", "nginx-status-url", func(val string) { *nginxStatusURL = val }},
+		{"ACCESS_LOG_PATH", "access-log-path", func(val string) { *accessLogPath = val }},
+		{"ERROR_LOG_PATH", "error-log-path", func(val string) { *errorLogPath = val }},
+		{"LOG_FORMAT", "log-format", func(val string) { *logFormat = val }},
+		{"NGINX_CONFIG_PATH", "nginx-config-path", func(val string) { *nginxConfigPath = val }},
+		{"BUFFER_DIR", "buffer-dir", func(val string) { *bufferDir = val }},
+		{"LOG_LEVEL", "log-level", func(val string) { *logLevel = val }},
+		{"LOG_FILE", "log-file", func(val string) { *logFile = val }},
+	}
+
+	for _, m := range envMappings {
+		if setFlags[m.flagName] {
+			continue // CLI flag takes precedence
+		}
+		if val := os.Getenv(m.envKey); val != "" {
+			m.apply(val)
+		}
+	}
+}
+
+// getGatewayAddresses returns the list of gateway addresses to connect to
+// The -gateway flag (and GATEWAYS config) accepts comma-separated values for multi-gateway mode
+func getGatewayAddresses() []string {
+	var addresses []string
+	
+	// Parse comma-separated addresses from -gateway flag or GATEWAYS config
+	if *gatewayAddr != "" {
+		for _, addr := range strings.Split(*gatewayAddr, ",") {
+			addr = strings.TrimSpace(addr)
+			addr = strings.TrimPrefix(addr, "http://")
+			addr = strings.TrimPrefix(addr, "https://")
+			if addr != "" {
+				addresses = append(addresses, addr)
+			}
+		}
+	}
+	
+	// Default if nothing configured
+	if len(addresses) == 0 {
+		addresses = append(addresses, "localhost:5020")
+	}
+	
+	return addresses
+}
+
+// deriveUpdateServerFromGateway constructs the update server URL from the gateway address.
+// Gateway gRPC runs on port 5020, HTTP (with updates) runs on port 5021.
+func deriveUpdateServerFromGateway(gatewayAddr string) string {
+	// Take the first gateway if multiple are specified
+	firstGateway := strings.Split(gatewayAddr, ",")[0]
+	firstGateway = strings.TrimSpace(firstGateway)
+
+	// Strip any scheme prefix (http://, https://)
+	firstGateway = strings.TrimPrefix(firstGateway, "http://")
+	firstGateway = strings.TrimPrefix(firstGateway, "https://")
+
+	// Try to split host:port
+	host, port, err := net.SplitHostPort(firstGateway)
+	if err != nil {
+		// No port specified - use the whole string as host with default gRPC port
+		host = firstGateway
+		port = strconv.Itoa(DefaultGatewayPort)
+	}
+
+	if host == "" {
+		return ""
+	}
+
+	// Convert gRPC port to HTTP port (5020 -> 5021, or gRPC+1)
+	httpPort := "5021"
+	if port == "5020" || port == "50051" {
+		httpPort = "5021"
+	} else if p, err := strconv.Atoi(port); err == nil {
+		httpPort = strconv.Itoa(p + 1)
+	}
+
+	return fmt.Sprintf("http://%s:%s/updates", host, httpPort)
+}
+
 func main() {
 	flag.Parse()
 
-	// Load configuration
+	// Load configuration from file (if exists)
 	if err := loadConfig(*configFile); err != nil {
 		if !os.IsNotExist(err) {
 			fmt.Fprintf(os.Stderr, "Warning: Failed to load config file: %v\n", err)
 		}
 	}
+
+	// Load configuration from environment variables (overrides config file, but not CLI flags)
+	loadEnv()
 
 	if *version {
 		fmt.Printf("NGINX Manager Agent\n")
@@ -204,7 +341,7 @@ func main() {
 		*agentID = getOrGenerateAgentID()
 	}
 
-	log.Printf("Starting agent %s (version %s) with server %s", *agentID, Version, *serverAddr)
+	log.Printf("Starting agent %s (version %s) connecting to gateway(s): %s", *agentID, Version, *gatewayAddr)
 
 	// 2. Start Health Check Server
 	healthServer := health.NewServer(*healthPort)
@@ -216,9 +353,22 @@ func main() {
 		}
 	}()
 
-	// 3. Start Self-Updater (if enabled)
-	if *updateServer != "" {
-		globalUpdater = updater.New(*updateServer, Version)
+	// 3. Start Self-Updater (if enabled or auto-derived from gateway)
+	effectiveUpdateServer := *updateServer
+	if effectiveUpdateServer == "" && *gatewayAddr != "" {
+		// Auto-derive from first gateway address
+		// Gateway gRPC is on port 5020, HTTP (with updates) is on port 5021
+		effectiveUpdateServer = deriveUpdateServerFromGateway(*gatewayAddr)
+		if effectiveUpdateServer != "" {
+			log.Printf("Auto-derived update server from gateway: %s", effectiveUpdateServer)
+		}
+	} else if strings.ToLower(effectiveUpdateServer) == "disabled" {
+		effectiveUpdateServer = ""
+		log.Printf("Self-update disabled via configuration")
+	}
+
+	if effectiveUpdateServer != "" {
+		globalUpdater = updater.New(effectiveUpdateServer, Version)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -226,26 +376,12 @@ func main() {
 		}()
 	}
 
-	defer func() {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer shutdownCancel()
-		if err := healthServer.Shutdown(shutdownCtx); err != nil {
-			log.Printf("Health server shutdown error: %v", err)
-		}
-	}()
-
 	// 3. Initialize Persistent Buffer
 	wal, err := buffer.NewFileBuffer(*bufferDir + "agent")
 	if err != nil {
 		log.Printf("FATAL: Failed to initialize buffer: %v", err)
 		os.Exit(1)
 	}
-	defer func() {
-		log.Println("Closing buffer...")
-		if err := wal.Close(); err != nil {
-			log.Printf("Error closing buffer: %v", err)
-		}
-	}()
 
 	// Initial backup on node add/start
 	if err := config.BackupNginxConfig("startup"); err != nil {
@@ -352,10 +488,26 @@ func main() {
 				}
 				writeToBuffer(wal, hbMsg)
 
-				// Metrics
+				// Metrics - always try to send even if NGINX metrics fail
 				nginxMetrics, err := metricsCollector.Collect()
 				if err != nil {
-					log.Printf("Metrics collection failed: %v", err)
+					log.Printf("NGINX metrics collection failed: %v", err)
+					// Still send system metrics even if NGINX metrics fail
+					systemMetrics, sysErr := metricsCollector.CollectSystemOnly()
+					if sysErr == nil && systemMetrics != nil {
+						// Create a minimal NginxMetrics with just system data
+						fallbackMetrics := &pb.NginxMetrics{
+							System: systemMetrics,
+						}
+						metricMsg := &pb.AgentMessage{
+							AgentId:   *agentID,
+							Timestamp: time.Now().Unix(),
+							Payload: &pb.AgentMessage_Metrics{
+								Metrics: fallbackMetrics,
+							},
+						}
+						writeToBuffer(wal, metricMsg)
+					}
 				} else {
 					metricMsg := &pb.AgentMessage{
 						AgentId:   *agentID,
@@ -374,7 +526,8 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		startMgmtService(ctx)
+		log.Printf("Starting Management Service with NGINX config: %s", *nginxConfigPath)
+		startMgmtService(ctx, *nginxConfigPath, *mgmtPort)
 	}()
 
 	// Mark service as ready
@@ -382,13 +535,18 @@ func main() {
 	log.Println("Agent is ready")
 
 	// -------------------------------------------------------------------------
-	// Sender (Consumer) -> Gateway
+	// Sender (Consumer) -> Gateway(s)
 	// -------------------------------------------------------------------------
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		senderLoop(ctx, wal, *agentID)
-	}()
+	gateways := getGatewayAddresses()
+	log.Printf("Connecting to %d gateway(s): %v", len(gateways), gateways)
+	
+	for _, gwAddr := range gateways {
+		wg.Add(1)
+		go func(addr string) {
+			defer wg.Done()
+			senderLoop(ctx, wal, *agentID, addr)
+		}(gwAddr)
+	}
 
 	// Wait for shutdown signal
 	sig := <-sigChan
@@ -410,9 +568,22 @@ func main() {
 	select {
 	case <-done:
 		log.Println("All goroutines stopped gracefully")
-	case <-time.After(30 * time.Second):
-		log.Println("Shutdown timeout exceeded, forcing exit")
+	case <-time.After(10 * time.Second):
+		log.Println("Shutdown timeout exceeded (10s), forcing exit")
 	}
+
+	// Cleanup buffer before final exit
+	log.Println("Closing buffer...")
+	if err := wal.Close(); err != nil {
+		log.Printf("Error closing buffer: %v", err)
+	}
+
+	// Shutdown health server
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	if err := healthServer.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Health server shutdown error: %v", err)
+	}
+	shutdownCancel()
 
 	log.Println("Agent shutdown complete")
 }
@@ -429,30 +600,22 @@ func getOrGenerateAgentID() string {
 		}
 	}
 
-	// 2. Fallback to generating new one
+	// 2. Generate from hostname
+	// In Kubernetes, pod names are unique (e.g., mock-nginx-bfdf44bf5-v8fbj)
+	// On VMs, hostnames should be set uniquely
+	// If disambiguation is needed, set AGENT_ID explicitly
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "unknown"
 	}
-
-	// Get outbound IP for initial ID generation
-	ip := "unknown"
-	conn, err := net.Dial("udp", "8.8.8.8:80")
-	if err == nil {
-		localAddr := conn.LocalAddr().(*net.UDPAddr)
-		ip = localAddr.IP.String()
-		conn.Close()
-	}
-
 	hostname = strings.ReplaceAll(hostname, " ", "-")
-	id := fmt.Sprintf("%s+%s", hostname, ip)
 
 	// 3. Persist for next restart
-	if err := os.WriteFile(idFile, []byte(id), 0644); err != nil {
+	if err := os.WriteFile(idFile, []byte(hostname), 0644); err != nil {
 		log.Printf("Warning: failed to persist agent ID: %v", err)
 	}
 
-	return id
+	return hostname
 }
 
 func writeToBuffer(wal *buffer.FileBuffer, msg *pb.AgentMessage) {
@@ -589,8 +752,8 @@ func handleLogRequest(cmdID string, req *pb.LogRequest, ss *StreamSync, agentID 
 	}
 }
 
-func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string) {
-	defer log.Println("Sender loop exited")
+func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gatewayAddr string) {
+	defer log.Printf("Sender loop for %s exited", gatewayAddr)
 	var conn *grpc.ClientConn
 	var client pb.CommanderClient
 	ss := &StreamSync{}
@@ -598,7 +761,7 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Sender loop shutting down...")
+			log.Printf("Sender loop for %s shutting down...", gatewayAddr)
 			if conn != nil {
 				conn.Close()
 			}
@@ -609,12 +772,10 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string) {
 		// 1. Connect / Reconnect
 		if ss.GetStream() == nil {
 			var err error
-			// Strip protocol if present (gRPC dial expects host:port)
-			targetAddr := *serverAddr
-			targetAddr = strings.TrimPrefix(targetAddr, "http://")
-			targetAddr = strings.TrimPrefix(targetAddr, "https://")
+			// Gateway address already has protocol stripped
+			targetAddr := gatewayAddr
 
-			log.Printf("Connecting to %s...", targetAddr)
+			log.Printf("Connecting to gateway %s...", targetAddr)
 
 			// Dial with backoff? Simple wait for now
 			conn, err = grpc.Dial(targetAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -677,6 +838,12 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string) {
 		data, offset, err := wal.ReadNext()
 		if err != nil {
 			log.Printf("Buffer read error: %v", err)
+			if strings.Contains(err.Error(), "suspiciously large message length") {
+				log.Printf("Corruption detected at offset %d, attempting to skip...", offset)
+				if skipErr := wal.SkipCorrupt(offset); skipErr != nil {
+					log.Printf("Failed to skip corrupt message: %v", skipErr)
+				}
+			}
 			select {
 			case <-ctx.Done():
 				return
@@ -727,13 +894,58 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string) {
 	}
 }
 
+// isRunningInContainer detects if running inside a container
+func isRunningInContainer() bool {
+	// Check for container-specific markers
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+	// Check cgroup for kubernetes/docker
+	if data, err := os.ReadFile("/proc/1/cgroup"); err == nil {
+		content := string(data)
+		if strings.Contains(content, "docker") || 
+		   strings.Contains(content, "kubepods") || 
+		   strings.Contains(content, "containerd") {
+			return true
+		}
+	}
+	// Check for Kubernetes environment variables
+	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" {
+		return true
+	}
+	return false
+}
+
 func setupLogging() error {
 	if *logFile != "" {
+		// Create log directory if it doesn't exist
+		logDir := filepath.Dir(*logFile)
+		if logDir != "" && logDir != "." {
+			if err := os.MkdirAll(logDir, 0755); err != nil {
+				return fmt.Errorf("error creating log directory %s: %w", logDir, err)
+			}
+		}
+
 		f, err := os.OpenFile(*logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
 			return fmt.Errorf("error opening log file: %w", err)
 		}
 		log.SetOutput(f)
+		log.Printf("Logging to file: %s", *logFile)
+	} else {
+		// Log to stdout - provide context about where logs will go
+		if isRunningInContainer() {
+			// In container - stdout is correct, logs captured by runtime
+			log.Println("Logging to stdout (container mode - use 'kubectl logs' or container runtime to view)")
+		} else {
+			// On VM/bare-metal - warn if not running under systemd
+			if os.Getenv("INVOCATION_ID") == "" && os.Getppid() != 1 {
+				// Not running under systemd - logs may be lost
+				log.Println("Warning: Logging to stdout but not running under systemd. Consider setting LOG_FILE for persistent logs.")
+			} else {
+				log.Println("Logging to stdout (systemd mode - use 'journalctl -u avika-agent' to view)")
+			}
+		}
 	}
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	return nil

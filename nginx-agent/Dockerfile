@@ -30,15 +30,21 @@ RUN chmod +x /usr/local/bin/avika-agent
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
-# Create buffer directory, log directory, and copy default config
-RUN mkdir -p /etc/avika /var/lib/avika-agent /var/log/avika-agent
+# Create directories for agent data and copy default config
+# /var/lib/avika/ - WAL buffer and config backups (matches avika-agent.conf)
+# /var/log/avika/ - Agent logs (if not using stdout)
+RUN mkdir -p /etc/avika /var/lib/avika /var/lib/avika/backups /var/log/avika
 COPY avika-agent.conf /etc/avika/avika-agent.conf
 
 # Expose ports
-EXPOSE 80 8080
+# 80: NGINX HTTP
+# 8080: (reserved)
+# 5025: Agent Management gRPC (for web terminal/shell)
+# 5026: Agent Health check endpoint
+EXPOSE 80 8080 5025 5026
 
-# Health check
+# Health check (uses agent's health endpoint on port 5026)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:8080/health || exit 1
+  CMD curl -f http://localhost:5026/healthz || exit 1
 
 ENTRYPOINT ["/start.sh"]

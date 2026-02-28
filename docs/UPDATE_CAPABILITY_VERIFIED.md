@@ -41,7 +41,7 @@ When you press the **SYNC** button in the UI, here's exactly what happens:
                      ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  6. FETCH VERSION MANIFEST                                      │
-│     GET http://192.168.1.10:8090/version.json                   │
+│     GET http://<GATEWAY_HOST>:5021/version.json                   │
 │     Response: { "version": "0.2.0", ... }                       │
 └────────────────────┬────────────────────────────────────────────┘
                      │
@@ -56,7 +56,7 @@ When you press the **SYNC** button in the UI, here's exactly what happens:
                      ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  8. DOWNLOAD NEW BINARY                                         │
-│     GET http://192.168.1.10:8090/agent-linux-amd64              │
+│     GET http://<GATEWAY_HOST>:5021/agent-linux-amd64              │
 │     Save to: /tmp/agent-update-XXXXX                            │
 └────────────────────┬────────────────────────────────────────────┘
                      │
@@ -175,7 +175,7 @@ go run cmd/update-server/main.go
 
 ### Step 2: Trigger Update from UI
 
-1. Open `http://192.168.1.10:3000/system`
+1. Open `http://<FRONTEND_HOST>:5031/system`
 2. Find agent with version `0.1.0`
 3. See amber badge: **UPDATE AVAILABLE**
 4. Click **SYNC** button
@@ -190,7 +190,7 @@ sudo journalctl -u avika-agent -f
 # You'll see:
 # 🚀 Remote update command received
 # ✨ New version found: 0.2.0 (Current: 0.1.0)
-# 💾 Downloading update from http://192.168.1.10:8090/agent-linux-amd64...
+# 💾 Downloading update from http://<GATEWAY_HOST>:5021/agent-linux-amd64...
 # ✅ Checksum verified
 # 🚀 Swapping binary at /usr/local/bin/avika-agent
 # 🖥️  Standalone host detected. Attempting service restart...
@@ -223,7 +223,7 @@ sudo journalctl -u avika-agent -f
 ```
 [INFO] 🚀 Remote update command received (target: 0.2.0)
 [INFO] ✨ New version found: 0.2.0 (Current: 0.1.0). Starting update...
-[INFO] 💾 Downloading update from http://192.168.1.10:8090/agent-linux-amd64...
+[INFO] 💾 Downloading update from http://<GATEWAY_HOST>:5021/agent-linux-amd64...
 [INFO] ✅ Checksum verified
 [INFO] 🚀 Swapping binary at /usr/local/bin/avika-agent
 [INFO] 🖥️  Standalone host detected. Attempting service restart...
@@ -261,16 +261,16 @@ sudo journalctl -u avika-agent -f
 ```ini
 # /etc/systemd/system/avika-agent.service
 ExecStart=/usr/local/bin/avika-agent \
-    -server 192.168.1.10:50051 \
-    -update-server "http://192.168.1.10:8090" \
+    -server <GATEWAY_HOST>:5020 \
+    -update-server "http://<GATEWAY_HOST>:5021" \
     -update-interval 168h \
     ...
 ```
 
 ### 2. Agent Configuration
 ```bash
-# /etc/avika-agent/agent.conf
-UPDATE_SERVER="http://192.168.1.10:8090"
+# /etc/avika/avika-agent.conf
+UPDATE_SERVER="http://<GATEWAY_HOST>:5021"
 UPDATE_INTERVAL="168h"
 ```
 

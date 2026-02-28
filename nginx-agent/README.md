@@ -74,13 +74,13 @@ docker build -t avika-nginx-agent:latest \
   --build-arg TARGETARCH=amd64 \
   -f nginx-agent/Dockerfile .
 
-# Run with environment variables
+# Run with environment variables (replace with your gateway address)
 docker run -d \
   --name nginx-agent \
   -p 80:80 \
-  -p 8080:8080 \
-  -e GATEWAY_SERVER=192.168.1.10:50051 \
-  -e UPDATE_SERVER=http://192.168.1.10:8090 \
+  -p 5026:5026 \
+  -e GATEWAY_SERVER=your-gateway:5020 \
+  -e UPDATE_SERVER=http://your-gateway:5021 \
   -e AGENT_ID=my-nginx-1 \
   avika-nginx-agent:latest
 ```
@@ -130,8 +130,9 @@ services:
       - "80:80"
       - "8080:8080"
     environment:
-      GATEWAY_SERVER: "192.168.1.10:50051"
-      UPDATE_SERVER: "http://192.168.1.10:8090"
+      # Replace with your gateway address
+      GATEWAY_SERVER: "your-gateway:5020"
+      UPDATE_SERVER: "http://your-gateway:5021"
       AGENT_ID: "nginx-prod-1"
       LOG_FORMAT: "json"
       LOG_LEVEL: "info"
@@ -185,7 +186,7 @@ docker run -d \
   --cpus=0.5 \
   --memory=512m \
   --memory-reservation=256m \
-  -e GATEWAY_SERVER=192.168.1.10:50051 \
+  -e GATEWAY_SERVER=your-gateway:5020 \
   avika-nginx-agent:latest
 ```
 
@@ -266,7 +267,7 @@ For production deployments, mount a volume for the buffer directory:
 ```bash
 docker run -d \
   -v nginx-buffer:/var/lib/avika-agent \
-  -e GATEWAY_SERVER=192.168.1.10:50051 \
+  -e GATEWAY_SERVER=your-gateway:5020 \
   avika-nginx-agent:latest
 ```
 

@@ -39,7 +39,7 @@ if [ -z "$UPDATE_SERVER" ]; then
     fi
 fi
 
-# Example: GATEWAY_SERVER=192.168.1.10:50051 UPDATE_SERVER=http://192.168.1.10:8090 ./deploy-agent.sh
+# Example: GATEWAY_SERVER=<GATEWAY_HOST>:5020 UPDATE_SERVER=http://<GATEWAY_HOST>:5021 ./deploy-agent.sh
 UPDATE_SERVER="${UPDATE_SERVER:-}"
 GATEWAY_SERVER="${GATEWAY_SERVER:-localhost:50051}"
 INSTALL_DIR="/usr/local/bin"
@@ -50,7 +50,7 @@ AGENT_USER="${AGENT_USER:-root}"
 # Validate required configuration
 if [ -z "$UPDATE_SERVER" ]; then
     log_error "UPDATE_SERVER environment variable is required"
-    log_error "Example: curl -fsSL http://192.168.1.10:8090/deploy-agent.sh | UPDATE_SERVER=http://192.168.1.10:8090 GATEWAY_SERVER=192.168.1.10:50051 sudo -E bash"
+    log_error "Example: curl -fsSL http://<GATEWAY_HOST>:5021/deploy-agent.sh | UPDATE_SERVER=http://<GATEWAY_HOST>:5021 GATEWAY_SERVER=<GATEWAY_HOST>:5020 sudo -E bash"
     exit 1
 fi
 
@@ -146,8 +146,8 @@ cat > "$CONFIG_DIR/avika-agent.conf" <<EOF
 # Avika Agent Configuration
 # Generated on $(date)
 
-# Gateway Server
-GATEWAY_SERVER="$GATEWAY_SERVER"
+# Gateway Server(s) - comma-separated for multi-gateway
+GATEWAYS="$GATEWAY_SERVER"
 
 # Agent Identity (leave empty for auto-detection: hostname-ip)
 AGENT_ID=""
@@ -176,8 +176,8 @@ LOG_LEVEL="info"
 LOG_FILE="/var/log/avika-agent/agent.log"
 EOF
 
-chmod 644 "$CONFIG_DIR/agent.conf"
-log_success "Configuration file created at $CONFIG_DIR/agent.conf"
+chmod 644 "$CONFIG_DIR/avika-agent.conf"
+log_success "Configuration file created at $CONFIG_DIR/avika-agent.conf"
 
 # Download systemd service file
 log_info "Downloading systemd service file..."
@@ -223,7 +223,7 @@ if systemctl is-active --quiet "$SERVICE_NAME"; then
     echo "  Restart service:  systemctl restart $SERVICE_NAME"
     echo "  Stop service:     systemctl stop $SERVICE_NAME"
     echo "  Service status:   systemctl status $SERVICE_NAME"
-    echo "  Edit config:      nano $CONFIG_DIR/agent.conf"
+    echo "  Edit config:      nano $CONFIG_DIR/avika-agent.conf"
     echo ""
     log_success "Avika Agent deployment completed successfully!"
 else
