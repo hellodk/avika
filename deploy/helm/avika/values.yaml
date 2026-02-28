@@ -109,7 +109,7 @@ components:
     replicaCount: 1
     image:
       repository: hellodk/avika-gateway
-      tag: "0.1.88"  # AVIKA SERVICE: Update with app version
+      tag: "0.1.93"  # AVIKA SERVICE: Update with app version
       pullPolicy: Always
     terminationGracePeriodSeconds: 35
     
@@ -189,7 +189,7 @@ components:
     replicaCount: 1
     image:
       repository: hellodk/avika-frontend
-      tag: "0.1.88"  # AVIKA SERVICE: Update with app version
+      tag: "0.1.93"  # AVIKA SERVICE: Update with app version
       pullPolicy: Always
     
     ports:
