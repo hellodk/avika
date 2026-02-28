@@ -10,6 +10,8 @@ import {
     LayoutDashboard, Layers, GitBranch, Terminal, BookOpen, KeyRound, Globe,
     LineChart
 } from "lucide-react";
+
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "dev";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-provider";
 import {
@@ -123,9 +125,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                                 <Activity className="h-5 w-5 text-white" />
                             </div>
-                            <span className="font-semibold text-lg" style={{ color: "rgb(var(--theme-text))" }}>
-                                Avika
-                            </span>
+                            <div className="flex flex-col">
+                                <span className="font-semibold text-lg leading-tight" style={{ color: "rgb(var(--theme-text))" }}>
+                                    Avika
+                                </span>
+                                <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                    v{APP_VERSION}
+                                </span>
+                            </div>
                         </Link>
                     )}
                     {sidebarCollapsed && (
