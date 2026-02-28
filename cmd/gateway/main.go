@@ -231,6 +231,15 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				currentSession.lastActive = time.Now()
 				currentSession.labels = hb.Labels
 				currentSession.mu.Unlock()
+
+				// Try auto-assignment on reconnection if agent has labels but no assignment
+				if len(hb.Labels) > 0 {
+					existing, err := s.db.GetServerAssignment(agentID)
+					if err != nil || existing == nil {
+						log.Printf("Attempting auto-assign for reconnected agent %s with labels: %v", agentID, hb.Labels)
+						s.autoAssignAgentToEnvironment(agentID, hb.Labels)
+					}
+				}
 			}
 
 			// Persist to DB
@@ -1912,7 +1921,7 @@ func (s *server) autoAssignAgentToEnvironment(agentID string, labels map[string]
 	if name, ok := labels["name"]; ok {
 		displayName = name
 	}
-	_, err = s.db.AssignServer(agentID, env.ID, displayName, "auto-assign", nil)
+	_, err = s.db.AssignServer(agentID, env.ID, displayName, "", nil) // Empty string for auto-assignment
 	if err != nil {
 		log.Printf("Auto-assign failed for agent %s: %v", agentID, err)
 		return

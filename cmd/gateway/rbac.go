@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // Permission levels for team-project access
@@ -408,28 +409,54 @@ func (db *DB) CreateDefaultEnvironments(projectID string) error {
 
 // AssignServer assigns a server to an environment
 func (db *DB) AssignServer(agentID, environmentID, displayName, assignedBy string, tags []string) (*ServerAssignment, error) {
-	query := `
-		INSERT INTO server_assignments (agent_id, environment_id, display_name, tags, assigned_by, assigned_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		ON CONFLICT (agent_id) DO UPDATE SET
-			environment_id = EXCLUDED.environment_id,
-			display_name = EXCLUDED.display_name,
-			tags = EXCLUDED.tags,
-			assigned_by = EXCLUDED.assigned_by,
-			updated_at = CURRENT_TIMESTAMP
-		RETURNING agent_id, environment_id, display_name, tags, assigned_by, assigned_at, updated_at
-	`
 	var sa ServerAssignment
 	var envID, dispName, assignBy sql.NullString
-	err := db.conn.QueryRow(query, agentID, environmentID, displayName, tags, assignedBy).Scan(
-		&sa.AgentID, &envID, &dispName, &sa.Tags, &assignBy, &sa.AssignedAt, &sa.UpdatedAt,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to assign server: %w", err)
+	var tagsArray pq.StringArray
+
+	// Use different query based on whether assignedBy is provided
+	if assignedBy == "" {
+		// For auto-assignment, don't set assigned_by (leave it NULL)
+		query := `
+			INSERT INTO server_assignments (agent_id, environment_id, display_name, tags, assigned_at, updated_at)
+			VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+			ON CONFLICT (agent_id) DO UPDATE SET
+				environment_id = EXCLUDED.environment_id,
+				display_name = EXCLUDED.display_name,
+				tags = EXCLUDED.tags,
+				updated_at = CURRENT_TIMESTAMP
+			RETURNING agent_id, environment_id, display_name, tags, assigned_by, assigned_at, updated_at
+		`
+		err := db.conn.QueryRow(query, agentID, environmentID, displayName, pq.Array(tags)).Scan(
+			&sa.AgentID, &envID, &dispName, &tagsArray, &assignBy, &sa.AssignedAt, &sa.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to assign server: %w", err)
+		}
+	} else {
+		// For manual assignment, include assigned_by
+		query := `
+			INSERT INTO server_assignments (agent_id, environment_id, display_name, tags, assigned_by, assigned_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+			ON CONFLICT (agent_id) DO UPDATE SET
+				environment_id = EXCLUDED.environment_id,
+				display_name = EXCLUDED.display_name,
+				tags = EXCLUDED.tags,
+				assigned_by = EXCLUDED.assigned_by,
+				updated_at = CURRENT_TIMESTAMP
+			RETURNING agent_id, environment_id, display_name, tags, assigned_by, assigned_at, updated_at
+		`
+		err := db.conn.QueryRow(query, agentID, environmentID, displayName, pq.Array(tags), assignedBy).Scan(
+			&sa.AgentID, &envID, &dispName, &tagsArray, &assignBy, &sa.AssignedAt, &sa.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to assign server: %w", err)
+		}
 	}
+
 	sa.EnvironmentID = envID.String
 	sa.DisplayName = dispName.String
 	sa.AssignedBy = assignBy.String
+	sa.Tags = tagsArray
 	return &sa, nil
 }
 
@@ -447,8 +474,9 @@ func (db *DB) GetServerAssignment(agentID string) (*ServerAssignment, error) {
 	`
 	var sa ServerAssignment
 	var envID, dispName, assignBy sql.NullString
+	var tagsArray pq.StringArray
 	err := db.conn.QueryRow(query, agentID).Scan(
-		&sa.AgentID, &envID, &dispName, &sa.Tags, &assignBy, &sa.AssignedAt, &sa.UpdatedAt,
+		&sa.AgentID, &envID, &dispName, &tagsArray, &assignBy, &sa.AssignedAt, &sa.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -459,6 +487,7 @@ func (db *DB) GetServerAssignment(agentID string) (*ServerAssignment, error) {
 	sa.EnvironmentID = envID.String
 	sa.DisplayName = dispName.String
 	sa.AssignedBy = assignBy.String
+	sa.Tags = tagsArray
 	return &sa, nil
 }
 
@@ -502,12 +531,14 @@ func (db *DB) ListServersInEnvironment(environmentID string) ([]ServerAssignment
 	for rows.Next() {
 		var sa ServerAssignment
 		var envID, dispName, assignBy sql.NullString
-		if err := rows.Scan(&sa.AgentID, &envID, &dispName, &sa.Tags, &assignBy, &sa.AssignedAt, &sa.UpdatedAt); err != nil {
+		var tagsArray pq.StringArray
+		if err := rows.Scan(&sa.AgentID, &envID, &dispName, &tagsArray, &assignBy, &sa.AssignedAt, &sa.UpdatedAt); err != nil {
 			return nil, err
 		}
 		sa.EnvironmentID = envID.String
 		sa.DisplayName = dispName.String
 		sa.AssignedBy = assignBy.String
+		sa.Tags = tagsArray
 		assignments = append(assignments, sa)
 	}
 	return assignments, nil
@@ -546,7 +577,8 @@ func (db *DB) ListAllServerAssignments() ([]ServerAssignmentWithDetails, error) 
 	for rows.Next() {
 		var sa ServerAssignmentWithDetails
 		var envID, envName, projID, projName, dispName, assignBy sql.NullString
-		if err := rows.Scan(&sa.AgentID, &envID, &envName, &projID, &projName, &dispName, &sa.Tags, &assignBy, &sa.AssignedAt); err != nil {
+		var tagsArray pq.StringArray
+		if err := rows.Scan(&sa.AgentID, &envID, &envName, &projID, &projName, &dispName, &tagsArray, &assignBy, &sa.AssignedAt); err != nil {
 			return nil, err
 		}
 		sa.EnvironmentID = envID.String
@@ -555,6 +587,7 @@ func (db *DB) ListAllServerAssignments() ([]ServerAssignmentWithDetails, error) 
 		sa.ProjectName = projName.String
 		sa.DisplayName = dispName.String
 		sa.AssignedBy = assignBy.String
+		sa.Tags = tagsArray
 		assignments = append(assignments, sa)
 	}
 	return assignments, nil
