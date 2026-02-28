@@ -917,15 +917,15 @@ function GeoPageContent() {
     };
     
     // Generic sort function
-    const sortData = <T extends Record<string, unknown>>(
+    const sortData = <T extends object>(
         data: T[],
         sortConfig: SortConfig
     ): T[] => {
         if (!sortConfig.direction) return data;
         
         return [...data].sort((a, b) => {
-            const aVal = a[sortConfig.key];
-            const bVal = b[sortConfig.key];
+            const aVal = (a as Record<string, unknown>)[sortConfig.key];
+            const bVal = (b as Record<string, unknown>)[sortConfig.key];
             
             if (typeof aVal === 'number' && typeof bVal === 'number') {
                 return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
