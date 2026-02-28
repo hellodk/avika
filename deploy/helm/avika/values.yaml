@@ -108,7 +108,7 @@ components:
     enabled: true
     replicaCount: 1
     image:
-      repository: hellodk/avika-gateway
+      repository: hellodk/gateway
       tag: "0.1.93"  # AVIKA SERVICE: Update with app version
       pullPolicy: Always
     terminationGracePeriodSeconds: 35
