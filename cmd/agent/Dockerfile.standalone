@@ -1,0 +1,109 @@
+# =============================================================================
+# Avika Agent - Standalone Sidecar Image
+# =============================================================================
+# 
+# This Dockerfile builds a minimal agent-only image for sidecar deployments.
+# Unlike the bundled nginx-agent image, this contains ONLY the agent binary.
+#
+# Usage:
+#   docker buildx build -f cmd/agent/Dockerfile.standalone \
+#     --platform linux/amd64,linux/arm64 \
+#     -t hellodk/avika-agent-sidecar:latest \
+#     --push .
+#
+# =============================================================================
+
+# Build stage
+FROM golang:1.24-alpine AS builder
+
+ARG VERSION=dev
+ARG BUILD_DATE=unknown
+ARG GIT_COMMIT=unknown
+ARG GIT_BRANCH=unknown
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates
+
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+COPY internal/common/go.mod internal/common/go.sum ./internal/common/
+COPY cmd/agent/go.mod cmd/agent/go.sum ./cmd/agent/
+
+# Download dependencies
+WORKDIR /build/cmd/agent
+RUN go mod download
+
+# Copy source code
+WORKDIR /build
+COPY . .
+
+# Build the agent binary
+WORKDIR /build/cmd/agent
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-w -s \
+    -X 'main.Version=${VERSION}' \
+    -X 'main.BuildDate=${BUILD_DATE}' \
+    -X 'main.GitCommit=${GIT_COMMIT}' \
+    -X 'main.GitBranch=${GIT_BRANCH}'" \
+    -o /agent .
+
+# =============================================================================
+# Final stage - Minimal runtime image
+# =============================================================================
+FROM alpine:3.19
+
+# Labels
+ARG VERSION=dev
+ARG BUILD_DATE=unknown
+ARG GIT_COMMIT=unknown
+
+LABEL org.opencontainers.image.title="Avika Agent Sidecar"
+LABEL org.opencontainers.image.description="Lightweight monitoring agent for NGINX - sidecar deployment"
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
+LABEL org.opencontainers.image.revision="${GIT_COMMIT}"
+LABEL org.opencontainers.image.source="https://github.com/hellodk/avika"
+
+# Install minimal dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    curl \
+    && rm -rf /var/cache/apk/*
+
+# Set timezone
+ENV TZ=UTC
+
+# Create non-root user
+RUN addgroup -g 1000 avika && \
+    adduser -D -u 1000 -G avika avika
+
+# Create directories
+RUN mkdir -p /etc/avika /var/lib/avika /var/lib/avika/backups && \
+    chown -R avika:avika /etc/avika /var/lib/avika
+
+# Copy binary
+COPY --from=builder /agent /usr/local/bin/avika-agent
+RUN chmod +x /usr/local/bin/avika-agent
+
+# Copy default config
+COPY deploy/config/avika-agent.conf.sample /etc/avika/avika-agent.conf.default
+
+# Switch to non-root user
+USER avika
+WORKDIR /home/avika
+
+# Expose ports
+# 5025: Management gRPC (web terminal/shell)
+# 5026: Health check endpoint
+EXPOSE 5025 5026
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -sf http://localhost:5026/healthz || exit 1
+
+# Default command
+ENTRYPOINT ["/usr/local/bin/avika-agent"]
+CMD ["-config=/etc/avika/avika-agent.conf"]

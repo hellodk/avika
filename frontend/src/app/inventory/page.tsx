@@ -272,7 +272,6 @@ function InventoryPageContent() {
             if (!res.ok) throw new Error('Failed to fetch agents');
             const data = await res.json();
             setInstances(Array.isArray(data.agents) ? data.agents : []);
-            setLatestVersion(data.system_version || "0.1.0");
             setError(null);
         } catch (error: any) {
             setError(error.message);
@@ -281,10 +280,27 @@ function InventoryPageContent() {
         }
     };
 
+    const fetchLatestAgentVersion = async () => {
+        try {
+            const res = await apiFetch('/api/updates/version');
+            if (res.ok) {
+                const data = await res.json();
+                setLatestVersion(data.version || "0.0.0");
+            }
+        } catch (error) {
+            console.error('Failed to fetch latest agent version:', error);
+        }
+    };
+
     useEffect(() => {
         fetchAgents();
-        const interval = setInterval(fetchAgents, 10000);
-        return () => clearInterval(interval);
+        fetchLatestAgentVersion();
+        const agentsInterval = setInterval(fetchAgents, 10000);
+        const versionInterval = setInterval(fetchLatestAgentVersion, 60000); // Check version less frequently
+        return () => {
+            clearInterval(agentsInterval);
+            clearInterval(versionInterval);
+        };
     }, []);
 
     // Confirm delete (opens dialog)

@@ -45,6 +45,7 @@ RUN apk add --no-cache ca-certificates curl
 
 WORKDIR /app
 COPY --from=builder /app/cmd/gateway/gateway .
+COPY --from=builder /app/VERSION .
 
 # Copy updates directory with agent binaries and deploy script
 # Structure: /updates/version.json, /updates/bin/agent-linux-*, /updates/deploy-agent.sh
