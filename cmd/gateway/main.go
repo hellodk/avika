@@ -1205,13 +1205,16 @@ func connectToDatabase(cfg *config.Config) (*DB, error) {
 		time.Sleep(cfg.Database.RetryInterval)
 	}
 
-	// Try fallback for local development
-	log.Println("Trying fallback database connection...")
-	db, err = NewDB("postgres://admin:password@127.0.0.1:5432/avika?sslmode=disable")
-	if err != nil {
-		return nil, fmt.Errorf("all connection attempts failed: %w", err)
+	// Try fallback using DB_DSN environment variable
+	fallbackDSN := os.Getenv("DB_DSN")
+	if fallbackDSN != "" {
+		log.Println("Trying fallback database connection from DB_DSN...")
+		db, err = NewDB(fallbackDSN)
+		if err == nil {
+			return db, nil
+		}
 	}
-	return db, nil
+	return nil, fmt.Errorf("all connection attempts failed: %w", err)
 }
 
 // connectToClickHouse connects to ClickHouse with fallback

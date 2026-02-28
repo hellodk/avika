@@ -258,8 +258,8 @@ func defaultConfig() *Config {
 			ShutdownTimeout: 30 * time.Second,
 			EnableTLS:       false,
 		},
-		Database: DatabaseConfig{
-			DSN:             "postgres://admin:password@localhost:5432/avika?sslmode=disable",
+	Database: DatabaseConfig{
+		DSN:             "", // Set via DATABASE_URL or DB_DSN environment variable
 			MaxOpenConns:    25,
 			MaxIdleConns:    25,
 			ConnMaxLifetime: 5 * time.Minute,

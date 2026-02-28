@@ -488,9 +488,12 @@ func containsSubstr(s, substr string) bool {
 
 // Benchmark
 func BenchmarkHealthEndpoint(b *testing.B) {
-	dsn := os.Getenv("DB_DSN")
+	dsn := os.Getenv("TEST_DB_DSN")
 	if dsn == "" {
-		dsn = "postgres://admin:testpassword@localhost:5432/avika_test?sslmode=disable"
+		dsn = os.Getenv("DB_DSN")
+	}
+	if dsn == "" {
+		b.Skip("TEST_DB_DSN or DB_DSN environment variable required")
 	}
 
 	db, err := NewDB(dsn)

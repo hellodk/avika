@@ -13,9 +13,12 @@ import (
 
 // getTestDSN returns the database DSN for integration tests
 func getTestDSN() string {
-	dsn := os.Getenv("DB_DSN")
+	dsn := os.Getenv("TEST_DB_DSN")
 	if dsn == "" {
-		dsn = "postgres://admin:testpassword@localhost:5432/avika_test?sslmode=disable"
+		dsn = os.Getenv("DB_DSN")
+	}
+	if dsn == "" {
+		panic("TEST_DB_DSN or DB_DSN environment variable required for integration tests")
 	}
 	return dsn
 }
