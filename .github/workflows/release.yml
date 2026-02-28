@@ -2,10 +2,12 @@
 name: Release
 
 on:
-  # Trigger on version tags (v*.*.*)
+  # Trigger on push to master (for workflow registration)
   push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+*'
+    branches:
+      - master
+    paths:
+      - '.github/workflows/release.yml'
   # Manual trigger for releases
   workflow_dispatch:
     inputs:
@@ -22,18 +24,6 @@ on:
         description: 'Pre-release suffix (e.g., rc.1, beta.1, leave empty for stable)'
         required: false
         default: ''
-  # Allow calling from other workflows
-  workflow_call:
-    inputs:
-      bump_type:
-        description: 'Version bump type'
-        required: true
-        type: string
-      prerelease:
-        description: 'Pre-release suffix'
-        required: false
-        type: string
-        default: ''
 
 env:
   GO_VERSION: '1.23'
@@ -44,6 +34,8 @@ jobs:
   version-bump:
     name: Bump Version
     runs-on: ubuntu-latest
+    # Only run on manual dispatch, not on push (push is just for workflow registration)
+    if: github.event_name == 'workflow_dispatch'
     outputs:
       version: ${{ steps.bump.outputs.version }}
       tag: ${{ steps.bump.outputs.tag }}
