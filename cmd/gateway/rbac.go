@@ -1,12 +1,16 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // Permission levels for team-project access
@@ -112,6 +116,20 @@ type AuditLog struct {
 	Details      json.RawMessage `json:"details,omitempty"`
 	IPAddress    string          `json:"ip_address,omitempty"`
 	UserAgent    string          `json:"user_agent,omitempty"`
+}
+
+// EnrollmentToken represents an enrollment token for agent registration
+type EnrollmentToken struct {
+	ID            string     `json:"id"`
+	EnvironmentID string     `json:"environment_id"`
+	Token         string     `json:"token,omitempty"` // Only populated on creation (plaintext)
+	Description   string     `json:"description,omitempty"`
+	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
+	MaxUses       *int       `json:"max_uses,omitempty"`
+	UseCount      int        `json:"use_count"`
+	CreatedBy     string     `json:"created_by,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	LastUsedAt    *time.Time `json:"last_used_at,omitempty"`
 }
 
 // ============================================================================
@@ -301,6 +319,27 @@ func (db *DB) GetEnvironment(id string) (*Environment, error) {
 	return &e, nil
 }
 
+// GetEnvironmentBySlug retrieves an environment by project ID and slug
+func (db *DB) GetEnvironmentBySlug(projectID, slug string) (*Environment, error) {
+	query := `
+		SELECT id, project_id, name, slug, description, color, sort_order, is_production, created_at, updated_at
+		FROM environments WHERE project_id = $1 AND slug = $2
+	`
+	var e Environment
+	var desc sql.NullString
+	err := db.conn.QueryRow(query, projectID, slug).Scan(
+		&e.ID, &e.ProjectID, &e.Name, &e.Slug, &desc, &e.Color, &e.SortOrder, &e.IsProduction, &e.CreatedAt, &e.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	e.Description = desc.String
+	return &e, nil
+}
+
 // ListEnvironments lists all environments in a project
 func (db *DB) ListEnvironments(projectID string) ([]Environment, error) {
 	query := `
@@ -370,28 +409,54 @@ func (db *DB) CreateDefaultEnvironments(projectID string) error {
 
 // AssignServer assigns a server to an environment
 func (db *DB) AssignServer(agentID, environmentID, displayName, assignedBy string, tags []string) (*ServerAssignment, error) {
-	query := `
-		INSERT INTO server_assignments (agent_id, environment_id, display_name, tags, assigned_by, assigned_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		ON CONFLICT (agent_id) DO UPDATE SET
-			environment_id = EXCLUDED.environment_id,
-			display_name = EXCLUDED.display_name,
-			tags = EXCLUDED.tags,
-			assigned_by = EXCLUDED.assigned_by,
-			updated_at = CURRENT_TIMESTAMP
-		RETURNING agent_id, environment_id, display_name, tags, assigned_by, assigned_at, updated_at
-	`
 	var sa ServerAssignment
 	var envID, dispName, assignBy sql.NullString
-	err := db.conn.QueryRow(query, agentID, environmentID, displayName, tags, assignedBy).Scan(
-		&sa.AgentID, &envID, &dispName, &sa.Tags, &assignBy, &sa.AssignedAt, &sa.UpdatedAt,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to assign server: %w", err)
+	var tagsArray pq.StringArray
+
+	// Use different query based on whether assignedBy is provided
+	if assignedBy == "" {
+		// For auto-assignment, don't set assigned_by (leave it NULL)
+		query := `
+			INSERT INTO server_assignments (agent_id, environment_id, display_name, tags, assigned_at, updated_at)
+			VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+			ON CONFLICT (agent_id) DO UPDATE SET
+				environment_id = EXCLUDED.environment_id,
+				display_name = EXCLUDED.display_name,
+				tags = EXCLUDED.tags,
+				updated_at = CURRENT_TIMESTAMP
+			RETURNING agent_id, environment_id, display_name, tags, assigned_by, assigned_at, updated_at
+		`
+		err := db.conn.QueryRow(query, agentID, environmentID, displayName, pq.Array(tags)).Scan(
+			&sa.AgentID, &envID, &dispName, &tagsArray, &assignBy, &sa.AssignedAt, &sa.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to assign server: %w", err)
+		}
+	} else {
+		// For manual assignment, include assigned_by
+		query := `
+			INSERT INTO server_assignments (agent_id, environment_id, display_name, tags, assigned_by, assigned_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+			ON CONFLICT (agent_id) DO UPDATE SET
+				environment_id = EXCLUDED.environment_id,
+				display_name = EXCLUDED.display_name,
+				tags = EXCLUDED.tags,
+				assigned_by = EXCLUDED.assigned_by,
+				updated_at = CURRENT_TIMESTAMP
+			RETURNING agent_id, environment_id, display_name, tags, assigned_by, assigned_at, updated_at
+		`
+		err := db.conn.QueryRow(query, agentID, environmentID, displayName, pq.Array(tags), assignedBy).Scan(
+			&sa.AgentID, &envID, &dispName, &tagsArray, &assignBy, &sa.AssignedAt, &sa.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to assign server: %w", err)
+		}
 	}
+
 	sa.EnvironmentID = envID.String
 	sa.DisplayName = dispName.String
 	sa.AssignedBy = assignBy.String
+	sa.Tags = tagsArray
 	return &sa, nil
 }
 
@@ -409,8 +474,9 @@ func (db *DB) GetServerAssignment(agentID string) (*ServerAssignment, error) {
 	`
 	var sa ServerAssignment
 	var envID, dispName, assignBy sql.NullString
+	var tagsArray pq.StringArray
 	err := db.conn.QueryRow(query, agentID).Scan(
-		&sa.AgentID, &envID, &dispName, &sa.Tags, &assignBy, &sa.AssignedAt, &sa.UpdatedAt,
+		&sa.AgentID, &envID, &dispName, &tagsArray, &assignBy, &sa.AssignedAt, &sa.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -421,6 +487,7 @@ func (db *DB) GetServerAssignment(agentID string) (*ServerAssignment, error) {
 	sa.EnvironmentID = envID.String
 	sa.DisplayName = dispName.String
 	sa.AssignedBy = assignBy.String
+	sa.Tags = tagsArray
 	return &sa, nil
 }
 
@@ -464,12 +531,63 @@ func (db *DB) ListServersInEnvironment(environmentID string) ([]ServerAssignment
 	for rows.Next() {
 		var sa ServerAssignment
 		var envID, dispName, assignBy sql.NullString
-		if err := rows.Scan(&sa.AgentID, &envID, &dispName, &sa.Tags, &assignBy, &sa.AssignedAt, &sa.UpdatedAt); err != nil {
+		var tagsArray pq.StringArray
+		if err := rows.Scan(&sa.AgentID, &envID, &dispName, &tagsArray, &assignBy, &sa.AssignedAt, &sa.UpdatedAt); err != nil {
 			return nil, err
 		}
 		sa.EnvironmentID = envID.String
 		sa.DisplayName = dispName.String
 		sa.AssignedBy = assignBy.String
+		sa.Tags = tagsArray
+		assignments = append(assignments, sa)
+	}
+	return assignments, nil
+}
+
+// ServerAssignmentWithDetails includes environment and project names for display
+type ServerAssignmentWithDetails struct {
+	AgentID         string    `json:"agent_id"`
+	EnvironmentID   string    `json:"environment_id,omitempty"`
+	EnvironmentName string    `json:"environment_name,omitempty"`
+	ProjectID       string    `json:"project_id,omitempty"`
+	ProjectName     string    `json:"project_name,omitempty"`
+	DisplayName     string    `json:"display_name,omitempty"`
+	Tags            []string  `json:"tags,omitempty"`
+	AssignedBy      string    `json:"assigned_by,omitempty"`
+	AssignedAt      time.Time `json:"assigned_at"`
+}
+
+// ListAllServerAssignments lists all server assignments with environment and project details
+func (db *DB) ListAllServerAssignments() ([]ServerAssignmentWithDetails, error) {
+	query := `
+		SELECT sa.agent_id, sa.environment_id, e.name as env_name, p.id as project_id, p.name as project_name,
+			   sa.display_name, sa.tags, sa.assigned_by, sa.assigned_at
+		FROM server_assignments sa
+		LEFT JOIN environments e ON sa.environment_id = e.id
+		LEFT JOIN projects p ON e.project_id = p.id
+		ORDER BY p.name, e.name, sa.assigned_at
+	`
+	rows, err := db.conn.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var assignments []ServerAssignmentWithDetails
+	for rows.Next() {
+		var sa ServerAssignmentWithDetails
+		var envID, envName, projID, projName, dispName, assignBy sql.NullString
+		var tagsArray pq.StringArray
+		if err := rows.Scan(&sa.AgentID, &envID, &envName, &projID, &projName, &dispName, &tagsArray, &assignBy, &sa.AssignedAt); err != nil {
+			return nil, err
+		}
+		sa.EnvironmentID = envID.String
+		sa.EnvironmentName = envName.String
+		sa.ProjectID = projID.String
+		sa.ProjectName = projName.String
+		sa.DisplayName = dispName.String
+		sa.AssignedBy = assignBy.String
+		sa.Tags = tagsArray
 		assignments = append(assignments, sa)
 	}
 	return assignments, nil
@@ -910,4 +1028,137 @@ func (db *DB) ListAuditLogs(limit int) ([]AuditLog, error) {
 		logs = append(logs, l)
 	}
 	return logs, nil
+}
+
+// ============================================================================
+// Enrollment Token Operations
+// ============================================================================
+
+// CreateEnrollmentToken creates a new enrollment token for an environment
+func (db *DB) CreateEnrollmentToken(environmentID, description, createdBy string, expiresAt *time.Time, maxUses *int) (*EnrollmentToken, string, error) {
+	id := uuid.New().String()
+	// Generate a random token
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return nil, "", fmt.Errorf("failed to generate token: %w", err)
+	}
+	plainToken := hex.EncodeToString(tokenBytes)
+	tokenHash := sha256Hex(plainToken)
+
+	query := `
+		INSERT INTO enrollment_tokens (id, environment_id, token_hash, description, expires_at, max_uses, created_by, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+		RETURNING id, environment_id, description, expires_at, max_uses, use_count, created_by, created_at, last_used_at
+	`
+	var et EnrollmentToken
+	var desc, creator sql.NullString
+	var expires, lastUsed sql.NullTime
+	var maxUsesVal sql.NullInt32
+	err := db.conn.QueryRow(query, id, environmentID, tokenHash, description, expiresAt, maxUses, createdBy).Scan(
+		&et.ID, &et.EnvironmentID, &desc, &expires, &maxUsesVal, &et.UseCount, &creator, &et.CreatedAt, &lastUsed,
+	)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to create enrollment token: %w", err)
+	}
+	et.Description = desc.String
+	et.CreatedBy = creator.String
+	if expires.Valid {
+		et.ExpiresAt = &expires.Time
+	}
+	if maxUsesVal.Valid {
+		v := int(maxUsesVal.Int32)
+		et.MaxUses = &v
+	}
+	if lastUsed.Valid {
+		et.LastUsedAt = &lastUsed.Time
+	}
+	return &et, plainToken, nil
+}
+
+// sha256Hex returns the hex-encoded SHA256 hash of a string
+func sha256Hex(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(h[:])
+}
+
+// ValidateEnrollmentToken validates a token and returns the environment ID if valid
+func (db *DB) ValidateEnrollmentToken(token string) (string, error) {
+	tokenHash := sha256Hex(token)
+	query := `
+		SELECT id, environment_id, expires_at, max_uses, use_count
+		FROM enrollment_tokens WHERE token_hash = $1
+	`
+	var id, envID string
+	var expires sql.NullTime
+	var maxUses sql.NullInt32
+	var useCount int
+	err := db.conn.QueryRow(query, tokenHash).Scan(&id, &envID, &expires, &maxUses, &useCount)
+	if err == sql.ErrNoRows {
+		return "", fmt.Errorf("invalid token")
+	}
+	if err != nil {
+		return "", err
+	}
+
+	// Check expiration
+	if expires.Valid && expires.Time.Before(time.Now()) {
+		return "", fmt.Errorf("token has expired")
+	}
+
+	// Check max uses
+	if maxUses.Valid && useCount >= int(maxUses.Int32) {
+		return "", fmt.Errorf("token has reached maximum uses")
+	}
+
+	// Increment use count
+	_, err = db.conn.Exec("UPDATE enrollment_tokens SET use_count = use_count + 1, last_used_at = CURRENT_TIMESTAMP WHERE id = $1", id)
+	if err != nil {
+		return "", err
+	}
+
+	return envID, nil
+}
+
+// ListEnrollmentTokens lists all tokens for an environment
+func (db *DB) ListEnrollmentTokens(environmentID string) ([]EnrollmentToken, error) {
+	query := `
+		SELECT id, environment_id, description, expires_at, max_uses, use_count, created_by, created_at, last_used_at
+		FROM enrollment_tokens WHERE environment_id = $1 ORDER BY created_at DESC
+	`
+	rows, err := db.conn.Query(query, environmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tokens []EnrollmentToken
+	for rows.Next() {
+		var et EnrollmentToken
+		var desc, creator sql.NullString
+		var expires, lastUsed sql.NullTime
+		var maxUses sql.NullInt32
+		if err := rows.Scan(&et.ID, &et.EnvironmentID, &desc, &expires, &maxUses, &et.UseCount, &creator, &et.CreatedAt, &lastUsed); err != nil {
+			return nil, err
+		}
+		et.Description = desc.String
+		et.CreatedBy = creator.String
+		if expires.Valid {
+			et.ExpiresAt = &expires.Time
+		}
+		if maxUses.Valid {
+			v := int(maxUses.Int32)
+			et.MaxUses = &v
+		}
+		if lastUsed.Valid {
+			et.LastUsedAt = &lastUsed.Time
+		}
+		tokens = append(tokens, et)
+	}
+	return tokens, nil
+}
+
+// DeleteEnrollmentToken deletes an enrollment token
+func (db *DB) DeleteEnrollmentToken(id string) error {
+	_, err := db.conn.Exec("DELETE FROM enrollment_tokens WHERE id = $1", id)
+	return err
 }

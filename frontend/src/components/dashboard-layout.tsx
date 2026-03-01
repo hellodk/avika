@@ -8,8 +8,11 @@ import {
     FileText, Heart, Cpu, ChevronDown, ChevronRight,
     Search, Bell, User, Menu, X, HelpCircle, LogOut,
     LayoutDashboard, Layers, GitBranch, Terminal, BookOpen, KeyRound, Globe,
-    LineChart
+    LineChart, Users, FolderKanban
 } from "lucide-react";
+import { ProjectSelector } from "@/components/project-selector";
+import { EnvironmentTabs } from "@/components/environment-tabs";
+import { useProject } from "@/lib/project-context";
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "dev";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +73,26 @@ const NAV_SECTIONS: NavSection[] = [
         ]
     },
 ];
+
+function EnvironmentTabsBar() {
+    const { selectedProject } = useProject();
+    
+    if (!selectedProject) {
+        return null;
+    }
+    
+    return (
+        <div 
+            className="px-6 py-2 border-b flex-shrink-0"
+            style={{
+                background: "rgb(var(--theme-surface))",
+                borderColor: "rgb(var(--theme-border))"
+            }}
+        >
+            <EnvironmentTabs />
+        </div>
+    );
+}
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
@@ -228,8 +251,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                         borderColor: "rgb(var(--theme-border))"
                     }}
                 >
-                    {/* Left: Breadcrumb */}
-                    <div className="flex items-center gap-3">
+                    {/* Left: Project Selector and Breadcrumb */}
+                    <div className="flex items-center gap-4">
+                        <ProjectSelector className="w-[180px]" />
+                        <div className="w-px h-6" style={{ background: "rgb(var(--theme-border))" }} />
                         <nav className="flex items-center text-sm">
                             <Link 
                                 href="/" 
@@ -360,6 +385,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                         </DropdownMenu>
                     </div>
                 </header>
+
+                {/* Environment Tabs */}
+                <EnvironmentTabsBar />
 
                 {/* Main Content */}
                 <main 

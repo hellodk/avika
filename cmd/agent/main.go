@@ -73,6 +73,7 @@ var (
 var (
 	globalUpdater *updater.Updater
 	startTime     = time.Now()
+	agentLabels   = make(map[string]string) // Labels for auto-assignment (project, environment, etc.)
 )
 
 // loadConfig reads key=value pairs from file and updates flags if not set via CLI
@@ -167,6 +168,14 @@ func loadConfig(path string) error {
 					*mgmtPort = i
 				}
 			}
+		default:
+			// Parse labels with LABEL_ prefix: LABEL_project=myproject
+			if strings.HasPrefix(key, "LABEL_") {
+				labelKey := strings.TrimPrefix(key, "LABEL_")
+				if labelKey != "" {
+					agentLabels[labelKey] = val
+				}
+			}
 		}
 	}
 	return scanner.Err()
@@ -222,6 +231,19 @@ func loadEnv() {
 		}
 		if val := os.Getenv(m.envKey); val != "" {
 			m.apply(val)
+		}
+	}
+
+	// Parse labels from AVIKA_LABEL_* environment variables
+	for _, env := range os.Environ() {
+		if strings.HasPrefix(env, "AVIKA_LABEL_") {
+			parts := strings.SplitN(env, "=", 2)
+			if len(parts) == 2 {
+				labelKey := strings.TrimPrefix(parts[0], "AVIKA_LABEL_")
+				if labelKey != "" {
+					agentLabels[strings.ToLower(labelKey)] = parts[1]
+				}
+			}
 		}
 	}
 }
@@ -342,6 +364,9 @@ func main() {
 	}
 
 	log.Printf("Starting agent %s (version %s) connecting to gateway(s): %s", *agentID, Version, *gatewayAddr)
+	if len(agentLabels) > 0 {
+		log.Printf("Agent labels configured: %v", agentLabels)
+	}
 
 	// 2. Start Health Check Server
 	healthServer := health.NewServer(*healthPort)
@@ -483,6 +508,7 @@ func main() {
 							BuildDate:    BuildDate,
 							GitCommit:    GitCommit,
 							GitBranch:    GitBranch,
+							Labels:       agentLabels, // Labels for auto-assignment
 						},
 					},
 				}

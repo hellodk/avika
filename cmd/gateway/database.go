@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"fmt"
 	"log"
@@ -9,6 +11,7 @@ import (
 
 	_ "github.com/lib/pq"
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
+	"github.com/avika-ai/avika/cmd/gateway/middleware"
 	"github.com/avika-ai/avika/cmd/gateway/migrations"
 )
 
@@ -295,4 +298,92 @@ func (db *DB) ListAlertRules() ([]*pb.AlertRule, error) {
 		rules = append(rules, rule)
 	}
 	return rules, nil
+}
+
+// ============================================================================
+// OIDC Integration Methods (implements middleware.UserProvisioner and middleware.TeamMapper)
+// ============================================================================
+
+// GetUserInfo retrieves user info for OIDC provisioning (implements middleware.UserProvisioner)
+func (db *DB) GetUserInfo(username string) (*middleware.UserInfo, error) {
+	var user middleware.UserInfo
+	err := db.conn.QueryRow(
+		"SELECT username, COALESCE(email, ''), role FROM users WHERE username = $1",
+		username,
+	).Scan(&user.Username, &user.Email, &user.Role)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// CreateUser creates a new user for OIDC provisioning
+func (db *DB) CreateUser(username, email, role string) error {
+	// Generate a random password for OIDC users (they won't use it)
+	randomPassword := make([]byte, 32)
+	rand.Read(randomPassword)
+	passwordHash := fmt.Sprintf("%x", sha256.Sum256(randomPassword))
+
+	query := `
+	INSERT INTO users (username, email, password_hash, role, created_at, updated_at)
+	VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	ON CONFLICT (username) DO UPDATE SET
+		email = EXCLUDED.email,
+		role = EXCLUDED.role,
+		updated_at = CURRENT_TIMESTAMP;
+	`
+	_, err := db.conn.Exec(query, username, email, passwordHash, role)
+	return err
+}
+
+// UpdateUserEmail updates a user's email address
+func (db *DB) UpdateUserEmail(username, email string) error {
+	query := `UPDATE users SET email = $1, updated_at = CURRENT_TIMESTAMP WHERE username = $2`
+	_, err := db.conn.Exec(query, email, username)
+	return err
+}
+
+// AddUserToTeamByName adds a user to a team by team name
+func (db *DB) AddUserToTeamByName(username, teamName string) error {
+	// Find team by name
+	var teamID string
+	err := db.conn.QueryRow("SELECT id FROM teams WHERE name = $1 OR slug = $1", teamName).Scan(&teamID)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("team not found: %s", teamName)
+	}
+	if err != nil {
+		return err
+	}
+
+	// Add member with default "member" role
+	query := `
+	INSERT INTO team_members (team_id, username, role, joined_at)
+	VALUES ($1, $2, 'member', CURRENT_TIMESTAMP)
+	ON CONFLICT (team_id, username) DO NOTHING;
+	`
+	_, err = db.conn.Exec(query, teamID, username)
+	return err
+}
+
+// RemoveUserFromAllTeams removes a user from all teams
+func (db *DB) RemoveUserFromAllTeams(username string) error {
+	query := `DELETE FROM team_members WHERE username = $1`
+	_, err := db.conn.Exec(query, username)
+	return err
+}
+
+// GetTeamByName gets a team by name (implements middleware.TeamMapper)
+func (db *DB) GetTeamByName(name string) (*middleware.TeamInfo, error) {
+	var team middleware.TeamInfo
+	err := db.conn.QueryRow("SELECT id, name FROM teams WHERE name = $1 OR slug = $1", name).Scan(&team.ID, &team.Name)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &team, nil
 }

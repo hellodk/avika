@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -1762,6 +1763,190 @@ func (db *ClickHouseDB) GetGeoData(ctx context.Context, window string) (*GeoData
 	`
 	var countries, cities, total uint64
 	db.conn.QueryRow(ctx, querySummary, startTime).Scan(&countries, &cities, &total)
+	resp.TotalCountries = countries
+	resp.TotalCities = cities
+	resp.TotalRequests = total
+
+	// Get top country
+	if len(resp.CountryStats) > 0 {
+		resp.TopCountryCode = resp.CountryStats[0].CountryCode
+	}
+
+	return resp, nil
+}
+
+// GetGeoDataFiltered returns geo data filtered by a list of agent IDs (for RBAC)
+// If agentFilter is nil or empty, returns all data (for superadmins)
+func (db *ClickHouseDB) GetGeoDataFiltered(ctx context.Context, window string, agentFilter []string) (*GeoDataResponse, error) {
+	// If no filter, use the unfiltered version
+	if len(agentFilter) == 0 {
+		return db.GetGeoData(ctx, window)
+	}
+
+	duration := 24 * time.Hour
+	switch window {
+	case "1h":
+		duration = time.Hour
+	case "6h":
+		duration = 6 * time.Hour
+	case "12h":
+		duration = 12 * time.Hour
+	case "7d":
+		duration = 7 * 24 * time.Hour
+	}
+
+	startTime := time.Now().Add(-duration)
+	resp := &GeoDataResponse{
+		Locations:      []GeoLocation{},
+		CountryStats:   []CountryStat{},
+		CityStats:      []CityStat{},
+		RecentRequests: []GeoRequest{},
+	}
+
+	// Build agent filter clause
+	agentPlaceholders := make([]string, len(agentFilter))
+	agentArgs := make([]interface{}, len(agentFilter)+1)
+	agentArgs[0] = startTime
+	for i, id := range agentFilter {
+		agentPlaceholders[i] = "?"
+		agentArgs[i+1] = id
+	}
+	agentClause := fmt.Sprintf("agent_id IN (%s)", strings.Join(agentPlaceholders, ","))
+
+	// 1. Get unique locations with aggregated stats
+	queryLocations := fmt.Sprintf(`
+		SELECT
+			country,
+			country_code,
+			city,
+			latitude,
+			longitude,
+			count(*) as requests,
+			countIf(status >= 400) as errors,
+			avg(request_time) * 1000 as avg_latency
+		FROM nginx_analytics.access_logs
+		WHERE timestamp >= ? AND country != '' AND latitude != 0 AND %s
+		GROUP BY country, country_code, city, latitude, longitude
+		ORDER BY requests DESC
+		LIMIT 100
+	`, agentClause)
+	rows, err := db.conn.Query(ctx, queryLocations, agentArgs...)
+	if err != nil {
+		log.Printf("GetGeoDataFiltered: locations query failed: %v", err)
+	} else {
+		for rows.Next() {
+			var loc GeoLocation
+			if err := rows.Scan(&loc.Country, &loc.CountryCode, &loc.City,
+				&loc.Latitude, &loc.Longitude, &loc.Requests, &loc.Errors, &loc.AvgLatency); err == nil {
+				resp.Locations = append(resp.Locations, loc)
+			}
+		}
+		rows.Close()
+	}
+
+	// 2. Get country-level stats
+	queryCountries := fmt.Sprintf(`
+		SELECT
+			country,
+			country_code,
+			count(*) as requests,
+			countIf(status >= 400) as errors,
+			sum(body_bytes_sent) as bandwidth
+		FROM nginx_analytics.access_logs
+		WHERE timestamp >= ? AND country != '' AND %s
+		GROUP BY country, country_code
+		ORDER BY requests DESC
+		LIMIT 50
+	`, agentClause)
+	rows, err = db.conn.Query(ctx, queryCountries, agentArgs...)
+	if err != nil {
+		log.Printf("GetGeoDataFiltered: countries query failed: %v", err)
+	} else {
+		for rows.Next() {
+			var stat CountryStat
+			if err := rows.Scan(&stat.Country, &stat.CountryCode, &stat.Requests,
+				&stat.Errors, &stat.Bandwidth); err == nil {
+				if stat.Requests > 0 {
+					stat.ErrorRate = float64(stat.Errors) / float64(stat.Requests) * 100
+				}
+				resp.CountryStats = append(resp.CountryStats, stat)
+			}
+		}
+		rows.Close()
+	}
+
+	// 3. Get city-level stats
+	queryCities := fmt.Sprintf(`
+		SELECT
+			city,
+			country,
+			country_code,
+			any(latitude) as lat,
+			any(longitude) as lon,
+			count(*) as requests
+		FROM nginx_analytics.access_logs
+		WHERE timestamp >= ? AND city != '' AND city != 'Unknown' AND %s
+		GROUP BY city, country, country_code
+		ORDER BY requests DESC
+		LIMIT 100
+	`, agentClause)
+	rows, err = db.conn.Query(ctx, queryCities, agentArgs...)
+	if err != nil {
+		log.Printf("GetGeoDataFiltered: cities query failed: %v", err)
+	} else {
+		for rows.Next() {
+			var stat CityStat
+			if err := rows.Scan(&stat.City, &stat.Country, &stat.CountryCode,
+				&stat.Latitude, &stat.Longitude, &stat.Requests); err == nil {
+				resp.CityStats = append(resp.CityStats, stat)
+			}
+		}
+		rows.Close()
+	}
+
+	// 4. Get recent geo-located requests
+	queryRecent := fmt.Sprintf(`
+		SELECT
+			toUnixTimestamp(timestamp),
+			client_ip,
+			country,
+			country_code,
+			city,
+			latitude,
+			longitude,
+			request_method,
+			request_uri,
+			status
+		FROM nginx_analytics.access_logs
+		WHERE timestamp >= ? AND country != '' AND latitude != 0 AND %s
+		ORDER BY timestamp DESC
+		LIMIT 50
+	`, agentClause)
+	rows, err = db.conn.Query(ctx, queryRecent, agentArgs...)
+	if err != nil {
+		log.Printf("GetGeoDataFiltered: recent requests query failed: %v", err)
+	} else {
+		for rows.Next() {
+			var req GeoRequest
+			if err := rows.Scan(&req.Timestamp, &req.ClientIP, &req.Country, &req.CountryCode,
+				&req.City, &req.Latitude, &req.Longitude, &req.Method, &req.URI, &req.Status); err == nil {
+				resp.RecentRequests = append(resp.RecentRequests, req)
+			}
+		}
+		rows.Close()
+	}
+
+	// 5. Get summary stats
+	querySummary := fmt.Sprintf(`
+		SELECT
+			uniqExact(country_code) as countries,
+			uniqExact(city) as cities,
+			count(*) as total
+		FROM nginx_analytics.access_logs
+		WHERE timestamp >= ? AND country != '' AND %s
+	`, agentClause)
+	var countries, cities, total uint64
+	db.conn.QueryRow(ctx, querySummary, agentArgs...).Scan(&countries, &cities, &total)
 	resp.TotalCountries = countries
 	resp.TotalCities = cities
 	resp.TotalRequests = total

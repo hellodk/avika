@@ -9,7 +9,7 @@ import {
     CheckCircle2, XCircle, AlertTriangle, Terminal, Trash2, 
     RefreshCw, Copy, Check, Server, Cpu, Globe, Search,
     Download, ExternalLink, Shield, ShieldOff,
-    ArrowUpDown, ArrowUp, ArrowDown, ChevronDown
+    ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, FolderKanban
 } from "lucide-react";
 import Link from "next/link";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -35,6 +35,8 @@ import { toast } from "sonner";
 import { TerminalOverlay } from "@/components/TerminalOverlay";
 import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useProject } from "@/lib/project-context";
+import { EnvironmentBadge } from "@/components/environment-tabs";
 
 // Status thresholds (in seconds) - could be made configurable
 const STATUS_THRESHOLDS = {
@@ -64,8 +66,10 @@ function InventoryPageContent() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
+    const { selectedProject, selectedEnvironment, environments, isSuperAdmin } = useProject();
     
     const [instances, setInstances] = useState<any[]>([]);
+    const [serverAssignments, setServerAssignments] = useState<Record<string, { environment_id: string; environment_name?: string; project_name?: string }>>({});
     const [latestVersion, setLatestVersion] = useState<string>("0.1.0");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -120,25 +124,32 @@ function InventoryPageContent() {
     // Copied agent ID state (for tooltip)
     const [copiedAgentId, setCopiedAgentId] = useState<string | null>(null);
 
-    // Stats
-    const stats = useMemo(() => {
-        const total = instances.length;
-        const online = instances.filter(i => {
-            const status = getAgentStatus(i.last_seen);
-            return status.label === "Online";
-        }).length;
-        const offline = total - online;
-        const needsUpdate = instances.filter(i => i.agent_version !== latestVersion).length;
-        return { total, online, offline, needsUpdate };
-    }, [instances, latestVersion]);
-
-    // Filtered and sorted instances
+    // Filtered and sorted instances (must be defined before stats)
     const filteredInstances = useMemo(() => {
         const result = instances.filter(instance => {
             const matchesSearch = 
                 instance.hostname?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 instance.agent_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 instance.ip?.toLowerCase().includes(searchQuery.toLowerCase());
+            
+            // Filter by project/environment if selected
+            if (selectedEnvironment) {
+                const assignment = serverAssignments[instance.agent_id];
+                if (!assignment || assignment.environment_id !== selectedEnvironment.id) {
+                    return false;
+                }
+            } else if (selectedProject) {
+                const assignment = serverAssignments[instance.agent_id];
+                if (!assignment) {
+                    return false;
+                }
+                const envBelongsToProject = environments.some(
+                    env => env.id === assignment.environment_id
+                );
+                if (!envBelongsToProject) {
+                    return false;
+                }
+            }
             
             if (filterStatus === "all") return matchesSearch;
             
@@ -181,7 +192,20 @@ function InventoryPageContent() {
         });
 
         return result;
-    }, [instances, searchQuery, filterStatus, sortField, sortDirection]);
+    }, [instances, searchQuery, filterStatus, sortField, sortDirection, selectedProject, selectedEnvironment, environments, serverAssignments]);
+
+    // Stats - computed from filtered instances when project/env is selected
+    const stats = useMemo(() => {
+        const sourceInstances = (selectedProject || selectedEnvironment) ? filteredInstances : instances;
+        const total = sourceInstances.length;
+        const online = sourceInstances.filter(i => {
+            const status = getAgentStatus(i.last_seen);
+            return status.label === "Online";
+        }).length;
+        const offline = total - online;
+        const needsUpdate = sourceInstances.filter(i => i.agent_version !== latestVersion).length;
+        return { total, online, offline, needsUpdate };
+    }, [instances, filteredInstances, latestVersion, selectedProject, selectedEnvironment]);
 
     // Handle sort toggle
     const handleSort = useCallback((field: SortField) => {
@@ -280,6 +304,27 @@ function InventoryPageContent() {
         }
     };
 
+    const fetchServerAssignments = async () => {
+        try {
+            const res = await apiFetch('/api/server-assignments');
+            if (!res.ok) return;
+            const data = await res.json();
+            if (Array.isArray(data.assignments)) {
+                const assignmentMap: Record<string, { environment_id: string; environment_name?: string; project_name?: string }> = {};
+                for (const a of data.assignments) {
+                    assignmentMap[a.agent_id] = {
+                        environment_id: a.environment_id,
+                        environment_name: a.environment_name,
+                        project_name: a.project_name,
+                    };
+                }
+                setServerAssignments(assignmentMap);
+            }
+        } catch (error) {
+            console.error('Failed to fetch server assignments:', error);
+        }
+    };
+
     const fetchLatestAgentVersion = async () => {
         try {
             const res = await apiFetch('/api/updates/version');
@@ -294,11 +339,14 @@ function InventoryPageContent() {
 
     useEffect(() => {
         fetchAgents();
+        fetchServerAssignments();
         fetchLatestAgentVersion();
         const agentsInterval = setInterval(fetchAgents, 10000);
-        const versionInterval = setInterval(fetchLatestAgentVersion, 60000); // Check version less frequently
+        const assignmentsInterval = setInterval(fetchServerAssignments, 30000);
+        const versionInterval = setInterval(fetchLatestAgentVersion, 60000);
         return () => {
             clearInterval(agentsInterval);
+            clearInterval(assignmentsInterval);
             clearInterval(versionInterval);
         };
     }, []);
@@ -538,9 +586,19 @@ function InventoryPageContent() {
                     <h1 className="text-2xl font-semibold" style={{ color: "rgb(var(--theme-text))" }}>
                         Inventory
                     </h1>
-                    <p className="text-sm mt-1" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                        Manage your NGINX agent fleet
-                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                        <p className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                            Manage your NGINX agent fleet
+                        </p>
+                        {(selectedProject || selectedEnvironment) && (
+                            <Badge variant="outline" className="text-xs">
+                                <FolderKanban className="h-3 w-3 mr-1" />
+                                {selectedEnvironment 
+                                    ? `${selectedProject?.name} / ${selectedEnvironment.name}`
+                                    : selectedProject?.name}
+                            </Badge>
+                        )}
+                    </div>
                 </div>
                 <div className="flex items-center gap-2">
                     {/* Bulk Actions (shown when agents selected) */}
@@ -756,10 +814,20 @@ function InventoryPageContent() {
                         <div className="text-center py-12">
                             <Server className="h-12 w-12 mx-auto mb-4" style={{ color: "rgb(var(--theme-text-muted))" }} />
                             <p className="font-medium" style={{ color: "rgb(var(--theme-text))" }}>
-                                {searchQuery ? "No agents match your search" : "No agents connected"}
+                                {searchQuery 
+                                    ? "No agents match your search" 
+                                    : selectedEnvironment 
+                                        ? `No agents assigned to ${selectedEnvironment.name}`
+                                        : selectedProject 
+                                            ? `No agents assigned to ${selectedProject.name}`
+                                            : "No agents connected"}
                             </p>
                             <p className="text-sm mt-1" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                {searchQuery ? "Try a different search term" : "Deploy agents to see them here"}
+                                {searchQuery 
+                                    ? "Try a different search term" 
+                                    : selectedProject 
+                                        ? "Assign servers to this project from the server detail page"
+                                        : "Deploy agents to see them here"}
                             </p>
                         </div>
                     ) : (
@@ -849,6 +917,12 @@ function InventoryPageContent() {
                                                 <ArrowUpDown className="h-3 w-3 opacity-50" />
                                             )}
                                         </button>
+                                    </TableHead>
+                                    <TableHead style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                        <div className="flex items-center gap-1">
+                                            <FolderKanban className="h-3 w-3" />
+                                            Environment
+                                        </div>
                                     </TableHead>
                                     <TableHead>
                                         <button 
@@ -1023,6 +1097,23 @@ function InventoryPageContent() {
                                                     <span className={`w-2 h-2 rounded-full mr-2 ${statusInfo.dotColor}`} />
                                                     {statusInfo.label}
                                                 </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                {serverAssignments[instance.agent_id] ? (
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                                            {serverAssignments[instance.agent_id].project_name || "Project"}
+                                                        </span>
+                                                        <EnvironmentBadge 
+                                                            name={serverAssignments[instance.agent_id].environment_name || "Environment"} 
+                                                            small 
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-xs italic" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                                        Unassigned
+                                                    </span>
+                                                )}
                                             </TableCell>
                                             <TableCell style={{ color: "rgb(var(--theme-text-muted))" }}>
                                                 {instance.last_seen
