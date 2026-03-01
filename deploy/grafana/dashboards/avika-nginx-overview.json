@@ -77,8 +77,8 @@
       "id": 10,
       "options": { "legend": { "calcs": ["mean", "max", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
-        { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  instance_id,\n  avg(active_connections) as active_connections\nFROM nginx_analytics.nginx_metrics\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY time, instance_id\nORDER BY time", "refId": "A" },
-        { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  'TOTAL' as instance_id,\n  sum(active_connections) as active_connections\nFROM nginx_analytics.nginx_metrics\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY time\nORDER BY time", "refId": "B" }
+        { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  instance_id,\n  avg(active_connections) as active_connections\nFROM nginx_analytics.nginx_metrics\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY time, instance_id\nORDER BY time", "refId": "A" },
+        { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  'TOTAL' as instance_id,\n  sum(active_connections) as active_connections\nFROM nginx_analytics.nginx_metrics\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY time\nORDER BY time", "refId": "B" }
       ],
       "title": "Active Connections (by Agent + Total)",
       "type": "timeseries"
@@ -90,8 +90,8 @@
       "id": 11,
       "options": { "legend": { "calcs": ["mean", "max", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
-        { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  instance_id,\n  avg(requests_per_second) as rps\nFROM nginx_analytics.nginx_metrics\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY time, instance_id\nORDER BY time", "refId": "A" },
-        { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  'TOTAL' as instance_id,\n  sum(requests_per_second) as rps\nFROM nginx_analytics.nginx_metrics\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY time\nORDER BY time", "refId": "B", "hide": false }
+        { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  instance_id,\n  avg(requests_per_second) as rps\nFROM nginx_analytics.nginx_metrics\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY time, instance_id\nORDER BY time", "refId": "A" },
+        { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  'TOTAL' as instance_id,\n  sum(requests_per_second) as rps\nFROM nginx_analytics.nginx_metrics\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY time\nORDER BY time", "refId": "B", "hide": false }
       ],
       "title": "Requests Per Second (by Agent + Total)",
       "type": "timeseries"
@@ -102,7 +102,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
       "id": 12,
       "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  sum(reading) as reading,\n  sum(writing) as writing,\n  sum(waiting) as waiting\nFROM nginx_analytics.nginx_metrics\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY time\nORDER BY time", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  sum(reading) as reading,\n  sum(writing) as writing,\n  sum(waiting) as waiting\nFROM nginx_analytics.nginx_metrics\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY time\nORDER BY time", "refId": "A" }],
       "title": "Connection States (Reading / Writing / Waiting)",
       "type": "timeseries"
     },
@@ -112,7 +112,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
       "id": 13,
       "options": { "legend": { "calcs": ["mean", "max", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  count(*) as requests\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY time\nORDER BY time", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  count(*) as requests\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY time\nORDER BY time", "refId": "A" }],
       "title": "Total Requests Per Minute",
       "type": "timeseries"
     },
@@ -123,7 +123,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
       "id": 20,
       "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  countIf(status >= 200 AND status < 300) as \"2xx\",\n  countIf(status >= 300 AND status < 400) as \"3xx\",\n  countIf(status >= 400 AND status < 500) as \"4xx\",\n  countIf(status >= 500) as \"5xx\"\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY time\nORDER BY time", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  countIf(status >= 200 AND status < 300) as \"2xx\",\n  countIf(status >= 300 AND status < 400) as \"3xx\",\n  countIf(status >= 400 AND status < 500) as \"4xx\",\n  countIf(status >= 500) as \"5xx\"\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY time\nORDER BY time", "refId": "A" }],
       "title": "HTTP Status Codes Over Time",
       "type": "timeseries"
     },
@@ -133,7 +133,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
       "id": 21,
       "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  quantile(0.50)(request_time * 1000) as p50,\n  quantile(0.95)(request_time * 1000) as p95,\n  quantile(0.99)(request_time * 1000) as p99\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY time\nORDER BY time", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  quantile(0.50)(request_time * 1000) as p50,\n  quantile(0.95)(request_time * 1000) as p95,\n  quantile(0.99)(request_time * 1000) as p99\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY time\nORDER BY time", "refId": "A" }],
       "title": "Request Latency Percentiles (p50, p95, p99)",
       "type": "timeseries"
     },
@@ -143,7 +143,7 @@
       "gridPos": { "h": 8, "w": 8, "x": 0, "y": 31 },
       "id": 22,
       "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "requests" }] },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  instance_id as agent,\n  count(*) as requests,\n  round(countIf(status >= 400) * 100.0 / count(*), 2) as error_rate,\n  round(quantile(0.95)(request_time * 1000), 2) as p95_ms\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY agent\nORDER BY requests DESC\nLIMIT 15", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  instance_id as agent,\n  count(*) as requests,\n  round(countIf(status >= 400) * 100.0 / count(*), 2) as error_rate,\n  round(quantile(0.95)(request_time * 1000), 2) as p95_ms\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY agent\nORDER BY requests DESC\nLIMIT 15", "refId": "A" }],
       "title": "Traffic by Agent (Click to Drill Down)",
       "type": "table"
     },
@@ -153,7 +153,7 @@
       "gridPos": { "h": 8, "w": 8, "x": 8, "y": 31 },
       "id": 23,
       "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "count" }] },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  request_uri as uri,\n  count(*) as count\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY uri\nORDER BY count DESC\nLIMIT 15", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  request_uri as uri,\n  count(*) as count\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY uri\nORDER BY count DESC\nLIMIT 15", "refId": "A" }],
       "title": "Top Request URIs",
       "type": "table"
     },
@@ -163,7 +163,7 @@
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 31 },
       "id": 24,
       "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "count" }] },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  request_uri as uri,\n  status,\n  count(*) as count,\n  round(avg(request_time * 1000), 2) as avg_latency_ms\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND status >= 400\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY uri, status\nORDER BY count DESC\nLIMIT 15", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  request_uri as uri,\n  status,\n  count(*) as count,\n  round(avg(request_time * 1000), 2) as avg_latency_ms\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND status >= 400\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY uri, status\nORDER BY count DESC\nLIMIT 15", "refId": "A" }],
       "title": "Top Error URIs (Click to Analyze)",
       "type": "table"
     },
@@ -174,7 +174,7 @@
       "gridPos": { "h": 7, "w": 12, "x": 0, "y": 40 },
       "id": 30,
       "options": { "legend": { "calcs": ["mean", "max", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  instance_id,\n  avg(cpu_usage) as cpu_usage\nFROM nginx_analytics.system_metrics\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY time, instance_id\nORDER BY time", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  instance_id,\n  avg(cpu_usage) as cpu_usage\nFROM nginx_analytics.system_metrics\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY time, instance_id\nORDER BY time", "refId": "A" }],
       "title": "CPU Usage by Agent",
       "type": "timeseries"
     },
@@ -184,7 +184,7 @@
       "gridPos": { "h": 7, "w": 12, "x": 12, "y": 40 },
       "id": 31,
       "options": { "legend": { "calcs": ["mean", "max", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  instance_id,\n  avg(memory_usage) as memory_usage\nFROM nginx_analytics.system_metrics\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY time, instance_id\nORDER BY time", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  instance_id,\n  avg(memory_usage) as memory_usage\nFROM nginx_analytics.system_metrics\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY time, instance_id\nORDER BY time", "refId": "A" }],
       "title": "Memory Usage by Agent",
       "type": "timeseries"
     },
@@ -226,7 +226,7 @@
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 55 },
       "id": 50,
       "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "timestamp" }] },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  formatDateTime(timestamp, '%Y-%m-%d %H:%M:%S', 'Asia/Kolkata') as timestamp,\n  instance_id,\n  request_method as method,\n  request_uri as uri,\n  status,\n  round(request_time * 1000, 2) as request_time_ms,\n  remote_addr as client_ip,\n  upstream_addr\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\n  AND ($status_filter = 'all' OR \n       ($status_filter = '2xx' AND status >= 200 AND status < 300) OR\n       ($status_filter = '4xx' AND status >= 400 AND status < 500) OR\n       ($status_filter = '5xx' AND status >= 500))\nORDER BY timestamp DESC\nLIMIT 100", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  formatDateTime(timestamp, '%Y-%m-%d %H:%M:%S', 'Asia/Kolkata') as time_ist,\n  instance_id,\n  request_method as method,\n  request_uri as uri,\n  status,\n  round(request_time * 1000, 2) as request_time_ms,\n  remote_addr as client_ip,\n  upstream_addr\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\n  AND ('$status_filter' = 'all' OR \n       ('$status_filter' = '2xx' AND status >= 200 AND status < 300) OR\n       ('$status_filter' = '4xx' AND status >= 400 AND status < 500) OR\n       ('$status_filter' = '5xx' AND status >= 500))\nORDER BY timestamp DESC\nLIMIT 100", "refId": "A" }],
       "title": "Recent Access Logs (IST)",
       "type": "table"
     }
@@ -237,7 +237,7 @@
   "templating": {
     "list": [
       { "current": { "selected": false, "text": "ClickHouse", "value": "clickhouse" }, "hide": 0, "label": "Data Source", "multi": false, "name": "DS_CLICKHOUSE", "options": [], "query": "grafana-clickhouse-datasource", "refresh": 1, "type": "datasource" },
-      { "current": { "selected": true, "text": "all", "value": "all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "definition": "SELECT DISTINCT instance_id FROM nginx_analytics.nginx_metrics WHERE timestamp > now() - INTERVAL 1 HOUR", "hide": 0, "includeAll": true, "label": "Agent", "multi": false, "name": "agent", "options": [], "query": "SELECT DISTINCT instance_id FROM nginx_analytics.nginx_metrics WHERE timestamp > now() - INTERVAL 1 HOUR", "refresh": 2, "sort": 1, "type": "query" },
+      { "allValue": "all", "current": { "selected": true, "text": "all", "value": "all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "definition": "SELECT DISTINCT instance_id FROM nginx_analytics.nginx_metrics WHERE timestamp > now() - INTERVAL 1 HOUR", "hide": 0, "includeAll": true, "label": "Agent", "multi": false, "name": "agent", "options": [], "query": "SELECT DISTINCT instance_id FROM nginx_analytics.nginx_metrics WHERE timestamp > now() - INTERVAL 1 HOUR", "refresh": 2, "sort": 1, "type": "query" },
       { "current": { "selected": true, "text": "all", "value": "all" }, "hide": 0, "label": "Status Filter", "multi": false, "name": "status_filter", "options": [{ "selected": true, "text": "all", "value": "all" }, { "selected": false, "text": "2xx", "value": "2xx" }, { "selected": false, "text": "4xx", "value": "4xx" }, { "selected": false, "text": "5xx", "value": "5xx" }], "query": "all,2xx,4xx,5xx", "type": "custom" }
     ]
   },
