@@ -572,7 +572,7 @@
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
           "format": 1,
           "queryType": "sql",
-          "rawSql": "SELECT \n  formatDateTime(timestamp, '%Y-%m-%d %H:%M:%S', 'Asia/Kolkata') as timestamp,\n  request_method as method,\n  request_uri as uri,\n  status,\n  round(request_time * 1000, 2) as latency_ms,\n  remote_addr as client,\n  upstream_addr as upstream,\n  body_bytes_sent as bytes\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND instance_id = '${agent}'\nORDER BY timestamp DESC\nLIMIT 200",
+          "rawSql": "SELECT \n  formatDateTime(timestamp, '%Y-%m-%d %H:%M:%S', 'Asia/Kolkata') as time_ist,\n  request_method as method,\n  request_uri as uri,\n  status,\n  round(request_time * 1000, 2) as latency_ms,\n  remote_addr as client,\n  upstream_addr as upstream,\n  body_bytes_sent as bytes\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND instance_id = '${agent}'\nORDER BY timestamp DESC\nLIMIT 200",
           "refId": "A"
         }
       ],
