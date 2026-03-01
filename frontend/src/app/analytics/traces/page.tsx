@@ -9,8 +9,10 @@ import { ArrowRight, Clock, Search, Filter, X, XCircle, FileSearch, Copy, Check 
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
+import { useProject } from "@/lib/project-context";
 
 export default function TracesPage() {
+    const { selectedProject, selectedEnvironment } = useProject();
     const [traces, setTraces] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [window, setWindow] = useState("1h");
@@ -32,7 +34,7 @@ export default function TracesPage() {
 
     useEffect(() => {
         fetchTraces();
-    }, [window, statusFilter, methodFilter]);
+    }, [window, statusFilter, methodFilter, selectedProject, selectedEnvironment]);
 
     const fetchTraces = async () => {
         setLoading(true);
@@ -41,6 +43,13 @@ export default function TracesPage() {
             if (statusFilter) url += `&status=${statusFilter}`;
             if (methodFilter) url += `&method=${methodFilter}`;
             if (uriSearch) url += `&uri=${encodeURIComponent(uriSearch)}`;
+            
+            // Project/environment filtering
+            if (selectedEnvironment) {
+                url += `&environment_id=${selectedEnvironment.id}`;
+            } else if (selectedProject) {
+                url += `&project_id=${selectedProject.id}`;
+            }
 
             const res = await fetch(url);
             const data = await res.json();

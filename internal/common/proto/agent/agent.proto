@@ -450,12 +450,12 @@ message UptimeReport {
 
 message AnalyticsRequest {
   string agent_id = 1; // Optional, defaults to all
-  string time_window = 2; // "1h", "24h", "7d"
-  string environment_id = 3; // Optional: filter by environment
-  string project_id = 4; // Optional: filter by project (all environments)
-  int64 from_timestamp = 5; // Optional: absolute start time (milliseconds)
-  int64 to_timestamp = 6; // Optional: absolute end time (milliseconds)
-  string timezone = 7; // Optional: client timezone for formatting
+  string time_window = 2; // "1h", "24h", "7d" - relative time window
+  int64 from_timestamp = 3; // Absolute start time (Unix epoch ms)
+  int64 to_timestamp = 4; // Absolute end time (Unix epoch ms)
+  string timezone = 5; // Client timezone for formatting (e.g., "UTC", "America/New_York")
+  string environment_id = 6; // Optional: filter by environment
+  string project_id = 7; // Optional: filter by project (all environments)
 }
 
 message AnalyticsResponse {

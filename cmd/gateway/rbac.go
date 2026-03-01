@@ -963,6 +963,54 @@ func (db *DB) GetVisibleAgentIDs(username string) ([]string, error) {
 	return agents, nil
 }
 
+// GetAgentIDsForEnvironment returns all agent IDs assigned to a specific environment
+func (db *DB) GetAgentIDsForEnvironment(environmentID string) ([]string, error) {
+	query := `
+		SELECT agent_id FROM server_assignments
+		WHERE environment_id = $1
+	`
+	rows, err := db.conn.Query(query, environmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var agents []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		agents = append(agents, id)
+	}
+	return agents, nil
+}
+
+// GetAgentIDsForProject returns all agent IDs assigned to any environment within a project
+func (db *DB) GetAgentIDsForProject(projectID string) ([]string, error) {
+	query := `
+		SELECT DISTINCT sa.agent_id
+		FROM server_assignments sa
+		JOIN environments e ON sa.environment_id = e.id
+		WHERE e.project_id = $1
+	`
+	rows, err := db.conn.Query(query, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var agents []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		agents = append(agents, id)
+	}
+	return agents, nil
+}
+
 // permissionLevel returns a numeric level for permission comparison
 func permissionLevel(p Permission) int {
 	switch p {

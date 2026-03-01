@@ -9,18 +9,29 @@ export async function GET(request: Request) {
     const timeWindow = searchParams.get('window') || '24h';
     const fromTimestamp = searchParams.get('from');
     const toTimestamp = searchParams.get('to');
+    const timezone = searchParams.get('timezone') || 'UTC';
 
     const client = getAgentServiceClient();
 
     const agentId = searchParams.get('agent_id');
-    const analyticsRequest: any = {};
+    const environmentId = searchParams.get('environment_id');
+    const projectId = searchParams.get('project_id');
+    
+    const analyticsRequest: any = {
+        timezone: timezone,
+    };
 
-    if (agentId && agentId !== 'all') {
+    // Project/environment filtering takes precedence over single agent_id
+    if (environmentId) {
+        analyticsRequest.environment_id = environmentId;
+    } else if (projectId) {
+        analyticsRequest.project_id = projectId;
+    } else if (agentId && agentId !== 'all') {
         analyticsRequest.agent_id = agentId;
     }
 
     if (fromTimestamp && toTimestamp) {
-        // Absolute time range
+        // Absolute time range (milliseconds)
         analyticsRequest.from_timestamp = parseInt(fromTimestamp);
         analyticsRequest.to_timestamp = parseInt(toTimestamp);
     } else {

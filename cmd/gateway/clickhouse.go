@@ -93,6 +93,21 @@ func getEnvInt(key string, defaultVal int) int {
 	return defaultVal
 }
 
+// formatBytes converts bytes to human-readable string (accepts any integer type)
+func formatBytes[T int64 | uint64](b T) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	val := float64(b)
+	div, exp := float64(unit), 0
+	for n := val / div; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", val/div, "KMGTPE"[exp])
+}
+
 func NewClickHouseDB(addr, username, password string) (*ClickHouseDB, error) {
 	// Log configuration for debugging
 	log.Printf("ClickHouse config: buffers(log=%d, span=%d, sys=%d, nginx=%d, gw=%d) batches(log=%d, span=%d) conns(open=%d, idle=%d)",
@@ -404,47 +419,138 @@ func (db *ClickHouseDB) InsertSpans(entry *pb.LogEntry, agentID string, requestT
 }
 
 func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID string) (*pb.AnalyticsResponse, error) {
-	// ... (duration logic) ...
-	duration := 24 * time.Hour
-	switch window {
-	case "1h":
-		duration = 1 * time.Hour
-	case "6h":
-		duration = 6 * time.Hour
-	case "24h":
+	return db.GetAnalyticsWithAgentFilter(ctx, window, agentID, nil, 0, 0, "UTC")
+}
+
+// GetAnalyticsFiltered returns analytics filtered by a list of agent IDs
+// This is used for project/environment filtering where multiple agents belong to the same scope
+func (db *ClickHouseDB) GetAnalyticsFiltered(ctx context.Context, window string, agentFilter []string) (*pb.AnalyticsResponse, error) {
+	return db.GetAnalyticsWithAgentFilter(ctx, window, "", agentFilter, 0, 0, "UTC")
+}
+
+// GetAnalyticsWithTimeRange supports both relative time windows and absolute time ranges (backward compatible wrapper)
+func (db *ClickHouseDB) GetAnalyticsWithTimeRange(ctx context.Context, window string, agentID string, fromTs, toTs int64, clientTimezone string) (*pb.AnalyticsResponse, error) {
+	return db.GetAnalyticsWithAgentFilter(ctx, window, agentID, nil, fromTs, toTs, clientTimezone)
+}
+
+// GetAnalyticsWithAgentFilter supports filtering by single agent ID or multiple agent IDs (for project/environment filtering)
+func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, window string, agentID string, agentFilter []string, fromTs, toTs int64, clientTimezone string) (*pb.AnalyticsResponse, error) {
+	var startTime, endTime time.Time
+	var duration time.Duration
+
+	// Determine time range - absolute takes precedence
+	if fromTs > 0 && toTs > 0 {
+		// Absolute time range (timestamps in milliseconds)
+		startTime = time.UnixMilli(fromTs).UTC()
+		endTime = time.UnixMilli(toTs).UTC()
+		duration = endTime.Sub(startTime)
+		log.Printf("GetAnalytics: Using absolute time range: %v to %v (duration: %v)", startTime, endTime, duration)
+	} else {
+		// Relative time window
 		duration = 24 * time.Hour
-	case "7d":
-		duration = 7 * 24 * time.Hour
+		switch window {
+		case "5m":
+			duration = 5 * time.Minute
+		case "15m":
+			duration = 15 * time.Minute
+		case "30m":
+			duration = 30 * time.Minute
+		case "1h":
+			duration = 1 * time.Hour
+		case "3h":
+			duration = 3 * time.Hour
+		case "6h":
+			duration = 6 * time.Hour
+		case "12h":
+			duration = 12 * time.Hour
+		case "24h":
+			duration = 24 * time.Hour
+		case "2d":
+			duration = 2 * 24 * time.Hour
+		case "3d":
+			duration = 3 * 24 * time.Hour
+		case "7d":
+			duration = 7 * 24 * time.Hour
+		case "30d":
+			duration = 30 * 24 * time.Hour
+		}
+		endTime = time.Now().UTC()
+		startTime = endTime.Add(-duration)
 	}
 
-	startTime := time.Now().UTC().Add(-duration)
 	resp := &pb.AnalyticsResponse{}
 
-	// Determine bucket size
+	// Determine bucket size and time format based on duration
+	// Include date context when range spans multiple days or crosses midnight
 	bucketSize := "toStartOfHour"
-	if duration <= 6*time.Hour {
+	timeFormat := "%Y-%m-%d %H:%i" // Default: full datetime for clarity
+
+	if duration <= 1*time.Hour {
 		bucketSize = "toStartOfMinute"
+		timeFormat = "%H:%i" // Just time for very short ranges
+	} else if duration <= 3*time.Hour {
+		bucketSize = "toStartOfFiveMinutes"
+		timeFormat = "%H:%i"
+	} else if duration <= 6*time.Hour {
+		bucketSize = "toStartOfFifteenMinutes"
+		timeFormat = "%H:%i"
+	} else if duration <= 12*time.Hour {
+		bucketSize = "toStartOfHour"
+		// Add date if range might cross midnight
+		if startTime.Day() != endTime.Day() {
+			timeFormat = "%m-%d %H:%i"
+		} else {
+			timeFormat = "%H:%i"
+		}
+	} else if duration <= 24*time.Hour {
+		bucketSize = "toStartOfHour"
+		// Always show date for 24h as it crosses midnight
+		timeFormat = "%m-%d %H:%i"
+	} else if duration <= 7*24*time.Hour {
+		bucketSize = "toStartOfHour"
+		timeFormat = "%m-%d %H:00" // Date + hour for multi-day
+	} else {
+		bucketSize = "toStartOfDay"
+		timeFormat = "%Y-%m-%d" // Full date for long ranges
 	}
 
-	// Filter clause
-	whereClause := "WHERE timestamp >= ?"
-	args := []interface{}{startTime}
-	if agentID != "" && agentID != "all" {
+	// Filter clause - use both start and end time for absolute ranges
+	var whereClause string
+	var args []interface{}
+	if fromTs > 0 && toTs > 0 {
+		whereClause = "WHERE timestamp >= ? AND timestamp <= ?"
+		args = []interface{}{startTime, endTime}
+	} else {
+		whereClause = "WHERE timestamp >= ?"
+		args = []interface{}{startTime}
+	}
+
+	// Agent filtering - supports single agent ID or multiple agent IDs (for project/environment filtering)
+	if len(agentFilter) > 0 {
+		// Multiple agents - use IN clause
+		placeholders := make([]string, len(agentFilter))
+		for i, id := range agentFilter {
+			placeholders[i] = "?"
+			args = append(args, id)
+		}
+		whereClause += fmt.Sprintf(" AND instance_id IN (%s)", strings.Join(placeholders, ","))
+	} else if agentID != "" && agentID != "all" {
+		// Single agent
 		whereClause += " AND instance_id = ?"
 		args = append(args, agentID)
 	}
 
-	// 1. Request Rate
+	// 1. Request Rate with dynamic time format
 	queryTimeSeries := fmt.Sprintf(`
 		SELECT
-			formatDateTime(%s(timestamp), '%%H:%%i') as time,
+			formatDateTime(%s(timestamp), '%s') as time,
 			count(*) as requests,
 			countIf(status >= 400) as errors
 		FROM nginx_analytics.access_logs
 		%s
 		GROUP BY time
 		ORDER BY time
-	`, bucketSize, whereClause)
+	`, bucketSize, timeFormat, whereClause)
 
 	rows, err := db.conn.Query(ctx, queryTimeSeries, args...)
 	if err != nil {
@@ -495,13 +601,14 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 		rows.Close()
 	}
 
-	// 3. Top Endpoints
+	// 3. Top Endpoints with traffic calculation
 	rows, err = db.conn.Query(ctx, fmt.Sprintf(`
 		SELECT
 			request_uri,
 			count(*) as requests,
 			countIf(status >= 400) as errors,
-			quantile(0.95)(request_time) as p95
+			quantile(0.95)(request_time) as p95,
+			sum(body_bytes_sent) as bytes
 		FROM nginx_analytics.access_logs
 		%s
 		GROUP BY request_uri
@@ -511,28 +618,30 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 	if err == nil {
 		for rows.Next() {
 			var uri string
-			var reqs, errs uint64
+			var reqs, errs, bytes uint64
 			var p95 float64
-			if err := rows.Scan(&uri, &reqs, &errs, &p95); err == nil {
+			if err := rows.Scan(&uri, &reqs, &errs, &p95, &bytes); err == nil {
 				if math.IsNaN(p95) {
 					p95 = 0
 				}
+				// Format traffic as human-readable
+				traffic := formatBytes(bytes)
 				resp.TopEndpoints = append(resp.TopEndpoints, &pb.EndpointStat{
 					Uri:      uri,
 					Requests: int64(reqs),
 					Errors:   int64(errs),
 					P95:      float32(p95 * 1000),
-					Traffic:  "0 KB", // Not tracking bytes yet in this query
+					Traffic:  traffic,
 				})
 			}
 		}
 		rows.Close()
 	}
 
-	// 4. Latency Trend
+	// 4. Latency Trend with dynamic time format
 	queryLatency := fmt.Sprintf(`
 		SELECT
-			formatDateTime(%s(timestamp), '%%H:%%i') as time,
+			formatDateTime(%s(timestamp), '%s') as time,
 			quantile(0.50)(request_time) as p50,
 			quantile(0.95)(request_time) as p95,
 			quantile(0.99)(request_time) as p99
@@ -540,7 +649,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 		%s
 		GROUP BY time
 		ORDER BY time
-	`, bucketSize, whereClause)
+	`, bucketSize, timeFormat, whereClause)
 
 	rows, err = db.conn.Query(ctx, queryLatency, args...)
 	if err == nil {
@@ -659,8 +768,8 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 		rows.Close()
 	}
 
-	// 7. Server Distribution (Only if no specific agent filter)
-	if agentID == "" || agentID == "all" {
+	// 7. Server Distribution (Show when viewing all agents or filtering by project/environment)
+	if agentID == "" || agentID == "all" || len(agentFilter) > 0 {
 		rows, err = db.conn.Query(ctx, fmt.Sprintf(`
 			SELECT
 				instance_id,
@@ -693,10 +802,10 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 		}
 	}
 
-	// 8. System Metrics History
+	// 8. System Metrics History with dynamic time format
 	querySys := fmt.Sprintf(`
 		SELECT
-			formatDateTime(%s(timestamp), '%%H:%%i') as time,
+			formatDateTime(%s(timestamp), '%s') as time,
 			avg(cpu_usage),
 			avg(memory_usage),
 			avg(network_rx_rate),
@@ -708,7 +817,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 		%s
 		GROUP BY time
 		ORDER BY time
-	`, bucketSize, whereClause)
+	`, bucketSize, timeFormat, whereClause)
 
 	rows, err = db.conn.Query(ctx, querySys, args...)
 	if err != nil {
@@ -735,10 +844,10 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 		rows.Close()
 	}
 
-	// 9. NGINX Connections History
+	// 9. NGINX Connections History with dynamic time format
 	queryConn := fmt.Sprintf(`
 		SELECT
-			formatDateTime(%s(timestamp), '%%H:%%i') as time,
+			formatDateTime(%s(timestamp), '%s') as time,
 			avg(active_connections),
 			avg(waiting),
 			avg(requests_per_second)
@@ -746,7 +855,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 		%s
 		GROUP BY time
 		ORDER BY time
-	`, bucketSize, whereClause)
+	`, bucketSize, timeFormat, whereClause)
 
 	rows, err = db.conn.Query(ctx, queryConn, args...)
 	if err != nil {
@@ -771,10 +880,10 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 	// 10. HTTP Status Aggregations (Detailed)
 	resp.HttpStatusMetrics = &pb.HttpStatusMetricsResponse{}
 
-	// 10a. Time Series for Status Codes
+	// 10a. Time Series for Status Codes with dynamic time format
 	queryStatusTS := fmt.Sprintf(`
 		SELECT
-			formatDateTime(%s(timestamp), '%%H:%%i') as time,
+			formatDateTime(%s(timestamp), '%s') as time,
 			countIf(status >= 200 AND status < 300) as code_2xx,
 			countIf(status >= 300 AND status < 400) as code_3xx,
 			countIf(status >= 400 AND status < 500) as code_4xx,
@@ -783,7 +892,7 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 		%s
 		GROUP BY time
 		ORDER BY time
-	`, bucketSize, whereClause)
+	`, bucketSize, timeFormat, whereClause)
 
 	rows, err = db.conn.Query(ctx, queryStatusTS, args...)
 	if err != nil {
@@ -923,42 +1032,41 @@ func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID
 		rows.Close()
 	}
 
-	// 13. Gateway Metrics (Only if no specific agent filter)
-	if agentID == "" || agentID == "all" {
-		queryGW := fmt.Sprintf(`
-			SELECT
-				formatDateTime(%s(timestamp), '%%H:%%i') as time,
-				avg(eps),
-				avg(active_connections),
-				avg(cpu_usage),
-				avg(memory_mb),
-				avg(goroutines),
-				avg(db_latency_ms)
-			FROM nginx_analytics.gateway_metrics
-			WHERE timestamp >= ?
-			GROUP BY time
-			ORDER BY time
-		`, bucketSize)
+	// 13. Gateway Metrics - Always show regardless of agent filter
+	// Gateway metrics are system-wide and not per-agent
+	queryGW := fmt.Sprintf(`
+		SELECT
+			formatDateTime(%s(timestamp), '%s') as time,
+			avg(eps),
+			avg(active_connections),
+			avg(cpu_usage),
+			avg(memory_mb),
+			avg(goroutines),
+			avg(db_latency_ms)
+		FROM nginx_analytics.gateway_metrics
+		WHERE timestamp >= ?
+		GROUP BY time
+		ORDER BY time
+	`, bucketSize, timeFormat)
 
-		rows, err = db.conn.Query(ctx, queryGW, startTime)
-		if err == nil {
-			for rows.Next() {
-				var t string
-				var eps, cpu, mem, dbLat, conns, goro float64
-				if err := rows.Scan(&t, &eps, &conns, &cpu, &mem, &goro, &dbLat); err == nil {
-					resp.GatewayMetrics = append(resp.GatewayMetrics, &pb.GatewayMetricPoint{
-						Time:              t,
-						Eps:               float32(eps),
-						ActiveConnections: int32(conns),
-						CpuUsage:          float32(cpu),
-						MemoryMb:          float32(mem),
-						Goroutines:        int32(goro),
-						DbLatency:         float32(dbLat),
-					})
-				}
+	rows, err = db.conn.Query(ctx, queryGW, startTime)
+	if err == nil {
+		for rows.Next() {
+			var t string
+			var eps, cpu, mem, dbLat, conns, goro float64
+			if err := rows.Scan(&t, &eps, &conns, &cpu, &mem, &goro, &dbLat); err == nil {
+				resp.GatewayMetrics = append(resp.GatewayMetrics, &pb.GatewayMetricPoint{
+					Time:              t,
+					Eps:               float32(eps),
+					ActiveConnections: int32(conns),
+					CpuUsage:          float32(cpu),
+					MemoryMb:          float32(mem),
+					Goroutines:        int32(goro),
+					DbLatency:         float32(dbLat),
+				})
 			}
-			rows.Close()
 		}
+		rows.Close()
 	}
 
 	log.Printf("GetAnalytics: generated %d insights, %d recent logs, %d gateway points", len(resp.Insights), len(resp.RecentRequests), len(resp.GatewayMetrics))
@@ -1120,6 +1228,11 @@ func (db *ClickHouseDB) GetReportData(ctx context.Context, start, end time.Time,
 }
 
 func (db *ClickHouseDB) GetTraces(ctx context.Context, req *pb.TraceRequest) (*pb.TraceList, error) {
+	return db.GetTracesWithFilter(ctx, req, nil)
+}
+
+// GetTracesWithFilter supports filtering by multiple agent IDs (for project/environment filtering)
+func (db *ClickHouseDB) GetTracesWithFilter(ctx context.Context, req *pb.TraceRequest, agentFilter []string) (*pb.TraceList, error) {
 	limit := req.Limit
 	if limit <= 0 {
 		limit = 100
@@ -1147,7 +1260,15 @@ func (db *ClickHouseDB) GetTraces(ctx context.Context, req *pb.TraceRequest) (*p
 	`
 	args := []interface{}{startTime}
 
-	if req.AgentId != "" && req.AgentId != "all" {
+	// Agent filtering - supports multiple agent IDs (for project/environment filtering)
+	if len(agentFilter) > 0 {
+		placeholders := make([]string, len(agentFilter))
+		for i, id := range agentFilter {
+			placeholders[i] = "?"
+			args = append(args, id)
+		}
+		query += fmt.Sprintf(" AND instance_id IN (%s)", strings.Join(placeholders, ","))
+	} else if req.AgentId != "" && req.AgentId != "all" {
 		query += " AND instance_id = ?"
 		args = append(args, req.AgentId)
 	}
@@ -1811,7 +1932,7 @@ func (db *ClickHouseDB) GetGeoDataFiltered(ctx context.Context, window string, a
 		agentPlaceholders[i] = "?"
 		agentArgs[i+1] = id
 	}
-	agentClause := fmt.Sprintf("agent_id IN (%s)", strings.Join(agentPlaceholders, ","))
+	agentClause := fmt.Sprintf("instance_id IN (%s)", strings.Join(agentPlaceholders, ","))
 
 	// 1. Get unique locations with aggregated stats
 	queryLocations := fmt.Sprintf(`

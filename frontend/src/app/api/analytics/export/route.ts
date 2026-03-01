@@ -8,13 +8,21 @@ export async function GET(request: Request) {
     const format = searchParams.get('format') || 'json';
     const timeWindow = searchParams.get('window') || '24h';
     const agentId = searchParams.get('agent_id');
+    const environmentId = searchParams.get('environment_id');
+    const projectId = searchParams.get('project_id');
 
     const client = getAgentServiceClient();
 
     const analyticsRequest: any = {
         time_window: timeWindow,
     };
-    if (agentId && agentId !== 'all') {
+    
+    // Project/environment filtering takes precedence
+    if (environmentId) {
+        analyticsRequest.environment_id = environmentId;
+    } else if (projectId) {
+        analyticsRequest.project_id = projectId;
+    } else if (agentId && agentId !== 'all') {
         analyticsRequest.agent_id = agentId;
     }
 

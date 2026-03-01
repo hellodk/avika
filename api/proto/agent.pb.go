@@ -3617,8 +3617,13 @@ func (x *UptimeReport) GetError() string {
 
 type AnalyticsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`          // Optional, defaults to all
-	TimeWindow    string                 `protobuf:"bytes,2,opt,name=time_window,json=timeWindow,proto3" json:"time_window,omitempty"` // "1h", "24h", "7d"
+	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`                    // Optional, defaults to all
+	TimeWindow    string                 `protobuf:"bytes,2,opt,name=time_window,json=timeWindow,proto3" json:"time_window,omitempty"`           // "1h", "24h", "7d"
+	EnvironmentId string                 `protobuf:"bytes,3,opt,name=environment_id,json=environmentId,proto3" json:"environment_id,omitempty"`  // Optional: filter by environment
+	ProjectId     string                 `protobuf:"bytes,4,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`              // Optional: filter by project (all environments)
+	FromTimestamp int64                  `protobuf:"varint,5,opt,name=from_timestamp,json=fromTimestamp,proto3" json:"from_timestamp,omitempty"` // Optional: absolute start time (milliseconds)
+	ToTimestamp   int64                  `protobuf:"varint,6,opt,name=to_timestamp,json=toTimestamp,proto3" json:"to_timestamp,omitempty"`       // Optional: absolute end time (milliseconds)
+	Timezone      string                 `protobuf:"bytes,7,opt,name=timezone,proto3" json:"timezone,omitempty"`                                 // Optional: client timezone for formatting
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3663,6 +3668,41 @@ func (x *AnalyticsRequest) GetAgentId() string {
 func (x *AnalyticsRequest) GetTimeWindow() string {
 	if x != nil {
 		return x.TimeWindow
+	}
+	return ""
+}
+
+func (x *AnalyticsRequest) GetEnvironmentId() string {
+	if x != nil {
+		return x.EnvironmentId
+	}
+	return ""
+}
+
+func (x *AnalyticsRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *AnalyticsRequest) GetFromTimestamp() int64 {
+	if x != nil {
+		return x.FromTimestamp
+	}
+	return 0
+}
+
+func (x *AnalyticsRequest) GetToTimestamp() int64 {
+	if x != nil {
+		return x.ToTimestamp
+	}
+	return 0
+}
+
+func (x *AnalyticsRequest) GetTimezone() string {
+	if x != nil {
+		return x.Timezone
 	}
 	return ""
 }
@@ -4072,9 +4112,12 @@ type TraceRequest struct {
 	TimeWindow string                 `protobuf:"bytes,3,opt,name=time_window,json=timeWindow,proto3" json:"time_window,omitempty"`
 	Limit      int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
 	// Search filters
-	StatusFilter  string `protobuf:"bytes,5,opt,name=status_filter,json=statusFilter,proto3" json:"status_filter,omitempty"` // e.g. "404", "5xx"
-	MethodFilter  string `protobuf:"bytes,6,opt,name=method_filter,json=methodFilter,proto3" json:"method_filter,omitempty"` // e.g. "GET", "POST"
-	UriFilter     string `protobuf:"bytes,7,opt,name=uri_filter,json=uriFilter,proto3" json:"uri_filter,omitempty"`          // e.g. "/api/v1"
+	StatusFilter string `protobuf:"bytes,5,opt,name=status_filter,json=statusFilter,proto3" json:"status_filter,omitempty"` // e.g. "404", "5xx"
+	MethodFilter string `protobuf:"bytes,6,opt,name=method_filter,json=methodFilter,proto3" json:"method_filter,omitempty"` // e.g. "GET", "POST"
+	UriFilter    string `protobuf:"bytes,7,opt,name=uri_filter,json=uriFilter,proto3" json:"uri_filter,omitempty"`          // e.g. "/api/v1"
+	// Project/environment filters
+	EnvironmentId string `protobuf:"bytes,8,opt,name=environment_id,json=environmentId,proto3" json:"environment_id,omitempty"` // Optional: filter by environment
+	ProjectId     string `protobuf:"bytes,9,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`             // Optional: filter by project
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4154,6 +4197,20 @@ func (x *TraceRequest) GetMethodFilter() string {
 func (x *TraceRequest) GetUriFilter() string {
 	if x != nil {
 		return x.UriFilter
+	}
+	return ""
+}
+
+func (x *TraceRequest) GetEnvironmentId() string {
+	if x != nil {
+		return x.EnvironmentId
+	}
+	return ""
+}
+
+func (x *TraceRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
 	}
 	return ""
 }
@@ -6499,11 +6556,17 @@ const file_agent_proto_rawDesc = "" +
 	"\n" +
 	"check_type\x18\x04 \x01(\tR\tcheckType\x12\x16\n" +
 	"\x06target\x18\x05 \x01(\tR\x06target\x12\x14\n" +
-	"\x05error\x18\x06 \x01(\tR\x05error\"N\n" +
+	"\x05error\x18\x06 \x01(\tR\x05error\"\xfa\x01\n" +
 	"\x10AnalyticsRequest\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x1f\n" +
 	"\vtime_window\x18\x02 \x01(\tR\n" +
-	"timeWindow\"\xc9\a\n" +
+	"timeWindow\x12%\n" +
+	"\x0eenvironment_id\x18\x03 \x01(\tR\renvironmentId\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x04 \x01(\tR\tprojectId\x12%\n" +
+	"\x0efrom_timestamp\x18\x05 \x01(\x03R\rfromTimestamp\x12!\n" +
+	"\fto_timestamp\x18\x06 \x01(\x03R\vtoTimestamp\x12\x1a\n" +
+	"\btimezone\x18\a \x01(\tR\btimezone\"\xc9\a\n" +
 	"\x11AnalyticsResponse\x12B\n" +
 	"\frequest_rate\x18\x01 \x03(\v2\x1f.nginx.agent.v1.TimeSeriesPointR\vrequestRate\x12L\n" +
 	"\x13status_distribution\x18\x02 \x03(\v2\x1b.nginx.agent.v1.StatusCountR\x12statusDistribution\x12G\n" +
@@ -6553,7 +6616,7 @@ const file_agent_proto_rawDesc = "" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12*\n" +
 	"\x05spans\x18\x02 \x03(\v2\x14.nginx.agent.v1.SpanR\x05spans\x127\n" +
 	"\n" +
-	"root_entry\x18\x03 \x01(\v2\x18.nginx.agent.v1.LogEntryR\trootEntry\"\xe4\x01\n" +
+	"root_entry\x18\x03 \x01(\v2\x18.nginx.agent.v1.LogEntryR\trootEntry\"\xaa\x02\n" +
 	"\fTraceRequest\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x19\n" +
 	"\btrace_id\x18\x02 \x01(\tR\atraceId\x12\x1f\n" +
@@ -6563,7 +6626,10 @@ const file_agent_proto_rawDesc = "" +
 	"\rstatus_filter\x18\x05 \x01(\tR\fstatusFilter\x12#\n" +
 	"\rmethod_filter\x18\x06 \x01(\tR\fmethodFilter\x12\x1d\n" +
 	"\n" +
-	"uri_filter\x18\a \x01(\tR\turiFilter\":\n" +
+	"uri_filter\x18\a \x01(\tR\turiFilter\x12%\n" +
+	"\x0eenvironment_id\x18\b \x01(\tR\renvironmentId\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\t \x01(\tR\tprojectId\":\n" +
 	"\tTraceList\x12-\n" +
 	"\x06traces\x18\x01 \x03(\v2\x15.nginx.agent.v1.TraceR\x06traces\"i\n" +
 	"\aInsight\x12\x12\n" +
