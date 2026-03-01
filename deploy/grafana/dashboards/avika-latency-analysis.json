@@ -17,7 +17,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 0, "y": 3 },
       "id": 1,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT quantile(0.50)(request_time * 1000) as p50\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT quantile(0.50)(request_time * 1000) as p50\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')", "refId": "A" }],
       "title": "P50 Latency",
       "type": "stat"
     },
@@ -27,7 +27,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 4, "y": 3 },
       "id": 2,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT quantile(0.90)(request_time * 1000) as p90\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT quantile(0.90)(request_time * 1000) as p90\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')", "refId": "A" }],
       "title": "P90 Latency",
       "type": "stat"
     },
@@ -37,7 +37,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 8, "y": 3 },
       "id": 3,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT quantile(0.95)(request_time * 1000) as p95\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT quantile(0.95)(request_time * 1000) as p95\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')", "refId": "A" }],
       "title": "P95 Latency",
       "type": "stat"
     },
@@ -47,7 +47,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 12, "y": 3 },
       "id": 4,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT quantile(0.99)(request_time * 1000) as p99\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT quantile(0.99)(request_time * 1000) as p99\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')", "refId": "A" }],
       "title": "P99 Latency",
       "type": "stat"
     },
@@ -57,7 +57,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 16, "y": 3 },
       "id": 5,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT max(request_time * 1000) as max_latency\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT max(request_time * 1000) as max_latency\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')", "refId": "A" }],
       "title": "Max Latency",
       "type": "stat"
     },
@@ -67,7 +67,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 20, "y": 3 },
       "id": 6,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT countIf(request_time > 1.0) * 100.0 / count(*) as slow_pct\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT countIf(request_time > 1.0) * 100.0 / count(*) as slow_pct\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')", "refId": "A" }],
       "title": "Slow Requests (>1s)",
       "type": "stat"
     },
@@ -78,7 +78,7 @@
       "gridPos": { "h": 8, "w": 16, "x": 0, "y": 8 },
       "id": 10,
       "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  quantile(0.50)(request_time * 1000) as p50,\n  quantile(0.90)(request_time * 1000) as p90,\n  quantile(0.95)(request_time * 1000) as p95,\n  quantile(0.99)(request_time * 1000) as p99\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY time\nORDER BY time", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  quantile(0.50)(request_time * 1000) as p50,\n  quantile(0.90)(request_time * 1000) as p90,\n  quantile(0.95)(request_time * 1000) as p95,\n  quantile(0.99)(request_time * 1000) as p99\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY time\nORDER BY time", "refId": "A" }],
       "title": "Latency Percentiles Over Time",
       "type": "timeseries"
     },
@@ -88,7 +88,7 @@
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 },
       "id": 11,
       "options": { "bucketCount": 30, "bucketSize": 50, "combine": false, "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT request_time * 1000 as latency_ms\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\n  AND request_time < 2\nLIMIT 10000", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT request_time * 1000 as latency_ms\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\n  AND request_time < 2\nLIMIT 10000", "refId": "A" }],
       "title": "Latency Distribution (Histogram)",
       "type": "histogram"
     },
@@ -99,7 +99,7 @@
       "gridPos": { "h": 8, "w": 8, "x": 0, "y": 17 },
       "id": 20,
       "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "p95" }] },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  instance_id as agent,\n  count(*) as requests,\n  round(quantile(0.50)(request_time * 1000), 2) as p50,\n  round(quantile(0.95)(request_time * 1000), 2) as p95,\n  round(quantile(0.99)(request_time * 1000), 2) as p99\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY agent\nORDER BY p95 DESC\nLIMIT 20", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  instance_id as agent,\n  count(*) as requests,\n  round(quantile(0.50)(request_time * 1000), 2) as p50,\n  round(quantile(0.95)(request_time * 1000), 2) as p95,\n  round(quantile(0.99)(request_time * 1000), 2) as p99\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY agent\nORDER BY p95 DESC\nLIMIT 20", "refId": "A" }],
       "title": "Latency by Agent (Identify Slow Servers)",
       "type": "table"
     },
@@ -109,7 +109,7 @@
       "gridPos": { "h": 8, "w": 8, "x": 8, "y": 17 },
       "id": 21,
       "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "p95" }] },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  request_uri as uri,\n  count(*) as requests,\n  round(quantile(0.50)(request_time * 1000), 2) as p50,\n  round(quantile(0.95)(request_time * 1000), 2) as p95,\n  round(quantile(0.99)(request_time * 1000), 2) as p99\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nGROUP BY uri\nHAVING requests >= 10\nORDER BY p95 DESC\nLIMIT 20", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  request_uri as uri,\n  count(*) as requests,\n  round(quantile(0.50)(request_time * 1000), 2) as p50,\n  round(quantile(0.95)(request_time * 1000), 2) as p95,\n  round(quantile(0.99)(request_time * 1000), 2) as p99\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY uri\nHAVING requests >= 10\nORDER BY p95 DESC\nLIMIT 20", "refId": "A" }],
       "title": "Latency by URI (Identify Slow Endpoints)",
       "type": "table"
     },
@@ -119,7 +119,7 @@
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 17 },
       "id": 22,
       "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "upstream_p95" }] },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  upstream_addr as upstream,\n  count(*) as requests,\n  round(quantile(0.95)(upstream_response_time * 1000), 2) as upstream_p95,\n  round(avg(upstream_connect_time * 1000), 2) as connect_time,\n  round(avg(upstream_header_time * 1000), 2) as header_time\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\n  AND upstream_addr != ''\nGROUP BY upstream\nHAVING requests >= 5\nORDER BY upstream_p95 DESC\nLIMIT 20", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  upstream_addr as upstream,\n  count(*) as requests,\n  round(quantile(0.95)(upstream_response_time * 1000), 2) as upstream_p95,\n  round(avg(upstream_connect_time * 1000), 2) as connect_time,\n  round(avg(upstream_header_time * 1000), 2) as header_time\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\n  AND upstream_addr != ''\nGROUP BY upstream\nHAVING requests >= 5\nORDER BY upstream_p95 DESC\nLIMIT 20", "refId": "A" }],
       "title": "Latency by Upstream (Backend Performance)",
       "type": "table"
     },
@@ -130,7 +130,7 @@
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 26 },
       "id": 30,
       "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "latency_ms" }] },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  formatDateTime(timestamp, '%Y-%m-%d %H:%M:%S', 'Asia/Kolkata') as timestamp,\n  instance_id as agent,\n  request_method as method,\n  request_uri as uri,\n  status,\n  round(request_time * 1000, 2) as latency_ms,\n  round(upstream_response_time * 1000, 2) as upstream_time,\n  round(upstream_connect_time * 1000, 2) as connect_time,\n  upstream_addr as upstream,\n  remote_addr as client\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\nORDER BY request_time DESC\nLIMIT 100", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "queryType": "sql", "rawSql": "SELECT \n  formatDateTime(timestamp, '%Y-%m-%d %H:%M:%S', 'Asia/Kolkata') as time_ist,\n  instance_id as agent,\n  request_method as method,\n  request_uri as uri,\n  status,\n  round(request_time * 1000, 2) as latency_ms,\n  round(upstream_response_time * 1000, 2) as upstream_time,\n  round(upstream_connect_time * 1000, 2) as connect_time,\n  upstream_addr as upstream,\n  remote_addr as client\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nORDER BY request_time DESC\nLIMIT 100", "refId": "A" }],
       "title": "Slowest Requests (IST)",
       "type": "table"
     },
@@ -141,7 +141,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 39 },
       "id": 40,
       "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  avg(upstream_connect_time * 1000) as connect,\n  avg(upstream_header_time * 1000) as header,\n  avg(upstream_response_time * 1000) as response\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\n  AND upstream_addr != ''\nGROUP BY time\nORDER BY time", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  avg(upstream_connect_time * 1000) as connect,\n  avg(upstream_header_time * 1000) as header,\n  avg(upstream_response_time * 1000) as response\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\n  AND upstream_addr != ''\nGROUP BY time\nORDER BY time", "refId": "A" }],
       "title": "Upstream Timing (Connect + Header + Response)",
       "type": "timeseries"
     },
@@ -151,7 +151,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 39 },
       "id": 41,
       "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  upstream_addr,\n  quantile(0.95)(upstream_response_time * 1000) as p95\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ($agent = 'all' OR instance_id = $agent)\n  AND upstream_addr != ''\nGROUP BY time, upstream_addr\nORDER BY time", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 2, "queryType": "sql", "rawSql": "SELECT \n  toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time,\n  upstream_addr,\n  quantile(0.95)(upstream_response_time * 1000) as p95\nFROM nginx_analytics.access_logs\nWHERE timestamp BETWEEN $__fromTime AND $__toTime\n  AND ('$agent' = 'all' OR instance_id = '$agent')\n  AND upstream_addr != ''\nGROUP BY time, upstream_addr\nORDER BY time", "refId": "A" }],
       "title": "P95 Latency by Upstream",
       "type": "timeseries"
     }
@@ -162,7 +162,7 @@
   "templating": {
     "list": [
       { "current": { "selected": false, "text": "ClickHouse", "value": "clickhouse" }, "hide": 0, "label": "Data Source", "multi": false, "name": "DS_CLICKHOUSE", "options": [], "query": "grafana-clickhouse-datasource", "refresh": 1, "type": "datasource" },
-      { "current": { "selected": true, "text": "all", "value": "all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "definition": "SELECT DISTINCT instance_id FROM nginx_analytics.access_logs WHERE timestamp > now() - INTERVAL 1 HOUR", "hide": 0, "includeAll": true, "label": "Agent", "multi": false, "name": "agent", "options": [], "query": "SELECT DISTINCT instance_id FROM nginx_analytics.access_logs WHERE timestamp > now() - INTERVAL 1 HOUR", "refresh": 2, "sort": 1, "type": "query" }
+      { "allValue": "all", "current": { "selected": true, "text": "all", "value": "all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "definition": "SELECT DISTINCT instance_id FROM nginx_analytics.access_logs WHERE timestamp > now() - INTERVAL 1 HOUR", "hide": 0, "includeAll": true, "label": "Agent", "multi": false, "name": "agent", "options": [], "query": "SELECT DISTINCT instance_id FROM nginx_analytics.access_logs WHERE timestamp > now() - INTERVAL 1 HOUR", "refresh": 2, "sort": 1, "type": "query" }
     ]
   },
   "time": { "from": "now-1h", "to": "now" },
