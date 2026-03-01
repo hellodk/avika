@@ -25,8 +25,11 @@ export function NginxCoreDashboard() {
         if (!liveData?.summary) return;
 
         const latest = liveData.summary;
+        // Use UTC time for consistency with historical data
+        const now = new Date();
+        const utcTime = now.toISOString().slice(11, 19); // HH:MM:SS in UTC
         const point = {
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            time: utcTime,
             reading: parseInt(latest.reading || 0),
             writing: parseInt(latest.writing || 0),
             waiting: parseInt(latest.waiting || 0),

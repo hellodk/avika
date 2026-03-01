@@ -27,8 +27,11 @@ export function TrafficDashboard() {
         if (!liveData?.request_rate || liveData.request_rate.length === 0) return;
 
         const latest = liveData.request_rate[liveData.request_rate.length - 1];
+        // Use UTC time for consistency with historical data
+        const now = new Date();
+        const utcTime = now.toISOString().slice(11, 19); // HH:MM:SS in UTC
         const point = {
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            time: utcTime,
             requests: parseInt(latest.requests || 0),
             errors: parseInt(latest.errors || 0),
             "2xx": 0, "3xx": 0, "4xx": 0, "5xx": 0

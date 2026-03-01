@@ -28,8 +28,11 @@ export function SystemDashboard() {
         const latestSys = liveData.system_metrics?.[liveData.system_metrics.length - 1] || {};
         const latestGw = liveData.gateway_metrics?.[liveData.gateway_metrics.length - 1] || {};
 
+        // Use UTC time for consistency with historical data
+        const now = new Date();
+        const utcTime = now.toISOString().slice(11, 19); // HH:MM:SS in UTC
         const point = {
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            time: utcTime,
             cpu: Number(latestSys.cpu_usage_percent || 0),
             memory: Number(latestSys.memory_usage_percent || 0),
             rx: Number(latestSys.network_rx_rate || 0) / 1024, // KB/s
