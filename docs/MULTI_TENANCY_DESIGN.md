@@ -360,20 +360,70 @@ const (
 2. Agent appears in "Unassigned Servers" pool
 3. Admin assigns to project/environment via UI
 
-#### Method B: Auto-Assignment via Labels
+#### Method B: Auto-Assignment via Labels (Recommended)
 
-Agent config includes project/environment labels:
+Agent config includes project/environment labels that match existing project/environment slugs:
 
-```yaml
-# avika-agent.conf
-gateway_url: "grpc://avika-gateway:5020"
-labels:
-  project: "ecommerce"
-  environment: "production"
-  datacenter: "us-east-1"
+**Configuration via Environment Variables:**
+
+```bash
+# Required for auto-assignment
+export AVIKA_LABEL_PROJECT=project-alpha     # Must match project slug exactly
+export AVIKA_LABEL_ENVIRONMENT=dev           # Must match environment slug exactly
+
+# Optional metadata
+export AVIKA_LABEL_TEAM=platform
+export AVIKA_LABEL_REGION=us-east-1
 ```
 
-Gateway auto-assigns based on matching project/environment slugs.
+**Configuration via Config File:**
+
+```ini
+# /etc/avika/avika-agent.conf
+LABEL_PROJECT=project-alpha
+LABEL_ENVIRONMENT=production
+LABEL_TEAM=platform
+```
+
+**Auto-Assignment Flow:**
+
+```
+Agent Heartbeat with Labels
+         │
+         ▼
+┌─────────────────────────────────┐
+│ Gateway extracts labels:        │
+│   project: "project-alpha"      │
+│   environment: "dev"            │
+└─────────────┬───────────────────┘
+              │
+              ▼
+┌─────────────────────────────────┐
+│ Look up Project by slug         │──── Not Found ──► Log warning, skip
+│ GetProjectBySlug("project-alpha")│
+└─────────────┬───────────────────┘
+              │ Found
+              ▼
+┌─────────────────────────────────┐
+│ Look up Environment by slug     │──── Not Found ──► Log warning, skip
+│ GetEnvironmentBySlug(proj, "dev")│
+└─────────────┬───────────────────┘
+              │ Found
+              ▼
+┌─────────────────────────────────┐
+│ Check existing assignment       │──── Already assigned ──► Skip
+│ GetServerAssignment(agentId)    │
+└─────────────┬───────────────────┘
+              │ Not assigned
+              ▼
+┌─────────────────────────────────┐
+│ Auto-assign agent to environment│
+│ AssignServer(agentId, envId)    │
+└─────────────┬───────────────────┘
+              │
+              ▼
+         ✓ Success
+```
 
 #### Method C: Environment Token
 
@@ -394,13 +444,105 @@ enrollment_token: "env_tok_abc123..."
 
 ### 5.2 Label Configuration
 
-Add to agent protobuf:
+**Protobuf Definition (Heartbeat message):**
 
 ```protobuf
-message AgentInfo {
-    // ... existing fields ...
-    map<string, string> labels = 16;
+message Heartbeat {
+    string hostname = 1;
+    string version = 2;
+    double uptime = 3;
+    repeated NginxInstance instances = 4;
+    bool is_pod = 5;
+    string pod_ip = 6;
+    string agent_version = 7;
+    string build_date = 8;
+    string git_commit = 9;
+    string git_branch = 10;
+    map<string, string> labels = 11;  // Labels for auto-assignment
 }
+```
+
+**Standard Label Keys:**
+
+| Label Key | Environment Variable | Description | Example |
+|-----------|---------------------|-------------|---------|
+| `project` | `AVIKA_LABEL_PROJECT` | Project slug (required for auto-assign) | `project-alpha` |
+| `environment` | `AVIKA_LABEL_ENVIRONMENT` | Environment slug (required for auto-assign) | `dev`, `stage`, `production` |
+| `team` | `AVIKA_LABEL_TEAM` | Team identifier (metadata) | `platform` |
+| `region` | `AVIKA_LABEL_REGION` | Geographic region (metadata) | `us-east-1` |
+
+### 5.3 Kubernetes Deployment Example
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-alpha-dev
+  namespace: avika
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-sidecar
+      project: alpha
+      environment: dev
+  template:
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.28
+        ports:
+        - containerPort: 80
+      
+      - name: avika-agent
+        image: hellodk/avika-agent:0.1.93
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: AVIKA_LABEL_PROJECT
+          value: "project-alpha"        # Must match project slug
+        - name: AVIKA_LABEL_ENVIRONMENT
+          value: "dev"                  # Must match environment slug
+        - name: AVIKA_LABEL_TEAM
+          value: "platform"
+```
+
+### 5.4 Prerequisites for Auto-Assignment
+
+Before agents can auto-assign, projects and environments must exist:
+
+```bash
+# 1. Create project
+curl -b cookies.txt -X POST "http://gateway:5021/api/projects" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Project Alpha","slug":"project-alpha","description":"Platform services"}'
+
+# 2. Create environments (use project_id from response)
+curl -b cookies.txt -X POST "http://gateway:5021/api/projects/{project_id}/environments" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Development","slug":"dev","color":"#22c55e"}'
+```
+
+### 5.5 Troubleshooting Auto-Assignment
+
+**Check gateway logs:**
+```bash
+kubectl logs deploy/avika-gateway -n avika | grep -i "auto-assign"
+```
+
+**Common issues:**
+
+| Log Message | Cause | Solution |
+|-------------|-------|----------|
+| `project 'alpha' not found` | Label uses `alpha` but slug is `project-alpha` | Use exact project slug |
+| `environment 'development' not found` | Label uses `development` but slug is `dev` | Use exact environment slug |
+| `already assigned to environment` | Agent was previously assigned | Delete existing assignment first |
+
+**Verify assignments:**
+```bash
+curl -b cookies.txt "http://gateway:5021/api/server-assignments" | jq '.assignments'
 ```
 
 ---
