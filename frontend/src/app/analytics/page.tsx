@@ -135,7 +135,7 @@ function AnalyticsContent() {
 }
 
 function AnalyticsView() {
-    const { isLive, setIsLive, isConnected } = useLiveMetrics();
+    const { isLive, setIsLive, isConnected, data: liveData } = useLiveMetrics();
     const { theme } = useTheme();
 
     // Theme-aware chart colors (WCAG compliant)
@@ -157,9 +157,9 @@ function AnalyticsView() {
         label: 'Last 24 hours'
     });
     const [autoRefresh, setAutoRefresh] = useState<AutoRefreshConfig>({
-        enabled: false,
-        interval: 0,
-        label: 'Off'
+        enabled: true,
+        interval: 30000,
+        label: '30s'
     });
     const [timezone, setTimezone] = useState('UTC');
     const [selectedAgent, setSelectedAgent] = useState<string>('all');
@@ -237,6 +237,26 @@ function AnalyticsView() {
             if (interval) clearInterval(interval);
         };
     }, [timeRange, autoRefresh, selectedAgent]);
+
+    // Update analytics data when live data arrives
+    useEffect(() => {
+        if (isLive && liveData) {
+            setAnalyticsData({
+                requestRate: liveData.request_rate || [],
+                statusDistribution: liveData.status_distribution || [],
+                topEndpoints: liveData.top_endpoints || [],
+                latencyTrend: liveData.latency_trend || [],
+                summary: liveData.summary || initialData.summary,
+                latency_distribution: liveData.latency_distribution || [],
+                server_distribution: liveData.server_distribution || [],
+                system_metrics: liveData.system_metrics || [],
+                connections_history: liveData.connections_history || [],
+                http_status_metrics: liveData.http_status_metrics || initialData.http_status_metrics,
+                insights: liveData.insights || [],
+                gateway_metrics: liveData.gateway_metrics || []
+            });
+        }
+    }, [isLive, liveData]);
 
     // Summary Stats
     const summary = analyticsData.summary;
