@@ -19,6 +19,7 @@ import {
 import { toast } from 'sonner';
 import { useTheme } from '@/lib/theme-provider';
 import { getChartColorsForTheme } from '@/lib/chart-colors';
+import { useProject } from '@/lib/project-context';
 import { 
     PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, 
     XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
@@ -857,6 +858,7 @@ function GeoPageContent() {
     const [selectedLocation, setSelectedLocation] = useState<GeoLocation | null>(null);
     const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
     const { theme } = useTheme();
+    const { selectedProject, selectedEnvironment } = useProject();
     const chartColors = useMemo(() => getChartColorsForTheme(theme), [theme]);
     
     // Sorting state
@@ -883,7 +885,15 @@ function GeoPageContent() {
         }
         
         try {
-            const response = await apiFetch(`/api/geo?window=${timeWindow}`);
+            // Build filter params for project/environment filtering
+            let filterParams = '';
+            if (selectedEnvironment) {
+                filterParams = `&environment_id=${selectedEnvironment.id}`;
+            } else if (selectedProject) {
+                filterParams = `&project_id=${selectedProject.id}`;
+            }
+            
+            const response = await apiFetch(`/api/geo?window=${timeWindow}${filterParams}`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -903,7 +913,7 @@ function GeoPageContent() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [timeWindow]);
+    }, [timeWindow, selectedProject, selectedEnvironment]);
 
     useEffect(() => {
         fetchGeoData();

@@ -451,6 +451,11 @@ message UptimeReport {
 message AnalyticsRequest {
   string agent_id = 1; // Optional, defaults to all
   string time_window = 2; // "1h", "24h", "7d"
+  string environment_id = 3; // Optional: filter by environment
+  string project_id = 4; // Optional: filter by project (all environments)
+  int64 from_timestamp = 5; // Optional: absolute start time (milliseconds)
+  int64 to_timestamp = 6; // Optional: absolute end time (milliseconds)
+  string timezone = 7; // Optional: client timezone for formatting
 }
 
 message AnalyticsResponse {
@@ -518,6 +523,10 @@ message TraceRequest {
   string status_filter = 5; // e.g. "404", "5xx"
   string method_filter = 6; // e.g. "GET", "POST"
   string uri_filter = 7;    // e.g. "/api/v1"
+  
+  // Project/environment filters
+  string environment_id = 8; // Optional: filter by environment
+  string project_id = 9; // Optional: filter by project
 }
 
 message TraceList {

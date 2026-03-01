@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { apiFetch } from "@/lib/api";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useProject } from "@/lib/project-context";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -107,6 +108,7 @@ const AUGMENT_TEMPLATES = [
 
 function MonitoringPageContent() {
     const { theme } = useTheme();
+    const { selectedProject, selectedEnvironment } = useProject();
     
     // Theme-aware chart colors (WCAG compliant)
     const chartColors = getChartColorsForTheme(theme);
@@ -153,7 +155,7 @@ function MonitoringPageContent() {
         fetchData();
         const interval = setInterval(fetchData, refreshInterval);
         return () => clearInterval(interval);
-    }, [refreshInterval, selectedAgent]);
+    }, [refreshInterval, selectedAgent, selectedProject, selectedEnvironment]);
 
     const fetchAgents = async () => {
         try {
@@ -170,7 +172,16 @@ function MonitoringPageContent() {
     const fetchData = async () => {
         try {
             const agentParam = selectedAgent !== 'all' ? `&agent_id=${selectedAgent}` : '';
-            const res = await apiFetch(`/api/analytics?window=1h${agentParam}`);
+            
+            // Project/environment filtering
+            let filterParam = '';
+            if (selectedEnvironment) {
+                filterParam = `&environment_id=${selectedEnvironment.id}`;
+            } else if (selectedProject) {
+                filterParam = `&project_id=${selectedProject.id}`;
+            }
+            
+            const res = await apiFetch(`/api/analytics?window=1h${agentParam}${filterParam}`);
             const json = await res.json();
             setData(json);
         } catch (error) {

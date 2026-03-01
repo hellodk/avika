@@ -27,6 +27,7 @@ import { NginxCoreDashboard } from "@/components/analytics/dashboards/NginxCoreD
 import { AlertConfiguration } from "@/components/alerts/AlertConfiguration";
 import { useTheme } from "@/lib/theme-provider";
 import { getChartColorsForTheme, getHttpStatusColor } from "@/lib/chart-colors";
+import { useProject } from "@/lib/project-context";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -137,6 +138,7 @@ function AnalyticsContent() {
 function AnalyticsView() {
     const { isLive, setIsLive, isConnected } = useLiveMetrics();
     const { theme } = useTheme();
+    const { selectedProject, selectedEnvironment } = useProject();
 
     // Theme-aware chart colors (WCAG compliant)
     const chartColors = getChartColorsForTheme(theme);
@@ -201,7 +203,17 @@ function AnalyticsView() {
                 }
 
                 const agentParam = selectedAgent !== 'all' ? `&agent_id=${selectedAgent}` : '';
-                const res = await apiFetch(`/api/analytics?${queryParams}${agentParam}`);
+                const tzParam = `&timezone=${encodeURIComponent(timezone === 'Browser' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC')}`;
+                
+                // Project/environment filtering
+                let filterParam = '';
+                if (selectedEnvironment) {
+                    filterParam = `&environment_id=${selectedEnvironment.id}`;
+                } else if (selectedProject) {
+                    filterParam = `&project_id=${selectedProject.id}`;
+                }
+                
+                const res = await apiFetch(`/api/analytics?${queryParams}${agentParam}${tzParam}${filterParam}`);
                 if (res.ok) {
                     const data = await res.json();
                     setAnalyticsData({
@@ -236,7 +248,7 @@ function AnalyticsView() {
         return () => {
             if (interval) clearInterval(interval);
         };
-    }, [timeRange, autoRefresh, selectedAgent]);
+    }, [timeRange, autoRefresh, selectedAgent, timezone, selectedProject, selectedEnvironment]);
 
     // Summary Stats
     const summary = analyticsData.summary;
@@ -249,17 +261,86 @@ function AnalyticsView() {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
     };
 
+    // Comprehensive time format conversion for browser timezone
     const formatTimeForDisplay = (timeStr: string) => {
         if (!timeStr) return timeStr;
-        if (timezone === 'Browser') {
+        if (timezone !== 'Browser') return timeStr;
+
+        try {
+            // Pattern: HH:MM (e.g., "14:30")
             if (timeStr.match(/^\d{2}:\d{2}$/)) {
                 const now = new Date();
                 const [hours, minutes] = timeStr.split(':').map(Number);
                 const utcDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hours, minutes));
                 return utcDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
             }
+
+            // Pattern: MM-DD HH:MM (e.g., "03-01 14:30")
+            if (timeStr.match(/^\d{2}-\d{2} \d{2}:\d{2}$/)) {
+                const now = new Date();
+                const [datePart, timePart] = timeStr.split(' ');
+                const [month, day] = datePart.split('-').map(Number);
+                const [hours, minutes] = timePart.split(':').map(Number);
+                const utcDate = new Date(Date.UTC(now.getUTCFullYear(), month - 1, day, hours, minutes));
+                return utcDate.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' }) + ' ' +
+                       utcDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+            }
+
+            // Pattern: MM-DD HH:00 (e.g., "03-01 14:00")
+            if (timeStr.match(/^\d{2}-\d{2} \d{2}:00$/)) {
+                const now = new Date();
+                const [datePart, timePart] = timeStr.split(' ');
+                const [month, day] = datePart.split('-').map(Number);
+                const hours = parseInt(timePart.split(':')[0]);
+                const utcDate = new Date(Date.UTC(now.getUTCFullYear(), month - 1, day, hours, 0));
+                return utcDate.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' }) + ' ' +
+                       utcDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+            }
+
+            // Pattern: YYYY-MM-DD HH:MM (e.g., "2026-03-01 14:30")
+            if (timeStr.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/)) {
+                const utcDate = new Date(timeStr + ':00Z');
+                return utcDate.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) + ' ' +
+                       utcDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+            }
+
+            // Pattern: YYYY-MM-DD (e.g., "2026-03-01")
+            if (timeStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const utcDate = new Date(timeStr + 'T00:00:00Z');
+                return utcDate.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            }
+        } catch (e) {
+            console.error('Time format conversion error:', e);
         }
+
         return timeStr;
+    };
+
+    // Get timezone label for display
+    const getTimezoneLabel = () => {
+        if (timezone === 'Browser') {
+            return Intl.DateTimeFormat().resolvedOptions().timeZone;
+        }
+        return 'UTC';
+    };
+
+    // Get previous period label based on time range
+    const getPrevPeriodLabel = () => {
+        const value = timeRange.value || '24h';
+        const labels: Record<string, string> = {
+            '5m': 'vs prev 5m',
+            '15m': 'vs prev 15m',
+            '30m': 'vs prev 30m',
+            '1h': 'vs prev hour',
+            '3h': 'vs prev 3h',
+            '6h': 'vs prev 6h',
+            '12h': 'vs prev 12h',
+            '24h': 'vs yesterday',
+            '2d': 'vs prev 2d',
+            '7d': 'vs prev week',
+            '30d': 'vs prev month',
+        };
+        return labels[value] || 'vs previous';
     };
 
     const requestData = analyticsData.requestRate.map((p: any) => ({
@@ -313,7 +394,13 @@ function AnalyticsView() {
     };
 
     const handleExport = (format: 'csv' | 'json') => {
-        const url = `/api/analytics/export?format=${format}&window=${timeRange.value}&agent_id=${selectedAgent}`;
+        let filterParam = '';
+        if (selectedEnvironment) {
+            filterParam = `&environment_id=${selectedEnvironment.id}`;
+        } else if (selectedProject) {
+            filterParam = `&project_id=${selectedProject.id}`;
+        }
+        const url = `/api/analytics/export?format=${format}&window=${timeRange.value}&agent_id=${selectedAgent}${filterParam}`;
         window.open(url, '_blank');
     };
 
@@ -515,7 +602,7 @@ function AnalyticsView() {
                                             ? (summary.total_requests / 1000).toFixed(1) + "K" 
                                             : summary.total_requests}
                                     delta={summary.requests_delta}
-                                    deltaLabel="from prev period"
+                                    deltaLabel={getPrevPeriodLabel()}
                                     icon={BarChart3}
                                     iconColor="blue"
                                     trend={summary.requests_delta >= 0 ? "up" : "down"}
@@ -524,7 +611,7 @@ function AnalyticsView() {
                                     title="Avg Latency"
                                     value={`${Math.round(summary.avg_latency)}ms`}
                                     delta={Math.round(summary.latency_delta)}
-                                    deltaLabel="ms from prev"
+                                    deltaLabel={`ms ${getPrevPeriodLabel()}`}
                                     icon={Clock}
                                     iconColor={summary.avg_latency > 200 ? "amber" : "green"}
                                     trend={summary.latency_delta <= 0 ? "up" : "down"}
@@ -533,7 +620,7 @@ function AnalyticsView() {
                                     title="Error Rate"
                                     value={`${summary.error_rate.toFixed(2)}%`}
                                     delta={parseFloat(summary.error_rate_delta.toFixed(2))}
-                                    deltaLabel="% from prev"
+                                    deltaLabel={`% ${getPrevPeriodLabel()}`}
                                     icon={AlertCircle}
                                     iconColor={summary.error_rate > 5 ? "red" : summary.error_rate > 1 ? "amber" : "green"}
                                     trend={summary.error_rate_delta <= 0 ? "up" : "down"}
@@ -550,9 +637,14 @@ function AnalyticsView() {
                             {/* Request Rate Chart */}
                             <Card className="bg-slate-800 border-slate-600">
                                 <CardHeader className="pb-2">
-                                    <CardTitle className="text-white">
-                                        Request Rate & Errors
-                                    </CardTitle>
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-white">
+                                            Request Rate & Errors
+                                        </CardTitle>
+                                        <span className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300">
+                                            {getTimezoneLabel()}
+                                        </span>
+                                    </div>
                                     <CardDescription className="text-slate-300">
                                         Traffic volume and error trends over time
                                     </CardDescription>

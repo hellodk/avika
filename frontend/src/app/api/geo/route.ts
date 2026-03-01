@@ -8,12 +8,22 @@ export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
         const window = searchParams.get('window') || '24h';
+        const environmentId = searchParams.get('environment_id');
+        const projectId = searchParams.get('project_id');
+
+        // Build query string with optional filters
+        let queryString = `window=${window}`;
+        if (environmentId) {
+            queryString += `&environment_id=${environmentId}`;
+        } else if (projectId) {
+            queryString += `&project_id=${projectId}`;
+        }
 
         // Get session cookie to forward
         const sessionCookie = request.cookies.get("avika_session");
 
         // Forward geo request to gateway
-        const gatewayResponse = await fetch(`${GATEWAY_URL}/api/geo?window=${window}`, {
+        const gatewayResponse = await fetch(`${GATEWAY_URL}/api/geo?${queryString}`, {
             method: "GET",
             headers: {
                 "Content-Type": "application/json",

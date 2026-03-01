@@ -621,7 +621,37 @@ func (s *server) GetUptimeReports(ctx context.Context, req *pb.UptimeRequest) (*
 
 func (s *server) GetAnalytics(ctx context.Context, req *pb.AnalyticsRequest) (*pb.AnalyticsResponse, error) {
 	if s.clickhouse != nil {
-		return s.clickhouse.GetAnalytics(ctx, req.TimeWindow, req.AgentId)
+		// Use the enhanced function with absolute time range support
+		timezone := req.Timezone
+		if timezone == "" {
+			timezone = "UTC"
+		}
+
+		// Project/environment filtering takes precedence over single agent_id
+		var agentFilter []string
+		if req.EnvironmentId != "" {
+			// Filter by specific environment
+			agents, err := s.db.GetAgentIDsForEnvironment(req.EnvironmentId)
+			if err != nil {
+				log.Printf("GetAnalytics: Failed to get agents for environment %s: %v", req.EnvironmentId, err)
+			} else {
+				agentFilter = agents
+			}
+		} else if req.ProjectId != "" {
+			// Filter by project (all environments)
+			agents, err := s.db.GetAgentIDsForProject(req.ProjectId)
+			if err != nil {
+				log.Printf("GetAnalytics: Failed to get agents for project %s: %v", req.ProjectId, err)
+			} else {
+				agentFilter = agents
+			}
+		}
+
+		// Use filtered query if we have agent filter, otherwise use standard query
+		if len(agentFilter) > 0 {
+			return s.clickhouse.GetAnalyticsWithAgentFilter(ctx, req.TimeWindow, "", agentFilter, req.FromTimestamp, req.ToTimestamp, timezone)
+		}
+		return s.clickhouse.GetAnalyticsWithTimeRange(ctx, req.TimeWindow, req.AgentId, req.FromTimestamp, req.ToTimestamp, timezone)
 	}
 
 	// Fallback to in-memory if ClickHouse not available
@@ -1774,24 +1804,30 @@ func (srv *server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 // startWebSocketServer is deprecated - use createHTTPServer instead
 // Kept for reference only
 
-func formatBytes(b int64) string {
-	const unit = 1024
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
-}
-
 func (s *server) GetTraces(ctx context.Context, req *pb.TraceRequest) (*pb.TraceList, error) {
 	if s.clickhouse == nil {
 		return &pb.TraceList{}, nil
 	}
-	return s.clickhouse.GetTraces(ctx, req)
+
+	// Project/environment filtering
+	var agentFilter []string
+	if req.EnvironmentId != "" {
+		agents, err := s.db.GetAgentIDsForEnvironment(req.EnvironmentId)
+		if err != nil {
+			log.Printf("GetTraces: Failed to get agents for environment %s: %v", req.EnvironmentId, err)
+		} else {
+			agentFilter = agents
+		}
+	} else if req.ProjectId != "" {
+		agents, err := s.db.GetAgentIDsForProject(req.ProjectId)
+		if err != nil {
+			log.Printf("GetTraces: Failed to get agents for project %s: %v", req.ProjectId, err)
+		} else {
+			agentFilter = agents
+		}
+	}
+
+	return s.clickhouse.GetTracesWithFilter(ctx, req, agentFilter)
 }
 
 func (s *server) GetTraceDetails(ctx context.Context, req *pb.TraceRequest) (*pb.Trace, error) {
@@ -1844,17 +1880,41 @@ func (srv *server) handleGeoData(w http.ResponseWriter, r *http.Request) {
 		window = "24h"
 	}
 
-	// RBAC: Get visible agents for the user to filter geo data
+	// Project/environment filtering (explicit filter takes precedence)
+	environmentID := r.URL.Query().Get("environment_id")
+	projectID := r.URL.Query().Get("project_id")
+
 	var agentFilter []string
-	user := middleware.GetUserFromContext(r.Context())
-	if user != nil {
-		visibleAgents, err := srv.db.GetVisibleAgentIDs(user.Username)
+	if environmentID != "" {
+		// Filter by specific environment
+		agents, err := srv.db.GetAgentIDsForEnvironment(environmentID)
 		if err != nil {
-			log.Printf("Geo data RBAC error for user %s: %v", user.Username, err)
-			http.Error(w, `{"error":"Failed to check access permissions"}`, http.StatusInternalServerError)
+			log.Printf("Geo data: Failed to get agents for environment %s: %v", environmentID, err)
+			http.Error(w, `{"error":"Failed to get agents for environment"}`, http.StatusInternalServerError)
 			return
 		}
-		agentFilter = visibleAgents
+		agentFilter = agents
+	} else if projectID != "" {
+		// Filter by project (all environments)
+		agents, err := srv.db.GetAgentIDsForProject(projectID)
+		if err != nil {
+			log.Printf("Geo data: Failed to get agents for project %s: %v", projectID, err)
+			http.Error(w, `{"error":"Failed to get agents for project"}`, http.StatusInternalServerError)
+			return
+		}
+		agentFilter = agents
+	} else {
+		// RBAC: Get visible agents for the user to filter geo data
+		user := middleware.GetUserFromContext(r.Context())
+		if user != nil {
+			visibleAgents, err := srv.db.GetVisibleAgentIDs(user.Username)
+			if err != nil {
+				log.Printf("Geo data RBAC error for user %s: %v", user.Username, err)
+				http.Error(w, `{"error":"Failed to check access permissions"}`, http.StatusInternalServerError)
+				return
+			}
+			agentFilter = visibleAgents
+		}
 	}
 
 	ctx := r.Context()

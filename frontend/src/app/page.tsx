@@ -12,6 +12,7 @@ import { ResponsiveContainer, Tooltip, XAxis, YAxis, Area, AreaChart, CartesianG
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { TimeRangePicker, TimeRange } from "@/components/ui/time-range-picker";
+import { useProject } from "@/lib/project-context";
 
 // Convert time range value to API window parameter
 function getWindowParam(timeRange: TimeRange): string {
@@ -42,6 +43,7 @@ function getPreviousPeriodLabel(timeRange: TimeRange): string {
 }
 
 export default function Home() {
+    const { selectedProject, selectedEnvironment } = useProject();
     const [loading, setLoading] = useState(true);
     const [agentCount, setAgentCount] = useState<number>(0);
     const [onlineAgents, setOnlineAgents] = useState<number>(0);
@@ -90,6 +92,14 @@ export default function Home() {
 
     const fetchStats = useCallback(async () => {
         try {
+            // Build filter query string for project/environment filtering
+            let filterParams = '';
+            if (selectedEnvironment) {
+                filterParams = `&environment_id=${selectedEnvironment.id}`;
+            } else if (selectedProject) {
+                filterParams = `&project_id=${selectedProject.id}`;
+            }
+
             // Fetch Agent Count
             const serverRes = await apiFetch('/api/servers');
             if (serverRes.ok) {
@@ -103,8 +113,8 @@ export default function Home() {
 
             const windowParam = getWindowParam(timeRange);
             
-            // Fetch Analytics Summary for current period
-            const analyticsRes = await apiFetch(`/api/analytics?window=${windowParam}`);
+            // Fetch Analytics Summary for current period (with project/environment filter)
+            const analyticsRes = await apiFetch(`/api/analytics?window=${windowParam}${filterParams}`);
             if (analyticsRes.ok) {
                 const data = await analyticsRes.json();
                 const summary = data.summary || {};
@@ -172,7 +182,7 @@ export default function Home() {
         } finally {
             setLoading(false);
         }
-    }, [timeRange]);
+    }, [timeRange, selectedProject, selectedEnvironment]);
 
     useEffect(() => {
         fetchStats();
