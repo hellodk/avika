@@ -2,13 +2,16 @@
 name: Release
 
 on:
-  # Trigger on push to master (for workflow registration)
+  # Automatic release on merge to master (patch bump)
   push:
     branches:
       - master
-    paths:
-      - '.github/workflows/release.yml'
-  # Manual trigger for releases
+    # Skip release for certain commits
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+  # Manual trigger for minor/major releases
   workflow_dispatch:
     inputs:
       bump_type:
@@ -36,11 +39,39 @@ env:
   DOCKERHUB_USERNAME: hellodk
 
 jobs:
+  # Check if this is a version bump commit (to prevent infinite loops)
+  check-commit:
+    name: Check Commit
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if release should proceed
+        id: check
+        run: |
+          # Get the commit message
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "Commit message: $COMMIT_MSG"
+          
+          # Skip if this is a version bump commit (prevents infinite loop)
+          if [[ "$COMMIT_MSG" == "chore: Bump version to"* ]]; then
+            echo "Skipping release - this is a version bump commit"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "Proceeding with release"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          fi
+
   version-bump:
     name: Bump Version
     runs-on: ubuntu-latest
-    # Only run on manual dispatch, not on push (push is just for workflow registration)
-    if: github.event_name == 'workflow_dispatch'
+    needs: check-commit
+    if: needs.check-commit.outputs.should_release == 'true'
     outputs:
       version: ${{ steps.bump.outputs.version }}
       tag: ${{ steps.bump.outputs.tag }}
@@ -53,8 +84,20 @@ jobs:
 
       - name: Configure Git
         run: |
-          git config user.name "hellodk"
-          git config user.email "hello.dk@outlook.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Determine bump type
+        id: bump_type
+        run: |
+          # Use input for manual trigger, default to patch for automatic
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "bump=${{ inputs.bump_type }}" >> $GITHUB_OUTPUT
+            echo "prerelease=${{ inputs.prerelease }}" >> $GITHUB_OUTPUT
+          else
+            echo "bump=patch" >> $GITHUB_OUTPUT
+            echo "prerelease=" >> $GITHUB_OUTPUT
+          fi
 
       - name: Bump version
         id: bump
@@ -63,11 +106,15 @@ jobs:
           CURRENT_VERSION=$(cat VERSION | tr -d '[:space:]')
           echo "Current version: $CURRENT_VERSION"
           
+          # Remove any pre-release suffix for parsing
+          BASE_VERSION=$(echo "$CURRENT_VERSION" | cut -d'-' -f1)
+          
           # Parse version components
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
           
           # Bump based on type
-          case "${{ inputs.bump_type }}" in
+          BUMP_TYPE="${{ steps.bump_type.outputs.bump }}"
+          case "$BUMP_TYPE" in
             major)
               MAJOR=$((MAJOR + 1))
               MINOR=0
@@ -86,8 +133,9 @@ jobs:
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
           
           # Add prerelease suffix if specified
-          if [ -n "${{ inputs.prerelease }}" ]; then
-            NEW_VERSION="${NEW_VERSION}-${{ inputs.prerelease }}"
+          PRERELEASE="${{ steps.bump_type.outputs.prerelease }}"
+          if [ -n "$PRERELEASE" ]; then
+            NEW_VERSION="${NEW_VERSION}-${PRERELEASE}"
           fi
           
           echo "New version: $NEW_VERSION"
@@ -111,7 +159,8 @@ jobs:
   build-binaries:
     name: Build Binaries
     runs-on: ubuntu-latest
-    needs: version-bump
+    needs: [check-commit, version-bump]
+    if: needs.check-commit.outputs.should_release == 'true'
     strategy:
       matrix:
         include:
@@ -170,7 +219,8 @@ jobs:
   build-push-images:
     name: Build & Push Docker Images
     runs-on: ubuntu-latest
-    needs: version-bump
+    needs: [check-commit, version-bump]
+    if: needs.check-commit.outputs.should_release == 'true'
     strategy:
       matrix:
         image:
@@ -230,7 +280,8 @@ jobs:
   package-helm:
     name: Package Helm Chart
     runs-on: ubuntu-latest
-    needs: version-bump
+    needs: [check-commit, version-bump]
+    if: needs.check-commit.outputs.should_release == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -262,7 +313,8 @@ jobs:
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [version-bump, build-binaries, build-push-images, package-helm]
+    needs: [check-commit, version-bump, build-binaries, build-push-images, package-helm]
+    if: needs.check-commit.outputs.should_release == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
