@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package nginx.agent.v1;
 
-option go_package = "github.com/user/nginx-manager/internal/common/proto/agent";
+option go_package = "github.com/avika-ai/avika/internal/common/proto/agent";
 
 service Commander {
   // Bi-directional stream:
@@ -114,6 +114,34 @@ message CommandResult {
 
 message StateSnapshot {
     string config_hash = 1;
+    ConfigHashes config_hashes = 2; // Detailed config hashes for drift detection
+}
+
+// ============ Config Hashes for Drift Detection ============
+
+message ConfigHashes {
+    string main_conf_hash = 1;
+    int64 main_conf_modified = 2;
+    repeated FileHash site_configs = 3;
+    repeated FileHash include_files = 4;
+    repeated CertHashInfo certificates = 5;
+    string maintenance_page_hash = 6;
+    int64 computed_at = 7;
+}
+
+message FileHash {
+    string path = 1;
+    string hash = 2;
+    int64 size = 3;
+    int64 modified_at = 4;
+}
+
+message CertHashInfo {
+    string domain = 1;
+    string cert_path = 2;
+    string cert_hash = 3;
+    int64 expiry_timestamp = 4;
+    string issuer = 5;
 }
 
 message ConfigPush {
@@ -197,6 +225,60 @@ service AgentService {
   rpc ListAlertRules(ListAlertRulesRequest) returns (AlertRuleList);
   rpc CreateAlertRule(AlertRule) returns (AlertRule);
   rpc DeleteAlertRule(DeleteAlertRuleRequest) returns (DeleteAlertRuleResponse);
+
+  // ============ Agent Groups ============
+  rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse);
+  rpc GetGroup(GetGroupRequest) returns (AgentGroup);
+  rpc CreateGroup(CreateGroupRequest) returns (AgentGroup);
+  rpc UpdateGroup(UpdateGroupRequest) returns (AgentGroup);
+  rpc DeleteGroup(DeleteGroupRequest) returns (DeleteGroupResponse);
+  rpc AddAgentsToGroup(AddAgentsToGroupRequest) returns (AddAgentsToGroupResponse);
+  rpc RemoveAgentFromGroup(RemoveAgentFromGroupRequest) returns (RemoveAgentFromGroupResponse);
+  rpc SetGoldenAgent(SetGoldenAgentRequest) returns (SetGoldenAgentResponse);
+  rpc GetGroupAgents(GetGroupAgentsRequest) returns (GetGroupAgentsResponse);
+
+  // ============ Drift Detection ============
+  rpc CheckDrift(DriftCheckRequest) returns (DriftCheckResponse);
+  rpc GetDriftReport(GetDriftReportRequest) returns (DriftCheckResponse);
+  rpc ListDriftReports(ListDriftReportsRequest) returns (ListDriftReportsResponse);
+  rpc ResolveDrift(ResolveDriftRequest) returns (BatchConfigUpdateResponse);
+
+  // ============ Batch Configuration ============
+  rpc BatchUpdateConfig(BatchConfigUpdateRequest) returns (BatchConfigUpdateResponse);
+  rpc GetBatchStatus(GetBatchStatusRequest) returns (BatchConfigUpdateResponse);
+  rpc CancelBatch(CancelBatchRequest) returns (CancelBatchResponse);
+  rpc RollbackBatch(RollbackBatchRequest) returns (RollbackBatchResponse);
+
+  // ============ Configuration Templates ============
+  rpc ListConfigTemplates(ListConfigTemplatesRequest) returns (ListConfigTemplatesResponse);
+  rpc GetConfigTemplate(GetConfigTemplateRequest) returns (ConfigTemplate);
+  rpc CreateConfigTemplate(CreateConfigTemplateRequest) returns (ConfigTemplate);
+  rpc UpdateConfigTemplate(UpdateConfigTemplateRequest) returns (ConfigTemplate);
+  rpc DeleteConfigTemplate(DeleteConfigTemplateRequest) returns (DeleteConfigTemplateResponse);
+  rpc RenderConfigTemplate(RenderConfigTemplateRequest) returns (RenderConfigTemplateResponse);
+
+  // ============ Maintenance Mode ============
+  rpc SetMaintenance(SetMaintenanceRequest) returns (SetMaintenanceResponse);
+  rpc GetMaintenanceStatus(GetMaintenanceStatusRequest) returns (MaintenanceState);
+  rpc ListMaintenanceStates(ListMaintenanceStatesRequest) returns (ListMaintenanceStatesResponse);
+  rpc ListMaintenanceTemplates(ListMaintenanceTemplatesRequest) returns (ListMaintenanceTemplatesResponse);
+  rpc CreateMaintenanceTemplate(CreateMaintenanceTemplateRequest) returns (MaintenanceTemplate);
+  rpc UpdateMaintenanceTemplate(UpdateMaintenanceTemplateRequest) returns (MaintenanceTemplate);
+  rpc DeleteMaintenanceTemplate(DeleteMaintenanceTemplateRequest) returns (DeleteMaintenanceTemplateResponse);
+  rpc PreviewMaintenanceTemplate(PreviewMaintenanceTemplateRequest) returns (PreviewMaintenanceTemplateResponse);
+
+  // ============ Certificate Management ============
+  rpc UploadCertificate(UploadCertificateRequest) returns (UploadCertificateResponse);
+  rpc GetCertificateInventory(GetCertificateInventoryRequest) returns (GetCertificateInventoryResponse);
+  rpc DeployCertificate(DeployCertificateRequest) returns (UploadCertificateResponse);
+  rpc DeleteCertificate(DeleteCertificateRequest) returns (DeleteCertificateResponse);
+
+  // ============ Environment Comparison ============
+  rpc CompareEnvironments(CompareEnvironmentsRequest) returns (CompareEnvironmentsResponse);
+  rpc GetComparison(GetComparisonRequest) returns (CompareEnvironmentsResponse);
+
+  // ============ Site/Location Updates ============
+  rpc UpdateSiteLocation(SiteLocationUpdateRequest) returns (SiteLocationUpdateResponse);
 }
 
 message ListAlertRulesRequest {}
@@ -757,4 +839,646 @@ message AgentConfigResponse {
   string error = 2;
   string message = 3;
   bool requires_restart = 4;
+}
+
+// ============ Agent Groups ============
+
+message AgentGroup {
+  string id = 1;
+  string environment_id = 2;
+  string name = 3;
+  string slug = 4;
+  string description = 5;
+  string golden_agent_id = 6;
+  string expected_config_hash = 7;
+  bool drift_check_enabled = 8;
+  int32 drift_check_interval_seconds = 9;
+  map<string, string> metadata = 10;
+  string created_by = 11;
+  int64 created_at = 12;
+  int64 updated_at = 13;
+  int32 agent_count = 14; // Number of agents in this group
+}
+
+message ListGroupsRequest {
+  string environment_id = 1; // Required: filter by environment
+}
+
+message ListGroupsResponse {
+  repeated AgentGroup groups = 1;
+}
+
+message GetGroupRequest {
+  string group_id = 1;
+}
+
+message CreateGroupRequest {
+  string environment_id = 1;
+  string name = 2;
+  string slug = 3;
+  string description = 4;
+  bool drift_check_enabled = 5;
+  int32 drift_check_interval_seconds = 6;
+  map<string, string> metadata = 7;
+}
+
+message UpdateGroupRequest {
+  string group_id = 1;
+  string name = 2;
+  string description = 3;
+  bool drift_check_enabled = 4;
+  int32 drift_check_interval_seconds = 5;
+  map<string, string> metadata = 6;
+}
+
+message DeleteGroupRequest {
+  string group_id = 1;
+}
+
+message DeleteGroupResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message AddAgentsToGroupRequest {
+  string group_id = 1;
+  repeated string agent_ids = 2;
+}
+
+message AddAgentsToGroupResponse {
+  bool success = 1;
+  repeated AgentGroupAssignmentResult results = 2;
+}
+
+message AgentGroupAssignmentResult {
+  string agent_id = 1;
+  bool success = 2;
+  string error = 3;
+}
+
+message RemoveAgentFromGroupRequest {
+  string group_id = 1;
+  string agent_id = 2;
+}
+
+message RemoveAgentFromGroupResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message SetGoldenAgentRequest {
+  string group_id = 1;
+  string agent_id = 2; // Empty to clear golden agent
+}
+
+message SetGoldenAgentResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message GetGroupAgentsRequest {
+  string group_id = 1;
+}
+
+message GetGroupAgentsResponse {
+  repeated AgentInfo agents = 1;
+}
+
+// ============ Drift Detection ============
+
+message DriftCheckRequest {
+  string scope = 1; // "group", "environment"
+  string scope_id = 2; // group_id or environment_id
+  repeated string check_types = 3; // ["nginx_main_conf", "ssl_certs", "maintenance_page"]
+  string baseline_agent_id = 4; // Optional: use specific agent as baseline
+  bool include_diff_content = 5;
+}
+
+message DriftCheckResponse {
+  string report_id = 1;
+  string scope = 2;
+  string scope_id = 3;
+  string check_type = 4;
+  string baseline_type = 5; // "golden_agent", "majority", "template"
+  string baseline_agent_id = 6;
+  string baseline_hash = 7;
+  int32 total_agents = 8;
+  int32 in_sync_count = 9;
+  int32 drifted_count = 10;
+  int32 error_count = 11;
+  repeated DriftItem items = 12;
+  int64 created_at = 13;
+}
+
+message DriftItem {
+  string agent_id = 1;
+  string hostname = 2;
+  string status = 3; // "in_sync", "drifted", "missing", "error"
+  string current_hash = 4;
+  string severity = 5; // "critical", "warning", "info"
+  string diff_summary = 6; // "+3 lines, -1 line"
+  string diff_content = 7; // Unified diff
+  string error_message = 8;
+}
+
+message GetDriftReportRequest {
+  string report_id = 1;
+}
+
+message ListDriftReportsRequest {
+  string scope = 1; // "group", "environment"
+  string scope_id = 2;
+  int32 limit = 3;
+}
+
+message ListDriftReportsResponse {
+  repeated DriftCheckResponse reports = 1;
+}
+
+message ResolveDriftRequest {
+  string report_id = 1;
+  repeated string agent_ids = 2; // Specific agents to resolve, empty = all drifted
+  string action = 3; // "sync_to_baseline", "sync_to_agent", "acknowledge"
+  string source_agent_id = 4; // For "sync_to_agent" action
+}
+
+// ============ Batch Configuration Updates ============
+
+message BatchConfigUpdateRequest {
+  // Target selection (one required)
+  repeated string agent_ids = 1;
+  string group_id = 2;
+  string environment_id = 3;
+  
+  // Configuration source (one required)
+  string template_id = 4;
+  string raw_content = 5;
+  string source_agent_id = 6; // Copy from specific agent
+  
+  // Variables for template
+  map<string, string> variables = 7;
+  
+  // Strategy
+  string strategy = 8; // "parallel", "rolling", "canary"
+  int32 batch_size = 9;
+  int32 pause_between_batches_seconds = 10;
+  
+  // Canary options
+  int32 canary_percentage = 11;
+  int32 canary_duration_seconds = 12;
+  
+  // Safety options
+  bool dry_run = 13;
+  bool validate_only = 14;
+  bool backup_first = 15;
+  bool rollback_on_fail = 16;
+  
+  // Metadata
+  string description = 17;
+}
+
+message BatchConfigUpdateResponse {
+  string batch_id = 1;
+  string status = 2; // "pending", "in_progress", "completed", "partial_failure", "failed", "cancelled", "rolled_back"
+  string strategy = 3;
+  int32 total_agents = 4;
+  int32 current_batch = 5;
+  int32 total_batches = 6;
+  int32 completed_count = 7;
+  int32 failed_count = 8;
+  int32 pending_count = 9;
+  repeated AgentUpdateResult results = 10;
+  int64 started_at = 11;
+  int64 completed_at = 12;
+  string error = 13;
+}
+
+message AgentUpdateResult {
+  string agent_id = 1;
+  string hostname = 2;
+  string status = 3; // "success", "failed", "skipped", "rolled_back", "pending"
+  string backup_path = 4;
+  string config_hash = 5;
+  string error = 6;
+  int32 duration_ms = 7;
+  int64 completed_at = 8;
+}
+
+message GetBatchStatusRequest {
+  string batch_id = 1;
+}
+
+message CancelBatchRequest {
+  string batch_id = 1;
+}
+
+message CancelBatchResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message RollbackBatchRequest {
+  string batch_id = 1;
+}
+
+message RollbackBatchResponse {
+  bool success = 1;
+  string message = 2;
+  repeated AgentUpdateResult results = 3;
+}
+
+// ============ Configuration Templates ============
+
+message ConfigTemplate {
+  string id = 1;
+  string project_id = 2;
+  string environment_id = 3;
+  string group_id = 4;
+  string name = 5;
+  string description = 6;
+  string template_type = 7; // 'nginx_main_conf', 'server_block', 'location_block'
+  string content = 8;
+  repeated TemplateVariable variables = 9;
+  map<string, string> defaults = 10;
+  int32 version = 11;
+  bool is_active = 12;
+  string created_by = 13;
+  int64 created_at = 14;
+  int64 updated_at = 15;
+}
+
+message TemplateVariable {
+  string name = 1;
+  string description = 2;
+  bool required = 3;
+  string default_value = 4;
+  string validation = 5; // Regex pattern
+  repeated string options = 6; // For enum types
+}
+
+message ListConfigTemplatesRequest {
+  string project_id = 1;
+  string environment_id = 2;
+  string group_id = 3;
+  string template_type = 4;
+}
+
+message ListConfigTemplatesResponse {
+  repeated ConfigTemplate templates = 1;
+}
+
+message GetConfigTemplateRequest {
+  string template_id = 1;
+}
+
+message CreateConfigTemplateRequest {
+  string project_id = 1;
+  string environment_id = 2;
+  string group_id = 3;
+  string name = 4;
+  string description = 5;
+  string template_type = 6;
+  string content = 7;
+  repeated TemplateVariable variables = 8;
+  map<string, string> defaults = 9;
+}
+
+message UpdateConfigTemplateRequest {
+  string template_id = 1;
+  string name = 2;
+  string description = 3;
+  string content = 4;
+  repeated TemplateVariable variables = 5;
+  map<string, string> defaults = 6;
+  bool is_active = 7;
+}
+
+message DeleteConfigTemplateRequest {
+  string template_id = 1;
+}
+
+message DeleteConfigTemplateResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message RenderConfigTemplateRequest {
+  string template_id = 1;
+  map<string, string> variables = 2;
+}
+
+message RenderConfigTemplateResponse {
+  string rendered_content = 1;
+  bool valid = 2;
+  repeated string validation_errors = 3;
+}
+
+// ============ Maintenance Mode ============
+
+message MaintenanceTemplate {
+  string id = 1;
+  string project_id = 2;
+  string name = 3;
+  string description = 4;
+  string html_content = 5;
+  string css_content = 6;
+  map<string, string> assets = 7; // filename -> base64 content
+  repeated TemplateVariable variables = 8;
+  bool is_default = 9;
+  bool is_built_in = 10;
+  string created_by = 11;
+  int64 created_at = 12;
+  int64 updated_at = 13;
+}
+
+message MaintenanceState {
+  string id = 1;
+  string scope = 2; // "agent", "group", "environment", "project", "site", "location"
+  string scope_id = 3;
+  string site_filter = 4;
+  string location_filter = 5;
+  string template_id = 6;
+  map<string, string> template_vars = 7;
+  bool is_enabled = 8;
+  int64 enabled_at = 9;
+  string enabled_by = 10;
+  string schedule_type = 11; // "immediate", "scheduled", "recurring"
+  int64 scheduled_start = 12;
+  int64 scheduled_end = 13;
+  string recurrence_rule = 14;
+  string timezone = 15;
+  repeated string bypass_ips = 16;
+  map<string, string> bypass_headers = 17;
+  string reason = 18;
+}
+
+message SetMaintenanceRequest {
+  string action = 1; // "enable", "disable", "schedule", "cancel_schedule"
+  string scope = 2;
+  string scope_id = 3;
+  string site_filter = 4;
+  string location_filter = 5;
+  string template_id = 6;
+  map<string, string> template_vars = 7;
+  string schedule_type = 8;
+  int64 scheduled_start = 9;
+  int64 scheduled_end = 10;
+  string recurrence_rule = 11;
+  string timezone = 12;
+  repeated string bypass_ips = 13;
+  map<string, string> bypass_headers = 14;
+  string reason = 15;
+}
+
+message SetMaintenanceResponse {
+  bool success = 1;
+  string maintenance_state_id = 2;
+  repeated AgentMaintenanceResult results = 3;
+  string error = 4;
+}
+
+message AgentMaintenanceResult {
+  string agent_id = 1;
+  string hostname = 2;
+  bool success = 3;
+  string error = 4;
+}
+
+message GetMaintenanceStatusRequest {
+  string scope = 1;
+  string scope_id = 2;
+  string site_filter = 3;
+  string location_filter = 4;
+}
+
+message ListMaintenanceStatesRequest {
+  string project_id = 1;
+  string environment_id = 2;
+  bool enabled_only = 3;
+}
+
+message ListMaintenanceStatesResponse {
+  repeated MaintenanceState states = 1;
+}
+
+message ListMaintenanceTemplatesRequest {
+  string project_id = 1;
+}
+
+message ListMaintenanceTemplatesResponse {
+  repeated MaintenanceTemplate templates = 1;
+}
+
+message CreateMaintenanceTemplateRequest {
+  string project_id = 1;
+  string name = 2;
+  string description = 3;
+  string html_content = 4;
+  string css_content = 5;
+  map<string, string> assets = 6;
+  repeated TemplateVariable variables = 7;
+  bool is_default = 8;
+}
+
+message UpdateMaintenanceTemplateRequest {
+  string template_id = 1;
+  string name = 2;
+  string description = 3;
+  string html_content = 4;
+  string css_content = 5;
+  map<string, string> assets = 6;
+  repeated TemplateVariable variables = 7;
+  bool is_default = 8;
+}
+
+message DeleteMaintenanceTemplateRequest {
+  string template_id = 1;
+}
+
+message DeleteMaintenanceTemplateResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message PreviewMaintenanceTemplateRequest {
+  string template_id = 1;
+  map<string, string> variables = 2;
+}
+
+message PreviewMaintenanceTemplateResponse {
+  string rendered_html = 1;
+}
+
+// ============ Certificate Management ============
+
+message CertificateInventoryItem {
+  string id = 1;
+  string domain = 2;
+  string environment_id = 3;
+  string cert_type = 4; // "letsencrypt", "commercial", "self_signed"
+  string issuer = 5;
+  int64 expiry_timestamp = 6;
+  int32 days_until_expiry = 7;
+  repeated string san_domains = 8;
+  bool auto_renew = 9;
+  int32 deployed_to_count = 10;
+  string cert_content_hash = 11;
+  int64 created_at = 12;
+  int64 updated_at = 13;
+}
+
+message UploadCertificateRequest {
+  string domain = 1;
+  bytes cert_content = 2; // PEM format
+  bytes key_content = 3;
+  bytes chain_content = 4; // Intermediate certs
+  string cert_type = 5;
+  string environment_id = 6;
+  // Target selection for immediate deployment
+  repeated string agent_ids = 7;
+  string group_id = 8;
+  bool backup_existing = 9;
+  bool reload_nginx = 10;
+}
+
+message UploadCertificateResponse {
+  bool success = 1;
+  string certificate_id = 2;
+  repeated CertDeploymentResult deployments = 3;
+  string error = 4;
+}
+
+message CertDeploymentResult {
+  string agent_id = 1;
+  string hostname = 2;
+  bool success = 3;
+  string cert_path = 4;
+  string key_path = 5;
+  string error = 6;
+}
+
+message GetCertificateInventoryRequest {
+  string environment_id = 1;
+  bool expiring_only = 2;
+  int32 expiring_within_days = 3;
+}
+
+message GetCertificateInventoryResponse {
+  repeated CertificateInventoryItem certificates = 1;
+}
+
+message DeployCertificateRequest {
+  string certificate_id = 1;
+  repeated string agent_ids = 2;
+  string group_id = 3;
+  string environment_id = 4;
+  bool backup_existing = 5;
+  bool reload_nginx = 6;
+}
+
+message DeleteCertificateRequest {
+  string certificate_id = 1;
+}
+
+message DeleteCertificateResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// ============ Environment Comparison ============
+
+message CompareEnvironmentsRequest {
+  string source_environment_id = 1;
+  string target_environment_id = 2;
+  repeated string compare_types = 3; // ["nginx_main_conf", "ssl_certs", "maintenance"]
+  bool include_diff_content = 4;
+  map<string, string> group_mapping = 5; // source_group_id -> target_group_id
+}
+
+message CompareEnvironmentsResponse {
+  string comparison_id = 1;
+  string source_environment = 2;
+  string target_environment = 3;
+  int64 compared_at = 4;
+  repeated ComparisonCategory categories = 5;
+  ComparisonSummary summary = 6;
+}
+
+message ComparisonCategory {
+  string type = 1;
+  int32 source_count = 2;
+  int32 target_count = 3;
+  int32 same_count = 4;
+  int32 different_count = 5;
+  int32 source_only_count = 6;
+  int32 target_only_count = 7;
+  repeated ConfigDifference differences = 8;
+}
+
+message ConfigDifference {
+  string identifier = 1; // filename, domain, etc.
+  string status = 2; // "same", "different", "source_only", "target_only"
+  string source_value = 3;
+  string target_value = 4;
+  string diff = 5; // Unified diff
+  string severity = 6;
+}
+
+message ComparisonSummary {
+  int32 total_checks = 1;
+  int32 identical_count = 2;
+  int32 different_count = 3;
+  bool has_critical_diffs = 4;
+}
+
+message GetComparisonRequest {
+  string comparison_id = 1;
+}
+
+// ============ Site/Location Updates ============
+
+message SiteLocationUpdateRequest {
+  string target = 1; // "agent", "group", "environment"
+  string target_id = 2;
+  string server_name = 3;
+  string location_path = 4;
+  string action = 5; // "create", "update", "delete"
+  LocationConfigData config = 6;
+  bool dry_run = 7;
+  bool backup_first = 8;
+  bool reload_nginx = 9;
+}
+
+message LocationConfigData {
+  string proxy_pass = 1;
+  map<string, string> proxy_headers = 2;
+  int32 proxy_connect_timeout = 3;
+  int32 proxy_read_timeout = 4;
+  RateLimitConfigData rate_limit = 5;
+  CacheConfigData cache = 6;
+  repeated string allowed_methods = 7;
+  repeated string deny_ips = 8;
+  repeated string allow_ips = 9;
+  string custom_directives = 10;
+}
+
+message RateLimitConfigData {
+  string zone = 1;
+  string rate = 2; // e.g., "10r/s"
+  int32 burst = 3;
+  bool no_delay = 4;
+}
+
+message CacheConfigData {
+  string zone = 1;
+  repeated string valid = 2; // ["200 302 10m", "404 1m"]
+  repeated string methods = 3;
+  string key = 4;
+  string bypass_var = 5;
+}
+
+message SiteLocationUpdateResponse {
+  bool success = 1;
+  repeated AgentUpdateResult results = 2;
+  string validation_error = 3;
 }

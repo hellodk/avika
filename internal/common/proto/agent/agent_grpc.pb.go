@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.1
 // - protoc             v3.21.12
-// source: agent.proto
+// source: api/proto/agent.proto
 
 package agent
 
@@ -117,38 +117,76 @@ var Commander_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "agent.proto",
+	Metadata: "api/proto/agent.proto",
 }
 
 const (
-	AgentService_GetConfig_FullMethodName          = "/nginx.agent.v1.AgentService/GetConfig"
-	AgentService_UpdateConfig_FullMethodName       = "/nginx.agent.v1.AgentService/UpdateConfig"
-	AgentService_ValidateConfig_FullMethodName     = "/nginx.agent.v1.AgentService/ValidateConfig"
-	AgentService_ReloadNginx_FullMethodName        = "/nginx.agent.v1.AgentService/ReloadNginx"
-	AgentService_RestartNginx_FullMethodName       = "/nginx.agent.v1.AgentService/RestartNginx"
-	AgentService_StopNginx_FullMethodName          = "/nginx.agent.v1.AgentService/StopNginx"
-	AgentService_ListCertificates_FullMethodName   = "/nginx.agent.v1.AgentService/ListCertificates"
-	AgentService_GetLogs_FullMethodName            = "/nginx.agent.v1.AgentService/GetLogs"
-	AgentService_ListAgents_FullMethodName         = "/nginx.agent.v1.AgentService/ListAgents"
-	AgentService_GetAgent_FullMethodName           = "/nginx.agent.v1.AgentService/GetAgent"
-	AgentService_RemoveAgent_FullMethodName        = "/nginx.agent.v1.AgentService/RemoveAgent"
-	AgentService_GetUptimeReports_FullMethodName   = "/nginx.agent.v1.AgentService/GetUptimeReports"
-	AgentService_GetAnalytics_FullMethodName       = "/nginx.agent.v1.AgentService/GetAnalytics"
-	AgentService_StreamAnalytics_FullMethodName    = "/nginx.agent.v1.AgentService/StreamAnalytics"
-	AgentService_GetTraces_FullMethodName          = "/nginx.agent.v1.AgentService/GetTraces"
-	AgentService_GetTraceDetails_FullMethodName    = "/nginx.agent.v1.AgentService/GetTraceDetails"
-	AgentService_GetRecommendations_FullMethodName = "/nginx.agent.v1.AgentService/GetRecommendations"
-	AgentService_ApplyAugment_FullMethodName       = "/nginx.agent.v1.AgentService/ApplyAugment"
-	AgentService_UpdateAgent_FullMethodName        = "/nginx.agent.v1.AgentService/UpdateAgent"
-	AgentService_Execute_FullMethodName            = "/nginx.agent.v1.AgentService/Execute"
-	AgentService_GetAgentConfig_FullMethodName     = "/nginx.agent.v1.AgentService/GetAgentConfig"
-	AgentService_UpdateAgentConfig_FullMethodName  = "/nginx.agent.v1.AgentService/UpdateAgentConfig"
-	AgentService_GenerateReport_FullMethodName     = "/nginx.agent.v1.AgentService/GenerateReport"
-	AgentService_SendReport_FullMethodName         = "/nginx.agent.v1.AgentService/SendReport"
-	AgentService_DownloadReport_FullMethodName     = "/nginx.agent.v1.AgentService/DownloadReport"
-	AgentService_ListAlertRules_FullMethodName     = "/nginx.agent.v1.AgentService/ListAlertRules"
-	AgentService_CreateAlertRule_FullMethodName    = "/nginx.agent.v1.AgentService/CreateAlertRule"
-	AgentService_DeleteAlertRule_FullMethodName    = "/nginx.agent.v1.AgentService/DeleteAlertRule"
+	AgentService_GetConfig_FullMethodName                  = "/nginx.agent.v1.AgentService/GetConfig"
+	AgentService_UpdateConfig_FullMethodName               = "/nginx.agent.v1.AgentService/UpdateConfig"
+	AgentService_ValidateConfig_FullMethodName             = "/nginx.agent.v1.AgentService/ValidateConfig"
+	AgentService_ReloadNginx_FullMethodName                = "/nginx.agent.v1.AgentService/ReloadNginx"
+	AgentService_RestartNginx_FullMethodName               = "/nginx.agent.v1.AgentService/RestartNginx"
+	AgentService_StopNginx_FullMethodName                  = "/nginx.agent.v1.AgentService/StopNginx"
+	AgentService_ListCertificates_FullMethodName           = "/nginx.agent.v1.AgentService/ListCertificates"
+	AgentService_GetLogs_FullMethodName                    = "/nginx.agent.v1.AgentService/GetLogs"
+	AgentService_ListAgents_FullMethodName                 = "/nginx.agent.v1.AgentService/ListAgents"
+	AgentService_GetAgent_FullMethodName                   = "/nginx.agent.v1.AgentService/GetAgent"
+	AgentService_RemoveAgent_FullMethodName                = "/nginx.agent.v1.AgentService/RemoveAgent"
+	AgentService_GetUptimeReports_FullMethodName           = "/nginx.agent.v1.AgentService/GetUptimeReports"
+	AgentService_GetAnalytics_FullMethodName               = "/nginx.agent.v1.AgentService/GetAnalytics"
+	AgentService_StreamAnalytics_FullMethodName            = "/nginx.agent.v1.AgentService/StreamAnalytics"
+	AgentService_GetTraces_FullMethodName                  = "/nginx.agent.v1.AgentService/GetTraces"
+	AgentService_GetTraceDetails_FullMethodName            = "/nginx.agent.v1.AgentService/GetTraceDetails"
+	AgentService_GetRecommendations_FullMethodName         = "/nginx.agent.v1.AgentService/GetRecommendations"
+	AgentService_ApplyAugment_FullMethodName               = "/nginx.agent.v1.AgentService/ApplyAugment"
+	AgentService_UpdateAgent_FullMethodName                = "/nginx.agent.v1.AgentService/UpdateAgent"
+	AgentService_Execute_FullMethodName                    = "/nginx.agent.v1.AgentService/Execute"
+	AgentService_GetAgentConfig_FullMethodName             = "/nginx.agent.v1.AgentService/GetAgentConfig"
+	AgentService_UpdateAgentConfig_FullMethodName          = "/nginx.agent.v1.AgentService/UpdateAgentConfig"
+	AgentService_GenerateReport_FullMethodName             = "/nginx.agent.v1.AgentService/GenerateReport"
+	AgentService_SendReport_FullMethodName                 = "/nginx.agent.v1.AgentService/SendReport"
+	AgentService_DownloadReport_FullMethodName             = "/nginx.agent.v1.AgentService/DownloadReport"
+	AgentService_ListAlertRules_FullMethodName             = "/nginx.agent.v1.AgentService/ListAlertRules"
+	AgentService_CreateAlertRule_FullMethodName            = "/nginx.agent.v1.AgentService/CreateAlertRule"
+	AgentService_DeleteAlertRule_FullMethodName            = "/nginx.agent.v1.AgentService/DeleteAlertRule"
+	AgentService_ListGroups_FullMethodName                 = "/nginx.agent.v1.AgentService/ListGroups"
+	AgentService_GetGroup_FullMethodName                   = "/nginx.agent.v1.AgentService/GetGroup"
+	AgentService_CreateGroup_FullMethodName                = "/nginx.agent.v1.AgentService/CreateGroup"
+	AgentService_UpdateGroup_FullMethodName                = "/nginx.agent.v1.AgentService/UpdateGroup"
+	AgentService_DeleteGroup_FullMethodName                = "/nginx.agent.v1.AgentService/DeleteGroup"
+	AgentService_AddAgentsToGroup_FullMethodName           = "/nginx.agent.v1.AgentService/AddAgentsToGroup"
+	AgentService_RemoveAgentFromGroup_FullMethodName       = "/nginx.agent.v1.AgentService/RemoveAgentFromGroup"
+	AgentService_SetGoldenAgent_FullMethodName             = "/nginx.agent.v1.AgentService/SetGoldenAgent"
+	AgentService_GetGroupAgents_FullMethodName             = "/nginx.agent.v1.AgentService/GetGroupAgents"
+	AgentService_CheckDrift_FullMethodName                 = "/nginx.agent.v1.AgentService/CheckDrift"
+	AgentService_GetDriftReport_FullMethodName             = "/nginx.agent.v1.AgentService/GetDriftReport"
+	AgentService_ListDriftReports_FullMethodName           = "/nginx.agent.v1.AgentService/ListDriftReports"
+	AgentService_ResolveDrift_FullMethodName               = "/nginx.agent.v1.AgentService/ResolveDrift"
+	AgentService_BatchUpdateConfig_FullMethodName          = "/nginx.agent.v1.AgentService/BatchUpdateConfig"
+	AgentService_GetBatchStatus_FullMethodName             = "/nginx.agent.v1.AgentService/GetBatchStatus"
+	AgentService_CancelBatch_FullMethodName                = "/nginx.agent.v1.AgentService/CancelBatch"
+	AgentService_RollbackBatch_FullMethodName              = "/nginx.agent.v1.AgentService/RollbackBatch"
+	AgentService_ListConfigTemplates_FullMethodName        = "/nginx.agent.v1.AgentService/ListConfigTemplates"
+	AgentService_GetConfigTemplate_FullMethodName          = "/nginx.agent.v1.AgentService/GetConfigTemplate"
+	AgentService_CreateConfigTemplate_FullMethodName       = "/nginx.agent.v1.AgentService/CreateConfigTemplate"
+	AgentService_UpdateConfigTemplate_FullMethodName       = "/nginx.agent.v1.AgentService/UpdateConfigTemplate"
+	AgentService_DeleteConfigTemplate_FullMethodName       = "/nginx.agent.v1.AgentService/DeleteConfigTemplate"
+	AgentService_RenderConfigTemplate_FullMethodName       = "/nginx.agent.v1.AgentService/RenderConfigTemplate"
+	AgentService_SetMaintenance_FullMethodName             = "/nginx.agent.v1.AgentService/SetMaintenance"
+	AgentService_GetMaintenanceStatus_FullMethodName       = "/nginx.agent.v1.AgentService/GetMaintenanceStatus"
+	AgentService_ListMaintenanceStates_FullMethodName      = "/nginx.agent.v1.AgentService/ListMaintenanceStates"
+	AgentService_ListMaintenanceTemplates_FullMethodName   = "/nginx.agent.v1.AgentService/ListMaintenanceTemplates"
+	AgentService_CreateMaintenanceTemplate_FullMethodName  = "/nginx.agent.v1.AgentService/CreateMaintenanceTemplate"
+	AgentService_UpdateMaintenanceTemplate_FullMethodName  = "/nginx.agent.v1.AgentService/UpdateMaintenanceTemplate"
+	AgentService_DeleteMaintenanceTemplate_FullMethodName  = "/nginx.agent.v1.AgentService/DeleteMaintenanceTemplate"
+	AgentService_PreviewMaintenanceTemplate_FullMethodName = "/nginx.agent.v1.AgentService/PreviewMaintenanceTemplate"
+	AgentService_UploadCertificate_FullMethodName          = "/nginx.agent.v1.AgentService/UploadCertificate"
+	AgentService_GetCertificateInventory_FullMethodName    = "/nginx.agent.v1.AgentService/GetCertificateInventory"
+	AgentService_DeployCertificate_FullMethodName          = "/nginx.agent.v1.AgentService/DeployCertificate"
+	AgentService_DeleteCertificate_FullMethodName          = "/nginx.agent.v1.AgentService/DeleteCertificate"
+	AgentService_CompareEnvironments_FullMethodName        = "/nginx.agent.v1.AgentService/CompareEnvironments"
+	AgentService_GetComparison_FullMethodName              = "/nginx.agent.v1.AgentService/GetComparison"
+	AgentService_UpdateSiteLocation_FullMethodName         = "/nginx.agent.v1.AgentService/UpdateSiteLocation"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -200,6 +238,52 @@ type AgentServiceClient interface {
 	ListAlertRules(ctx context.Context, in *ListAlertRulesRequest, opts ...grpc.CallOption) (*AlertRuleList, error)
 	CreateAlertRule(ctx context.Context, in *AlertRule, opts ...grpc.CallOption) (*AlertRule, error)
 	DeleteAlertRule(ctx context.Context, in *DeleteAlertRuleRequest, opts ...grpc.CallOption) (*DeleteAlertRuleResponse, error)
+	// ============ Agent Groups ============
+	ListGroups(ctx context.Context, in *ListGroupsRequest, opts ...grpc.CallOption) (*ListGroupsResponse, error)
+	GetGroup(ctx context.Context, in *GetGroupRequest, opts ...grpc.CallOption) (*AgentGroup, error)
+	CreateGroup(ctx context.Context, in *CreateGroupRequest, opts ...grpc.CallOption) (*AgentGroup, error)
+	UpdateGroup(ctx context.Context, in *UpdateGroupRequest, opts ...grpc.CallOption) (*AgentGroup, error)
+	DeleteGroup(ctx context.Context, in *DeleteGroupRequest, opts ...grpc.CallOption) (*DeleteGroupResponse, error)
+	AddAgentsToGroup(ctx context.Context, in *AddAgentsToGroupRequest, opts ...grpc.CallOption) (*AddAgentsToGroupResponse, error)
+	RemoveAgentFromGroup(ctx context.Context, in *RemoveAgentFromGroupRequest, opts ...grpc.CallOption) (*RemoveAgentFromGroupResponse, error)
+	SetGoldenAgent(ctx context.Context, in *SetGoldenAgentRequest, opts ...grpc.CallOption) (*SetGoldenAgentResponse, error)
+	GetGroupAgents(ctx context.Context, in *GetGroupAgentsRequest, opts ...grpc.CallOption) (*GetGroupAgentsResponse, error)
+	// ============ Drift Detection ============
+	CheckDrift(ctx context.Context, in *DriftCheckRequest, opts ...grpc.CallOption) (*DriftCheckResponse, error)
+	GetDriftReport(ctx context.Context, in *GetDriftReportRequest, opts ...grpc.CallOption) (*DriftCheckResponse, error)
+	ListDriftReports(ctx context.Context, in *ListDriftReportsRequest, opts ...grpc.CallOption) (*ListDriftReportsResponse, error)
+	ResolveDrift(ctx context.Context, in *ResolveDriftRequest, opts ...grpc.CallOption) (*BatchConfigUpdateResponse, error)
+	// ============ Batch Configuration ============
+	BatchUpdateConfig(ctx context.Context, in *BatchConfigUpdateRequest, opts ...grpc.CallOption) (*BatchConfigUpdateResponse, error)
+	GetBatchStatus(ctx context.Context, in *GetBatchStatusRequest, opts ...grpc.CallOption) (*BatchConfigUpdateResponse, error)
+	CancelBatch(ctx context.Context, in *CancelBatchRequest, opts ...grpc.CallOption) (*CancelBatchResponse, error)
+	RollbackBatch(ctx context.Context, in *RollbackBatchRequest, opts ...grpc.CallOption) (*RollbackBatchResponse, error)
+	// ============ Configuration Templates ============
+	ListConfigTemplates(ctx context.Context, in *ListConfigTemplatesRequest, opts ...grpc.CallOption) (*ListConfigTemplatesResponse, error)
+	GetConfigTemplate(ctx context.Context, in *GetConfigTemplateRequest, opts ...grpc.CallOption) (*ConfigTemplate, error)
+	CreateConfigTemplate(ctx context.Context, in *CreateConfigTemplateRequest, opts ...grpc.CallOption) (*ConfigTemplate, error)
+	UpdateConfigTemplate(ctx context.Context, in *UpdateConfigTemplateRequest, opts ...grpc.CallOption) (*ConfigTemplate, error)
+	DeleteConfigTemplate(ctx context.Context, in *DeleteConfigTemplateRequest, opts ...grpc.CallOption) (*DeleteConfigTemplateResponse, error)
+	RenderConfigTemplate(ctx context.Context, in *RenderConfigTemplateRequest, opts ...grpc.CallOption) (*RenderConfigTemplateResponse, error)
+	// ============ Maintenance Mode ============
+	SetMaintenance(ctx context.Context, in *SetMaintenanceRequest, opts ...grpc.CallOption) (*SetMaintenanceResponse, error)
+	GetMaintenanceStatus(ctx context.Context, in *GetMaintenanceStatusRequest, opts ...grpc.CallOption) (*MaintenanceState, error)
+	ListMaintenanceStates(ctx context.Context, in *ListMaintenanceStatesRequest, opts ...grpc.CallOption) (*ListMaintenanceStatesResponse, error)
+	ListMaintenanceTemplates(ctx context.Context, in *ListMaintenanceTemplatesRequest, opts ...grpc.CallOption) (*ListMaintenanceTemplatesResponse, error)
+	CreateMaintenanceTemplate(ctx context.Context, in *CreateMaintenanceTemplateRequest, opts ...grpc.CallOption) (*MaintenanceTemplate, error)
+	UpdateMaintenanceTemplate(ctx context.Context, in *UpdateMaintenanceTemplateRequest, opts ...grpc.CallOption) (*MaintenanceTemplate, error)
+	DeleteMaintenanceTemplate(ctx context.Context, in *DeleteMaintenanceTemplateRequest, opts ...grpc.CallOption) (*DeleteMaintenanceTemplateResponse, error)
+	PreviewMaintenanceTemplate(ctx context.Context, in *PreviewMaintenanceTemplateRequest, opts ...grpc.CallOption) (*PreviewMaintenanceTemplateResponse, error)
+	// ============ Certificate Management ============
+	UploadCertificate(ctx context.Context, in *UploadCertificateRequest, opts ...grpc.CallOption) (*UploadCertificateResponse, error)
+	GetCertificateInventory(ctx context.Context, in *GetCertificateInventoryRequest, opts ...grpc.CallOption) (*GetCertificateInventoryResponse, error)
+	DeployCertificate(ctx context.Context, in *DeployCertificateRequest, opts ...grpc.CallOption) (*UploadCertificateResponse, error)
+	DeleteCertificate(ctx context.Context, in *DeleteCertificateRequest, opts ...grpc.CallOption) (*DeleteCertificateResponse, error)
+	// ============ Environment Comparison ============
+	CompareEnvironments(ctx context.Context, in *CompareEnvironmentsRequest, opts ...grpc.CallOption) (*CompareEnvironmentsResponse, error)
+	GetComparison(ctx context.Context, in *GetComparisonRequest, opts ...grpc.CallOption) (*CompareEnvironmentsResponse, error)
+	// ============ Site/Location Updates ============
+	UpdateSiteLocation(ctx context.Context, in *SiteLocationUpdateRequest, opts ...grpc.CallOption) (*SiteLocationUpdateResponse, error)
 }
 
 type agentServiceClient struct {
@@ -511,6 +595,386 @@ func (c *agentServiceClient) DeleteAlertRule(ctx context.Context, in *DeleteAler
 	return out, nil
 }
 
+func (c *agentServiceClient) ListGroups(ctx context.Context, in *ListGroupsRequest, opts ...grpc.CallOption) (*ListGroupsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListGroupsResponse)
+	err := c.cc.Invoke(ctx, AgentService_ListGroups_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetGroup(ctx context.Context, in *GetGroupRequest, opts ...grpc.CallOption) (*AgentGroup, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentGroup)
+	err := c.cc.Invoke(ctx, AgentService_GetGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) CreateGroup(ctx context.Context, in *CreateGroupRequest, opts ...grpc.CallOption) (*AgentGroup, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentGroup)
+	err := c.cc.Invoke(ctx, AgentService_CreateGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) UpdateGroup(ctx context.Context, in *UpdateGroupRequest, opts ...grpc.CallOption) (*AgentGroup, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentGroup)
+	err := c.cc.Invoke(ctx, AgentService_UpdateGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) DeleteGroup(ctx context.Context, in *DeleteGroupRequest, opts ...grpc.CallOption) (*DeleteGroupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteGroupResponse)
+	err := c.cc.Invoke(ctx, AgentService_DeleteGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) AddAgentsToGroup(ctx context.Context, in *AddAgentsToGroupRequest, opts ...grpc.CallOption) (*AddAgentsToGroupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AddAgentsToGroupResponse)
+	err := c.cc.Invoke(ctx, AgentService_AddAgentsToGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) RemoveAgentFromGroup(ctx context.Context, in *RemoveAgentFromGroupRequest, opts ...grpc.CallOption) (*RemoveAgentFromGroupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveAgentFromGroupResponse)
+	err := c.cc.Invoke(ctx, AgentService_RemoveAgentFromGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) SetGoldenAgent(ctx context.Context, in *SetGoldenAgentRequest, opts ...grpc.CallOption) (*SetGoldenAgentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetGoldenAgentResponse)
+	err := c.cc.Invoke(ctx, AgentService_SetGoldenAgent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetGroupAgents(ctx context.Context, in *GetGroupAgentsRequest, opts ...grpc.CallOption) (*GetGroupAgentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGroupAgentsResponse)
+	err := c.cc.Invoke(ctx, AgentService_GetGroupAgents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) CheckDrift(ctx context.Context, in *DriftCheckRequest, opts ...grpc.CallOption) (*DriftCheckResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DriftCheckResponse)
+	err := c.cc.Invoke(ctx, AgentService_CheckDrift_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetDriftReport(ctx context.Context, in *GetDriftReportRequest, opts ...grpc.CallOption) (*DriftCheckResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DriftCheckResponse)
+	err := c.cc.Invoke(ctx, AgentService_GetDriftReport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) ListDriftReports(ctx context.Context, in *ListDriftReportsRequest, opts ...grpc.CallOption) (*ListDriftReportsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDriftReportsResponse)
+	err := c.cc.Invoke(ctx, AgentService_ListDriftReports_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) ResolveDrift(ctx context.Context, in *ResolveDriftRequest, opts ...grpc.CallOption) (*BatchConfigUpdateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BatchConfigUpdateResponse)
+	err := c.cc.Invoke(ctx, AgentService_ResolveDrift_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) BatchUpdateConfig(ctx context.Context, in *BatchConfigUpdateRequest, opts ...grpc.CallOption) (*BatchConfigUpdateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BatchConfigUpdateResponse)
+	err := c.cc.Invoke(ctx, AgentService_BatchUpdateConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetBatchStatus(ctx context.Context, in *GetBatchStatusRequest, opts ...grpc.CallOption) (*BatchConfigUpdateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BatchConfigUpdateResponse)
+	err := c.cc.Invoke(ctx, AgentService_GetBatchStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) CancelBatch(ctx context.Context, in *CancelBatchRequest, opts ...grpc.CallOption) (*CancelBatchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelBatchResponse)
+	err := c.cc.Invoke(ctx, AgentService_CancelBatch_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) RollbackBatch(ctx context.Context, in *RollbackBatchRequest, opts ...grpc.CallOption) (*RollbackBatchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RollbackBatchResponse)
+	err := c.cc.Invoke(ctx, AgentService_RollbackBatch_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) ListConfigTemplates(ctx context.Context, in *ListConfigTemplatesRequest, opts ...grpc.CallOption) (*ListConfigTemplatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListConfigTemplatesResponse)
+	err := c.cc.Invoke(ctx, AgentService_ListConfigTemplates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetConfigTemplate(ctx context.Context, in *GetConfigTemplateRequest, opts ...grpc.CallOption) (*ConfigTemplate, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConfigTemplate)
+	err := c.cc.Invoke(ctx, AgentService_GetConfigTemplate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) CreateConfigTemplate(ctx context.Context, in *CreateConfigTemplateRequest, opts ...grpc.CallOption) (*ConfigTemplate, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConfigTemplate)
+	err := c.cc.Invoke(ctx, AgentService_CreateConfigTemplate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) UpdateConfigTemplate(ctx context.Context, in *UpdateConfigTemplateRequest, opts ...grpc.CallOption) (*ConfigTemplate, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConfigTemplate)
+	err := c.cc.Invoke(ctx, AgentService_UpdateConfigTemplate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) DeleteConfigTemplate(ctx context.Context, in *DeleteConfigTemplateRequest, opts ...grpc.CallOption) (*DeleteConfigTemplateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteConfigTemplateResponse)
+	err := c.cc.Invoke(ctx, AgentService_DeleteConfigTemplate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) RenderConfigTemplate(ctx context.Context, in *RenderConfigTemplateRequest, opts ...grpc.CallOption) (*RenderConfigTemplateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RenderConfigTemplateResponse)
+	err := c.cc.Invoke(ctx, AgentService_RenderConfigTemplate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) SetMaintenance(ctx context.Context, in *SetMaintenanceRequest, opts ...grpc.CallOption) (*SetMaintenanceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetMaintenanceResponse)
+	err := c.cc.Invoke(ctx, AgentService_SetMaintenance_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetMaintenanceStatus(ctx context.Context, in *GetMaintenanceStatusRequest, opts ...grpc.CallOption) (*MaintenanceState, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MaintenanceState)
+	err := c.cc.Invoke(ctx, AgentService_GetMaintenanceStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) ListMaintenanceStates(ctx context.Context, in *ListMaintenanceStatesRequest, opts ...grpc.CallOption) (*ListMaintenanceStatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMaintenanceStatesResponse)
+	err := c.cc.Invoke(ctx, AgentService_ListMaintenanceStates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) ListMaintenanceTemplates(ctx context.Context, in *ListMaintenanceTemplatesRequest, opts ...grpc.CallOption) (*ListMaintenanceTemplatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMaintenanceTemplatesResponse)
+	err := c.cc.Invoke(ctx, AgentService_ListMaintenanceTemplates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) CreateMaintenanceTemplate(ctx context.Context, in *CreateMaintenanceTemplateRequest, opts ...grpc.CallOption) (*MaintenanceTemplate, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MaintenanceTemplate)
+	err := c.cc.Invoke(ctx, AgentService_CreateMaintenanceTemplate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) UpdateMaintenanceTemplate(ctx context.Context, in *UpdateMaintenanceTemplateRequest, opts ...grpc.CallOption) (*MaintenanceTemplate, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MaintenanceTemplate)
+	err := c.cc.Invoke(ctx, AgentService_UpdateMaintenanceTemplate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) DeleteMaintenanceTemplate(ctx context.Context, in *DeleteMaintenanceTemplateRequest, opts ...grpc.CallOption) (*DeleteMaintenanceTemplateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteMaintenanceTemplateResponse)
+	err := c.cc.Invoke(ctx, AgentService_DeleteMaintenanceTemplate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) PreviewMaintenanceTemplate(ctx context.Context, in *PreviewMaintenanceTemplateRequest, opts ...grpc.CallOption) (*PreviewMaintenanceTemplateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PreviewMaintenanceTemplateResponse)
+	err := c.cc.Invoke(ctx, AgentService_PreviewMaintenanceTemplate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) UploadCertificate(ctx context.Context, in *UploadCertificateRequest, opts ...grpc.CallOption) (*UploadCertificateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UploadCertificateResponse)
+	err := c.cc.Invoke(ctx, AgentService_UploadCertificate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetCertificateInventory(ctx context.Context, in *GetCertificateInventoryRequest, opts ...grpc.CallOption) (*GetCertificateInventoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCertificateInventoryResponse)
+	err := c.cc.Invoke(ctx, AgentService_GetCertificateInventory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) DeployCertificate(ctx context.Context, in *DeployCertificateRequest, opts ...grpc.CallOption) (*UploadCertificateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UploadCertificateResponse)
+	err := c.cc.Invoke(ctx, AgentService_DeployCertificate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) DeleteCertificate(ctx context.Context, in *DeleteCertificateRequest, opts ...grpc.CallOption) (*DeleteCertificateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteCertificateResponse)
+	err := c.cc.Invoke(ctx, AgentService_DeleteCertificate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) CompareEnvironments(ctx context.Context, in *CompareEnvironmentsRequest, opts ...grpc.CallOption) (*CompareEnvironmentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompareEnvironmentsResponse)
+	err := c.cc.Invoke(ctx, AgentService_CompareEnvironments_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetComparison(ctx context.Context, in *GetComparisonRequest, opts ...grpc.CallOption) (*CompareEnvironmentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompareEnvironmentsResponse)
+	err := c.cc.Invoke(ctx, AgentService_GetComparison_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) UpdateSiteLocation(ctx context.Context, in *SiteLocationUpdateRequest, opts ...grpc.CallOption) (*SiteLocationUpdateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SiteLocationUpdateResponse)
+	err := c.cc.Invoke(ctx, AgentService_UpdateSiteLocation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -560,6 +1024,52 @@ type AgentServiceServer interface {
 	ListAlertRules(context.Context, *ListAlertRulesRequest) (*AlertRuleList, error)
 	CreateAlertRule(context.Context, *AlertRule) (*AlertRule, error)
 	DeleteAlertRule(context.Context, *DeleteAlertRuleRequest) (*DeleteAlertRuleResponse, error)
+	// ============ Agent Groups ============
+	ListGroups(context.Context, *ListGroupsRequest) (*ListGroupsResponse, error)
+	GetGroup(context.Context, *GetGroupRequest) (*AgentGroup, error)
+	CreateGroup(context.Context, *CreateGroupRequest) (*AgentGroup, error)
+	UpdateGroup(context.Context, *UpdateGroupRequest) (*AgentGroup, error)
+	DeleteGroup(context.Context, *DeleteGroupRequest) (*DeleteGroupResponse, error)
+	AddAgentsToGroup(context.Context, *AddAgentsToGroupRequest) (*AddAgentsToGroupResponse, error)
+	RemoveAgentFromGroup(context.Context, *RemoveAgentFromGroupRequest) (*RemoveAgentFromGroupResponse, error)
+	SetGoldenAgent(context.Context, *SetGoldenAgentRequest) (*SetGoldenAgentResponse, error)
+	GetGroupAgents(context.Context, *GetGroupAgentsRequest) (*GetGroupAgentsResponse, error)
+	// ============ Drift Detection ============
+	CheckDrift(context.Context, *DriftCheckRequest) (*DriftCheckResponse, error)
+	GetDriftReport(context.Context, *GetDriftReportRequest) (*DriftCheckResponse, error)
+	ListDriftReports(context.Context, *ListDriftReportsRequest) (*ListDriftReportsResponse, error)
+	ResolveDrift(context.Context, *ResolveDriftRequest) (*BatchConfigUpdateResponse, error)
+	// ============ Batch Configuration ============
+	BatchUpdateConfig(context.Context, *BatchConfigUpdateRequest) (*BatchConfigUpdateResponse, error)
+	GetBatchStatus(context.Context, *GetBatchStatusRequest) (*BatchConfigUpdateResponse, error)
+	CancelBatch(context.Context, *CancelBatchRequest) (*CancelBatchResponse, error)
+	RollbackBatch(context.Context, *RollbackBatchRequest) (*RollbackBatchResponse, error)
+	// ============ Configuration Templates ============
+	ListConfigTemplates(context.Context, *ListConfigTemplatesRequest) (*ListConfigTemplatesResponse, error)
+	GetConfigTemplate(context.Context, *GetConfigTemplateRequest) (*ConfigTemplate, error)
+	CreateConfigTemplate(context.Context, *CreateConfigTemplateRequest) (*ConfigTemplate, error)
+	UpdateConfigTemplate(context.Context, *UpdateConfigTemplateRequest) (*ConfigTemplate, error)
+	DeleteConfigTemplate(context.Context, *DeleteConfigTemplateRequest) (*DeleteConfigTemplateResponse, error)
+	RenderConfigTemplate(context.Context, *RenderConfigTemplateRequest) (*RenderConfigTemplateResponse, error)
+	// ============ Maintenance Mode ============
+	SetMaintenance(context.Context, *SetMaintenanceRequest) (*SetMaintenanceResponse, error)
+	GetMaintenanceStatus(context.Context, *GetMaintenanceStatusRequest) (*MaintenanceState, error)
+	ListMaintenanceStates(context.Context, *ListMaintenanceStatesRequest) (*ListMaintenanceStatesResponse, error)
+	ListMaintenanceTemplates(context.Context, *ListMaintenanceTemplatesRequest) (*ListMaintenanceTemplatesResponse, error)
+	CreateMaintenanceTemplate(context.Context, *CreateMaintenanceTemplateRequest) (*MaintenanceTemplate, error)
+	UpdateMaintenanceTemplate(context.Context, *UpdateMaintenanceTemplateRequest) (*MaintenanceTemplate, error)
+	DeleteMaintenanceTemplate(context.Context, *DeleteMaintenanceTemplateRequest) (*DeleteMaintenanceTemplateResponse, error)
+	PreviewMaintenanceTemplate(context.Context, *PreviewMaintenanceTemplateRequest) (*PreviewMaintenanceTemplateResponse, error)
+	// ============ Certificate Management ============
+	UploadCertificate(context.Context, *UploadCertificateRequest) (*UploadCertificateResponse, error)
+	GetCertificateInventory(context.Context, *GetCertificateInventoryRequest) (*GetCertificateInventoryResponse, error)
+	DeployCertificate(context.Context, *DeployCertificateRequest) (*UploadCertificateResponse, error)
+	DeleteCertificate(context.Context, *DeleteCertificateRequest) (*DeleteCertificateResponse, error)
+	// ============ Environment Comparison ============
+	CompareEnvironments(context.Context, *CompareEnvironmentsRequest) (*CompareEnvironmentsResponse, error)
+	GetComparison(context.Context, *GetComparisonRequest) (*CompareEnvironmentsResponse, error)
+	// ============ Site/Location Updates ============
+	UpdateSiteLocation(context.Context, *SiteLocationUpdateRequest) (*SiteLocationUpdateResponse, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -653,6 +1163,120 @@ func (UnimplementedAgentServiceServer) CreateAlertRule(context.Context, *AlertRu
 }
 func (UnimplementedAgentServiceServer) DeleteAlertRule(context.Context, *DeleteAlertRuleRequest) (*DeleteAlertRuleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteAlertRule not implemented")
+}
+func (UnimplementedAgentServiceServer) ListGroups(context.Context, *ListGroupsRequest) (*ListGroupsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListGroups not implemented")
+}
+func (UnimplementedAgentServiceServer) GetGroup(context.Context, *GetGroupRequest) (*AgentGroup, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGroup not implemented")
+}
+func (UnimplementedAgentServiceServer) CreateGroup(context.Context, *CreateGroupRequest) (*AgentGroup, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateGroup not implemented")
+}
+func (UnimplementedAgentServiceServer) UpdateGroup(context.Context, *UpdateGroupRequest) (*AgentGroup, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateGroup not implemented")
+}
+func (UnimplementedAgentServiceServer) DeleteGroup(context.Context, *DeleteGroupRequest) (*DeleteGroupResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteGroup not implemented")
+}
+func (UnimplementedAgentServiceServer) AddAgentsToGroup(context.Context, *AddAgentsToGroupRequest) (*AddAgentsToGroupResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AddAgentsToGroup not implemented")
+}
+func (UnimplementedAgentServiceServer) RemoveAgentFromGroup(context.Context, *RemoveAgentFromGroupRequest) (*RemoveAgentFromGroupResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveAgentFromGroup not implemented")
+}
+func (UnimplementedAgentServiceServer) SetGoldenAgent(context.Context, *SetGoldenAgentRequest) (*SetGoldenAgentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetGoldenAgent not implemented")
+}
+func (UnimplementedAgentServiceServer) GetGroupAgents(context.Context, *GetGroupAgentsRequest) (*GetGroupAgentsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGroupAgents not implemented")
+}
+func (UnimplementedAgentServiceServer) CheckDrift(context.Context, *DriftCheckRequest) (*DriftCheckResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CheckDrift not implemented")
+}
+func (UnimplementedAgentServiceServer) GetDriftReport(context.Context, *GetDriftReportRequest) (*DriftCheckResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetDriftReport not implemented")
+}
+func (UnimplementedAgentServiceServer) ListDriftReports(context.Context, *ListDriftReportsRequest) (*ListDriftReportsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListDriftReports not implemented")
+}
+func (UnimplementedAgentServiceServer) ResolveDrift(context.Context, *ResolveDriftRequest) (*BatchConfigUpdateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveDrift not implemented")
+}
+func (UnimplementedAgentServiceServer) BatchUpdateConfig(context.Context, *BatchConfigUpdateRequest) (*BatchConfigUpdateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BatchUpdateConfig not implemented")
+}
+func (UnimplementedAgentServiceServer) GetBatchStatus(context.Context, *GetBatchStatusRequest) (*BatchConfigUpdateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetBatchStatus not implemented")
+}
+func (UnimplementedAgentServiceServer) CancelBatch(context.Context, *CancelBatchRequest) (*CancelBatchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelBatch not implemented")
+}
+func (UnimplementedAgentServiceServer) RollbackBatch(context.Context, *RollbackBatchRequest) (*RollbackBatchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RollbackBatch not implemented")
+}
+func (UnimplementedAgentServiceServer) ListConfigTemplates(context.Context, *ListConfigTemplatesRequest) (*ListConfigTemplatesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListConfigTemplates not implemented")
+}
+func (UnimplementedAgentServiceServer) GetConfigTemplate(context.Context, *GetConfigTemplateRequest) (*ConfigTemplate, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetConfigTemplate not implemented")
+}
+func (UnimplementedAgentServiceServer) CreateConfigTemplate(context.Context, *CreateConfigTemplateRequest) (*ConfigTemplate, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateConfigTemplate not implemented")
+}
+func (UnimplementedAgentServiceServer) UpdateConfigTemplate(context.Context, *UpdateConfigTemplateRequest) (*ConfigTemplate, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateConfigTemplate not implemented")
+}
+func (UnimplementedAgentServiceServer) DeleteConfigTemplate(context.Context, *DeleteConfigTemplateRequest) (*DeleteConfigTemplateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteConfigTemplate not implemented")
+}
+func (UnimplementedAgentServiceServer) RenderConfigTemplate(context.Context, *RenderConfigTemplateRequest) (*RenderConfigTemplateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RenderConfigTemplate not implemented")
+}
+func (UnimplementedAgentServiceServer) SetMaintenance(context.Context, *SetMaintenanceRequest) (*SetMaintenanceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetMaintenance not implemented")
+}
+func (UnimplementedAgentServiceServer) GetMaintenanceStatus(context.Context, *GetMaintenanceStatusRequest) (*MaintenanceState, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMaintenanceStatus not implemented")
+}
+func (UnimplementedAgentServiceServer) ListMaintenanceStates(context.Context, *ListMaintenanceStatesRequest) (*ListMaintenanceStatesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMaintenanceStates not implemented")
+}
+func (UnimplementedAgentServiceServer) ListMaintenanceTemplates(context.Context, *ListMaintenanceTemplatesRequest) (*ListMaintenanceTemplatesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMaintenanceTemplates not implemented")
+}
+func (UnimplementedAgentServiceServer) CreateMaintenanceTemplate(context.Context, *CreateMaintenanceTemplateRequest) (*MaintenanceTemplate, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateMaintenanceTemplate not implemented")
+}
+func (UnimplementedAgentServiceServer) UpdateMaintenanceTemplate(context.Context, *UpdateMaintenanceTemplateRequest) (*MaintenanceTemplate, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateMaintenanceTemplate not implemented")
+}
+func (UnimplementedAgentServiceServer) DeleteMaintenanceTemplate(context.Context, *DeleteMaintenanceTemplateRequest) (*DeleteMaintenanceTemplateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteMaintenanceTemplate not implemented")
+}
+func (UnimplementedAgentServiceServer) PreviewMaintenanceTemplate(context.Context, *PreviewMaintenanceTemplateRequest) (*PreviewMaintenanceTemplateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PreviewMaintenanceTemplate not implemented")
+}
+func (UnimplementedAgentServiceServer) UploadCertificate(context.Context, *UploadCertificateRequest) (*UploadCertificateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UploadCertificate not implemented")
+}
+func (UnimplementedAgentServiceServer) GetCertificateInventory(context.Context, *GetCertificateInventoryRequest) (*GetCertificateInventoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCertificateInventory not implemented")
+}
+func (UnimplementedAgentServiceServer) DeployCertificate(context.Context, *DeployCertificateRequest) (*UploadCertificateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeployCertificate not implemented")
+}
+func (UnimplementedAgentServiceServer) DeleteCertificate(context.Context, *DeleteCertificateRequest) (*DeleteCertificateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteCertificate not implemented")
+}
+func (UnimplementedAgentServiceServer) CompareEnvironments(context.Context, *CompareEnvironmentsRequest) (*CompareEnvironmentsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CompareEnvironments not implemented")
+}
+func (UnimplementedAgentServiceServer) GetComparison(context.Context, *GetComparisonRequest) (*CompareEnvironmentsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetComparison not implemented")
+}
+func (UnimplementedAgentServiceServer) UpdateSiteLocation(context.Context, *SiteLocationUpdateRequest) (*SiteLocationUpdateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateSiteLocation not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -1154,6 +1778,690 @@ func _AgentService_DeleteAlertRule_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_ListGroups_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGroupsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ListGroups(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ListGroups_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ListGroups(ctx, req.(*ListGroupsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetGroup(ctx, req.(*GetGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_CreateGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).CreateGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_CreateGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).CreateGroup(ctx, req.(*CreateGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_UpdateGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).UpdateGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_UpdateGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).UpdateGroup(ctx, req.(*UpdateGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_DeleteGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).DeleteGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_DeleteGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).DeleteGroup(ctx, req.(*DeleteGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_AddAgentsToGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddAgentsToGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).AddAgentsToGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_AddAgentsToGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).AddAgentsToGroup(ctx, req.(*AddAgentsToGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_RemoveAgentFromGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveAgentFromGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).RemoveAgentFromGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_RemoveAgentFromGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).RemoveAgentFromGroup(ctx, req.(*RemoveAgentFromGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_SetGoldenAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetGoldenAgentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).SetGoldenAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_SetGoldenAgent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).SetGoldenAgent(ctx, req.(*SetGoldenAgentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetGroupAgents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGroupAgentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetGroupAgents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetGroupAgents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetGroupAgents(ctx, req.(*GetGroupAgentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_CheckDrift_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DriftCheckRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).CheckDrift(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_CheckDrift_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).CheckDrift(ctx, req.(*DriftCheckRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetDriftReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDriftReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetDriftReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetDriftReport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetDriftReport(ctx, req.(*GetDriftReportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_ListDriftReports_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDriftReportsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ListDriftReports(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ListDriftReports_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ListDriftReports(ctx, req.(*ListDriftReportsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_ResolveDrift_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveDriftRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ResolveDrift(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ResolveDrift_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ResolveDrift(ctx, req.(*ResolveDriftRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_BatchUpdateConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchConfigUpdateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).BatchUpdateConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_BatchUpdateConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).BatchUpdateConfig(ctx, req.(*BatchConfigUpdateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetBatchStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBatchStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetBatchStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetBatchStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetBatchStatus(ctx, req.(*GetBatchStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_CancelBatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelBatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).CancelBatch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_CancelBatch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).CancelBatch(ctx, req.(*CancelBatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_RollbackBatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RollbackBatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).RollbackBatch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_RollbackBatch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).RollbackBatch(ctx, req.(*RollbackBatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_ListConfigTemplates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListConfigTemplatesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ListConfigTemplates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ListConfigTemplates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ListConfigTemplates(ctx, req.(*ListConfigTemplatesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetConfigTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetConfigTemplateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetConfigTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetConfigTemplate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetConfigTemplate(ctx, req.(*GetConfigTemplateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_CreateConfigTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateConfigTemplateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).CreateConfigTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_CreateConfigTemplate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).CreateConfigTemplate(ctx, req.(*CreateConfigTemplateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_UpdateConfigTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateConfigTemplateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).UpdateConfigTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_UpdateConfigTemplate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).UpdateConfigTemplate(ctx, req.(*UpdateConfigTemplateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_DeleteConfigTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteConfigTemplateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).DeleteConfigTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_DeleteConfigTemplate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).DeleteConfigTemplate(ctx, req.(*DeleteConfigTemplateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_RenderConfigTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RenderConfigTemplateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).RenderConfigTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_RenderConfigTemplate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).RenderConfigTemplate(ctx, req.(*RenderConfigTemplateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_SetMaintenance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetMaintenanceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).SetMaintenance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_SetMaintenance_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).SetMaintenance(ctx, req.(*SetMaintenanceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetMaintenanceStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMaintenanceStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetMaintenanceStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetMaintenanceStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetMaintenanceStatus(ctx, req.(*GetMaintenanceStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_ListMaintenanceStates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMaintenanceStatesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ListMaintenanceStates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ListMaintenanceStates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ListMaintenanceStates(ctx, req.(*ListMaintenanceStatesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_ListMaintenanceTemplates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMaintenanceTemplatesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ListMaintenanceTemplates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ListMaintenanceTemplates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ListMaintenanceTemplates(ctx, req.(*ListMaintenanceTemplatesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_CreateMaintenanceTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateMaintenanceTemplateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).CreateMaintenanceTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_CreateMaintenanceTemplate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).CreateMaintenanceTemplate(ctx, req.(*CreateMaintenanceTemplateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_UpdateMaintenanceTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateMaintenanceTemplateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).UpdateMaintenanceTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_UpdateMaintenanceTemplate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).UpdateMaintenanceTemplate(ctx, req.(*UpdateMaintenanceTemplateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_DeleteMaintenanceTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteMaintenanceTemplateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).DeleteMaintenanceTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_DeleteMaintenanceTemplate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).DeleteMaintenanceTemplate(ctx, req.(*DeleteMaintenanceTemplateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_PreviewMaintenanceTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PreviewMaintenanceTemplateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).PreviewMaintenanceTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_PreviewMaintenanceTemplate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).PreviewMaintenanceTemplate(ctx, req.(*PreviewMaintenanceTemplateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_UploadCertificate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UploadCertificateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).UploadCertificate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_UploadCertificate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).UploadCertificate(ctx, req.(*UploadCertificateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetCertificateInventory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCertificateInventoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetCertificateInventory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetCertificateInventory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetCertificateInventory(ctx, req.(*GetCertificateInventoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_DeployCertificate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeployCertificateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).DeployCertificate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_DeployCertificate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).DeployCertificate(ctx, req.(*DeployCertificateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_DeleteCertificate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteCertificateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).DeleteCertificate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_DeleteCertificate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).DeleteCertificate(ctx, req.(*DeleteCertificateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_CompareEnvironments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompareEnvironmentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).CompareEnvironments(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_CompareEnvironments_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).CompareEnvironments(ctx, req.(*CompareEnvironmentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetComparison_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetComparisonRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetComparison(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetComparison_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetComparison(ctx, req.(*GetComparisonRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_UpdateSiteLocation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SiteLocationUpdateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).UpdateSiteLocation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_UpdateSiteLocation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).UpdateSiteLocation(ctx, req.(*SiteLocationUpdateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1261,6 +2569,158 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "DeleteAlertRule",
 			Handler:    _AgentService_DeleteAlertRule_Handler,
 		},
+		{
+			MethodName: "ListGroups",
+			Handler:    _AgentService_ListGroups_Handler,
+		},
+		{
+			MethodName: "GetGroup",
+			Handler:    _AgentService_GetGroup_Handler,
+		},
+		{
+			MethodName: "CreateGroup",
+			Handler:    _AgentService_CreateGroup_Handler,
+		},
+		{
+			MethodName: "UpdateGroup",
+			Handler:    _AgentService_UpdateGroup_Handler,
+		},
+		{
+			MethodName: "DeleteGroup",
+			Handler:    _AgentService_DeleteGroup_Handler,
+		},
+		{
+			MethodName: "AddAgentsToGroup",
+			Handler:    _AgentService_AddAgentsToGroup_Handler,
+		},
+		{
+			MethodName: "RemoveAgentFromGroup",
+			Handler:    _AgentService_RemoveAgentFromGroup_Handler,
+		},
+		{
+			MethodName: "SetGoldenAgent",
+			Handler:    _AgentService_SetGoldenAgent_Handler,
+		},
+		{
+			MethodName: "GetGroupAgents",
+			Handler:    _AgentService_GetGroupAgents_Handler,
+		},
+		{
+			MethodName: "CheckDrift",
+			Handler:    _AgentService_CheckDrift_Handler,
+		},
+		{
+			MethodName: "GetDriftReport",
+			Handler:    _AgentService_GetDriftReport_Handler,
+		},
+		{
+			MethodName: "ListDriftReports",
+			Handler:    _AgentService_ListDriftReports_Handler,
+		},
+		{
+			MethodName: "ResolveDrift",
+			Handler:    _AgentService_ResolveDrift_Handler,
+		},
+		{
+			MethodName: "BatchUpdateConfig",
+			Handler:    _AgentService_BatchUpdateConfig_Handler,
+		},
+		{
+			MethodName: "GetBatchStatus",
+			Handler:    _AgentService_GetBatchStatus_Handler,
+		},
+		{
+			MethodName: "CancelBatch",
+			Handler:    _AgentService_CancelBatch_Handler,
+		},
+		{
+			MethodName: "RollbackBatch",
+			Handler:    _AgentService_RollbackBatch_Handler,
+		},
+		{
+			MethodName: "ListConfigTemplates",
+			Handler:    _AgentService_ListConfigTemplates_Handler,
+		},
+		{
+			MethodName: "GetConfigTemplate",
+			Handler:    _AgentService_GetConfigTemplate_Handler,
+		},
+		{
+			MethodName: "CreateConfigTemplate",
+			Handler:    _AgentService_CreateConfigTemplate_Handler,
+		},
+		{
+			MethodName: "UpdateConfigTemplate",
+			Handler:    _AgentService_UpdateConfigTemplate_Handler,
+		},
+		{
+			MethodName: "DeleteConfigTemplate",
+			Handler:    _AgentService_DeleteConfigTemplate_Handler,
+		},
+		{
+			MethodName: "RenderConfigTemplate",
+			Handler:    _AgentService_RenderConfigTemplate_Handler,
+		},
+		{
+			MethodName: "SetMaintenance",
+			Handler:    _AgentService_SetMaintenance_Handler,
+		},
+		{
+			MethodName: "GetMaintenanceStatus",
+			Handler:    _AgentService_GetMaintenanceStatus_Handler,
+		},
+		{
+			MethodName: "ListMaintenanceStates",
+			Handler:    _AgentService_ListMaintenanceStates_Handler,
+		},
+		{
+			MethodName: "ListMaintenanceTemplates",
+			Handler:    _AgentService_ListMaintenanceTemplates_Handler,
+		},
+		{
+			MethodName: "CreateMaintenanceTemplate",
+			Handler:    _AgentService_CreateMaintenanceTemplate_Handler,
+		},
+		{
+			MethodName: "UpdateMaintenanceTemplate",
+			Handler:    _AgentService_UpdateMaintenanceTemplate_Handler,
+		},
+		{
+			MethodName: "DeleteMaintenanceTemplate",
+			Handler:    _AgentService_DeleteMaintenanceTemplate_Handler,
+		},
+		{
+			MethodName: "PreviewMaintenanceTemplate",
+			Handler:    _AgentService_PreviewMaintenanceTemplate_Handler,
+		},
+		{
+			MethodName: "UploadCertificate",
+			Handler:    _AgentService_UploadCertificate_Handler,
+		},
+		{
+			MethodName: "GetCertificateInventory",
+			Handler:    _AgentService_GetCertificateInventory_Handler,
+		},
+		{
+			MethodName: "DeployCertificate",
+			Handler:    _AgentService_DeployCertificate_Handler,
+		},
+		{
+			MethodName: "DeleteCertificate",
+			Handler:    _AgentService_DeleteCertificate_Handler,
+		},
+		{
+			MethodName: "CompareEnvironments",
+			Handler:    _AgentService_CompareEnvironments_Handler,
+		},
+		{
+			MethodName: "GetComparison",
+			Handler:    _AgentService_GetComparison_Handler,
+		},
+		{
+			MethodName: "UpdateSiteLocation",
+			Handler:    _AgentService_UpdateSiteLocation_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -1280,5 +2740,5 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "agent.proto",
+	Metadata: "api/proto/agent.proto",
 }
