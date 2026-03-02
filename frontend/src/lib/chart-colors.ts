@@ -5,7 +5,7 @@
  * that adapt to the current theme while maintaining WCAG AA contrast ratios.
  */
 
-export type ThemeMode = 'dark' | 'light' | 'solarized' | 'nord';
+export type ThemeMode = 'dark' | 'light' | 'solarized' | 'nord' | 'nginxOne' | 'grafanaDark';
 
 export interface ChartColorPalette {
     // Grid and axes
@@ -175,36 +175,128 @@ export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
             tooltipBorder: '#4c566a', // Polar Night 3
             
             success: '#a3be8c',       // Nord green
-            warning: '#ebcb8b',       // Nord yellow
+            warning: '#ffb74d',       // FIXED: Brighter amber for visibility
             error: '#bf616a',         // Nord red
             info: '#88c0d0',          // Nord frost
             
             status2xx: '#a3be8c',
             status3xx: '#88c0d0',
-            status4xx: '#ebcb8b',
+            status4xx: '#ffb74d',     // FIXED: Brighter amber
             status5xx: '#bf616a',
             
             connectionActive: '#88c0d0',
             connectionReading: '#a3be8c',
-            connectionWriting: '#ebcb8b',
+            connectionWriting: '#ffb74d',  // FIXED: Brighter amber
             connectionWaiting: '#b48ead',
             
             cpu: '#b48ead',           // Nord purple
-            memory: '#ebcb8b',
+            memory: '#ffb74d',        // FIXED: Brighter amber
             networkRx: '#a3be8c',
             networkTx: '#88c0d0',
             
             latencyP50: '#8fbcbb',    // Nord frost 0
-            latencyP95: '#ebcb8b',
+            latencyP95: '#ffb74d',    // FIXED: Brighter amber
             latencyP99: '#bf616a',
             
             series: [
                 '#88c0d0',
                 '#a3be8c',
-                '#ebcb8b',
+                '#ffb74d',
                 '#b48ead',
                 '#bf616a',
                 '#8fbcbb',
+            ],
+        };
+    }
+    
+    // NGINX One - Clean professional light theme (matches reference dashboard)
+    if (theme === 'nginxOne') {
+        return {
+            grid: 'rgba(0, 0, 0, 0.06)',
+            axis: '#64748b',          // slate-500
+            axisLabel: '#475569',     // slate-600
+            
+            tooltipBg: '#ffffff',
+            tooltipText: '#0f172a',   // slate-900
+            tooltipBorder: '#e2e8f0', // slate-200
+            
+            success: '#10b981',       // emerald-500
+            warning: '#f59e0b',       // amber-500
+            error: '#ef4444',         // red-500
+            info: '#228be6',          // NGINX blue
+            
+            status2xx: '#10b981',     // emerald-500
+            status3xx: '#228be6',     // NGINX blue
+            status4xx: '#f59e0b',     // amber-500
+            status5xx: '#ef4444',     // red-500
+            
+            connectionActive: '#228be6',
+            connectionReading: '#10b981',
+            connectionWriting: '#f59e0b',
+            connectionWaiting: '#8b5cf6',
+            
+            cpu: '#6366f1',           // indigo-500
+            memory: '#f59e0b',
+            networkRx: '#10b981',
+            networkTx: '#228be6',
+            
+            latencyP50: '#10b981',
+            latencyP95: '#f59e0b',
+            latencyP99: '#ef4444',
+            
+            series: [
+                '#228be6',  // NGINX blue
+                '#10b981',  // emerald-500
+                '#f59e0b',  // amber-500
+                '#8b5cf6',  // violet-500
+                '#ec4899',  // pink-500
+                '#06b6d4',  // cyan-500
+            ],
+        };
+    }
+    
+    // Grafana Dark - Matches Grafana's dark theme
+    if (theme === 'grafanaDark') {
+        return {
+            grid: 'rgba(255, 255, 255, 0.1)',
+            axis: '#ccccdc',
+            axisLabel: '#ccccdc',
+            
+            tooltipBg: '#1f1f1f',
+            tooltipText: '#ccccdc',
+            tooltipBorder: '#2c323a',
+            
+            success: '#73bf69',       // Grafana green
+            warning: '#fab005',       // Grafana yellow
+            error: '#f2495c',         // Grafana red
+            info: '#3274d9',          // Grafana blue
+            
+            status2xx: '#73bf69',
+            status3xx: '#3274d9',
+            status4xx: '#fab005',
+            status5xx: '#f2495c',
+            
+            connectionActive: '#3274d9',
+            connectionReading: '#73bf69',
+            connectionWriting: '#fab005',
+            connectionWaiting: '#8f3bb8',  // Grafana purple
+            
+            cpu: '#8f3bb8',
+            memory: '#fab005',
+            networkRx: '#73bf69',
+            networkTx: '#3274d9',
+            
+            latencyP50: '#73bf69',
+            latencyP95: '#fab005',
+            latencyP99: '#f2495c',
+            
+            series: [
+                '#3274d9',  // Grafana blue
+                '#73bf69',  // Grafana green
+                '#fab005',  // Grafana yellow
+                '#8f3bb8',  // Grafana purple
+                '#f2495c',  // Grafana red
+                '#56a3ff',  // Grafana light blue
             ],
         };
     }
@@ -266,6 +358,8 @@ export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
 export function getChartColorsForTheme(themeName: string): ChartColorPalette {
     const normalizedTheme = themeName?.toLowerCase() || 'dark';
     
+    if (normalizedTheme === 'nginxone') return getChartColors('nginxOne');
+    if (normalizedTheme === 'grafanadark') return getChartColors('grafanaDark');
     if (normalizedTheme.includes('light')) return getChartColors('light');
     if (normalizedTheme.includes('solarized')) return getChartColors('solarized');
     if (normalizedTheme.includes('nord')) return getChartColors('nord');

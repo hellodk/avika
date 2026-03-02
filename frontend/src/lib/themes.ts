@@ -32,10 +32,9 @@ export const themes = {
         background: "0 43 54", // Base03
         surface: "7 54 66", // Base02
         surfaceLight: "88 110 117", // Base01
-        // FIXED: Improved contrast - using Base1/Base2 for better WCAG compliance
         text: "238 232 213", // Base2 - Cream white for maximum contrast
         textMuted: "147 161 161", // Base1 - Brighter secondary text
-        textDim: "131 148 150", // Base0 - Original text color for tertiary
+        textDim: "157 171 171", // FIXED: Brighter than Base0 for WCAG AA (4.5:1 contrast)
         primary: "38 139 210", // Blue
         success: "133 153 0", // Green
         warning: "203 75 22", // Orange (more visible than yellow)
@@ -52,9 +51,39 @@ export const themes = {
         textDim: "216 222 233", // Snow Storm 0
         primary: "136 192 208", // Frost 3
         success: "163 190 140", // Aurora Green
-        warning: "235 203 139", // Aurora Yellow
+        warning: "255 183 77", // FIXED: Brighter amber/orange for better visibility
         error: "191 97 106", // Aurora Red
         border: "76 86 106", // Polar Night 3 - brighter for visibility
+    },
+    // NGINX One - Clean professional light theme (matches nginx-one-dashboard reference)
+    nginxOne: {
+        name: "NGINX One",
+        background: "250 250 252", // Near white with slight blue tint
+        surface: "255 255 255", // Pure white cards
+        surfaceLight: "243 244 246", // Gray-100 hover states
+        text: "15 23 42", // Slate-900 - maximum readability
+        textMuted: "71 85 105", // Slate-600 - good secondary contrast
+        textDim: "100 116 139", // Slate-500 - tertiary text
+        primary: "34 139 230", // NGINX Blue
+        success: "16 185 129", // Emerald-500
+        warning: "245 158 11", // Amber-500
+        error: "239 68 68", // Red-500
+        border: "226 232 240", // Slate-200 - subtle borders
+    },
+    // Grafana Dark - Matches Grafana's dark theme (reference image.png)
+    grafanaDark: {
+        name: "Grafana Dark",
+        background: "17 18 23", // Grafana dark background
+        surface: "24 27 31", // Grafana panel background
+        surfaceLight: "32 34 38", // Hover state
+        text: "204 204 220", // Grafana main text
+        textMuted: "138 138 153", // Grafana secondary text
+        textDim: "108 108 121", // Grafana dim text
+        primary: "50 116 217", // Grafana blue
+        success: "115 191 105", // Grafana green
+        warning: "250 176 5", // Grafana yellow/amber
+        error: "242 73 92", // Grafana red
+        border: "44 50 58", // Grafana panel border
     },
 } as const;
 
