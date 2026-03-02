@@ -17,7 +17,7 @@ import {
     ChevronDown,
     Loader2,
     Trash2,
-    BarChart3,
+    Eclipse,
     Building2
 } from "lucide-react";
 import { useTheme } from "@/lib/theme-provider";
@@ -35,8 +35,8 @@ const themeIcons: Record<string, typeof Moon> = {
     light: Sun,
     solarized: Sparkles,
     nord: Sparkles,
-    nginxOne: Building2,
-    grafanaDark: BarChart3,
+    corporate: Building2,
+    midnight: Eclipse,
 };
 
 export default function SettingsPage() {
