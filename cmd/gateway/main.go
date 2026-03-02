@@ -71,6 +71,9 @@ type server struct {
 	config     *config.Config
 	pskManager *middleware.PSKManager
 
+	// AI Error Analysis
+	errorAnalysisAPI *ErrorAnalysisAPI
+
 	// Monitoring stats (atomic)
 	messageCount int64 // total messages received since last tick
 	dbLatencySum int64 // sum of DB latency in ns (use atomic)
@@ -1157,6 +1160,21 @@ func main() {
 		pskManager: pskManager,
 	}
 
+
+	// Initialize AI Error Analysis (LLM-powered)
+	if cfg.LLM.Enabled && chDB != nil {
+		llmConfig := LoadLLMConfigFromConfig(&cfg.LLM)
+		llmClient, err := NewLLMClient(llmConfig)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize LLM client: %v (AI recommendations disabled)", err)
+		} else {
+			log.Printf("LLM client initialized: provider=%s model=%s", llmClient.GetProviderName(), llmClient.GetModelName())
+			srv.errorAnalysisAPI = NewErrorAnalysisAPI(chDB, llmClient)
+			log.Printf("AI Error Analysis API initialized")
+		}
+	} else if !cfg.LLM.Enabled {
+		log.Printf("LLM/AI error analysis disabled (set llm.enabled=true in config to enable)")
+	}
 	// Load agents from DB
 	if err := srv.db.LoadAgents(&srv.sessions); err != nil {
 		log.Printf("Failed to load agents from DB: %v", err)
@@ -1529,6 +1547,17 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		log.Printf("Updates directory not found (%s), update serving disabled", updatesDir)
 	}
 
+
+	// AI Error Analysis API (LLM-powered)
+	if srv.errorAnalysisAPI != nil {
+		mux.Handle("GET /api/v1/errors/analysis", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.errorAnalysisAPI.HandleGetErrorAnalysis)))
+		mux.Handle("GET /api/v1/errors/patterns", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.errorAnalysisAPI.HandleGetErrorPatterns)))
+		mux.Handle("GET /api/v1/errors/trends", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.errorAnalysisAPI.HandleGetErrorTrend)))
+		mux.Handle("GET /api/v1/recommendations", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.errorAnalysisAPI.HandleGetRecommendations)))
+		mux.Handle("GET /api/v1/admin/llm/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.errorAnalysisAPI.HandleGetLLMConfig)))
+		mux.Handle("POST /api/v1/admin/llm/test", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.errorAnalysisAPI.HandleTestLLMConnection)))
+		log.Printf("AI Error Analysis API routes registered")
+	}
 	return &http.Server{
 		Addr:         cfg.GetHTTPAddress(),
 		Handler:      mux,

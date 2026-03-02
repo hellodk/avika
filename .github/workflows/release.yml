@@ -396,13 +396,13 @@ jobs:
           See \`checksums.txt\` for SHA256 checksums of all artifacts.
           EOF
 
-      - name: Create GitHub Release (Draft)
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ needs.version-bump.outputs.version }}
           name: Avika v${{ needs.version-bump.outputs.version }}
           body_path: release-notes.md
-          draft: true
+          draft: false
           prerelease: ${{ contains(needs.version-bump.outputs.version, '-') }}
           files: |
             release-assets/*
@@ -411,14 +411,17 @@ jobs:
 
       - name: Release Summary
         run: |
-          echo "## Release v${{ needs.version-bump.outputs.version }} created!" >> $GITHUB_STEP_SUMMARY
+          echo "## Release v${{ needs.version-bump.outputs.version }} published!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Docker Images" >> $GITHUB_STEP_SUMMARY
           echo "- hellodk/avika-gateway:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- hellodk/avika-frontend:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- hellodk/avika-agent:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
-          echo "1. Review the draft release at: https://github.com/${{ github.repository }}/releases" >> $GITHUB_STEP_SUMMARY
-          echo "2. Edit release notes if needed" >> $GITHUB_STEP_SUMMARY
-          echo "3. Publish the release" >> $GITHUB_STEP_SUMMARY
+          echo "### Release Assets" >> $GITHUB_STEP_SUMMARY
+          echo "- Gateway & Agent binaries (linux/darwin, amd64/arm64)" >> $GITHUB_STEP_SUMMARY
+          echo "- Helm chart package" >> $GITHUB_STEP_SUMMARY
+          echo "- Source code archives (auto-generated)" >> $GITHUB_STEP_SUMMARY
+          echo "- SHA256 checksums" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "View release: https://github.com/${{ github.repository }}/releases/tag/v${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY

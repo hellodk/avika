@@ -126,6 +126,52 @@ spec:
                   name: {{ include "avika.fullname" $ }}-auth-secrets
                   key: password-hash
             {{- end }}
+            {{- /* LLM/AI Configuration */ -}}
+            {{- if $.Values.llm }}
+            {{- if $.Values.llm.enabled }}
+            - name: LLM_ENABLED
+              value: "true"
+            - name: LLM_PROVIDER
+              value: {{ $.Values.llm.provider | default "openai" | quote }}
+            - name: LLM_MODEL
+              value: {{ $.Values.llm.model | default "gpt-4-turbo" | quote }}
+            {{- if $.Values.llm.baseUrl }}
+            - name: LLM_BASE_URL
+              value: {{ $.Values.llm.baseUrl | quote }}
+            {{- end }}
+            - name: LLM_MAX_TOKENS
+              value: {{ $.Values.llm.maxTokens | default 4096 | quote }}
+            - name: LLM_TEMPERATURE
+              value: {{ $.Values.llm.temperature | default 0.3 | quote }}
+            - name: LLM_TIMEOUT_SECONDS
+              value: {{ $.Values.llm.timeoutSeconds | default 60 | quote }}
+            - name: LLM_RETRY_ATTEMPTS
+              value: {{ $.Values.llm.retryAttempts | default 3 | quote }}
+            - name: LLM_RATE_LIMIT_RPM
+              value: {{ $.Values.llm.rateLimitRpm | default 60 | quote }}
+            - name: LLM_ENABLE_CACHING
+              value: {{ $.Values.llm.enableCaching | default true | quote }}
+            - name: LLM_CACHE_TTL_MINUTES
+              value: {{ $.Values.llm.cacheTtlMinutes | default 30 | quote }}
+            {{- if $.Values.llm.fallbackProvider }}
+            - name: LLM_FALLBACK_PROVIDER
+              value: {{ $.Values.llm.fallbackProvider | quote }}
+            {{- end }}
+            {{- /* LLM API Key from secret */ -}}
+            {{- if or $.Values.llm.existingSecret $.Values.llm.apiKey }}
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  {{- if $.Values.llm.existingSecret }}
+                  name: {{ $.Values.llm.existingSecret }}
+                  key: {{ $.Values.llm.existingSecretKey | default "api-key" }}
+                  {{- else }}
+                  name: {{ include "avika.fullname" $ }}-llm-secrets
+                  key: api-key
+                  {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
             {{- end }}
             {{- /* Frontend-specific dynamic env vars */ -}}
             {{- if eq $name "frontend" }}

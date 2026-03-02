@@ -134,6 +134,23 @@ type OIDCConfig struct {
 	AutoProvision bool              `yaml:"auto_provision"`  // Auto-create users on first SSO login
 }
 
+// LLMConfig holds configuration for AI/LLM-powered features
+type LLMConfig struct {
+	Enabled          bool    `yaml:"enabled"`            // Enable AI-powered error analysis
+	Provider         string  `yaml:"provider"`           // openai, anthropic, ollama
+	APIKey           string  `yaml:"api_key"`            // API key for cloud providers
+	Model            string  `yaml:"model"`              // Model name (e.g., gpt-4-turbo, claude-3-sonnet)
+	BaseURL          string  `yaml:"base_url"`           // Custom base URL (for Ollama or Azure)
+	MaxTokens        int     `yaml:"max_tokens"`         // Max tokens per request
+	Temperature      float32 `yaml:"temperature"`        // Temperature for generation (0.0-1.0)
+	TimeoutSeconds   int     `yaml:"timeout_seconds"`    // Request timeout
+	RetryAttempts    int     `yaml:"retry_attempts"`     // Number of retry attempts
+	RateLimitRPM     int     `yaml:"rate_limit_rpm"`     // Rate limit (requests per minute)
+	EnableCaching    bool    `yaml:"enable_caching"`     // Cache LLM responses
+	CacheTTLMinutes  int     `yaml:"cache_ttl_minutes"`  // Cache TTL in minutes
+	FallbackProvider string  `yaml:"fallback_provider"`  // Fallback provider if primary fails
+}
+
 // Config holds all gateway configuration
 type Config struct {
 	Server     ServerConfig     `yaml:"server"`
@@ -147,6 +164,7 @@ type Config struct {
 	Auth       AuthConfig       `yaml:"auth"`
 	PSK        PSKConfig        `yaml:"psk"`
 	OIDC       OIDCConfig       `yaml:"oidc"`
+	LLM        LLMConfig        `yaml:"llm"`
 }
 
 // GetGRPCAddress returns the formatted gRPC listen address
@@ -342,6 +360,21 @@ func defaultConfig() *Config {
 			DefaultRole:   "viewer",
 			AutoProvision: true,
 		},
+		LLM: LLMConfig{
+			Enabled:          false,
+			Provider:         "openai",
+			APIKey:           "",
+			Model:            "gpt-4-turbo",
+			BaseURL:          "",
+			MaxTokens:        4096,
+			Temperature:      0.3,
+			TimeoutSeconds:   60,
+			RetryAttempts:    3,
+			RateLimitRPM:     60,
+			EnableCaching:    true,
+			CacheTTLMinutes:  30,
+			FallbackProvider: "",
+		},
 	}
 }
 
@@ -534,5 +567,58 @@ func loadEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("OIDC_AUTO_PROVISION"); v != "" {
 		cfg.OIDC.AutoProvision = v == "true" || v == "1"
+	}
+
+	// LLM (AI-powered Error Analysis)
+	if v := os.Getenv("LLM_ENABLED"); v != "" {
+		cfg.LLM.Enabled = v == "true" || v == "1"
+	}
+	if v := os.Getenv("LLM_PROVIDER"); v != "" {
+		cfg.LLM.Provider = v
+	}
+	if v := os.Getenv("LLM_API_KEY"); v != "" {
+		cfg.LLM.APIKey = v
+	}
+	if v := os.Getenv("LLM_MODEL"); v != "" {
+		cfg.LLM.Model = v
+	}
+	if v := os.Getenv("LLM_BASE_URL"); v != "" {
+		cfg.LLM.BaseURL = v
+	}
+	if v := os.Getenv("LLM_MAX_TOKENS"); v != "" {
+		if tokens, err := strconv.Atoi(v); err == nil {
+			cfg.LLM.MaxTokens = tokens
+		}
+	}
+	if v := os.Getenv("LLM_TEMPERATURE"); v != "" {
+		if temp, err := strconv.ParseFloat(v, 32); err == nil {
+			cfg.LLM.Temperature = float32(temp)
+		}
+	}
+	if v := os.Getenv("LLM_TIMEOUT_SECONDS"); v != "" {
+		if timeout, err := strconv.Atoi(v); err == nil {
+			cfg.LLM.TimeoutSeconds = timeout
+		}
+	}
+	if v := os.Getenv("LLM_RETRY_ATTEMPTS"); v != "" {
+		if retries, err := strconv.Atoi(v); err == nil {
+			cfg.LLM.RetryAttempts = retries
+		}
+	}
+	if v := os.Getenv("LLM_RATE_LIMIT_RPM"); v != "" {
+		if rpm, err := strconv.Atoi(v); err == nil {
+			cfg.LLM.RateLimitRPM = rpm
+		}
+	}
+	if v := os.Getenv("LLM_ENABLE_CACHING"); v != "" {
+		cfg.LLM.EnableCaching = v == "true" || v == "1"
+	}
+	if v := os.Getenv("LLM_CACHE_TTL_MINUTES"); v != "" {
+		if ttl, err := strconv.Atoi(v); err == nil {
+			cfg.LLM.CacheTTLMinutes = ttl
+		}
+	}
+	if v := os.Getenv("LLM_FALLBACK_PROVIDER"); v != "" {
+		cfg.LLM.FallbackProvider = v
 	}
 }
