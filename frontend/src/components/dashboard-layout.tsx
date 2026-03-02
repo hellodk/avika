@@ -60,6 +60,7 @@ const NAV_SECTIONS: NavSection[] = [
         items: [
             { href: "/analytics", icon: <BarChart2 />, label: "Analytics" },
             { href: "/analytics/traces", icon: <GitBranch />, label: "Traces" },
+            { href: "/visitors", icon: <User />, label: "Visitors", badge: "New", badgeColor: "green" },
             { href: "/geo", icon: <Globe />, label: "Geo Analytics", badge: "New", badgeColor: "green" },
             { href: "/observability/grafana", icon: <LineChart />, label: "Grafana", badge: "New", badgeColor: "purple" },
             { href: "/alerts", icon: <ShieldAlert />, label: "Alerts" },
