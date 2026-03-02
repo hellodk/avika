@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,9 @@ import {
     Loader2,
     Trash2,
     Eclipse,
-    Building2
+    Building2,
+    LineChart,
+    ExternalLink
 } from "lucide-react";
 import { useTheme } from "@/lib/theme-provider";
 import { themes, ThemeName } from "@/lib/themes";
@@ -29,6 +31,8 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+
+const DEFAULT_GRAFANA_URL = "http://monitoring-grafana.monitoring.svc.cluster.local";
 
 const themeIcons: Record<string, typeof Moon> = {
     dark: Moon,
@@ -41,11 +45,19 @@ const themeIcons: Record<string, typeof Moon> = {
 
 export default function SettingsPage() {
     const { theme, setTheme } = useTheme();
-    const [createSuccess, setCreateSuccess] = useState(false); // Renamed for clarity or just keep saveSuccess
+    const [createSuccess, setCreateSuccess] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [isDeletingAgents, setIsDeletingAgents] = useState(false);
     const [deletionMessage, setDeletionMessage] = useState("");
+    const [grafanaUrl, setGrafanaUrl] = useState(DEFAULT_GRAFANA_URL);
+
+    useEffect(() => {
+        const savedUrl = localStorage.getItem("grafana_url");
+        if (savedUrl) {
+            setGrafanaUrl(savedUrl);
+        }
+    }, []);
 
     const handleDeleteOfflineAgents = async () => {
         setIsDeletingAgents(true);
@@ -92,16 +104,19 @@ export default function SettingsPage() {
     const handleSave = async () => {
         setIsSaving(true);
         try {
+            // Save Grafana URL to localStorage
+            localStorage.setItem("grafana_url", grafanaUrl);
+
             // Try to save to backend settings API
             const res = await apiFetch('/api/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    // These would come from state in a real implementation
                     collection_interval: 10,
                     retention_days: 30,
                     anomaly_threshold: 0.8,
-                    window_size: 200
+                    window_size: 200,
+                    grafana_url: grafanaUrl
                 })
             });
             
@@ -109,13 +124,13 @@ export default function SettingsPage() {
                 setSaveSuccess(true);
                 toast.success("Settings saved", { description: "Your configuration has been updated." });
             } else {
-                // API might not exist yet - theme is already saved via context
-                toast.info("Theme updated", { description: "Note: Other settings require backend API support." });
+                // API might not exist yet - settings saved to localStorage
+                toast.success("Settings saved", { description: "Configuration saved locally." });
                 setSaveSuccess(true);
             }
         } catch (error: any) {
-            // If API doesn't exist, theme is still saved
-            toast.info("Theme saved", { description: "Other settings will be available when backend API is ready." });
+            // If API doesn't exist, settings are still saved to localStorage
+            toast.success("Settings saved", { description: "Configuration saved locally." });
             setSaveSuccess(true);
         } finally {
             setIsSaving(false);
@@ -193,6 +208,56 @@ export default function SettingsPage() {
                                 })}
                             </DropdownMenuContent>
                         </DropdownMenu>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Integrations Section */}
+            <Card style={{ backgroundColor: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
+                <CardHeader>
+                    <div className="flex items-center gap-2">
+                        <LineChart className="h-5 w-5 text-purple-500" />
+                        <CardTitle className="text-base" style={{ color: 'rgb(var(--theme-text))' }}>Integrations</CardTitle>
+                    </div>
+                    <p className="text-sm mt-1" style={{ color: 'rgb(var(--theme-text-muted))' }}>Configure external service connections</p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="grafana-url" style={{ color: 'rgb(var(--theme-text))' }}>Grafana URL</Label>
+                        <p className="text-xs mb-2" style={{ color: 'rgb(var(--theme-text-muted))' }}>
+                            URL of your Grafana instance for embedded dashboards
+                        </p>
+                        <div className="flex gap-2">
+                            <Input
+                                id="grafana-url"
+                                type="url"
+                                value={grafanaUrl}
+                                onChange={(e) => setGrafanaUrl(e.target.value)}
+                                placeholder="http://monitoring-grafana.monitoring.svc.cluster.local"
+                                className="flex-1"
+                                style={{
+                                    backgroundColor: 'rgb(var(--theme-surface-light))',
+                                    color: 'rgb(var(--theme-text))',
+                                    borderColor: 'rgb(var(--theme-border))'
+                                }}
+                            />
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => window.open(grafanaUrl, '_blank')}
+                                title="Test connection"
+                                style={{
+                                    borderColor: 'rgb(var(--theme-border))'
+                                }}
+                            >
+                                <ExternalLink className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        <p className="text-xs" style={{ color: 'rgb(var(--theme-text-muted))' }}>
+                            Default: <code className="px-1 py-0.5 rounded text-xs" style={{ backgroundColor: 'rgb(var(--theme-surface-light))' }}>
+                                {DEFAULT_GRAFANA_URL}
+                            </code>
+                        </p>
                     </div>
                 </CardContent>
             </Card>

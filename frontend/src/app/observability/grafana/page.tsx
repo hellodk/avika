@@ -3,8 +3,11 @@
 import { useState, useEffect } from "react";
 import { 
     LineChart, Activity, AlertTriangle, Clock, Server,
-    Maximize2, Minimize2, RefreshCw, ExternalLink
+    Maximize2, Minimize2, RefreshCw, ExternalLink, Settings
 } from "lucide-react";
+import Link from "next/link";
+
+const DEFAULT_GRAFANA_URL = "http://monitoring-grafana.monitoring.svc.cluster.local";
 
 interface GrafanaDashboard {
     id: string;
@@ -72,13 +75,13 @@ export default function GrafanaPage() {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        const url = process.env.NEXT_PUBLIC_GRAFANA_URL || "";
-        if (!url) {
-            setError("Grafana URL not configured. Set NEXT_PUBLIC_GRAFANA_URL environment variable.");
-        } else {
-            setGrafanaUrl(url);
-            setError(null);
-        }
+        // Priority: localStorage > env var > default
+        const savedUrl = typeof window !== 'undefined' ? localStorage.getItem("grafana_url") : null;
+        const envUrl = process.env.NEXT_PUBLIC_GRAFANA_URL;
+        const url = savedUrl || envUrl || DEFAULT_GRAFANA_URL;
+        
+        setGrafanaUrl(url);
+        setError(null);
         setIsLoading(false);
     }, []);
 
@@ -124,20 +127,18 @@ export default function GrafanaPage() {
                         <AlertTriangle className="h-8 w-8 text-amber-500" />
                     </div>
                     <h2 className="text-xl font-semibold mb-2" style={{ color: "rgb(var(--theme-text))" }}>
-                        Grafana Not Configured
+                        Grafana Connection Error
                     </h2>
                     <p className="text-sm mb-4" style={{ color: "rgb(var(--theme-text-muted))" }}>
                         {error}
                     </p>
-                    <code 
-                        className="block p-3 rounded-lg text-xs text-left overflow-x-auto"
-                        style={{ 
-                            background: "rgb(var(--theme-background))",
-                            color: "rgb(var(--theme-text-muted))"
-                        }}
+                    <Link
+                        href="/settings"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
                     >
-                        NEXT_PUBLIC_GRAFANA_URL=http://grafana.example.com
-                    </code>
+                        <Settings className="h-4 w-4" />
+                        Configure in Settings
+                    </Link>
                 </div>
             </div>
         );
@@ -257,6 +258,16 @@ export default function GrafanaPage() {
                             <Maximize2 className="h-4 w-4" />
                         )}
                     </button>
+
+                    {/* Settings Link */}
+                    <Link
+                        href="/settings"
+                        className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                        style={{ color: "rgb(var(--theme-text-muted))" }}
+                        title="Configure Grafana URL"
+                    >
+                        <Settings className="h-4 w-4" />
+                    </Link>
                 </div>
             </div>
 
@@ -282,10 +293,13 @@ export default function GrafanaPage() {
                         className="absolute inset-0 flex items-center justify-center z-10"
                         style={{ background: "rgb(var(--theme-background))" }}
                     >
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-col items-center gap-3">
                             <RefreshCw className="h-6 w-6 animate-spin text-purple-500" />
                             <span style={{ color: "rgb(var(--theme-text-muted))" }}>
                                 Loading dashboard...
+                            </span>
+                            <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                Connecting to: {grafanaUrl}
                             </span>
                         </div>
                     </div>
@@ -297,11 +311,35 @@ export default function GrafanaPage() {
                         src={buildIframeUrl(selectedDashboard)}
                         className="w-full h-full border-0"
                         onLoad={() => setIsLoading(false)}
+                        onError={() => {
+                            setIsLoading(false);
+                            setError(`Failed to connect to Grafana at ${grafanaUrl}. Please check the URL in Settings.`);
+                        }}
                         allow="fullscreen"
                         title={`Grafana - ${selectedDashboard.title}`}
                     />
                 )}
             </div>
+
+            {/* Connection Info Footer */}
+            {!isFullscreen && (
+                <div 
+                    className="px-4 py-2 border-t flex items-center justify-between text-xs"
+                    style={{
+                        background: "rgb(var(--theme-surface))",
+                        borderColor: "rgb(var(--theme-border))",
+                        color: "rgb(var(--theme-text-muted))"
+                    }}
+                >
+                    <span>Connected to: {grafanaUrl}</span>
+                    <Link 
+                        href="/settings" 
+                        className="text-blue-500 hover:text-blue-400 hover:underline"
+                    >
+                        Change URL
+                    </Link>
+                </div>
+            )}
         </div>
     );
 }
