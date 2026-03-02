@@ -55,35 +55,35 @@ export const themes = {
         error: "191 97 106", // Aurora Red
         border: "76 86 106", // Polar Night 3 - brighter for visibility
     },
-    // NGINX One - Clean professional light theme (matches nginx-one-dashboard reference)
-    nginxOne: {
-        name: "NGINX One",
+    // Corporate - Clean professional light theme
+    corporate: {
+        name: "Corporate",
         background: "250 250 252", // Near white with slight blue tint
         surface: "255 255 255", // Pure white cards
         surfaceLight: "243 244 246", // Gray-100 hover states
         text: "15 23 42", // Slate-900 - maximum readability
         textMuted: "71 85 105", // Slate-600 - good secondary contrast
         textDim: "100 116 139", // Slate-500 - tertiary text
-        primary: "34 139 230", // NGINX Blue
+        primary: "34 139 230", // Professional Blue
         success: "16 185 129", // Emerald-500
         warning: "245 158 11", // Amber-500
         error: "239 68 68", // Red-500
         border: "226 232 240", // Slate-200 - subtle borders
     },
-    // Grafana Dark - Matches Grafana's dark theme (reference image.png)
-    grafanaDark: {
-        name: "Grafana Dark",
-        background: "17 18 23", // Grafana dark background
-        surface: "24 27 31", // Grafana panel background
+    // Midnight - Deep dark theme with rich colors
+    midnight: {
+        name: "Midnight",
+        background: "17 18 23", // Deep dark background
+        surface: "24 27 31", // Panel background
         surfaceLight: "32 34 38", // Hover state
-        text: "204 204 220", // Grafana main text
-        textMuted: "138 138 153", // Grafana secondary text
-        textDim: "108 108 121", // Grafana dim text
-        primary: "50 116 217", // Grafana blue
-        success: "115 191 105", // Grafana green
-        warning: "250 176 5", // Grafana yellow/amber
-        error: "242 73 92", // Grafana red
-        border: "44 50 58", // Grafana panel border
+        text: "204 204 220", // Main text
+        textMuted: "138 138 153", // Secondary text
+        textDim: "108 108 121", // Dim text
+        primary: "50 116 217", // Rich blue
+        success: "115 191 105", // Vibrant green
+        warning: "250 176 5", // Golden yellow
+        error: "242 73 92", // Coral red
+        border: "44 50 58", // Panel border
     },
 } as const;
 
