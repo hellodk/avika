@@ -96,6 +96,7 @@ message Heartbeat {
   string build_date = 8;       // Build timestamp
   string git_commit = 9;       // Git commit hash
   string git_branch = 10;      // Git branch name
+  map<string, string> labels = 11;  // Agent labels for auto-assignment (project, environment, etc.)
 }
 
 message NginxInstance {
@@ -182,6 +183,10 @@ service AgentService {
 
   // Command Execution (Shell)
   rpc Execute(stream ExecRequest) returns (stream ExecResponse);
+
+  // Agent Configuration
+  rpc GetAgentConfig(GetAgentConfigRequest) returns (AgentConfig);
+  rpc UpdateAgentConfig(AgentConfig) returns (AgentConfigResponse);
 
   // Reporting
   rpc GenerateReport(ReportRequest) returns (ReportResponse);
@@ -389,6 +394,8 @@ message AgentInfo {
   string build_date = 12;    // Build timestamp
   string git_commit = 13;    // Git commit hash
   string git_branch = 14;    // Git branch name
+  bool psk_authenticated = 15; // true if agent connected with valid PSK
+  map<string, string> labels = 16;  // Agent labels for project/environment assignment
 }
 
 message LogRequest {
@@ -416,6 +423,7 @@ message LogEntry {
   float upstream_response_time = 15;
   string referer = 16;
   string user_agent = 17;
+  string x_forwarded_for = 18;  // Client IP from X-Forwarded-For header for geo lookup
 }
 
 // ============ Uptime Monitoring ============
@@ -693,4 +701,51 @@ message ReportDownloadResponse {
   bytes content = 1;
   string file_name = 2;
   string content_type = 3;
+}
+
+// ============ Agent Configuration Messages ============
+
+message GetAgentConfigRequest {
+  string agent_id = 1;
+}
+
+message AgentConfig {
+  string agent_id = 1;
+  
+  // Gateway Configuration
+  repeated string gateway_addresses = 2;  // Multiple gateway addresses for redundancy
+  bool multi_gateway_mode = 3;            // Enable sending to multiple gateways
+  
+  // NGINX Configuration
+  string nginx_status_url = 4;
+  string access_log_path = 5;
+  string error_log_path = 6;
+  string nginx_config_path = 7;
+  string log_format = 8;
+  
+  // Agent Settings
+  int32 health_port = 9;
+  int32 mgmt_port = 10;
+  string log_level = 11;
+  string buffer_dir = 12;
+  
+  // Update Settings
+  string update_server = 13;
+  int64 update_interval_seconds = 14;
+  
+  // Telemetry Settings
+  int32 metrics_interval_seconds = 15;
+  int32 heartbeat_interval_seconds = 16;
+  
+  // Feature Flags
+  bool enable_vts_metrics = 17;
+  bool enable_log_streaming = 18;
+  bool auto_apply_config = 19;
+}
+
+message AgentConfigResponse {
+  bool success = 1;
+  string error = 2;
+  string message = 3;
+  bool requires_restart = 4;
 }
