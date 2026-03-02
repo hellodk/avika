@@ -418,11 +418,12 @@ function NavLink({ href, icon, label, pathname, collapsed, badge, badgeColor = "
         ? pathname === "/" 
         : pathname.startsWith(href) && (href !== "/" || pathname === "/");
     
-    const badgeColorClasses: Record<string, string> = {
-        blue: "bg-blue-500/20 text-blue-400",
-        purple: "bg-purple-500/20 text-purple-400",
-        green: "bg-emerald-500/20 text-emerald-400",
-        amber: "bg-amber-500/20 text-amber-400",
+    // Theme-aware badge colors using CSS variables
+    const badgeStyles: Record<string, React.CSSProperties> = {
+        blue: { background: "rgba(var(--theme-primary), 0.2)", color: "rgb(var(--theme-primary))" },
+        purple: { background: "rgba(139, 92, 246, 0.2)", color: "rgb(139, 92, 246)" },
+        green: { background: "rgba(var(--theme-success), 0.2)", color: "rgb(var(--theme-success))" },
+        amber: { background: "rgba(var(--theme-warning), 0.2)", color: "rgb(var(--theme-warning))" },
     };
 
     return (
@@ -430,8 +431,8 @@ function NavLink({ href, icon, label, pathname, collapsed, badge, badgeColor = "
             href={href}
             className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all ${collapsed ? 'justify-center' : ''}`}
             style={isActive ? {
-                background: "rgba(59, 130, 246, 0.1)",
-                color: "rgb(59, 130, 246)",
+                background: "rgba(var(--theme-primary), 0.1)",
+                color: "rgb(var(--theme-primary))",
             } : {
                 color: "rgb(var(--theme-text-muted))",
             }}
@@ -442,7 +443,10 @@ function NavLink({ href, icon, label, pathname, collapsed, badge, badgeColor = "
                 <>
                     <span className="flex-1">{label}</span>
                     {badge && (
-                        <Badge className={`text-[10px] px-1.5 py-0 ${badgeColorClasses[badgeColor]}`}>
+                        <Badge 
+                            className="text-[10px] px-1.5 py-0"
+                            style={badgeStyles[badgeColor] || badgeStyles.blue}
+                        >
                             {badge}
                         </Badge>
                     )}

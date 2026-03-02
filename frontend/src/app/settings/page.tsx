@@ -16,7 +16,9 @@ import {
     Sparkles,
     ChevronDown,
     Loader2,
-    Trash2
+    Trash2,
+    BarChart3,
+    Building2
 } from "lucide-react";
 import { useTheme } from "@/lib/theme-provider";
 import { themes, ThemeName } from "@/lib/themes";
@@ -28,11 +30,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
-const themeIcons = {
+const themeIcons: Record<string, typeof Moon> = {
     dark: Moon,
     light: Sun,
     solarized: Sparkles,
     nord: Sparkles,
+    nginxOne: Building2,
+    grafanaDark: BarChart3,
 };
 
 export default function SettingsPage() {
