@@ -5,7 +5,7 @@
  * that adapt to the current theme while maintaining WCAG AA contrast ratios.
  */
 
-export type ThemeMode = 'dark' | 'light' | 'solarized' | 'nord' | 'nginxOne' | 'grafanaDark';
+export type ThemeMode = 'dark' | 'light' | 'solarized' | 'nord' | 'corporate' | 'midnight';
 
 export interface ChartColorPalette {
     // Grid and axes
@@ -56,7 +56,7 @@ export interface ChartColorPalette {
  * All colors are chosen to meet WCAG AA contrast requirements
  */
 export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
-    const isDark = theme !== 'light';
+    const isDark = theme !== 'light' && theme !== 'corporate';
     
     // Common colors that work in both modes (with slight adjustments)
     const baseColors = {
@@ -209,8 +209,8 @@ export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
         };
     }
     
-    // NGINX One - Clean professional light theme (matches reference dashboard)
-    if (theme === 'nginxOne') {
+    // Corporate - Clean professional light theme
+    if (theme === 'corporate') {
         return {
             grid: 'rgba(0, 0, 0, 0.06)',
             axis: '#64748b',          // slate-500
@@ -223,10 +223,10 @@ export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
             success: '#10b981',       // emerald-500
             warning: '#f59e0b',       // amber-500
             error: '#ef4444',         // red-500
-            info: '#228be6',          // NGINX blue
+            info: '#228be6',          // Professional blue
             
             status2xx: '#10b981',     // emerald-500
-            status3xx: '#228be6',     // NGINX blue
+            status3xx: '#228be6',     // Professional blue
             status4xx: '#f59e0b',     // amber-500
             status5xx: '#ef4444',     // red-500
             
@@ -245,7 +245,7 @@ export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
             latencyP99: '#ef4444',
             
             series: [
-                '#228be6',  // NGINX blue
+                '#228be6',  // Professional blue
                 '#10b981',  // emerald-500
                 '#f59e0b',  // amber-500
                 '#8b5cf6',  // violet-500
@@ -255,8 +255,8 @@ export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
         };
     }
     
-    // Grafana Dark - Matches Grafana's dark theme
-    if (theme === 'grafanaDark') {
+    // Midnight - Deep dark theme with rich colors
+    if (theme === 'midnight') {
         return {
             grid: 'rgba(255, 255, 255, 0.1)',
             axis: '#ccccdc',
@@ -266,10 +266,10 @@ export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
             tooltipText: '#ccccdc',
             tooltipBorder: '#2c323a',
             
-            success: '#73bf69',       // Grafana green
-            warning: '#fab005',       // Grafana yellow
-            error: '#f2495c',         // Grafana red
-            info: '#3274d9',          // Grafana blue
+            success: '#73bf69',       // Vibrant green
+            warning: '#fab005',       // Golden yellow
+            error: '#f2495c',         // Coral red
+            info: '#3274d9',          // Rich blue
             
             status2xx: '#73bf69',
             status3xx: '#3274d9',
@@ -279,7 +279,7 @@ export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
             connectionActive: '#3274d9',
             connectionReading: '#73bf69',
             connectionWriting: '#fab005',
-            connectionWaiting: '#8f3bb8',  // Grafana purple
+            connectionWaiting: '#8f3bb8',  // Purple
             
             cpu: '#8f3bb8',
             memory: '#fab005',
@@ -291,12 +291,12 @@ export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
             latencyP99: '#f2495c',
             
             series: [
-                '#3274d9',  // Grafana blue
-                '#73bf69',  // Grafana green
-                '#fab005',  // Grafana yellow
-                '#8f3bb8',  // Grafana purple
-                '#f2495c',  // Grafana red
-                '#56a3ff',  // Grafana light blue
+                '#3274d9',  // Rich blue
+                '#73bf69',  // Vibrant green
+                '#fab005',  // Golden yellow
+                '#8f3bb8',  // Purple
+                '#f2495c',  // Coral red
+                '#56a3ff',  // Light blue
             ],
         };
     }
@@ -358,8 +358,8 @@ export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
 export function getChartColorsForTheme(themeName: string): ChartColorPalette {
     const normalizedTheme = themeName?.toLowerCase() || 'dark';
     
-    if (normalizedTheme === 'nginxone') return getChartColors('nginxOne');
-    if (normalizedTheme === 'grafanadark') return getChartColors('grafanaDark');
+    if (normalizedTheme === 'corporate') return getChartColors('corporate');
+    if (normalizedTheme === 'midnight') return getChartColors('midnight');
     if (normalizedTheme.includes('light')) return getChartColors('light');
     if (normalizedTheme.includes('solarized')) return getChartColors('solarized');
     if (normalizedTheme.includes('nord')) return getChartColors('nord');
