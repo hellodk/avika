@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/lib/pq"
-	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 	"github.com/avika-ai/avika/cmd/gateway/middleware"
 	"github.com/avika-ai/avika/cmd/gateway/migrations"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
+	_ "github.com/lib/pq"
 )
 
 type DB struct {
@@ -30,13 +30,13 @@ func NewDB(dsn string) (*DB, error) {
 	}
 
 	db := &DB{conn: conn}
-	
+
 	// Run embedded SQL migrations
 	runner := migrations.NewRunner(conn)
 	if err := runner.Run(); err != nil {
 		return nil, fmt.Errorf("migration failed: %w", err)
 	}
-	
+
 	// Log current schema version
 	if version, err := runner.GetCurrentVersion(); err == nil {
 		log.Printf("Database schema version: %s", version)
@@ -386,4 +386,105 @@ func (db *DB) GetTeamByName(name string) (*middleware.TeamInfo, error) {
 		return nil, err
 	}
 	return &team, nil
+}
+
+// WAFPolicy represents a ModSecurity rule set
+type WAFPolicy struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Rules       string    `json:"rules"` // The ModSec rules text
+	Enabled     bool      `json:"enabled"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// UpsertWAFPolicy creates or updates a WAF policy
+func (db *DB) UpsertWAFPolicy(policy *WAFPolicy) error {
+	query := `
+	INSERT INTO waf_policies (id, name, description, rules, enabled, created_at, updated_at)
+	VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	ON CONFLICT (id) DO UPDATE SET
+		name = EXCLUDED.name,
+		description = EXCLUDED.description,
+		rules = EXCLUDED.rules,
+		enabled = EXCLUDED.enabled,
+		updated_at = CURRENT_TIMESTAMP;
+	`
+	_, err := db.conn.Exec(query, policy.ID, policy.Name, policy.Description, policy.Rules, policy.Enabled)
+	return err
+}
+
+// ListWAFPolicies returns all WAF policies
+func (db *DB) ListWAFPolicies() ([]WAFPolicy, error) {
+	rows, err := db.conn.Query("SELECT id, name, description, rules, enabled, created_at, updated_at FROM waf_policies ORDER BY created_at DESC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var policies []WAFPolicy
+	for rows.Next() {
+		var p WAFPolicy
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Rules, &p.Enabled, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			continue
+		}
+		policies = append(policies, p)
+	}
+	return policies, nil
+}
+
+// GetWAFPolicy returns a single WAF policy
+func (db *DB) GetWAFPolicy(id string) (*WAFPolicy, error) {
+	var p WAFPolicy
+	err := db.conn.QueryRow("SELECT id, name, description, rules, enabled, created_at, updated_at FROM waf_policies WHERE id = $1", id).
+		Scan(&p.ID, &p.Name, &p.Description, &p.Rules, &p.Enabled, &p.CreatedAt, &p.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &p, err
+}
+
+// StagedConfig represents a configuration change waiting for approval/apply
+type StagedConfig struct {
+	ID          string    `json:"id"`
+	TargetID    string    `json:"target_id"`   // AgentID or EnvironmentID
+	TargetType  string    `json:"target_type"` // "agent" or "environment"
+	Content     string    `json:"content"`
+	ConfigPath  string    `json:"config_path"`
+	CreatedBy   string    `json:"created_by"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+// UpsertStagedConfig creates or updates a staged config
+func (db *DB) UpsertStagedConfig(cfg *StagedConfig) error {
+	query := `
+	INSERT INTO staged_configs (target_id, target_type, content, config_path, created_by, description, created_at)
+	VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+	ON CONFLICT (target_id, config_path) DO UPDATE SET
+		content = EXCLUDED.content,
+		created_by = EXCLUDED.created_by,
+		description = EXCLUDED.description,
+		created_at = CURRENT_TIMESTAMP;
+	`
+	_, err := db.conn.Exec(query, cfg.TargetID, cfg.TargetType, cfg.Content, cfg.ConfigPath, cfg.CreatedBy, cfg.Description)
+	return err
+}
+
+// GetStagedConfig retrieves a staged config
+func (db *DB) GetStagedConfig(targetID, configPath string) (*StagedConfig, error) {
+	var c StagedConfig
+	err := db.conn.QueryRow("SELECT target_id, target_type, content, config_path, created_by, description, created_at FROM staged_configs WHERE target_id = $1 AND config_path = $2", targetID, configPath).
+		Scan(&c.TargetID, &c.TargetType, &c.Content, &c.ConfigPath, &c.CreatedBy, &c.Description, &c.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &c, err
+}
+
+// DeleteStagedConfig removes a staged config after apply/discard
+func (db *DB) DeleteStagedConfig(targetID, configPath string) error {
+	_, err := db.conn.Exec("DELETE FROM staged_configs WHERE target_id = $1 AND config_path = $2", targetID, configPath)
+	return err
 }

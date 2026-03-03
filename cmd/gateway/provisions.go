@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/avika-ai/avika/cmd/gateway/middleware"
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 )
 
@@ -72,6 +73,15 @@ func (s *server) handleProvisions(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+
+		// Log audit event
+		user := middleware.GetUserFromContext(r.Context())
+		if user != nil {
+			s.db.CreateAuditLog(user.Username, "provision", "agent", req.InstanceID, r.RemoteAddr, r.UserAgent(), map[string]string{
+				"template":   req.Template,
+				"augment_id": augment.AugmentId,
+			})
 		}
 
 		w.Header().Set("Content-Type", "application/json")

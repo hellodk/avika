@@ -209,6 +209,13 @@ func (srv *server) handleUpdateAgentRuntimeConfig(w http.ResponseWriter, r *http
 		if latest, gErr := client.GetAgentConfig(ctx, &emptypb.Empty{}); gErr == nil {
 			_ = srv.db.UpsertAgentConfigCache(ctx, agentID, latest)
 		}
+
+		// Log audit event
+		srv.db.CreateAuditLog(user.Username, "update_runtime_config", "agent", agentID, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
+			"persist":    body.Persist,
+			"hot_reload": body.HotReload,
+			"updates":    updates,
+		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")

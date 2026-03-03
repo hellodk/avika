@@ -3,12 +3,12 @@
 import { ReactNode, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-    Activity, BarChart2, Server, Settings, ShieldAlert, Zap, 
+import {
+    Activity, BarChart2, Server, Settings, ShieldAlert, Zap,
     FileText, Heart, Cpu, ChevronDown, ChevronRight,
     Search, Bell, User, Menu, X, HelpCircle, LogOut,
     LayoutDashboard, Layers, GitBranch, Terminal, BookOpen, KeyRound, Globe,
-    LineChart, Users, FolderKanban
+    LineChart, Users, FolderKanban, Lock, Info
 } from "lucide-react";
 import { ProjectSelector } from "@/components/project-selector";
 import { EnvironmentTabs } from "@/components/environment-tabs";
@@ -76,6 +76,8 @@ const NAV_SECTIONS: NavSection[] = [
     {
         title: "Admin",
         items: [
+            { href: "/audit", icon: <ShieldAlert />, label: "Audit Logs" },
+            { href: "/waf", icon: <Lock />, label: "WAF Policies", badge: "New", badgeColor: "purple" },
             { href: "/settings/llm", icon: <Zap />, label: "LLM" },
             { href: "/settings/integrations", icon: <Globe />, label: "Integrations" },
         ],
@@ -84,13 +86,13 @@ const NAV_SECTIONS: NavSection[] = [
 
 function EnvironmentTabsBar() {
     const { selectedProject } = useProject();
-    
+
     if (!selectedProject) {
         return null;
     }
-    
+
     return (
-        <div 
+        <div
             className="px-6 py-2 border-b flex-shrink-0"
             style={{
                 background: "rgb(var(--theme-surface))",
@@ -111,8 +113,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     );
 
     const toggleSection = (title: string) => {
-        setExpandedSections(prev => 
-            prev.includes(title) 
+        setExpandedSections(prev =>
+            prev.includes(title)
                 ? prev.filter(t => t !== title)
                 : [...prev, title]
         );
@@ -141,7 +143,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     return (
         <div className="flex h-screen overflow-hidden" style={{ background: "rgb(var(--theme-background))" }}>
             {/* Sidebar */}
-            <aside 
+            <aside
                 className={`${sidebarCollapsed ? 'w-16' : 'w-64'} flex-shrink-0 border-r flex flex-col transition-all duration-300`}
                 style={{
                     background: "rgb(var(--theme-surface))",
@@ -185,17 +187,17 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                                     style={{ color: "rgb(var(--theme-text-muted))" }}
                                 >
                                     <span>{section.title}</span>
-                                    {expandedSections.includes(section.title) 
+                                    {expandedSections.includes(section.title)
                                         ? <ChevronDown className="h-3 w-3" />
                                         : <ChevronRight className="h-3 w-3" />
                                     }
                                 </button>
                             )}
-                            
+
                             {(sidebarCollapsed || expandedSections.includes(section.title)) && (
                                 <div className={`${sidebarCollapsed ? '' : 'mt-1'} space-y-0.5`}>
                                     {section.items.map((item) => (
-                                        <NavLink 
+                                        <NavLink
                                             key={item.href}
                                             {...item}
                                             pathname={pathname}
@@ -212,10 +214,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 <div className="border-t p-3" style={{ borderColor: "rgb(var(--theme-border))" }}>
                     {!sidebarCollapsed ? (
                         <div className="space-y-1">
-                            <NavLink 
-                                href="/settings" 
-                                icon={<Settings />} 
-                                label="Settings" 
+                            <NavLink
+                                href="/settings"
+                                icon={<Settings />}
+                                label="Settings"
                                 pathname={pathname}
                                 collapsed={sidebarCollapsed}
                             />
@@ -230,10 +232,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                         </div>
                     ) : (
                         <div className="space-y-1">
-                            <NavLink 
-                                href="/settings" 
-                                icon={<Settings />} 
-                                label="Settings" 
+                            <NavLink
+                                href="/settings"
+                                icon={<Settings />}
+                                label="Settings"
                                 pathname={pathname}
                                 collapsed={sidebarCollapsed}
                             />
@@ -253,7 +255,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             {/* Main Area */}
             <div className="flex-1 flex flex-col overflow-hidden">
                 {/* Header */}
-                <header 
+                <header
                     className="h-16 flex items-center justify-between px-6 border-b flex-shrink-0"
                     style={{
                         background: "rgb(var(--theme-surface))",
@@ -265,8 +267,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                         <ProjectSelector className="w-[180px]" />
                         <div className="w-px h-6" style={{ background: "rgb(var(--theme-border))" }} />
                         <nav className="flex items-center text-sm">
-                            <Link 
-                                href="/" 
+                            <Link
+                                href="/"
                                 className="hover:underline"
                                 style={{ color: "rgb(var(--theme-text-muted))" }}
                             >
@@ -294,9 +296,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                                     color: "rgb(var(--theme-text))"
                                 }}
                             />
-                            <kbd 
+                            <kbd
                                 className="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-xs rounded border"
-                                style={{ 
+                                style={{
                                     background: "rgb(var(--theme-surface))",
                                     borderColor: "rgb(var(--theme-border))",
                                     color: "rgb(var(--theme-text-muted))"
@@ -307,7 +309,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                         </div>
 
                         {/* Help */}
-                        <button 
+                        <button
                             className="p-2 rounded-lg hover:bg-white/5 transition-colors"
                             style={{ color: "rgb(var(--theme-text-muted))" }}
                             title="Help & Documentation"
@@ -317,7 +319,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                         </button>
 
                         {/* Notifications */}
-                        <button 
+                        <button
                             className="p-2 rounded-lg hover:bg-white/5 transition-colors relative"
                             style={{ color: "rgb(var(--theme-text-muted))" }}
                             title="Notifications"
@@ -333,7 +335,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                         {/* User Menu */}
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <button 
+                                <button
                                     className="flex items-center gap-3 px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
                                 >
                                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
@@ -350,12 +352,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                                     <ChevronDown className="h-4 w-4 hidden md:block" style={{ color: "rgb(var(--theme-text-muted))" }} />
                                 </button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent 
-                                align="end" 
+                            <DropdownMenuContent
+                                align="end"
                                 className="w-56"
-                                style={{ 
-                                    background: "rgb(var(--theme-surface))", 
-                                    borderColor: "rgb(var(--theme-border))" 
+                                style={{
+                                    background: "rgb(var(--theme-surface))",
+                                    borderColor: "rgb(var(--theme-border))"
                                 }}
                             >
                                 <DropdownMenuLabel style={{ color: "rgb(var(--theme-text))" }}>
@@ -363,8 +365,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                                 </DropdownMenuLabel>
                                 <DropdownMenuSeparator style={{ background: "rgb(var(--theme-border))" }} />
                                 <DropdownMenuItem asChild>
-                                    <Link 
-                                        href="/change-password" 
+                                    <Link
+                                        href="/change-password"
                                         className="flex items-center cursor-pointer"
                                         style={{ color: "rgb(var(--theme-text))" }}
                                     >
@@ -373,8 +375,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                                     </Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild>
-                                    <Link 
-                                        href="/settings" 
+                                    <Link
+                                        href="/settings"
                                         className="flex items-center cursor-pointer"
                                         style={{ color: "rgb(var(--theme-text))" }}
                                     >
@@ -383,7 +385,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                                     </Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator style={{ background: "rgb(var(--theme-border))" }} />
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                     onClick={logout}
                                     className="flex items-center cursor-pointer text-red-400 focus:text-red-400 focus:bg-red-500/10"
                                 >
@@ -399,7 +401,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 <EnvironmentTabsBar />
 
                 {/* Main Content */}
-                <main 
+                <main
                     className="flex-1 overflow-auto p-6"
                     style={{ background: "rgb(var(--theme-background))" }}
                     role="main"
@@ -423,10 +425,10 @@ interface NavLinkProps {
 }
 
 function NavLink({ href, icon, label, pathname, collapsed, badge, badgeColor = "blue" }: NavLinkProps) {
-    const isActive = href === "/" 
-        ? pathname === "/" 
+    const isActive = href === "/"
+        ? pathname === "/"
         : pathname.startsWith(href) && (href !== "/" || pathname === "/");
-    
+
     // Theme-aware badge colors using CSS variables
     const badgeStyles: Record<string, React.CSSProperties> = {
         blue: { background: "rgba(var(--theme-primary), 0.2)", color: "rgb(var(--theme-primary))" },
@@ -452,7 +454,7 @@ function NavLink({ href, icon, label, pathname, collapsed, badge, badgeColor = "
                 <>
                     <span className="flex-1">{label}</span>
                     {badge && (
-                        <Badge 
+                        <Badge
                             className="text-[10px] px-1.5 py-0"
                             style={badgeStyles[badgeColor] || badgeStyles.blue}
                         >
