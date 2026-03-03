@@ -199,3 +199,42 @@ nginx-agent/.agent_id
 
 # Profiling and performance test outputs
 profiling_results/
+
+# ============================================================================
+# Additional non-essential files
+# ============================================================================
+
+# Cursor IDE state files
+*.cursor
+
+# Compiled binaries in source directories
+cmd/gateway/gateway
+cmd/agent/agent
+
+# Load test results and outputs
+load_test_results/
+
+# Runtime logs in root
+agent.log
+gateway.log
+frontend.log
+access.log
+gateway_test.log
+gateway_debug.log
+frontend_build.log
+
+# Logs directory
+logs/
+
+# Test artifacts and HTML outputs
+terminal_screenshot.html
+test_visual.html
+
+# Reference images (design mockups, not part of app)
+reference_images/
+
+# Dated test reports and observations
+TEST_OBSERVATIONS_*.md
+LOAD_TEST_REPORT.md
+MANUAL_TEST_GUIDE.md
+WEB_TERMINAL_TEST_GUIDE.md
