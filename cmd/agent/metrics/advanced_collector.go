@@ -10,14 +10,14 @@ import (
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 )
 
-// PlusCollector collects metrics from NGINX Plus API
-type PlusCollector struct {
+// AdvancedCollector collects metrics from Advanced NGINX API
+type AdvancedCollector struct {
 	apiURL string
 	client *http.Client
 }
 
-func NewPlusCollector(baseURL string) *PlusCollector {
-	return &PlusCollector{
+func NewAdvancedCollector(baseURL string) *AdvancedCollector {
+	return &AdvancedCollector{
 		apiURL: baseURL,
 		client: &http.Client{
 			Timeout: 2 * time.Second,
@@ -25,8 +25,8 @@ func NewPlusCollector(baseURL string) *PlusCollector {
 	}
 }
 
-// PlusMetrics is a partial mapping of the NGINX Plus API response
-type PlusMetrics struct {
+// AdvancedMetrics is a partial mapping of the Advanced NGINX API response
+type AdvancedMetrics struct {
 	Nginx struct {
 		Version string `json:"version"`
 	} `json:"nginx"`
@@ -44,9 +44,9 @@ type PlusMetrics struct {
 	} `json:"http"`
 }
 
-func (c *PlusCollector) Collect() (*pb.NginxMetrics, error) {
-	// NGINX Plus usually has multiple endpoints. For simplicity, we assume a single JSON bundle
-	// or we scrape key endpoints. Commercial NIM scrapes /api/N/...
+func (c *AdvancedCollector) Collect() (*pb.NginxMetrics, error) {
+	// Advanced NGINX usually has multiple endpoints. For simplicity, we assume a single JSON bundle
+	// or we scrape key endpoints. Commercial managers scrape /api/N/...
 
 	// Try to get the root API versions
 	resp, err := c.client.Get(c.apiURL)
@@ -56,7 +56,7 @@ func (c *PlusCollector) Collect() (*pb.NginxMetrics, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("plus api returned %s", resp.Status)
+		return nil, fmt.Errorf("advanced api returned %s", resp.Status)
 	}
 
 	// For a real implementation, we would negotiate the version.
@@ -95,7 +95,7 @@ func (c *PlusCollector) Collect() (*pb.NginxMetrics, error) {
 	return metrics, nil
 }
 
-func (c *PlusCollector) fetchSegment(path string) ([]byte, error) {
+func (c *AdvancedCollector) fetchSegment(path string) ([]byte, error) {
 	// Try latest version 9, then fallback
 	url := fmt.Sprintf("%s/9%s", c.apiURL, path)
 	resp, err := c.client.Get(url)

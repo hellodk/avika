@@ -15,13 +15,13 @@ import (
 
 // NginxCollector collects metrics from NGINX stub_status
 type NginxCollector struct {
-	stubStatusURL   string
-	vtsURL          string
-	plusURL         string
-	client          *http.Client
-	systemCollector *SystemCollector
-	vtsCollector    *VtsCollector
-	plusCollector   *PlusCollector
+	stubStatusURL     string
+	vtsURL            string
+	advancedURL       string
+	client            *http.Client
+	systemCollector   *SystemCollector
+	vtsCollector      *VtsCollector
+	advancedCollector *AdvancedCollector
 }
 
 func NewNginxCollector(url string) *NginxCollector {
@@ -34,32 +34,32 @@ func NewNginxCollector(url string) *NginxCollector {
 		vtsURL = "http://127.0.0.1/status/format/json"
 	}
 
-	// Derive Plus API URL (usually /api/ at root or sibling)
-	plusURL := strings.Replace(url, "nginx_status", "api", 1)
-	if !strings.Contains(plusURL, "/api") {
-		plusURL = "http://127.0.0.1/api"
+	// Derive Advanced API URL (usually /api/ at root or sibling)
+	advancedURL := strings.Replace(url, "nginx_status", "api", 1)
+	if !strings.Contains(advancedURL, "/api") {
+		advancedURL = "http://127.0.0.1/api"
 	}
 
 	return &NginxCollector{
 		stubStatusURL: url,
 		vtsURL:        vtsURL,
-		plusURL:       plusURL,
+		advancedURL:   advancedURL,
 		client: &http.Client{
 			Timeout: 2 * time.Second,
 		},
-		systemCollector: NewSystemCollector(),
-		vtsCollector:    NewVtsCollector(vtsURL),
-		plusCollector:   NewPlusCollector(plusURL),
+		systemCollector:   NewSystemCollector(),
+		vtsCollector:      NewVtsCollector(vtsURL),
+		advancedCollector: NewAdvancedCollector(advancedURL),
 	}
 }
 
-// Collect scrapes metrics and returns them. It tries Plus API, then VTS, then stub_status.
+// Collect scrapes metrics and returns them. It tries Advanced API, then VTS, then stub_status.
 func (c *NginxCollector) Collect() (*pb.NginxMetrics, error) {
 	var metrics *pb.NginxMetrics
 	var err error
 
-	// 1. Try NGINX Plus API first
-	metrics, err = c.plusCollector.Collect()
+	// 1. Try Advanced NGINX API first
+	metrics, err = c.advancedCollector.Collect()
 	if err != nil {
 		// 2. Try VTS next
 		metrics, err = c.vtsCollector.Collect()
@@ -69,7 +69,7 @@ func (c *NginxCollector) Collect() (*pb.NginxMetrics, error) {
 		// 3. Fallback to stub_status
 		resp, err := c.client.Get(c.stubStatusURL)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch metrics (Plus, VTS and stub_status failed): %v", err)
+			return nil, fmt.Errorf("failed to fetch metrics (Advanced, VTS and stub_status failed): %v", err)
 		}
 		defer resp.Body.Close()
 

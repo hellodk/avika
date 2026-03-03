@@ -1,5 +1,5 @@
 -- Migration: Add WAF Policies table
--- Description: Stores ModSecurity rules and policies for fleet-wide distribution
+-- Description: Stores Security Engine rules and policies for fleet-wide distribution
 
 CREATE TABLE IF NOT EXISTS waf_policies (
     id VARCHAR(64) PRIMARY KEY,

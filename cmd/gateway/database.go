@@ -388,7 +388,7 @@ func (db *DB) GetTeamByName(name string) (*middleware.TeamInfo, error) {
 	return &team, nil
 }
 
-// WAFPolicy represents a ModSecurity rule set
+// WAFPolicy represents a Security Engine rule set
 type WAFPolicy struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`

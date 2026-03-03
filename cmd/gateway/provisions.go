@@ -143,7 +143,7 @@ server {
 		return fmt.Sprintf(`%supstream %s {
 %s
     
-    # NOTE: 'check' directive requires nginx_upstream_check_module or NGINX Plus
+    # NOTE: 'check' directive requires nginx_upstream_check_module or Advanced NGINX
     check interval=%.0f rise=%.0f fall=%.0f timeout=%.0f;
 }`, header, upstreamName, servers, interval, rise, fall, timeout)
 

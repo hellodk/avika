@@ -1521,7 +1521,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.Handle("GET /api/waf/policies/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetWAFPolicy)))
 	mux.Handle("PUT /api/waf/policies/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateWAFPolicy)))
 
-	// Configuration Staging (NIM Parity)
+	// Configuration Staging (Fleet Staging)
 	mux.Handle("GET /api/staging/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetStagedConfig)))
 	mux.Handle("POST /api/staging/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleStageConfig)))
 	mux.Handle("DELETE /api/staging/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDiscardStagedConfig)))

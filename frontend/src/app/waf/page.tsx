@@ -50,7 +50,7 @@ export default function WAFPage() {
                         WAF Policy Management
                     </h1>
                     <p className="text-muted-foreground mt-1">
-                        Manage ModSecurity rule sets and distribution across your NGINX fleet.
+                        Manage Security Engine rule sets and distribution across your NGINX fleet.
                     </p>
                 </div>
                 <Button className="bg-purple-600 hover:bg-purple-700 text-white gap-2">
