@@ -36,18 +36,18 @@ type UserLookupFunc func(username string) (passwordHash string, role string, fou
 
 // AuthConfig holds authentication configuration.
 type AuthConfig struct {
-	Enabled            bool          `json:"enabled"`
-	Username           string        `json:"username"`
-	PasswordHash       string        `json:"password_hash"`        // SHA-256 hash (fallback if no UserLookup)
-	JWTSecret          string        `json:"jwt_secret"`
-	TokenExpiry        time.Duration `json:"token_expiry"`
-	CookieName         string        `json:"cookie_name"`
-	CookieSecure       bool          `json:"cookie_secure"`        // Set to true in production with HTTPS
-	CookieDomain       string        `json:"cookie_domain"`
-	FirstTimeSetup     bool          `json:"first_time_setup"`     // True if using auto-generated password
-	RequirePassChange  bool          `json:"require_pass_change"`  // Force password change on first login
-	InitialSecretPath  string        `json:"initial_secret_path"`  // File to write initial secret
-	UserLookup         UserLookupFunc `json:"-"`                   // Function to look up users from database
+	Enabled           bool           `json:"enabled"`
+	Username          string         `json:"username"`
+	PasswordHash      string         `json:"password_hash"` // SHA-256 hash (fallback if no UserLookup)
+	JWTSecret         string         `json:"jwt_secret"`
+	TokenExpiry       time.Duration  `json:"token_expiry"`
+	CookieName        string         `json:"cookie_name"`
+	CookieSecure      bool           `json:"cookie_secure"` // Set to true in production with HTTPS
+	CookieDomain      string         `json:"cookie_domain"`
+	FirstTimeSetup    bool           `json:"first_time_setup"`    // True if using auto-generated password
+	RequirePassChange bool           `json:"require_pass_change"` // Force password change on first login
+	InitialSecretPath string         `json:"initial_secret_path"` // File to write initial secret
+	UserLookup        UserLookupFunc `json:"-"`                   // Function to look up users from database
 }
 
 // DefaultAuthConfig returns default auth configuration.
@@ -238,11 +238,12 @@ type LoginRequest struct {
 
 // LoginResponse represents a login API response.
 type LoginResponse struct {
-	Success            bool   `json:"success"`
-	Message            string `json:"message,omitempty"`
-	User               *User  `json:"user,omitempty"`
-	ExpiresAt          string `json:"expires_at,omitempty"`
-	RequirePassChange  bool   `json:"require_password_change,omitempty"`
+	Success           bool   `json:"success"`
+	Message           string `json:"message,omitempty"`
+	User              *User  `json:"user,omitempty"`
+	Token             string `json:"token,omitempty"`
+	ExpiresAt         string `json:"expires_at,omitempty"`
+	RequirePassChange bool   `json:"require_password_change,omitempty"`
 }
 
 // ChangePasswordRequest represents a password change request.
@@ -329,6 +330,7 @@ func (am *AuthManager) LoginHandler() http.HandlerFunc {
 			Success:           true,
 			Message:           "Login successful",
 			User:              user,
+			Token:             token,
 			ExpiresAt:         expiresAt.Format(time.RFC3339),
 			RequirePassChange: requirePassChange,
 		})
@@ -484,10 +486,24 @@ func (am *AuthManager) MeHandler() http.HandlerFunc {
 			return
 		}
 
+		// Try to get token from cookie or header
+		var token string
+		cookie, err := r.Cookie(am.config.CookieName)
+		if err == nil {
+			token = cookie.Value
+		}
+		if token == "" {
+			authHeader := r.Header.Get("Authorization")
+			if strings.HasPrefix(authHeader, "Bearer ") {
+				token = strings.TrimPrefix(authHeader, "Bearer ")
+			}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"authenticated": true,
 			"user":          user,
+			"token":         token,
 		})
 	}
 }
@@ -525,6 +541,11 @@ func (am *AuthManager) AuthMiddleware(publicPaths []string) func(http.Handler) h
 				if strings.HasPrefix(authHeader, "Bearer ") {
 					token = strings.TrimPrefix(authHeader, "Bearer ")
 				}
+			}
+
+			// Try query parameter 'token' (useful for WebSockets)
+			if token == "" {
+				token = r.URL.Query().Get("token")
 			}
 
 			// Validate token

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -26,6 +28,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/segmentio/kafka-go"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/peer"
 )
@@ -1135,6 +1138,17 @@ func main() {
 		grpc.MaxRecvMsgSize(16 * 1024 * 1024), // 16MB
 		grpc.MaxSendMsgSize(16 * 1024 * 1024),
 	}
+
+	// Add TLS/mTLS if enabled
+	if cfg.Security.EnableTLS {
+		tlsConfig, err := loadServerTLSConfig(cfg)
+		if err != nil {
+			log.Fatalf("Failed to load TLS configuration: %v", err)
+		}
+		grpcOpts = append(grpcOpts, grpc.Creds(credentials.NewTLS(tlsConfig)))
+		log.Printf("TLS enabled for gRPC (mTLS: %v)", cfg.Security.RequireClientCert)
+	}
+
 	// Add PSK interceptors if enabled
 	if cfg.PSK.Enabled {
 		grpcOpts = append(grpcOpts,
@@ -1202,9 +1216,16 @@ func main() {
 	// Start HTTP/WebSocket server
 	httpServer := srv.createHTTPServer(cfg)
 	go func() {
-		log.Printf("HTTP/WebSocket server listening on %s", cfg.GetHTTPAddress())
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("HTTP server error: %v", err)
+		if cfg.Security.EnableTLS {
+			log.Printf("HTTPS/WebSocket server listening on %s", cfg.GetHTTPAddress())
+			if err := httpServer.ListenAndServeTLS(cfg.Security.TLSCertFile, cfg.Security.TLSKeyFile); err != nil && err != http.ErrServerClosed {
+				log.Printf("HTTPS server error: %v", err)
+			}
+		} else {
+			log.Printf("HTTP/WebSocket server listening on %s", cfg.GetHTTPAddress())
+			if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Printf("HTTP server error: %v", err)
+			}
 		}
 	}()
 
@@ -1357,7 +1378,6 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		"/metrics",
 		"/api/auth/login",
 		"/api/auth/logout",
-		"/terminal", // WebSocket terminal - TODO: add token-based auth
 	}
 
 	// Callback to persist password changes to database
@@ -2037,4 +2057,39 @@ func (s *server) autoAssignAgentToEnvironment(agentID string, labels map[string]
 	}
 
 	log.Printf("Auto-assigned agent %s to project '%s', environment '%s'", agentID, project.Name, env.Name)
+}
+
+func loadServerTLSConfig(cfg *config.Config) (*tls.Config, error) {
+	// Load server certificate and key
+	cert, err := tls.LoadX509KeyPair(cfg.Security.TLSCertFile, cfg.Security.TLSKeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("could not load server key pair: %s", err)
+	}
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+	}
+
+	// Add client CA if mTLS is required
+	if cfg.Security.RequireClientCert {
+		if cfg.Security.TLSCACertFile == "" {
+			return nil, fmt.Errorf("mTLS required but tls_ca_cert_file is empty")
+		}
+
+		caCert, err := os.ReadFile(cfg.Security.TLSCACertFile)
+		if err != nil {
+			return nil, fmt.Errorf("could not read client CA cert: %s", err)
+		}
+
+		certPool := x509.NewCertPool()
+		if ok := certPool.AppendCertsFromPEM(caCert); !ok {
+			return nil, fmt.Errorf("failed to append client CA cert")
+		}
+
+		tlsConfig.ClientCAs = certPool
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	}
+
+	return tlsConfig, nil
 }
