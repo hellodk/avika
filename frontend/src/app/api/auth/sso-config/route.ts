@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const GATEWAY_URL = process.env.GATEWAY_HTTP_URL || process.env.GATEWAY_URL || 'http://localhost:5050';
+import { getGatewayUrl } from '@/lib/gateway-url';
+
+const GATEWAY_URL = getGatewayUrl();
 
 export async function GET() {
     try {
@@ -11,11 +13,11 @@ export async function GET() {
                 'Content-Type': 'application/json',
             },
         });
-        
+
         if (!response.ok) {
             return NextResponse.json({ oidc_enabled: false });
         }
-        
+
         const data = await response.json();
         return NextResponse.json(data);
     } catch (error) {
