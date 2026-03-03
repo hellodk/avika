@@ -52,6 +52,12 @@ export default function SettingsPage() {
     const [deletionMessage, setDeletionMessage] = useState("");
     const [grafanaUrl, setGrafanaUrl] = useState(DEFAULT_GRAFANA_URL);
 
+    // Telemetry & AI Settings State
+    const [collectionInterval, setCollectionInterval] = useState("10");
+    const [retentionDays, setRetentionDays] = useState("30");
+    const [anomalyThreshold, setAnomalyThreshold] = useState("0.8");
+    const [windowSize, setWindowSize] = useState("200");
+
     useEffect(() => {
         const savedUrl = localStorage.getItem("grafana_url");
         if (savedUrl) {
@@ -67,7 +73,7 @@ export default function SettingsPage() {
             if (!res.ok) throw new Error("Failed to fetch agents");
             const data = await res.json();
             const agents = data.agents || [];
-            
+
             // Get agents not seen in last 10 minutes (offline)
             const now = Math.floor(Date.now() / 1000);
             const offlineAgents = agents.filter((a: any) => {
@@ -112,14 +118,14 @@ export default function SettingsPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    collection_interval: 10,
-                    retention_days: 30,
-                    anomaly_threshold: 0.8,
-                    window_size: 200,
+                    collection_interval: parseInt(collectionInterval, 10),
+                    retention_days: parseInt(retentionDays, 10),
+                    anomaly_threshold: parseFloat(anomalyThreshold),
+                    window_size: parseInt(windowSize, 10),
                     grafana_url: grafanaUrl
                 })
             });
-            
+
             if (res.ok) {
                 setSaveSuccess(true);
                 toast.success("Settings saved", { description: "Your configuration has been updated." });
@@ -273,7 +279,8 @@ export default function SettingsPage() {
                             <Input
                                 id="collection-interval"
                                 type="number"
-                                defaultValue="10"
+                                value={collectionInterval}
+                                onChange={(e) => setCollectionInterval(e.target.value)}
                                 style={{
                                     backgroundColor: 'rgb(var(--theme-surface-light))',
                                     color: 'rgb(var(--theme-text))',
@@ -286,7 +293,8 @@ export default function SettingsPage() {
                             <Input
                                 id="retention-days"
                                 type="number"
-                                defaultValue="30"
+                                value={retentionDays}
+                                onChange={(e) => setRetentionDays(e.target.value)}
                                 style={{
                                     backgroundColor: 'rgb(var(--theme-surface-light))',
                                     color: 'rgb(var(--theme-text))',
@@ -308,7 +316,8 @@ export default function SettingsPage() {
                                 id="anomaly-threshold"
                                 type="number"
                                 step="0.1"
-                                defaultValue="0.8"
+                                value={anomalyThreshold}
+                                onChange={(e) => setAnomalyThreshold(e.target.value)}
                                 style={{
                                     backgroundColor: 'rgb(var(--theme-surface-light))',
                                     color: 'rgb(var(--theme-text))',
@@ -321,7 +330,8 @@ export default function SettingsPage() {
                             <Input
                                 id="window-size"
                                 type="number"
-                                defaultValue="200"
+                                value={windowSize}
+                                onChange={(e) => setWindowSize(e.target.value)}
                                 style={{
                                     backgroundColor: 'rgb(var(--theme-surface-light))',
                                     color: 'rgb(var(--theme-text))',
