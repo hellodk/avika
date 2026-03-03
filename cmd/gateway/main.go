@@ -1458,8 +1458,11 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		},
 	}
 
-	// Terminal WebSocket endpoint (protected by auth)
-	mux.Handle("/terminal", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// CVE Scanning API
+	mux.Handle("GET /api/cve/nginx/{version}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetNginxCVEs)))
+
+	// Terminal (WebSocket) - Now using token-based auth
+	mux.Handle("GET /terminal", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		srv.handleTerminal(w, r, upgrader)
 	})))
 
@@ -1508,6 +1511,20 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.Handle("GET /api/integrations/{type}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetIntegration)))
 	mux.Handle("PUT /api/integrations/{type}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handlePutIntegration)))
 	mux.Handle("POST /api/integrations/{type}/test", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleTestIntegration)))
+
+	// Audit Logs API
+	mux.Handle("GET /api/audit", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListAuditLogs)))
+
+	// WAF Policies API
+	mux.Handle("GET /api/waf/policies", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListWAFPolicies)))
+	mux.Handle("POST /api/waf/policies", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateWAFPolicy)))
+	mux.Handle("GET /api/waf/policies/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetWAFPolicy)))
+	mux.Handle("PUT /api/waf/policies/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateWAFPolicy)))
+
+	// Configuration Staging (Fleet Staging)
+	mux.Handle("GET /api/staging/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetStagedConfig)))
+	mux.Handle("POST /api/staging/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleStageConfig)))
+	mux.Handle("DELETE /api/staging/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDiscardStagedConfig)))
 
 	// Teams API
 	mux.Handle("GET /api/teams", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListTeams)))

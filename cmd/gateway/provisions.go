@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/avika-ai/avika/cmd/gateway/middleware"
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 )
 
@@ -74,6 +75,15 @@ func (s *server) handleProvisions(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Log audit event
+		user := middleware.GetUserFromContext(r.Context())
+		if user != nil {
+			s.db.CreateAuditLog(user.Username, "provision", "agent", req.InstanceID, r.RemoteAddr, r.UserAgent(), map[string]string{
+				"template":   req.Template,
+				"augment_id": augment.AugmentId,
+			})
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 		return
@@ -133,7 +143,7 @@ server {
 		return fmt.Sprintf(`%supstream %s {
 %s
     
-    # NOTE: 'check' directive requires nginx_upstream_check_module or NGINX Plus
+    # NOTE: 'check' directive requires nginx_upstream_check_module or Advanced NGINX
     check interval=%.0f rise=%.0f fall=%.0f timeout=%.0f;
 }`, header, upstreamName, servers, interval, rise, fall, timeout)
 

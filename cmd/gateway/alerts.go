@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"strings"
 	"time"
 
@@ -108,15 +111,62 @@ func (e *AlertEngine) sendNotifications(rule *pb.AlertRule, value float64) {
 			continue
 		}
 
-		if strings.Contains(email, "@") {
+		if strings.HasPrefix(email, "http") {
+			// Handle Webhooks
+			var err error
+			if strings.Contains(email, "hooks.slack.com") {
+				// Special handling for Slack
+				err = SendSlackNotification(context.Background(), email, subject, body, "#f44336")
+			} else {
+				// Generic Webhook
+				err = e.sendGenericWebhook(context.Background(), email, subject, body)
+			}
+
+			if err != nil {
+				log.Printf("AlertEngine: Failed to send webhook to %s: %v", email, err)
+			} else {
+				log.Printf("AlertEngine: Notification sent via webhook to %s", email)
+			}
+		} else if strings.Contains(email, "@") {
 			// Send Email
 			err := SendReportEmail(e.config, []string{email}, subject, body, nil, "")
 			if err != nil {
 				log.Printf("AlertEngine: Failed to send alert email to %s: %v", email, err)
 			}
 		} else {
-			// Todo: Handle Webhooks
-			log.Printf("AlertEngine: Notification to %s (webhook not yet implemented)", email)
+			log.Printf("AlertEngine: UNKNOWN notification recipient type: %s", email)
 		}
 	}
+}
+
+func (e *AlertEngine) sendGenericWebhook(ctx context.Context, url, subject, body string) error {
+	payload := map[string]string{
+		"subject":   subject,
+		"message":   body,
+		"timestamp": time.Now().Format(time.RFC3339),
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("webhook returned status %d", resp.StatusCode)
+	}
+
+	return nil
 }
