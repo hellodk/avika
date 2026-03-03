@@ -74,12 +74,7 @@ export default function SettingsPage() {
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [isDeletingAgents, setIsDeletingAgents] = useState(false);
     const [deletionMessage, setDeletionMessage] = useState("");
-    const [grafanaUrl, setGrafanaUrl] = useState(userSettings.integrations.grafanaUrl);
-    const [clickhouseUrl, setClickhouseUrl] = useState(userSettings.integrations.clickhouseUrl);
-    const [prometheusUrl, setPrometheusUrl] = useState(userSettings.integrations.prometheusUrl);
-    const [defaultTimeRange, setDefaultTimeRange] = useState(userSettings.display.defaultTimeRange);
-    const [refreshInterval, setRefreshInterval] = useState(userSettings.display.refreshInterval);
-    const [timezone, setTimezone] = useState(userSettings.display.timezone);
+    const [grafanaUrl, setGrafanaUrl] = useState(DEFAULT_GRAFANA_URL);
 
     useEffect(() => {
         setGrafanaUrl(userSettings.integrations.grafanaUrl);
@@ -194,7 +189,7 @@ export default function SettingsPage() {
                     retention_days: 30,
                     anomaly_threshold: 0.8,
                     window_size: 200,
-                    grafana_url: grafanaUrl.trim()
+                    grafana_url: grafanaUrl
                 })
             });
 
@@ -482,7 +477,8 @@ export default function SettingsPage() {
                             <Input
                                 id="collection-interval"
                                 type="number"
-                                defaultValue="10"
+                                value={collectionInterval}
+                                onChange={(e) => setCollectionInterval(e.target.value)}
                                 style={{
                                     backgroundColor: 'rgb(var(--theme-surface-light))',
                                     color: 'rgb(var(--theme-text))',
@@ -495,7 +491,8 @@ export default function SettingsPage() {
                             <Input
                                 id="retention-days"
                                 type="number"
-                                defaultValue="30"
+                                value={retentionDays}
+                                onChange={(e) => setRetentionDays(e.target.value)}
                                 style={{
                                     backgroundColor: 'rgb(var(--theme-surface-light))',
                                     color: 'rgb(var(--theme-text))',
@@ -517,7 +514,8 @@ export default function SettingsPage() {
                                 id="anomaly-threshold"
                                 type="number"
                                 step="0.1"
-                                defaultValue="0.8"
+                                value={anomalyThreshold}
+                                onChange={(e) => setAnomalyThreshold(e.target.value)}
                                 style={{
                                     backgroundColor: 'rgb(var(--theme-surface-light))',
                                     color: 'rgb(var(--theme-text))',
@@ -530,7 +528,8 @@ export default function SettingsPage() {
                             <Input
                                 id="window-size"
                                 type="number"
-                                defaultValue="200"
+                                value={windowSize}
+                                onChange={(e) => setWindowSize(e.target.value)}
                                 style={{
                                     backgroundColor: 'rgb(var(--theme-surface-light))',
                                     color: 'rgb(var(--theme-text))',

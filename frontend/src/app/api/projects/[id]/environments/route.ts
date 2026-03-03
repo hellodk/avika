@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-const GATEWAY_URL = process.env.GATEWAY_HTTP_URL || process.env.GATEWAY_URL || "http://localhost:5050";
+import { getGatewayUrl } from '@/lib/gateway-url';
+
+const GATEWAY_URL = getGatewayUrl();
 
 export async function GET(
   request: NextRequest,

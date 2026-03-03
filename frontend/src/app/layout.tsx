@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/lib/theme-provider";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth-provider";
 import { ProjectProvider } from "@/lib/project-context";
+import { UserSettingsProvider } from "@/lib/user-settings";
 
 const inter = Inter({ subsets: ["latin"] });
 const orbitron = Orbitron({
@@ -30,12 +31,13 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <ProjectProvider>
-              <DashboardLayout>{children}</DashboardLayout>
+              <UserSettingsProvider>
+                <DashboardLayout>{children}</DashboardLayout>
+              </UserSettingsProvider>
             </ProjectProvider>
           </AuthProvider>
           <Toaster 
             position="top-right" 
-            theme="dark"
             richColors
             closeButton
           />

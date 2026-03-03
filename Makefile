@@ -218,14 +218,14 @@ security-scan:
 build: build-gateway build-agent build-frontend
 	@echo "$(GREEN)All builds completed$(NC)"
 
-build-gateway:
-	@echo "$(GREEN)Building gateway...$(NC)"
-	cd cmd/gateway && go build -ldflags="-s -w" -o ../../bin/gateway .
+build-gateway: check-version
+	@echo "$(GREEN)Building gateway v$(VERSION)...$(NC)"
+	cd cmd/gateway && go build -ldflags="-s -w -X main.Version=$(VERSION)" -o ../../bin/gateway .
 	@echo "$(GREEN)Gateway built at bin/gateway$(NC)"
 
-build-agent:
-	@echo "$(GREEN)Building agent...$(NC)"
-	cd cmd/agent && go build -ldflags="-s -w" -o ../../bin/agent .
+build-agent: check-version
+	@echo "$(GREEN)Building agent v$(VERSION)...$(NC)"
+	cd cmd/agent && go build -ldflags="-s -w -X main.Version=$(VERSION)" -o ../../bin/agent .
 	@echo "$(GREEN)Agent built at bin/agent$(NC)"
 
 build-frontend:
