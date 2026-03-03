@@ -1,25 +1,25 @@
-# Release workflow for Avika - automatically builds and publishes releases
+# Release workflow for Avika - Automated Semantic Versioning
+# Parses conventional commits to determine version bumps:
+#   feat:  → MINOR bump (1.0.0 → 1.1.0)
+#   fix:   → PATCH bump (1.0.0 → 1.0.1)
+#   feat!: or BREAKING CHANGE: → MAJOR bump (1.0.0 → 2.0.0)
+#   chore/docs/refactor/test/ci/style: → NO RELEASE
 name: Release
 
 on:
-  # Automatic release on merge to master (patch bump)
   push:
     branches:
       - master
-    # Skip release for certain commits
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.gitignore'
-  # Manual trigger for minor/major releases
+  # Manual trigger for forcing specific version bumps
   workflow_dispatch:
     inputs:
       bump_type:
-        description: 'Version bump type'
+        description: 'Version bump type (overrides automatic detection)'
         required: true
-        default: 'patch'
+        default: 'auto'
         type: choice
         options:
+          - auto
           - patch
           - minor
           - major
@@ -28,7 +28,6 @@ on:
         required: false
         default: ''
 
-# Grant permissions for pushing commits and tags
 permissions:
   contents: write
   packages: write
@@ -39,39 +38,94 @@ env:
   DOCKERHUB_USERNAME: hellodk
 
 jobs:
-  # Check if this is a version bump commit (to prevent infinite loops)
-  check-commit:
-    name: Check Commit
+  # Analyze commits to determine if release is needed and what type
+  analyze-commits:
+    name: Analyze Commits
     runs-on: ubuntu-latest
     outputs:
-      should_release: ${{ steps.check.outputs.should_release }}
+      should_release: ${{ steps.analyze.outputs.should_release }}
+      bump_type: ${{ steps.analyze.outputs.bump_type }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
-      - name: Check if release should proceed
-        id: check
+      - name: Analyze commits for version bump
+        id: analyze
         run: |
           # Get the commit message
           COMMIT_MSG=$(git log -1 --pretty=%B)
           echo "Commit message: $COMMIT_MSG"
           
           # Skip if this is a version bump commit (prevents infinite loop)
-          if [[ "$COMMIT_MSG" == "chore: Bump version to"* ]]; then
+          if [[ "$COMMIT_MSG" == "chore(release): Bump version to"* ]]; then
             echo "Skipping release - this is a version bump commit"
             echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "bump_type=none" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # For manual trigger with explicit bump type
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.bump_type }}" != "auto" ]; then
+            echo "Manual trigger with bump type: ${{ inputs.bump_type }}"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "bump_type=${{ inputs.bump_type }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Get all commits since last tag (or last 50 if no tag)
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            echo "Last tag: $LAST_TAG"
+            COMMITS=$(git log --pretty=format:"%s" $LAST_TAG..HEAD)
           else
-            echo "Proceeding with release"
+            echo "No previous tag found, analyzing last 50 commits"
+            COMMITS=$(git log --pretty=format:"%s" -50)
+          fi
+          
+          echo "Commits to analyze:"
+          echo "$COMMITS"
+          
+          # Determine bump type from commit messages
+          BUMP_TYPE="none"
+          
+          # Check for breaking changes (MAJOR)
+          if echo "$COMMITS" | grep -qE "^(feat|fix|refactor)!:|BREAKING CHANGE:"; then
+            BUMP_TYPE="major"
+            echo "Found breaking change - MAJOR bump"
+          # Check for features (MINOR)
+          elif echo "$COMMITS" | grep -qE "^feat(\(.+\))?:"; then
+            BUMP_TYPE="minor"
+            echo "Found feature - MINOR bump"
+          # Check for fixes (PATCH)
+          elif echo "$COMMITS" | grep -qE "^fix(\(.+\))?:"; then
+            BUMP_TYPE="patch"
+            echo "Found fix - PATCH bump"
+          # Check for perf improvements (PATCH)
+          elif echo "$COMMITS" | grep -qE "^perf(\(.+\))?:"; then
+            BUMP_TYPE="patch"
+            echo "Found performance improvement - PATCH bump"
+          else
+            echo "No releasable commits found (only chore/docs/refactor/test/ci/style)"
+            BUMP_TYPE="none"
+          fi
+          
+          # Set outputs
+          if [ "$BUMP_TYPE" == "none" ]; then
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
             echo "should_release=true" >> $GITHUB_OUTPUT
           fi
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          
+          echo "Final decision: should_release=$([ "$BUMP_TYPE" != "none" ] && echo true || echo false), bump_type=$BUMP_TYPE"
 
   version-bump:
     name: Bump Version
     runs-on: ubuntu-latest
-    needs: check-commit
-    if: needs.check-commit.outputs.should_release == 'true'
+    needs: analyze-commits
+    if: needs.analyze-commits.outputs.should_release == 'true'
     outputs:
       version: ${{ steps.bump.outputs.version }}
       tag: ${{ steps.bump.outputs.tag }}
@@ -80,26 +134,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # Use RELEASE_TOKEN (PAT) to bypass branch protection rules
-          # Falls back to GITHUB_TOKEN if RELEASE_TOKEN is not set
           token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Determine bump type
-        id: bump_type
-        run: |
-          # Use input for manual trigger, default to patch for automatic
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "bump=${{ inputs.bump_type }}" >> $GITHUB_OUTPUT
-            echo "prerelease=${{ inputs.prerelease }}" >> $GITHUB_OUTPUT
-          else
-            echo "bump=patch" >> $GITHUB_OUTPUT
-            echo "prerelease=" >> $GITHUB_OUTPUT
-          fi
 
       - name: Bump version
         id: bump
@@ -114,8 +154,11 @@ jobs:
           # Parse version components
           IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
           
+          # Get bump type from analysis
+          BUMP_TYPE="${{ needs.analyze-commits.outputs.bump_type }}"
+          echo "Bump type: $BUMP_TYPE"
+          
           # Bump based on type
-          BUMP_TYPE="${{ steps.bump_type.outputs.bump }}"
           case "$BUMP_TYPE" in
             major)
               MAJOR=$((MAJOR + 1))
@@ -134,8 +177,8 @@ jobs:
           # Construct new version
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
           
-          # Add prerelease suffix if specified
-          PRERELEASE="${{ steps.bump_type.outputs.prerelease }}"
+          # Add prerelease suffix if specified (manual trigger only)
+          PRERELEASE="${{ inputs.prerelease }}"
           if [ -n "$PRERELEASE" ]; then
             NEW_VERSION="${NEW_VERSION}-${PRERELEASE}"
           fi
@@ -147,7 +190,7 @@ jobs:
           
           # Commit and tag
           git add VERSION
-          git commit -m "chore: Bump version to ${NEW_VERSION}"
+          git commit -m "chore(release): Bump version to ${NEW_VERSION}"
           git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
           
           # Push changes
@@ -161,19 +204,17 @@ jobs:
   build-binaries:
     name: Build Binaries
     runs-on: ubuntu-latest
-    needs: [check-commit, version-bump]
-    if: needs.check-commit.outputs.should_release == 'true'
+    needs: [analyze-commits, version-bump]
+    if: needs.analyze-commits.outputs.should_release == 'true'
     strategy:
       matrix:
         include:
-          # Linux
           - goos: linux
             goarch: amd64
             suffix: linux-amd64
           - goos: linux
             goarch: arm64
             suffix: linux-arm64
-          # macOS
           - goos: darwin
             goarch: amd64
             suffix: darwin-amd64
@@ -221,8 +262,8 @@ jobs:
   build-push-images:
     name: Build & Push Docker Images
     runs-on: ubuntu-latest
-    needs: [check-commit, version-bump]
-    if: needs.check-commit.outputs.should_release == 'true'
+    needs: [analyze-commits, version-bump]
+    if: needs.analyze-commits.outputs.should_release == 'true'
     strategy:
       matrix:
         image:
@@ -282,8 +323,8 @@ jobs:
   package-helm:
     name: Package Helm Chart
     runs-on: ubuntu-latest
-    needs: [check-commit, version-bump]
-    if: needs.check-commit.outputs.should_release == 'true'
+    needs: [analyze-commits, version-bump]
+    if: needs.analyze-commits.outputs.should_release == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -298,7 +339,6 @@ jobs:
       - name: Update Chart version
         run: |
           cd deploy/helm/avika
-          # Update Chart.yaml with new version
           sed -i "s/^version:.*/version: ${{ needs.version-bump.outputs.version }}/" Chart.yaml
           sed -i "s/^appVersion:.*/appVersion: \"${{ needs.version-bump.outputs.version }}\"/" Chart.yaml
 
@@ -315,8 +355,8 @@ jobs:
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [check-commit, version-bump, build-binaries, build-push-images, package-helm]
-    if: needs.check-commit.outputs.should_release == 'true'
+    needs: [analyze-commits, version-bump, build-binaries, build-push-images, package-helm]
+    if: needs.analyze-commits.outputs.should_release == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -332,18 +372,10 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          
-          # Move binaries
           find ./artifacts -name 'gateway-*' -type f -exec mv {} release-assets/ \;
           find ./artifacts -name 'agent-*' -type f -exec mv {} release-assets/ \;
-          
-          # Move Helm chart
           find ./artifacts -name '*.tgz' -type f -exec mv {} release-assets/ \;
-          
-          # Make binaries executable
           chmod +x release-assets/gateway-* release-assets/agent-* 2>/dev/null || true
-          
-          # Generate checksums
           cd release-assets
           sha256sum * > checksums.txt
           cat checksums.txt
@@ -351,22 +383,25 @@ jobs:
       - name: Generate release notes
         id: release_notes
         run: |
-          # Get commits since last tag
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           
           if [ -n "$PREV_TAG" ]; then
-            echo "Generating notes from $PREV_TAG to v${{ needs.version-bump.outputs.version }}"
             COMMITS=$(git log --pretty=format:"- %s (%h)" $PREV_TAG..HEAD)
           else
-            echo "No previous tag found, using recent commits"
             COMMITS=$(git log --pretty=format:"- %s (%h)" -20)
           fi
           
-          # Create release notes
+          # Categorize commits
+          FEATURES=$(echo "$COMMITS" | grep -E "^- feat" || echo "")
+          FIXES=$(echo "$COMMITS" | grep -E "^- fix" || echo "")
+          OTHERS=$(echo "$COMMITS" | grep -vE "^- (feat|fix)" || echo "")
+          
           cat << EOF > release-notes.md
           ## What's Changed
           
-          $COMMITS
+          $([ -n "$FEATURES" ] && echo "### Features" && echo "$FEATURES" && echo "")
+          $([ -n "$FIXES" ] && echo "### Bug Fixes" && echo "$FIXES" && echo "")
+          $([ -n "$OTHERS" ] && echo "### Other Changes" && echo "$OTHERS" && echo "")
           
           ## Docker Images
           
@@ -390,10 +425,6 @@ jobs:
           \`\`\`bash
           helm install avika ./avika-${{ needs.version-bump.outputs.version }}.tgz
           \`\`\`
-          
-          ## Checksums
-          
-          See \`checksums.txt\` for SHA256 checksums of all artifacts.
           EOF
 
       - name: Create GitHub Release
@@ -413,15 +444,9 @@ jobs:
         run: |
           echo "## Release v${{ needs.version-bump.outputs.version }} published!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Bump type:** ${{ needs.analyze-commits.outputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Docker Images" >> $GITHUB_STEP_SUMMARY
           echo "- hellodk/avika-gateway:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- hellodk/avika-frontend:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- hellodk/avika-agent:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Release Assets" >> $GITHUB_STEP_SUMMARY
-          echo "- Gateway & Agent binaries (linux/darwin, amd64/arm64)" >> $GITHUB_STEP_SUMMARY
-          echo "- Helm chart package" >> $GITHUB_STEP_SUMMARY
-          echo "- Source code archives (auto-generated)" >> $GITHUB_STEP_SUMMARY
-          echo "- SHA256 checksums" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "View release: https://github.com/${{ github.repository }}/releases/tag/v${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
