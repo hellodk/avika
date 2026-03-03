@@ -53,10 +53,11 @@ CREATE TABLE IF NOT EXISTS maintenance_state (
     notify_channels TEXT[] DEFAULT '{}',
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(scope, scope_id, COALESCE(site_filter, ''), COALESCE(location_filter, ''))
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_maintenance_state_unique 
+    ON maintenance_state(scope, scope_id, COALESCE(site_filter, ''), COALESCE(location_filter, ''));
 CREATE INDEX IF NOT EXISTS idx_maintenance_state_scope ON maintenance_state(scope, scope_id);
 CREATE INDEX IF NOT EXISTS idx_maintenance_state_enabled ON maintenance_state(is_enabled) WHERE is_enabled = true;
 CREATE INDEX IF NOT EXISTS idx_maintenance_state_scheduled ON maintenance_state(scheduled_start) WHERE scheduled_start IS NOT NULL;
