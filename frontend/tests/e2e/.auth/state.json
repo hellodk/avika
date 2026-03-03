@@ -1,0 +1,25 @@
+{
+  "cookies": [
+    {
+      "name": "avika_session",
+      "value": "i7VxR3qRmAJkULgENoBULFGyNI2rRFd1lRdrJstB6Rw=",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1772621669.151592,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "theme",
+          "value": "dark"
+        }
+      ]
+    }
+  ]
+}

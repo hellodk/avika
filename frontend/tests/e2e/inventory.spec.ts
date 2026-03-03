@@ -1,12 +1,16 @@
 import { test, expect } from '@playwright/test';
+import { installBasePath, withBase } from './helpers';
+
+const INV = withBase('/inventory');
 
 test.describe('Inventory Page', () => {
     test.beforeEach(async ({ page }) => {
+        installBasePath(page);
         await page.goto('/inventory');
     });
 
     test('should load inventory page', async ({ page }) => {
-        await expect(page).toHaveURL('/inventory');
+        await expect(page).toHaveURL(INV);
     });
 
     test('should display inventory content', async ({ page }) => {
@@ -18,7 +22,7 @@ test.describe('Inventory Page', () => {
         // When no agents are connected, should show appropriate message or empty state
         // This tests that the page doesn't crash with no data
         await page.waitForLoadState('networkidle');
-        await expect(page).toHaveURL('/inventory');
+        await expect(page).toHaveURL(INV);
     });
 
     test('should display stats cards', async ({ page }) => {
@@ -39,7 +43,7 @@ test.describe('Inventory Page', () => {
         
         // Check page contains search input
         const pageContent = await page.content();
-        expect(pageContent).toContain('Search agents...');
+        expect(pageContent).toContain('Search by hostname, IP, or agent ID...');
     });
 
     test('should have status filter buttons', async ({ page }) => {
@@ -63,7 +67,7 @@ test.describe('Inventory Page', () => {
         // Agent Fleet section should always be present
         expect(pageContent).toContain('Agent Fleet');
         expect(pageContent).toContain('agents shown');
-        await expect(page).toHaveURL('/inventory');
+        await expect(page).toHaveURL(INV);
     });
 
     test('should have export dropdown', async ({ page }) => {
@@ -84,7 +88,7 @@ test.describe('Inventory Page', () => {
         expect(pageContent).toContain('Refresh');
         
         // Page should still be functional
-        await expect(page).toHaveURL('/inventory');
+        await expect(page).toHaveURL(INV);
     });
 
     test('should render agent fleet controls', async ({ page }) => {
@@ -103,6 +107,7 @@ test.describe('Inventory Page', () => {
 
 test.describe('Inventory Page - Delete Confirmation', () => {
     test.beforeEach(async ({ page }) => {
+        installBasePath(page);
         await page.goto('/inventory');
         await page.waitForSelector('h1:has-text("Inventory")', { timeout: 10000 });
     });
@@ -116,12 +121,13 @@ test.describe('Inventory Page - Delete Confirmation', () => {
         // The delete confirmation uses AlertDialog component
         // Page should have the trash icon buttons if agents exist
         expect(pageContent).toContain('Inventory');
-        await expect(page).toHaveURL('/inventory');
+        await expect(page).toHaveURL(INV);
     });
 });
 
 test.describe('Inventory Page - Accessibility', () => {
     test.beforeEach(async ({ page }) => {
+        installBasePath(page);
         await page.goto('/inventory');
         await page.waitForSelector('h1:has-text("Inventory")', { timeout: 10000 });
     });
@@ -132,7 +138,7 @@ test.describe('Inventory Page - Accessibility', () => {
         
         // Basic accessibility structure - page title and search input
         expect(pageContent).toContain('Inventory');
-        expect(pageContent).toContain('Search agents...');
+        expect(pageContent).toContain('Search by hostname, IP, or agent ID...');
         
         // Page should have stats cards
         expect(pageContent).toContain('Total Agents');
@@ -141,9 +147,9 @@ test.describe('Inventory Page - Accessibility', () => {
     test('should be keyboard navigable', async ({ page }) => {
         // Check that search input exists in page content
         const pageContent = await page.content();
-        expect(pageContent).toContain('Search agents...');
+        expect(pageContent).toContain('Search by hostname, IP, or agent ID...');
         
         // Page should be interactive (not errored)
-        await expect(page).toHaveURL('/inventory');
+        await expect(page).toHaveURL(INV);
     });
 });

@@ -73,6 +73,13 @@ const NAV_SECTIONS: NavSection[] = [
             { href: "/reports", icon: <FileText />, label: "Reports" },
         ]
     },
+    {
+        title: "Admin",
+        items: [
+            { href: "/settings/llm", icon: <Zap />, label: "LLM" },
+            { href: "/settings/integrations", icon: <Globe />, label: "Integrations" },
+        ],
+    },
 ];
 
 function EnvironmentTabsBar() {
@@ -122,6 +129,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         }
         // Check for dynamic routes
         if (pathname.startsWith("/servers/")) return "Server Details";
+        if (pathname.startsWith("/agents/")) return "Agent Config";
         return "Dashboard";
     };
 

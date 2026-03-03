@@ -9,6 +9,7 @@ import (
 	"time"
 
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
+	"github.com/google/uuid"
 )
 
 // getTestDSN returns the database DSN for integration tests
@@ -37,7 +38,7 @@ func cleanupTestDB(t *testing.T, db *DB) {
 	if err != nil {
 		t.Logf("Warning: Failed to cleanup test agents: %v", err)
 	}
-	_, err = db.conn.Exec("DELETE FROM alert_rules WHERE id LIKE 'test-%'")
+	_, err = db.conn.Exec("DELETE FROM alert_rules WHERE name LIKE 'test-%'")
 	if err != nil {
 		t.Logf("Warning: Failed to cleanup test alert rules: %v", err)
 	}
@@ -335,10 +336,12 @@ func TestAlertRuleCRUD(t *testing.T) {
 	defer db.conn.Close()
 	defer cleanupTestDB(t, db)
 
+	ruleID := uuid.New().String()
+
 	// Create alert rule
 	rule := &pb.AlertRule{
-		Id:         "test-alert-001",
-		Name:       "High Error Rate",
+		Id:         ruleID,
+		Name:       "test-alert-rule-high-error-rate",
 		MetricType: "error_rate",
 		Threshold:  5.0,
 		Comparison: "gt",

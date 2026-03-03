@@ -19,12 +19,12 @@ type RecommendationEngine struct {
 
 // RecommendationRule defines a rule-based recommendation
 type RecommendationRule struct {
-	ID          string
-	Name        string
-	Category    string
-	Priority    int
-	Condition   func(*ErrorAnalysisContext) bool
-	Generate    func(*ErrorAnalysisContext) *AIRecommendation
+	ID        string
+	Name      string
+	Category  string
+	Priority  int
+	Condition func(*ErrorAnalysisContext) bool
+	Generate  func(*ErrorAnalysisContext) *AIRecommendation
 }
 
 // recommendationCache caches generated recommendations
@@ -51,6 +51,19 @@ func NewRecommendationEngine(db *ClickHouseDB, llmClient LLMClient) *Recommendat
 	return re
 }
 
+func (re *RecommendationEngine) SetLLMClient(llmClient LLMClient) {
+	re.mu.Lock()
+	defer re.mu.Unlock()
+	re.llmClient = llmClient
+	// Invalidate cache to avoid serving recommendations generated under old model/provider.
+	if re.cache != nil {
+		re.cache.mu.Lock()
+		re.cache.recommendations = make(map[string]*AIRecommendation)
+		re.cache.lastGenerated = time.Time{}
+		re.cache.mu.Unlock()
+	}
+}
+
 // registerBuiltInRules adds all built-in recommendation rules
 func (re *RecommendationEngine) registerBuiltInRules() {
 	// 499 Client Closed Connection
@@ -71,7 +84,7 @@ func (re *RecommendationEngine) registerBuiltInRules() {
 				Impact:      "high",
 				Problem: "499 errors occur when clients close connections before receiving a response. " +
 					"This typically indicates backend latency issues or timeout mismatches between client, NGINX, and upstream.",
-				Solution: "Increase proxy timeouts to match backend response times, enable keepalive connections to upstream.",
+				Solution:      "Increase proxy timeouts to match backend response times, enable keepalive connections to upstream.",
 				CurrentConfig: ctx.CurrentConfig.GetTimeouts(),
 				SuggestedConfig: `# Increase timeouts for slow backends
 proxy_connect_timeout 60s;

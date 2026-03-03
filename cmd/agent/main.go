@@ -252,7 +252,7 @@ func loadEnv() {
 // The -gateway flag (and GATEWAYS config) accepts comma-separated values for multi-gateway mode
 func getGatewayAddresses() []string {
 	var addresses []string
-	
+
 	// Parse comma-separated addresses from -gateway flag or GATEWAYS config
 	if *gatewayAddr != "" {
 		for _, addr := range strings.Split(*gatewayAddr, ",") {
@@ -264,12 +264,12 @@ func getGatewayAddresses() []string {
 			}
 		}
 	}
-	
+
 	// Default if nothing configured
 	if len(addresses) == 0 {
 		addresses = append(addresses, "localhost:5020")
 	}
-	
+
 	return addresses
 }
 
@@ -364,9 +364,15 @@ func main() {
 	}
 
 	log.Printf("Starting agent %s (version %s) connecting to gateway(s): %s", *agentID, Version, *gatewayAddr)
+	agentLabelsMu.RLock()
 	if len(agentLabels) > 0 {
-		log.Printf("Agent labels configured: %v", agentLabels)
+		labelsCopy := make(map[string]string, len(agentLabels))
+		for k, v := range agentLabels {
+			labelsCopy[k] = v
+		}
+		log.Printf("Agent labels configured: %v", labelsCopy)
 	}
+	agentLabelsMu.RUnlock()
 
 	// 2. Start Health Check Server
 	healthServer := health.NewServer(*healthPort)
@@ -397,7 +403,8 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			globalUpdater.Run(*updateInterval)
+			startUpdaterLoop(ctx, globalUpdater, *updateInterval)
+			<-ctx.Done()
 		}()
 	}
 
@@ -508,7 +515,18 @@ func main() {
 							BuildDate:    BuildDate,
 							GitCommit:    GitCommit,
 							GitBranch:    GitBranch,
-							Labels:       agentLabels, // Labels for auto-assignment
+							Labels: func() map[string]string {
+								agentLabelsMu.RLock()
+								defer agentLabelsMu.RUnlock()
+								if len(agentLabels) == 0 {
+									return map[string]string{}
+								}
+								m := make(map[string]string, len(agentLabels))
+								for k, v := range agentLabels {
+									m[k] = v
+								}
+								return m
+							}(), // Labels for auto-assignment
 						},
 					},
 				}
@@ -565,7 +583,7 @@ func main() {
 	// -------------------------------------------------------------------------
 	gateways := getGatewayAddresses()
 	log.Printf("Connecting to %d gateway(s): %v", len(gateways), gateways)
-	
+
 	for _, gwAddr := range gateways {
 		wg.Add(1)
 		go func(addr string) {
@@ -929,9 +947,9 @@ func isRunningInContainer() bool {
 	// Check cgroup for kubernetes/docker
 	if data, err := os.ReadFile("/proc/1/cgroup"); err == nil {
 		content := string(data)
-		if strings.Contains(content, "docker") || 
-		   strings.Contains(content, "kubepods") || 
-		   strings.Contains(content, "containerd") {
+		if strings.Contains(content, "docker") ||
+			strings.Contains(content, "kubepods") ||
+			strings.Contains(content, "containerd") {
 			return true
 		}
 	}

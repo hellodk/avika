@@ -1,7 +1,9 @@
 import { test, expect, Page } from '@playwright/test';
+import { installBasePath } from './helpers';
 
 // Helper to login
 async function login(page: Page) {
+    installBasePath(page);
     await page.goto('/login');
     await page.fill('input[id="username"]', 'admin');
     await page.fill('input[id="password"]', 'admin');

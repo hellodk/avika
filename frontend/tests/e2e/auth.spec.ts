@@ -1,6 +1,14 @@
 import { test, expect } from '@playwright/test';
+import { installBasePath } from './helpers';
+
+// This file validates unauthenticated login flows; override the default authenticated storage state.
+test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe('Authentication Flow', () => {
+    test.beforeEach(async ({ page }) => {
+        installBasePath(page);
+    });
+
     test.describe('Login Page', () => {
         test('should display login page elements', async ({ page }) => {
             await page.goto('/login');

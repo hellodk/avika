@@ -1,12 +1,16 @@
 import { test, expect } from '@playwright/test';
+import { installBasePath, withBase } from './helpers';
+
+const SETTINGS = withBase('/settings');
 
 test.describe('Settings Page', () => {
     test.beforeEach(async ({ page }) => {
+        installBasePath(page);
         await page.goto('/settings');
     });
 
     test('should load settings page', async ({ page }) => {
-        await expect(page).toHaveURL('/settings');
+        await expect(page).toHaveURL(SETTINGS);
     });
 
     test('should display theme selection', async ({ page }) => {

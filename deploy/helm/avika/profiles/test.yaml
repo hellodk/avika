@@ -1,0 +1,187 @@
+# =============================================================================
+# AVIKA TEST ENVIRONMENT - profiles/test.yaml
+# =============================================================================
+# USAGE:
+#   helm upgrade --install avika-test ./deploy/helm/avika \
+#     -f ./deploy/helm/avika/profiles/test.yaml \
+#     --namespace avika-test \
+#     --set secrets.postgres.password="$POSTGRES_PASSWORD" \
+#     --set secrets.clickhouse.password="$CLICKHOUSE_PASSWORD" \
+#     --set auth.jwtSecret="$JWT_SECRET"
+#
+# REQUIRED ENVIRONMENT VARIABLES:
+#   POSTGRES_PASSWORD  - PostgreSQL password (get from existing secret)
+#   CLICKHOUSE_PASSWORD - ClickHouse password (get from existing secret)
+#   JWT_SECRET - JWT signing secret (generate with: openssl rand -hex 32)
+# =============================================================================
+
+# -- Global Settings --
+nameOverride: ""
+fullnameOverride: ""
+timezone: UTC
+
+# Global images - all configurable, no hardcoded values
+global:
+  initImage:
+    repository: busybox
+    tag: "1.36"
+  serviceType: ClusterIP
+
+# Node selector to ensure pods run on amd64 nodes (avoid ARM issues)
+nodeSelector:
+  kubernetes.io/arch: amd64
+
+# =============================================================================
+# SECRETS (NEVER hardcode - always use --set)
+# =============================================================================
+secrets:
+  postgres:
+    password: ""  # --set secrets.postgres.password=<value>
+  clickhouse:
+    password: ""  # --set secrets.clickhouse.password=<value>
+
+# =============================================================================
+# AUTHENTICATION
+# =============================================================================
+auth:
+  enabled: true
+  username: "admin"
+  # SHA-256 hash of "admin" - override in production with --set
+  passwordHash: "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"
+  jwtSecret: ""  # --set auth.jwtSecret=<value>
+  tokenExpiry: "24h"
+  cookieSecure: false
+
+# Disabled features for test
+psk:
+  enabled: false
+llm:
+  enabled: false
+vault:
+  enabled: false
+
+# =============================================================================
+# EXTERNAL DATABASE CONNECTIONS (using existing DBs from avika namespace)
+# =============================================================================
+externalPostgres:
+  enabled: true
+  host: "avika-postgresql.avika.svc.cluster.local"
+  port: 5432
+  database: "avika"
+  username: "admin"
+
+externalClickhouse:
+  enabled: true
+  host: "avika-clickhouse.avika.svc.cluster.local"
+  port: 9000
+  httpPort: 8123
+  database: "nginx_analytics"
+  username: "default"
+
+# =============================================================================
+# COMPONENTS
+# =============================================================================
+components:
+  # Gateway - Core API server
+  gateway:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: hellodk/avika-gateway
+      tag: "latest"
+      pullPolicy: Always
+    ports:
+      grpc:
+        containerPort: 5020
+      http:
+        containerPort: 5021
+      metrics:
+        containerPort: 5022
+    service:
+      type: ClusterIP
+    env:
+      GATEWAY_GRPC_PORT: "5020"
+      GATEWAY_HTTP_PORT: "5021"
+      GATEWAY_METRICS_PORT: "5022"
+      AGENT_MGMT_PORT: "5025"
+      ALLOWED_ORIGINS: "*"
+      AUTH_ENABLED: "true"
+      AUTH_USERNAME: "admin"
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+  # Frontend - Next.js Web UI
+  frontend:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: hellodk/avika-frontend
+      tag: "latest"
+      pullPolicy: Always
+    ports:
+      http:
+        containerPort: 5031
+    service:
+      type: ClusterIP
+    basePath: "/avika"
+    env:
+      PORT: "5031"
+      NEXT_PUBLIC_BASE_PATH: "/avika"
+      AUTH_ENABLED: "true"
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+  # Disabled - using external databases
+  postgresql:
+    enabled: false
+    # Required for template references even when disabled
+    ports:
+      tcp:
+        containerPort: 5432
+    env:
+      POSTGRES_DB: "avika"
+      POSTGRES_USER: "admin"
+
+  clickhouse:
+    enabled: false
+    # Required for template references even when disabled
+    ports:
+      http:
+        containerPort: 8123
+      native:
+        containerPort: 9000
+    env:
+      CLICKHOUSE_DB: "nginx_analytics"
+      CLICKHOUSE_USER: "default"
+
+  otel-collector:
+    enabled: false
+
+  redpanda:
+    enabled: false
+
+# Disabled features
+ingress:
+  enabled: false
+
+monitoring:
+  prometheus:
+    enabled: true
+    scrape: true
+
+grafana:
+  url: ""
+  dashboards:
+    enabled: false
+  datasources:
+    enabled: false

@@ -229,7 +229,7 @@ type AgentServiceClient interface {
 	Execute(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExecRequest, ExecResponse], error)
 	// Agent Configuration
 	GetAgentConfig(ctx context.Context, in *GetAgentConfigRequest, opts ...grpc.CallOption) (*AgentConfig, error)
-	UpdateAgentConfig(ctx context.Context, in *AgentConfig, opts ...grpc.CallOption) (*AgentConfigResponse, error)
+	UpdateAgentConfig(ctx context.Context, in *AgentConfig, opts ...grpc.CallOption) (*AgentConfigUpdateResult, error)
 	// Reporting
 	GenerateReport(ctx context.Context, in *ReportRequest, opts ...grpc.CallOption) (*ReportResponse, error)
 	SendReport(ctx context.Context, in *SendReportRequest, opts ...grpc.CallOption) (*SendReportResponse, error)
@@ -525,9 +525,9 @@ func (c *agentServiceClient) GetAgentConfig(ctx context.Context, in *GetAgentCon
 	return out, nil
 }
 
-func (c *agentServiceClient) UpdateAgentConfig(ctx context.Context, in *AgentConfig, opts ...grpc.CallOption) (*AgentConfigResponse, error) {
+func (c *agentServiceClient) UpdateAgentConfig(ctx context.Context, in *AgentConfig, opts ...grpc.CallOption) (*AgentConfigUpdateResult, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AgentConfigResponse)
+	out := new(AgentConfigUpdateResult)
 	err := c.cc.Invoke(ctx, AgentService_UpdateAgentConfig_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -1015,7 +1015,7 @@ type AgentServiceServer interface {
 	Execute(grpc.BidiStreamingServer[ExecRequest, ExecResponse]) error
 	// Agent Configuration
 	GetAgentConfig(context.Context, *GetAgentConfigRequest) (*AgentConfig, error)
-	UpdateAgentConfig(context.Context, *AgentConfig) (*AgentConfigResponse, error)
+	UpdateAgentConfig(context.Context, *AgentConfig) (*AgentConfigUpdateResult, error)
 	// Reporting
 	GenerateReport(context.Context, *ReportRequest) (*ReportResponse, error)
 	SendReport(context.Context, *SendReportRequest) (*SendReportResponse, error)
@@ -1143,7 +1143,7 @@ func (UnimplementedAgentServiceServer) Execute(grpc.BidiStreamingServer[ExecRequ
 func (UnimplementedAgentServiceServer) GetAgentConfig(context.Context, *GetAgentConfigRequest) (*AgentConfig, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAgentConfig not implemented")
 }
-func (UnimplementedAgentServiceServer) UpdateAgentConfig(context.Context, *AgentConfig) (*AgentConfigResponse, error) {
+func (UnimplementedAgentServiceServer) UpdateAgentConfig(context.Context, *AgentConfig) (*AgentConfigUpdateResult, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateAgentConfig not implemented")
 }
 func (UnimplementedAgentServiceServer) GenerateReport(context.Context, *ReportRequest) (*ReportResponse, error) {

@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test';
+import { installBasePath } from './helpers';
 
 test.describe('Accessibility', () => {
+    test.beforeEach(async ({ page }) => {
+        installBasePath(page);
+    });
+
     test('should have proper page title on dashboard', async ({ page }) => {
         await page.goto('/');
         await expect(page).toHaveTitle(/.*/); // Should have some title

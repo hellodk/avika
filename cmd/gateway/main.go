@@ -19,12 +19,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
-	"github.com/segmentio/kafka-go"
 	"github.com/avika-ai/avika/cmd/gateway/config"
 	"github.com/avika-ai/avika/cmd/gateway/middleware"
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
+	"github.com/segmentio/kafka-go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/peer"
@@ -1160,10 +1160,15 @@ func main() {
 		pskManager: pskManager,
 	}
 
-
 	// Initialize AI Error Analysis (LLM-powered)
 	if cfg.LLM.Enabled && chDB != nil {
 		llmConfig := LoadLLMConfigFromConfig(&cfg.LLM)
+		// Prefer DB-backed config if available
+		if srv.db != nil {
+			if dbLLM, err := srv.db.GetActiveLLMClientConfig(context.Background()); err == nil && dbLLM != nil {
+				llmConfig = dbLLM
+			}
+		}
 		llmClient, err := NewLLMClient(llmConfig)
 		if err != nil {
 			log.Printf("Warning: Failed to initialize LLM client: %v (AI recommendations disabled)", err)
@@ -1367,7 +1372,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.HandleFunc("/api/auth/login", authManager.LoginHandler())
 	mux.HandleFunc("/api/auth/logout", authManager.LogoutHandler())
 	mux.HandleFunc("/api/auth/me", authManager.MeHandler())
-	
+
 	// Change password requires authentication
 	mux.Handle("/api/auth/change-password", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(authManager.ChangePasswordHandler(onPasswordChanged))))
 
@@ -1468,6 +1473,22 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.Handle("DELETE /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUnassignServer)))
 	mux.Handle("PUT /api/servers/{agentId}/tags", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateServerTags)))
 
+	// Agent Runtime Configuration API (agent self-config, persisted on agent)
+	mux.Handle("GET /api/agents/{id}/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetAgentRuntimeConfig)))
+	mux.Handle("PATCH /api/agents/{id}/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateAgentRuntimeConfig)))
+	mux.Handle("POST /api/agents/{id}/config/test", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleTestAgentConfigConnection)))
+
+	// LLM Configuration (persisted in DB)
+	mux.Handle("GET /api/llm/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetLLMConfig)))
+	mux.Handle("PUT /api/llm/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handlePutLLMConfig)))
+	mux.Handle("POST /api/llm/test", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleTestLLM)))
+
+	// Integrations (persisted in DB)
+	mux.Handle("GET /api/integrations", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListIntegrations)))
+	mux.Handle("GET /api/integrations/{type}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetIntegration)))
+	mux.Handle("PUT /api/integrations/{type}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handlePutIntegration)))
+	mux.Handle("POST /api/integrations/{type}/test", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleTestIntegration)))
+
 	// Teams API
 	mux.Handle("GET /api/teams", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListTeams)))
 	mux.Handle("POST /api/teams", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateTeam)))
@@ -1546,7 +1567,6 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	} else {
 		log.Printf("Updates directory not found (%s), update serving disabled", updatesDir)
 	}
-
 
 	// AI Error Analysis API (LLM-powered)
 	if srv.errorAnalysisAPI != nil {
