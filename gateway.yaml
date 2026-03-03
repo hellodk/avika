@@ -1,0 +1,29 @@
+server:
+  grpc_port: 5020
+  http_port: 5021
+  metrics_port: 5022
+
+database:
+  dsn: "postgres://admin:CHANGE_ME_SECURE_PASSWORD@localhost:5432/nginx_manager?sslmode=disable"
+
+clickhouse:
+  address: "localhost:9000"
+
+kafka:
+  brokers: "localhost:29092"
+
+# AI-powered Error Analysis Configuration
+llm:
+  enabled: false                    # Set to true to enable AI-powered error analysis
+  provider: "openai"                # Options: openai, anthropic, ollama
+  api_key: ""                       # API key for cloud providers (or use LLM_API_KEY env var)
+  model: "gpt-4-turbo"              # Model name (e.g., gpt-4-turbo, claude-3-sonnet, llama3)
+  base_url: ""                      # Custom base URL (for Ollama: http://localhost:11434)
+  max_tokens: 4096                  # Max tokens per request
+  temperature: 0.3                  # Temperature for generation (0.0-1.0)
+  timeout_seconds: 60               # Request timeout
+  retry_attempts: 3                 # Number of retry attempts
+  rate_limit_rpm: 60                # Rate limit (requests per minute)
+  enable_caching: true              # Cache LLM responses
+  cache_ttl_minutes: 30             # Cache TTL in minutes
+  fallback_provider: ""             # Fallback provider if primary fails
