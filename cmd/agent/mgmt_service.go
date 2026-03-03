@@ -267,7 +267,7 @@ func (s *mgmtServer) Execute(stream pb.AgentService_ExecuteServer) error {
 				shell = "/bin/sh -c '(bash || ash || sh)'"
 			}
 			log.Printf("Starting shell with PTY: %s for instance: %s", shell, req.InstanceId)
-			
+
 			// Parse command - if it contains spaces, use sh -c to execute
 			var cmdArgs []string
 			if strings.Contains(shell, " ") {
@@ -275,10 +275,10 @@ func (s *mgmtServer) Execute(stream pb.AgentService_ExecuteServer) error {
 			} else {
 				cmdArgs = []string{shell}
 			}
-			
+
 			cmd = exec.Command(cmdArgs[0], cmdArgs[1:]...)
 			cmd.Env = append(os.Environ(), "TERM=xterm-256color")
-			
+
 			// Start with PTY
 			var err error
 			ptmx, err = pty.Start(cmd)
@@ -320,6 +320,47 @@ func (s *mgmtServer) Execute(stream pb.AgentService_ExecuteServer) error {
 	}
 }
 
+// ---------------- Agent self-configuration (backwards compatible on AgentService) ----------------
+
+func (s *mgmtServer) GetAgentConfig(ctx context.Context, req *pb.GetAgentConfigRequest) (*pb.AgentConfig, error) {
+	return currentAgentConfigLegacy(), nil
+}
+
+// UpdateAgentConfig (legacy) persists and attempts hot-reload where possible.
+func (s *mgmtServer) UpdateAgentConfig(ctx context.Context, cfg *pb.AgentConfig) (*pb.AgentConfigUpdateResult, error) {
+	if cfg == nil {
+		return &pb.AgentConfigUpdateResult{Success: false, Error: "config is required"}, nil
+	}
+
+	changed, requiresRestart, err := applyLegacyAgentConfig(cfg, true)
+	if err != nil {
+		return &pb.AgentConfigUpdateResult{Success: false, Error: err.Error()}, nil
+	}
+
+	if err := persistAgentConfigUpdates(*configFile, legacyConfigToUpdates(cfg)); err != nil {
+		return &pb.AgentConfigUpdateResult{
+			Success:         false,
+			Error:           err.Error(),
+			Message:         "failed to persist config to file",
+			RequiresRestart: requiresRestart,
+		}, nil
+	}
+
+	msg := "config updated"
+	if len(changed) > 0 {
+		msg = "updated: " + strings.Join(changed, ", ")
+	}
+	if requiresRestart {
+		msg += " (restart required for some changes)"
+	}
+
+	return &pb.AgentConfigUpdateResult{
+		Success:         true,
+		Message:         msg,
+		RequiresRestart: requiresRestart,
+	}, nil
+}
+
 func startMgmtService(ctx context.Context, configPath string, port int) {
 	addr := fmt.Sprintf(":%d", port)
 	lis, err := net.Listen("tcp", addr)
@@ -330,6 +371,7 @@ func startMgmtService(ctx context.Context, configPath string, port int) {
 
 	grpcServer := grpc.NewServer()
 	pb.RegisterAgentServiceServer(grpcServer, newMgmtServer(configPath))
+	pb.RegisterAgentConfigServiceServer(grpcServer, &agentConfigServer{})
 
 	log.Printf("Agent Management Service listening on %s", addr)
 
@@ -343,14 +385,14 @@ func startMgmtService(ctx context.Context, configPath string, port int) {
 	// Wait for context cancellation
 	<-ctx.Done()
 	log.Println("Shutting down management service...")
-	
+
 	// Use a goroutine with timeout for graceful stop
 	stopped := make(chan struct{})
 	go func() {
 		grpcServer.GracefulStop()
 		close(stopped)
 	}()
-	
+
 	select {
 	case <-stopped:
 		log.Println("Management service stopped gracefully")

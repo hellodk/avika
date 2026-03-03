@@ -24,10 +24,52 @@ vi.mock('next/navigation', () => ({
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
+type LoginMockBehavior =
+    | { type: 'resolve'; data: any }
+    | { type: 'reject'; error: Error }
+    | { type: 'hang' };
+
+function installFetchMock(options?: { ssoEnabled?: boolean; login?: LoginMockBehavior }) {
+    const ssoEnabled = options?.ssoEnabled ?? false;
+    const loginBehavior: LoginMockBehavior = options?.login ?? { type: 'resolve', data: { success: false } };
+
+    mockFetch.mockImplementation((url: string | URL | Request) => {
+        const urlStr = url.toString();
+
+        // Login page fetches SSO config on mount
+        if (urlStr.includes('/api/auth/sso-config')) {
+            return Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve({ oidc_enabled: ssoEnabled }),
+            } as any);
+        }
+
+        if (urlStr.includes('/api/auth/login')) {
+            if (loginBehavior.type === 'hang') {
+                return new Promise(() => {}) as any;
+            }
+            if (loginBehavior.type === 'reject') {
+                return Promise.reject(loginBehavior.error);
+            }
+            return Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve(loginBehavior.data),
+            } as any);
+        }
+
+        // Default fall-through for any other endpoints
+        return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({}),
+        } as any);
+    });
+}
+
 describe('LoginPage', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockFetch.mockReset();
+        installFetchMock();
     });
 
     afterEach(() => {
@@ -66,8 +108,8 @@ describe('LoginPage', () => {
             render(<LoginPage />);
 
             // Security badges for PSK and TLS should be present
-            expect(screen.getByText('PSK')).toBeInTheDocument();
-            expect(screen.getByText('TLS')).toBeInTheDocument();
+            expect(screen.getByText(/PSK Auth/i)).toBeInTheDocument();
+            expect(screen.getByText(/TLS Encrypted/i)).toBeInTheDocument();
         });
     });
 
@@ -103,9 +145,7 @@ describe('LoginPage', () => {
     describe('Form Submission - Success', () => {
         it('submits form with correct credentials', async () => {
             const user = userEvent.setup();
-            mockFetch.mockResolvedValueOnce({
-                json: () => Promise.resolve({ success: true }),
-            });
+            installFetchMock({ login: { type: 'resolve', data: { success: true } } });
 
             render(<LoginPage />);
 
@@ -126,9 +166,7 @@ describe('LoginPage', () => {
 
         it('redirects to dashboard on successful login', async () => {
             const user = userEvent.setup();
-            mockFetch.mockResolvedValueOnce({
-                json: () => Promise.resolve({ success: true }),
-            });
+            installFetchMock({ login: { type: 'resolve', data: { success: true } } });
 
             render(<LoginPage />);
 
@@ -144,8 +182,8 @@ describe('LoginPage', () => {
 
         it('shows loading state during submission', async () => {
             const user = userEvent.setup();
-            // Make fetch hang to test loading state
-            mockFetch.mockImplementation(() => new Promise(() => {}));
+            // Make LOGIN fetch hang (SSO config must still resolve)
+            installFetchMock({ login: { type: 'hang' } });
 
             render(<LoginPage />);
 
@@ -160,7 +198,7 @@ describe('LoginPage', () => {
 
         it('disables button during loading', async () => {
             const user = userEvent.setup();
-            mockFetch.mockImplementation(() => new Promise(() => {}));
+            installFetchMock({ login: { type: 'hang' } });
 
             render(<LoginPage />);
 
@@ -178,12 +216,8 @@ describe('LoginPage', () => {
     describe('Form Submission - Errors', () => {
         it('displays error message on invalid credentials', async () => {
             const user = userEvent.setup();
-            mockFetch.mockResolvedValueOnce({
-                json: () =>
-                    Promise.resolve({
-                        success: false,
-                        message: 'Invalid username or password',
-                    }),
+            installFetchMock({
+                login: { type: 'resolve', data: { success: false, message: 'Invalid username or password' } },
             });
 
             render(<LoginPage />);
@@ -199,9 +233,7 @@ describe('LoginPage', () => {
 
         it('displays default error message when message is not provided', async () => {
             const user = userEvent.setup();
-            mockFetch.mockResolvedValueOnce({
-                json: () => Promise.resolve({ success: false }),
-            });
+            installFetchMock({ login: { type: 'resolve', data: { success: false } } });
 
             render(<LoginPage />);
 
@@ -216,7 +248,7 @@ describe('LoginPage', () => {
 
         it('displays network error message on fetch failure', async () => {
             const user = userEvent.setup();
-            mockFetch.mockRejectedValueOnce(new Error('Network error'));
+            installFetchMock({ login: { type: 'reject', error: new Error('Network error') } });
 
             render(<LoginPage />);
 
@@ -231,12 +263,8 @@ describe('LoginPage', () => {
 
         it('does not redirect on failed login', async () => {
             const user = userEvent.setup();
-            mockFetch.mockResolvedValueOnce({
-                json: () =>
-                    Promise.resolve({
-                        success: false,
-                        message: 'Invalid credentials',
-                    }),
+            installFetchMock({
+                login: { type: 'resolve', data: { success: false, message: 'Invalid credentials' } },
             });
 
             render(<LoginPage />);
@@ -254,12 +282,8 @@ describe('LoginPage', () => {
             const user = userEvent.setup();
 
             // First submission fails
-            mockFetch.mockResolvedValueOnce({
-                json: () =>
-                    Promise.resolve({
-                        success: false,
-                        message: 'Invalid credentials',
-                    }),
+            installFetchMock({
+                login: { type: 'resolve', data: { success: false, message: 'Invalid credentials' } },
             });
 
             render(<LoginPage />);
@@ -273,9 +297,7 @@ describe('LoginPage', () => {
             });
 
             // Second submission - error should be cleared while loading
-            mockFetch.mockResolvedValueOnce({
-                json: () => Promise.resolve({ success: true }),
-            });
+            installFetchMock({ login: { type: 'resolve', data: { success: true } } });
 
             await user.clear(screen.getByLabelText(/password/i));
             await user.type(screen.getByLabelText(/password/i), 'correct');
@@ -288,13 +310,7 @@ describe('LoginPage', () => {
 
         it('re-enables button after error', async () => {
             const user = userEvent.setup();
-            mockFetch.mockResolvedValueOnce({
-                json: () =>
-                    Promise.resolve({
-                        success: false,
-                        message: 'Error',
-                    }),
-            });
+            installFetchMock({ login: { type: 'resolve', data: { success: false, message: 'Error' } } });
 
             render(<LoginPage />);
 

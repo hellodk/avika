@@ -1,12 +1,16 @@
 import { test, expect } from '@playwright/test';
+import { installBasePath, withBase } from './helpers';
+
+const ALERTS = withBase('/alerts');
 
 test.describe('Alerts Page', () => {
     test.beforeEach(async ({ page }) => {
+        installBasePath(page);
         await page.goto('/alerts');
     });
 
     test('should load alerts page', async ({ page }) => {
-        await expect(page).toHaveURL('/alerts');
+        await expect(page).toHaveURL(ALERTS);
     });
 
     test('should display alerts content', async ({ page }) => {

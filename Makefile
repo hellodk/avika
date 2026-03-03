@@ -80,9 +80,9 @@ test-unit: test-go test-frontend
 test-go:
 	@echo "$(GREEN)Running Go unit tests...$(NC)"
 	@mkdir -p test-results/go
-	cd cmd/gateway && go test -v -race -coverprofile=../../test-results/go/coverage-gateway.out ./... 2>&1 | tee ../../test-results/go/gateway-output.txt
-	cd cmd/agent && go test -v -race -coverprofile=../../test-results/go/coverage-agent.out ./... 2>&1 | tee ../../test-results/go/agent-output.txt
-	cd internal/common && go test -v -race -coverprofile=../../test-results/go/coverage-common.out ./... 2>&1 | tee ../../test-results/go/common-output.txt
+	cd cmd/gateway && bash -o pipefail -c 'go test -v -race -coverprofile=../../test-results/go/coverage-gateway.out ./... 2>&1 | tee ../../test-results/go/gateway-output.txt'
+	cd cmd/agent && bash -o pipefail -c 'go test -v -race -coverprofile=../../test-results/go/coverage-agent.out ./... 2>&1 | tee ../../test-results/go/agent-output.txt'
+	cd internal/common && bash -o pipefail -c 'go test -v -race -coverprofile=../../test-results/go/coverage-common.out ./... 2>&1 | tee ../../test-results/go/common-output.txt'
 	@echo "$(GREEN)Go unit tests completed$(NC)"
 
 test-go-report: test-go
@@ -104,15 +104,24 @@ test-frontend:
 test-integration: check-db
 	@echo "$(GREEN)Running integration tests...$(NC)"
 	@mkdir -p test-results/integration
-	cd cmd/gateway && DB_DSN="postgres://admin:testpassword@localhost:5432/avika_test?sslmode=disable" \
-		go test -v -race -tags=integration -coverprofile=../../test-results/integration/coverage.out ./... 2>&1 | \
-		tee ../../test-results/integration/output.txt
+	cd cmd/gateway && bash -o pipefail -c 'DB_DSN="postgres://admin:testpassword@localhost:5432/avika_test?sslmode=disable" go test -v -race -tags=integration -coverprofile=../../test-results/integration/coverage.out ./... 2>&1 | tee ../../test-results/integration/output.txt'
 	@echo "$(GREEN)Integration tests completed$(NC)"
 
 check-db:
 	@echo "$(YELLOW)Checking database connection...$(NC)"
-	@pg_isready -h localhost -p 5432 > /dev/null 2>&1 || \
-		(echo "$(RED)PostgreSQL not available. Run 'make setup-test-db' first$(NC)" && exit 1)
+	@attempts=30; \
+	for i in $$(seq 1 $$attempts); do \
+		if command -v pg_isready >/dev/null 2>&1; then \
+			pg_isready -h localhost -p 5432 >/dev/null 2>&1 && break; \
+		else \
+			docker exec avika-test-db pg_isready -h localhost -p 5432 -U admin >/dev/null 2>&1 && break; \
+		fi; \
+		sleep 1; \
+	done; \
+	if [ $$i -ge $$attempts ]; then \
+		echo "$(RED)PostgreSQL not available. Run 'make setup-test-db' first$(NC)"; \
+		exit 1; \
+	fi
 	@echo "$(GREEN)Database is ready$(NC)"
 
 setup-test-db:

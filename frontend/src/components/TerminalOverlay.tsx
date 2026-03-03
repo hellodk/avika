@@ -5,6 +5,7 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/lib/auth-provider';
 
 interface TerminalOverlayProps {
     agentId: string;
@@ -36,32 +37,33 @@ export const TerminalOverlay: React.FC<TerminalOverlayProps> = ({ agentId, onClo
         fitAddon.fit();
 
         xtermRef.current = term;
-        
-        term.writeln('\x1b[1;33mFetching gateway configuration...\x1b[0m');
+
+        const { token } = useAuth();
 
         // Fetch gateway config from server (which can resolve K8s DNS)
         const connectToTerminal = async () => {
             const encodedAgentId = encodeURIComponent(agentId);
             let wsUrl: string;
-            
+            const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+
             try {
                 const res = await apiFetch('/api/config');
                 if (res.ok) {
                     const config = await res.json();
-                    wsUrl = `${config.gateway.wsUrl}/terminal?agent_id=${encodedAgentId}`;
+                    wsUrl = `${config.gateway.wsUrl}/terminal?agent_id=${encodedAgentId}${tokenParam}`;
                 } else {
                     // Fallback: use current hostname with gateway port
                     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                    wsUrl = `${protocol}//${window.location.hostname}:5021/terminal?agent_id=${encodedAgentId}`;
+                    wsUrl = `${protocol}//${window.location.hostname}:5021/terminal?agent_id=${encodedAgentId}${tokenParam}`;
                 }
             } catch (e) {
                 // Fallback on error
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                wsUrl = `${protocol}//${window.location.hostname}:5021/terminal?agent_id=${encodedAgentId}`;
+                wsUrl = `${protocol}//${window.location.hostname}:5021/terminal?agent_id=${encodedAgentId}${tokenParam}`;
             }
-            
+
             term.writeln(`\x1b[1;33mConnecting to ${wsUrl}...\x1b[0m`);
-            
+
             let socket: WebSocket;
             try {
                 socket = new WebSocket(wsUrl);
@@ -107,7 +109,7 @@ export const TerminalOverlay: React.FC<TerminalOverlayProps> = ({ agentId, onClo
                 }
             });
         };
-        
+
         connectToTerminal();
 
         const handleResize = () => {

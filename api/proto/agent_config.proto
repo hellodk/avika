@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package nginx.agent.v1;
+
+option go_package = "github.com/avika-ai/avika/internal/common/proto/agent";
+
+// Separate service for agent self-configuration.
+// This service focuses on configuring the agent process itself (not NGINX config).
+service AgentConfigService {
+  rpc GetAgentConfig(google.protobuf.Empty) returns (AgentConfigResponse);
+  rpc UpdateAgentConfig(AgentConfigUpdate) returns (AgentConfigUpdateResponse);
+  rpc TestConnection(ConnectionTestRequest) returns (ConnectionTestResponse);
+}
+
+import "google/protobuf/empty.proto";
+
+message AgentConfigResponse {
+  string gateway_address = 1;
+  string agent_id = 2;
+  map<string, string> labels = 3;
+  int32 health_port = 4;
+  int32 mgmt_port = 5;
+  string nginx_config_path = 6;
+  string nginx_status_url = 7;
+  string access_log_path = 8;
+  string error_log_path = 9;
+  string log_format = 10;
+  string buffer_dir = 11;
+  string update_server = 12;
+  string update_interval = 13;
+  string log_level = 14;
+  string log_file = 15;
+  string config_file_path = 16; // Path to avika-agent.conf
+}
+
+message AgentConfigUpdate {
+  map<string, string> updates = 1; // key=value updates (config keys and LABEL_* supported)
+  bool persist = 2;                // Write to config file
+  bool hot_reload = 3;             // Apply without restart where possible
+}
+
+message AgentConfigUpdateResponse {
+  bool success = 1;
+  string error = 2;
+  string message = 3;
+  bool requires_restart = 4;
+}
+
+message ConnectionTestRequest {
+  // Supported types: "gateway", "nginx_status", "update_server"
+  string test_type = 1;
+  // Optional override endpoint URL/address to test.
+  string endpoint = 2;
+}
+
+message ConnectionTestResponse {
+  bool success = 1;
+  string message = 2;
+  int64 latency_ms = 3;
+  map<string, string> details = 4;
+}
+

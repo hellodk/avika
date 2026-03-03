@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
     testDir: './tests/e2e',
+    globalSetup: './tests/e2e/global-setup',
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 0,
@@ -14,6 +15,7 @@ export default defineConfig({
     outputDir: 'test-results',
     use: {
         baseURL: process.env.BASE_URL || 'http://localhost:3000',
+        storageState: 'tests/e2e/.auth/state.json',
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
         video: 'retain-on-failure',

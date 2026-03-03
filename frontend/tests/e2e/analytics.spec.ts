@@ -1,13 +1,18 @@
 import { test, expect } from '@playwright/test';
+import { installBasePath } from './helpers';
 
 test.describe('Analytics Page', () => {
+    test.beforeEach(async ({ page }) => {
+        installBasePath(page);
+    });
+
     test('should navigate to analytics page', async ({ page }) => {
-        await page.goto('http://localhost:3000/analytics');
-        await expect(page.getByRole('heading', { name: 'Advanced Analytics' })).toBeVisible();
+        await page.goto('/analytics');
+        await expect(page.getByRole('heading', { name: 'Analytics' })).toBeVisible();
     });
 
     test('should persist tab selection on refresh', async ({ page }) => {
-        await page.goto('http://localhost:3000/analytics');
+        await page.goto('/analytics');
 
         // Click on Errors tab
         await page.getByRole('tab', { name: 'Errors' }).click();

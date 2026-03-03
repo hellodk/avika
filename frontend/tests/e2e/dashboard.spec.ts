@@ -1,13 +1,17 @@
 import { test, expect } from '@playwright/test';
+import { installBasePath, withBase } from './helpers';
+
+const ROOT = withBase('/');
 
 test.describe('Dashboard Page', () => {
     test.beforeEach(async ({ page }) => {
+        installBasePath(page);
         await page.goto('/');
     });
 
     test('should display the dashboard', async ({ page }) => {
         // Dashboard should load without errors
-        await expect(page).toHaveURL('/');
+        await expect(page).toHaveURL(ROOT);
     });
 
     test('should have a dark theme by default', async ({ page }) => {
@@ -37,16 +41,17 @@ test.describe('Dashboard Page', () => {
 
 test.describe('Dashboard - KPI Cards', () => {
     test.beforeEach(async ({ page }) => {
+        installBasePath(page);
         await page.goto('/');
         await page.waitForLoadState('networkidle');
     });
 
     test('should display all KPI cards', async ({ page }) => {
         // Check for all 4 KPI card titles
-        await expect(page.getByText('Total Requests')).toBeVisible();
-        await expect(page.getByText('Request Rate')).toBeVisible();
-        await expect(page.getByText('Error Rate')).toBeVisible();
-        await expect(page.getByText('Avg Latency')).toBeVisible();
+        await expect(page.getByText('Total Requests', { exact: true })).toBeVisible();
+        await expect(page.getByText('Request Rate', { exact: true })).toBeVisible();
+        await expect(page.getByText('Error Rate', { exact: true })).toBeVisible();
+        await expect(page.getByText('Avg Latency', { exact: true })).toBeVisible();
     });
 
     test('should show trend indicators when data available', async ({ page }) => {
@@ -62,6 +67,7 @@ test.describe('Dashboard - KPI Cards', () => {
 
 test.describe('Dashboard - Time Range Picker', () => {
     test.beforeEach(async ({ page }) => {
+        installBasePath(page);
         await page.goto('/');
         await page.waitForLoadState('networkidle');
     });
@@ -98,8 +104,10 @@ test.describe('Dashboard - Time Range Picker', () => {
         // Wait for popover to close and state to update
         await page.waitForTimeout(300);
         
-        // The button should now show the new selection (check the button text contains the new value)
-        await expect(page.locator('[data-slot="popover-trigger"]').or(page.getByRole('button', { name: /Last 24 hours/i }))).toBeVisible();
+        // The trigger should now reflect the new selection
+        await expect(
+            page.locator('[data-slot="popover-trigger"]').filter({ hasText: 'Last 24 hours' }).first()
+        ).toBeVisible();
     });
 
     test('should have absolute time tab', async ({ page }) => {
@@ -117,6 +125,7 @@ test.describe('Dashboard - Time Range Picker', () => {
 
 test.describe('Dashboard - Traffic Chart', () => {
     test.beforeEach(async ({ page }) => {
+        installBasePath(page);
         await page.goto('/');
         await page.waitForLoadState('networkidle');
     });
@@ -147,6 +156,7 @@ test.describe('Dashboard - Traffic Chart', () => {
 
 test.describe('Dashboard - Response Codes', () => {
     test.beforeEach(async ({ page }) => {
+        installBasePath(page);
         await page.goto('/');
         await page.waitForLoadState('networkidle');
     });
@@ -166,6 +176,7 @@ test.describe('Dashboard - Response Codes', () => {
 
 test.describe('Dashboard - System Insights', () => {
     test.beforeEach(async ({ page }) => {
+        installBasePath(page);
         await page.goto('/');
         await page.waitForLoadState('networkidle');
     });
@@ -183,6 +194,7 @@ test.describe('Dashboard - System Insights', () => {
 
 test.describe('Dashboard - Refresh Functionality', () => {
     test.beforeEach(async ({ page }) => {
+        installBasePath(page);
         await page.goto('/');
         await page.waitForLoadState('networkidle');
     });
@@ -200,12 +212,13 @@ test.describe('Dashboard - Refresh Functionality', () => {
         
         // Button should show spinning indicator (class contains 'animate-spin')
         // and page should remain functional
-        await expect(page).toHaveURL('/');
+        await expect(page).toHaveURL(ROOT);
     });
 });
 
 test.describe('Dashboard - Accessibility', () => {
     test.beforeEach(async ({ page }) => {
+        installBasePath(page);
         await page.goto('/');
         await page.waitForLoadState('networkidle');
     });

@@ -5,12 +5,16 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
 	"net"
 	"os"
+
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -29,6 +33,7 @@ import (
 	"github.com/avika-ai/avika/cmd/agent/updater"
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 )
@@ -41,15 +46,19 @@ const (
 )
 
 var (
-	gatewayAddr = flag.String("gateway", "", "Gateway address(es) - comma-separated for multi-gateway (e.g., 'gw1:5020,gw2:5020')")
-	agentID     = flag.String("id", "", "The agent ID (default: hostname)")
-	logLevel    = flag.String("log-level", "info", "Log level (debug, info, error)")
-	logFile     = flag.String("log-file", "", "Path to log file. If empty, logs to stdout")
-	bufferDir   = flag.String("buffer-dir", "./", "Directory to store the persistent buffer")
-	version     = flag.Bool("version", false, "Display version and exit")
-	healthPort  = flag.Int("health-port", DefaultHealthPort, "Port for health check endpoints")
-	mgmtPort    = flag.Int("mgmt-port", DefaultMgmtPort, "Port for management gRPC server")
-	pskKey      = flag.String("psk", "", "Pre-Shared Key for gateway authentication")
+	gatewayAddr   = flag.String("gateway", "", "Gateway address(es) - comma-separated for multi-gateway (e.g., 'gw1:5020,gw2:5020')")
+	agentID       = flag.String("id", "", "The agent ID (default: hostname)")
+	logLevel      = flag.String("log-level", "info", "Log level (debug, info, error)")
+	logFile       = flag.String("log-file", "", "Path to log file. If empty, logs to stdout")
+	bufferDir     = flag.String("buffer-dir", "./", "Directory to store the persistent buffer")
+	version       = flag.Bool("version", false, "Display version and exit")
+	healthPort    = flag.Int("health-port", DefaultHealthPort, "Port for health check endpoints")
+	mgmtPort      = flag.Int("mgmt-port", DefaultMgmtPort, "Port for management gRPC server")
+	pskKey        = flag.String("psk", "", "Pre-Shared Key for gateway authentication")
+	tlsCertFile   = flag.String("tls-cert", "", "Path to TLS client certificate file")
+	tlsKeyFile    = flag.String("tls-key", "", "Path to TLS client key file")
+	tlsCACertFile = flag.String("tls-ca", "", "Path to TLS CA certificate file")
+	enableTLS     = flag.Bool("tls", false, "Enable TLS/mTLS for gateway connection")
 
 	// NGINX configuration
 	nginxStatusURL  = flag.String("nginx-status-url", "http://127.0.0.1/nginx_status", "URL for NGINX stub_status")
@@ -137,6 +146,22 @@ func loadConfig(path string) error {
 		case "NGINX_STATUS_URL":
 			if !setFlags["nginx-status-url"] {
 				*nginxStatusURL = val
+			}
+		case "TLS":
+			if !setFlags["tls"] {
+				*enableTLS = val == "true" || val == "1"
+			}
+		case "TLS_CERT":
+			if !setFlags["tls-cert"] {
+				*tlsCertFile = val
+			}
+		case "TLS_KEY":
+			if !setFlags["tls-key"] {
+				*tlsKeyFile = val
+			}
+		case "TLS_CA":
+			if !setFlags["tls-ca"] {
+				*tlsCACertFile = val
 			}
 		case "ACCESS_LOG_PATH":
 			if !setFlags["access-log-path"] {
@@ -373,9 +398,15 @@ func main() {
 	}
 
 	log.Printf("Starting agent %s (version %s) connecting to gateway(s): %s", *agentID, Version, *gatewayAddr)
+	agentLabelsMu.RLock()
 	if len(agentLabels) > 0 {
-		log.Printf("Agent labels configured: %v", agentLabels)
+		labelsCopy := make(map[string]string, len(agentLabels))
+		for k, v := range agentLabels {
+			labelsCopy[k] = v
+		}
+		log.Printf("Agent labels configured: %v", labelsCopy)
 	}
+	agentLabelsMu.RUnlock()
 
 	// 2. Start Health Check Server
 	healthServer := health.NewServer(*healthPort)
@@ -406,7 +437,8 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			globalUpdater.Run(*updateInterval)
+			startUpdaterLoop(ctx, globalUpdater, *updateInterval)
+			<-ctx.Done()
 		}()
 	}
 
@@ -517,7 +549,18 @@ func main() {
 							BuildDate:    BuildDate,
 							GitCommit:    GitCommit,
 							GitBranch:    GitBranch,
-							Labels:       agentLabels, // Labels for auto-assignment
+							Labels: func() map[string]string {
+								agentLabelsMu.RLock()
+								defer agentLabelsMu.RUnlock()
+								if len(agentLabels) == 0 {
+									return map[string]string{}
+								}
+								m := make(map[string]string, len(agentLabels))
+								for k, v := range agentLabels {
+									m[k] = v
+								}
+								return m
+							}(), // Labels for auto-assignment
 						},
 					},
 				}
@@ -812,8 +855,19 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 
 			log.Printf("Connecting to gateway %s...", targetAddr)
 
-			dialOpts := []grpc.DialOption{
-				grpc.WithTransportCredentials(insecure.NewCredentials()),
+			dialOpts := []grpc.DialOption{}
+
+			if *enableTLS {
+				tlsCreds, err := loadAgentTLSCredentials()
+				if err != nil {
+					log.Printf("Failed to load TLS credentials: %v using insecure as fallback", err)
+					dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+				} else {
+					dialOpts = append(dialOpts, grpc.WithTransportCredentials(tlsCreds))
+					log.Printf("Using TLS for gateway connection")
+				}
+			} else {
+				dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			}
 
 			if *pskKey != "" {
@@ -1011,12 +1065,18 @@ type pskCreds struct {
 }
 
 func (c *pskCreds) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
-	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+	key, err := hex.DecodeString(c.key)
+	if err != nil {
+		return nil, fmt.Errorf("invalid PSK key (must be hex-encoded): %v", err)
+	}
 
 	// Compute HMAC-SHA256 signature
-	mac := hmac.New(sha256.New, []byte(c.key))
-	mac.Write([]byte(c.agentID + c.hostname + timestamp))
-	signature := hex.EncodeToString(mac.Sum(nil))
+	// Signature format: HMAC-SHA256(PSK, "agentID:hostname:timestamp")
+	message := fmt.Sprintf("%s:%s:%s", c.agentID, c.hostname, timestamp)
+	mac := hmac.New(sha256.New, key)
+	mac.Write([]byte(message))
+	signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 
 	return map[string]string{
 		"x-avika-agent-id":  c.agentID,
@@ -1027,5 +1087,43 @@ func (c *pskCreds) GetRequestMetadata(ctx context.Context, uri ...string) (map[s
 }
 
 func (c *pskCreds) RequireTransportSecurity() bool {
-	return false // We are using insecure credentials currently
+	return *enableTLS // PSK can be sent over TLS if enabled
+}
+
+func loadAgentTLSCredentials() (credentials.TransportCredentials, error) {
+	// Load client certificate and key if provided (for mTLS)
+	var certificates []tls.Certificate
+	if *tlsCertFile != "" && *tlsKeyFile != "" {
+		cert, err := tls.LoadX509KeyPair(*tlsCertFile, *tlsKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("could not load client key pair: %s", err)
+		}
+		certificates = append(certificates, cert)
+	}
+
+	// Load CA certificate for verifying server certificate
+	certPool := x509.NewCertPool()
+	if *tlsCACertFile != "" {
+		caCert, err := os.ReadFile(*tlsCACertFile)
+		if err != nil {
+			return nil, fmt.Errorf("could not read CA cert: %s", err)
+		}
+		if ok := certPool.AppendCertsFromPEM(caCert); !ok {
+			return nil, fmt.Errorf("failed to append CA cert")
+		}
+	} else {
+		// Use system cert pool if no CA provided
+		var err error
+		certPool, err = x509.SystemCertPool()
+		if err != nil {
+			return nil, fmt.Errorf("failed to load system cert pool: %v", err)
+		}
+	}
+
+	config := &tls.Config{
+		Certificates: certificates,
+		RootCAs:      certPool,
+	}
+
+	return credentials.NewTLS(config), nil
 }

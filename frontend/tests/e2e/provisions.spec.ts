@@ -1,12 +1,16 @@
 import { test, expect } from '@playwright/test';
+import { installBasePath, withBase } from './helpers';
+
+const PROVISIONS = withBase('/provisions');
 
 test.describe('Provisions Page', () => {
     test.beforeEach(async ({ page }) => {
+        installBasePath(page);
         await page.goto('/provisions');
     });
 
     test('should load provisions page', async ({ page }) => {
-        await expect(page).toHaveURL('/provisions');
+        await expect(page).toHaveURL(PROVISIONS);
     });
 
     test('should display provision templates', async ({ page }) => {

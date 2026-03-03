@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -19,13 +21,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
-	"github.com/segmentio/kafka-go"
 	"github.com/avika-ai/avika/cmd/gateway/config"
 	"github.com/avika-ai/avika/cmd/gateway/middleware"
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
+	"github.com/segmentio/kafka-go"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/peer"
 )
@@ -1135,6 +1138,17 @@ func main() {
 		grpc.MaxRecvMsgSize(16 * 1024 * 1024), // 16MB
 		grpc.MaxSendMsgSize(16 * 1024 * 1024),
 	}
+
+	// Add TLS/mTLS if enabled
+	if cfg.Security.EnableTLS {
+		tlsConfig, err := loadServerTLSConfig(cfg)
+		if err != nil {
+			log.Fatalf("Failed to load TLS configuration: %v", err)
+		}
+		grpcOpts = append(grpcOpts, grpc.Creds(credentials.NewTLS(tlsConfig)))
+		log.Printf("TLS enabled for gRPC (mTLS: %v)", cfg.Security.RequireClientCert)
+	}
+
 	// Add PSK interceptors if enabled
 	if cfg.PSK.Enabled {
 		grpcOpts = append(grpcOpts,
@@ -1160,10 +1174,15 @@ func main() {
 		pskManager: pskManager,
 	}
 
-
 	// Initialize AI Error Analysis (LLM-powered)
 	if cfg.LLM.Enabled && chDB != nil {
 		llmConfig := LoadLLMConfigFromConfig(&cfg.LLM)
+		// Prefer DB-backed config if available
+		if srv.db != nil {
+			if dbLLM, err := srv.db.GetActiveLLMClientConfig(context.Background()); err == nil && dbLLM != nil {
+				llmConfig = dbLLM
+			}
+		}
 		llmClient, err := NewLLMClient(llmConfig)
 		if err != nil {
 			log.Printf("Warning: Failed to initialize LLM client: %v (AI recommendations disabled)", err)
@@ -1197,9 +1216,16 @@ func main() {
 	// Start HTTP/WebSocket server
 	httpServer := srv.createHTTPServer(cfg)
 	go func() {
-		log.Printf("HTTP/WebSocket server listening on %s", cfg.GetHTTPAddress())
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("HTTP server error: %v", err)
+		if cfg.Security.EnableTLS {
+			log.Printf("HTTPS/WebSocket server listening on %s", cfg.GetHTTPAddress())
+			if err := httpServer.ListenAndServeTLS(cfg.Security.TLSCertFile, cfg.Security.TLSKeyFile); err != nil && err != http.ErrServerClosed {
+				log.Printf("HTTPS server error: %v", err)
+			}
+		} else {
+			log.Printf("HTTP/WebSocket server listening on %s", cfg.GetHTTPAddress())
+			if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Printf("HTTP server error: %v", err)
+			}
 		}
 	}()
 
@@ -1352,7 +1378,6 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		"/metrics",
 		"/api/auth/login",
 		"/api/auth/logout",
-		"/terminal", // WebSocket terminal - TODO: add token-based auth
 	}
 
 	// Callback to persist password changes to database
@@ -1367,7 +1392,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.HandleFunc("/api/auth/login", authManager.LoginHandler())
 	mux.HandleFunc("/api/auth/logout", authManager.LogoutHandler())
 	mux.HandleFunc("/api/auth/me", authManager.MeHandler())
-	
+
 	// Change password requires authentication
 	mux.Handle("/api/auth/change-password", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(authManager.ChangePasswordHandler(onPasswordChanged))))
 
@@ -1468,6 +1493,22 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.Handle("DELETE /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUnassignServer)))
 	mux.Handle("PUT /api/servers/{agentId}/tags", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateServerTags)))
 
+	// Agent Runtime Configuration API (agent self-config, persisted on agent)
+	mux.Handle("GET /api/agents/{id}/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetAgentRuntimeConfig)))
+	mux.Handle("PATCH /api/agents/{id}/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateAgentRuntimeConfig)))
+	mux.Handle("POST /api/agents/{id}/config/test", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleTestAgentConfigConnection)))
+
+	// LLM Configuration (persisted in DB)
+	mux.Handle("GET /api/llm/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetLLMConfig)))
+	mux.Handle("PUT /api/llm/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handlePutLLMConfig)))
+	mux.Handle("POST /api/llm/test", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleTestLLM)))
+
+	// Integrations (persisted in DB)
+	mux.Handle("GET /api/integrations", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListIntegrations)))
+	mux.Handle("GET /api/integrations/{type}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetIntegration)))
+	mux.Handle("PUT /api/integrations/{type}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handlePutIntegration)))
+	mux.Handle("POST /api/integrations/{type}/test", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleTestIntegration)))
+
 	// Teams API
 	mux.Handle("GET /api/teams", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListTeams)))
 	mux.Handle("POST /api/teams", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateTeam)))
@@ -1546,7 +1587,6 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	} else {
 		log.Printf("Updates directory not found (%s), update serving disabled", updatesDir)
 	}
-
 
 	// AI Error Analysis API (LLM-powered)
 	if srv.errorAnalysisAPI != nil {
@@ -2017,4 +2057,39 @@ func (s *server) autoAssignAgentToEnvironment(agentID string, labels map[string]
 	}
 
 	log.Printf("Auto-assigned agent %s to project '%s', environment '%s'", agentID, project.Name, env.Name)
+}
+
+func loadServerTLSConfig(cfg *config.Config) (*tls.Config, error) {
+	// Load server certificate and key
+	cert, err := tls.LoadX509KeyPair(cfg.Security.TLSCertFile, cfg.Security.TLSKeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("could not load server key pair: %s", err)
+	}
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+	}
+
+	// Add client CA if mTLS is required
+	if cfg.Security.RequireClientCert {
+		if cfg.Security.TLSCACertFile == "" {
+			return nil, fmt.Errorf("mTLS required but tls_ca_cert_file is empty")
+		}
+
+		caCert, err := os.ReadFile(cfg.Security.TLSCACertFile)
+		if err != nil {
+			return nil, fmt.Errorf("could not read client CA cert: %s", err)
+		}
+
+		certPool := x509.NewCertPool()
+		if ok := certPool.AppendCertsFromPEM(caCert); !ok {
+			return nil, fmt.Errorf("failed to append client CA cert")
+		}
+
+		tlsConfig.ClientCAs = certPool
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	}
+
+	return tlsConfig, nil
 }

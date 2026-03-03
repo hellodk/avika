@@ -6386,7 +6386,7 @@ func (x *AgentConfig) GetAutoApplyConfig() bool {
 	return false
 }
 
-type AgentConfigResponse struct {
+type AgentConfigUpdateResult struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Success         bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
 	Error           string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
@@ -6396,20 +6396,20 @@ type AgentConfigResponse struct {
 	sizeCache       protoimpl.SizeCache
 }
 
-func (x *AgentConfigResponse) Reset() {
-	*x = AgentConfigResponse{}
+func (x *AgentConfigUpdateResult) Reset() {
+	*x = AgentConfigUpdateResult{}
 	mi := &file_api_proto_agent_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AgentConfigResponse) String() string {
+func (x *AgentConfigUpdateResult) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AgentConfigResponse) ProtoMessage() {}
+func (*AgentConfigUpdateResult) ProtoMessage() {}
 
-func (x *AgentConfigResponse) ProtoReflect() protoreflect.Message {
+func (x *AgentConfigUpdateResult) ProtoReflect() protoreflect.Message {
 	mi := &file_api_proto_agent_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -6421,33 +6421,33 @@ func (x *AgentConfigResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AgentConfigResponse.ProtoReflect.Descriptor instead.
-func (*AgentConfigResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use AgentConfigUpdateResult.ProtoReflect.Descriptor instead.
+func (*AgentConfigUpdateResult) Descriptor() ([]byte, []int) {
 	return file_api_proto_agent_proto_rawDescGZIP(), []int{88}
 }
 
-func (x *AgentConfigResponse) GetSuccess() bool {
+func (x *AgentConfigUpdateResult) GetSuccess() bool {
 	if x != nil {
 		return x.Success
 	}
 	return false
 }
 
-func (x *AgentConfigResponse) GetError() string {
+func (x *AgentConfigUpdateResult) GetError() string {
 	if x != nil {
 		return x.Error
 	}
 	return ""
 }
 
-func (x *AgentConfigResponse) GetMessage() string {
+func (x *AgentConfigUpdateResult) GetMessage() string {
 	if x != nil {
 		return x.Message
 	}
 	return ""
 }
 
-func (x *AgentConfigResponse) GetRequiresRestart() bool {
+func (x *AgentConfigUpdateResult) GetRequiresRestart() bool {
 	if x != nil {
 		return x.RequiresRestart
 	}
@@ -12920,8 +12920,8 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\x1aheartbeat_interval_seconds\x18\x10 \x01(\x05R\x18heartbeatIntervalSeconds\x12,\n" +
 	"\x12enable_vts_metrics\x18\x11 \x01(\bR\x10enableVtsMetrics\x120\n" +
 	"\x14enable_log_streaming\x18\x12 \x01(\bR\x12enableLogStreaming\x12*\n" +
-	"\x11auto_apply_config\x18\x13 \x01(\bR\x0fautoApplyConfig\"\x8a\x01\n" +
-	"\x13AgentConfigResponse\x12\x18\n" +
+	"\x11auto_apply_config\x18\x13 \x01(\bR\x0fautoApplyConfig\"\x8e\x01\n" +
+	"\x17AgentConfigUpdateResult\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12\x18\n" +
 	"\amessage\x18\x03 \x01(\tR\amessage\x12)\n" +
@@ -13515,7 +13515,7 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\aresults\x18\x02 \x03(\v2!.nginx.agent.v1.AgentUpdateResultR\aresults\x12)\n" +
 	"\x10validation_error\x18\x03 \x01(\tR\x0fvalidationError2W\n" +
 	"\tCommander\x12J\n" +
-	"\aConnect\x12\x1c.nginx.agent.v1.AgentMessage\x1a\x1d.nginx.agent.v1.ServerCommand(\x010\x012\xf20\n" +
+	"\aConnect\x12\x1c.nginx.agent.v1.AgentMessage\x1a\x1d.nginx.agent.v1.ServerCommand(\x010\x012\xf60\n" +
 	"\fAgentService\x12J\n" +
 	"\tGetConfig\x12\x1d.nginx.agent.v1.ConfigRequest\x1a\x1e.nginx.agent.v1.ConfigResponse\x12R\n" +
 	"\fUpdateConfig\x12\x1c.nginx.agent.v1.ConfigUpdate\x1a$.nginx.agent.v1.ConfigUpdateResponse\x12T\n" +
@@ -13538,8 +13538,8 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\fApplyAugment\x12#.nginx.agent.v1.ApplyAugmentRequest\x1a$.nginx.agent.v1.ApplyAugmentResponse\x12V\n" +
 	"\vUpdateAgent\x12\".nginx.agent.v1.UpdateAgentRequest\x1a#.nginx.agent.v1.UpdateAgentResponse\x12H\n" +
 	"\aExecute\x12\x1b.nginx.agent.v1.ExecRequest\x1a\x1c.nginx.agent.v1.ExecResponse(\x010\x01\x12T\n" +
-	"\x0eGetAgentConfig\x12%.nginx.agent.v1.GetAgentConfigRequest\x1a\x1b.nginx.agent.v1.AgentConfig\x12U\n" +
-	"\x11UpdateAgentConfig\x12\x1b.nginx.agent.v1.AgentConfig\x1a#.nginx.agent.v1.AgentConfigResponse\x12O\n" +
+	"\x0eGetAgentConfig\x12%.nginx.agent.v1.GetAgentConfigRequest\x1a\x1b.nginx.agent.v1.AgentConfig\x12Y\n" +
+	"\x11UpdateAgentConfig\x12\x1b.nginx.agent.v1.AgentConfig\x1a'.nginx.agent.v1.AgentConfigUpdateResult\x12O\n" +
 	"\x0eGenerateReport\x12\x1d.nginx.agent.v1.ReportRequest\x1a\x1e.nginx.agent.v1.ReportResponse\x12S\n" +
 	"\n" +
 	"SendReport\x12!.nginx.agent.v1.SendReportRequest\x1a\".nginx.agent.v1.SendReportResponse\x12W\n" +
@@ -13690,7 +13690,7 @@ var file_api_proto_agent_proto_goTypes = []any{
 	(*ReportDownloadResponse)(nil),             // 85: nginx.agent.v1.ReportDownloadResponse
 	(*GetAgentConfigRequest)(nil),              // 86: nginx.agent.v1.GetAgentConfigRequest
 	(*AgentConfig)(nil),                        // 87: nginx.agent.v1.AgentConfig
-	(*AgentConfigResponse)(nil),                // 88: nginx.agent.v1.AgentConfigResponse
+	(*AgentConfigUpdateResult)(nil),            // 88: nginx.agent.v1.AgentConfigUpdateResult
 	(*AgentGroup)(nil),                         // 89: nginx.agent.v1.AgentGroup
 	(*ListGroupsRequest)(nil),                  // 90: nginx.agent.v1.ListGroupsRequest
 	(*ListGroupsResponse)(nil),                 // 91: nginx.agent.v1.ListGroupsResponse
@@ -13998,7 +13998,7 @@ var file_api_proto_agent_proto_depIdxs = []int32{
 	25,  // 194: nginx.agent.v1.AgentService.UpdateAgent:output_type -> nginx.agent.v1.UpdateAgentResponse
 	23,  // 195: nginx.agent.v1.AgentService.Execute:output_type -> nginx.agent.v1.ExecResponse
 	87,  // 196: nginx.agent.v1.AgentService.GetAgentConfig:output_type -> nginx.agent.v1.AgentConfig
-	88,  // 197: nginx.agent.v1.AgentService.UpdateAgentConfig:output_type -> nginx.agent.v1.AgentConfigResponse
+	88,  // 197: nginx.agent.v1.AgentService.UpdateAgentConfig:output_type -> nginx.agent.v1.AgentConfigUpdateResult
 	80,  // 198: nginx.agent.v1.AgentService.GenerateReport:output_type -> nginx.agent.v1.ReportResponse
 	84,  // 199: nginx.agent.v1.AgentService.SendReport:output_type -> nginx.agent.v1.SendReportResponse
 	85,  // 200: nginx.agent.v1.AgentService.DownloadReport:output_type -> nginx.agent.v1.ReportDownloadResponse

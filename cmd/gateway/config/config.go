@@ -43,6 +43,8 @@ type SecurityConfig struct {
 	EnableTLS         bool          `yaml:"enable_tls"`
 	TLSCertFile       string        `yaml:"tls_cert_file"`
 	TLSKeyFile        string        `yaml:"tls_key_file"`
+	TLSCACertFile     string        `yaml:"tls_ca_cert_file"` // CA for verifying client certs (mTLS)
+	RequireClientCert bool          `yaml:"require_client_cert"`
 }
 
 // DatabaseConfig holds PostgreSQL configuration
@@ -103,10 +105,10 @@ type VaultConfig struct {
 type AuthConfig struct {
 	Enabled           bool   `yaml:"enabled"`
 	Username          string `yaml:"username"`
-	PasswordHash      string `yaml:"password_hash"`       // SHA-256 hash of password
-	JWTSecret         string `yaml:"jwt_secret"`          // Auto-generated if empty
-	TokenExpiry       string `yaml:"token_expiry"`        // e.g., "24h"
-	CookieSecure      bool   `yaml:"cookie_secure"`       // Set to true for HTTPS
+	PasswordHash      string `yaml:"password_hash"` // SHA-256 hash of password
+	JWTSecret         string `yaml:"jwt_secret"`    // Auto-generated if empty
+	TokenExpiry       string `yaml:"token_expiry"`  // e.g., "24h"
+	CookieSecure      bool   `yaml:"cookie_secure"` // Set to true for HTTPS
 	CookieDomain      string `yaml:"cookie_domain"`
 	InitialSecretPath string `yaml:"initial_secret_path"` // File to write initial secret
 }
@@ -123,32 +125,32 @@ type PSKConfig struct {
 // OIDCConfig holds OpenID Connect SSO configuration
 type OIDCConfig struct {
 	Enabled       bool              `yaml:"enabled"`
-	ProviderURL   string            `yaml:"provider_url"`    // e.g., https://accounts.google.com, https://login.microsoftonline.com/{tenant}/v2.0
+	ProviderURL   string            `yaml:"provider_url"` // e.g., https://accounts.google.com, https://login.microsoftonline.com/{tenant}/v2.0
 	ClientID      string            `yaml:"client_id"`
 	ClientSecret  string            `yaml:"client_secret"`
-	RedirectURL   string            `yaml:"redirect_url"`    // Callback URL, e.g., https://avika.example.com/api/auth/oidc/callback
-	Scopes        []string          `yaml:"scopes"`          // OIDC scopes, typically ["openid", "profile", "email", "groups"]
-	GroupsClaim   string            `yaml:"groups_claim"`    // JWT claim containing groups, e.g., "groups" or "roles"
-	GroupMapping  map[string]string `yaml:"group_mapping"`   // Map OIDC groups to Avika teams, e.g., {"admins": "platform-admins"}
-	DefaultRole   string            `yaml:"default_role"`    // Role for SSO users without team mapping: "viewer" or "admin"
-	AutoProvision bool              `yaml:"auto_provision"`  // Auto-create users on first SSO login
+	RedirectURL   string            `yaml:"redirect_url"`   // Callback URL, e.g., https://avika.example.com/api/auth/oidc/callback
+	Scopes        []string          `yaml:"scopes"`         // OIDC scopes, typically ["openid", "profile", "email", "groups"]
+	GroupsClaim   string            `yaml:"groups_claim"`   // JWT claim containing groups, e.g., "groups" or "roles"
+	GroupMapping  map[string]string `yaml:"group_mapping"`  // Map OIDC groups to Avika teams, e.g., {"admins": "platform-admins"}
+	DefaultRole   string            `yaml:"default_role"`   // Role for SSO users without team mapping: "viewer" or "admin"
+	AutoProvision bool              `yaml:"auto_provision"` // Auto-create users on first SSO login
 }
 
 // LLMConfig holds configuration for AI/LLM-powered features
 type LLMConfig struct {
-	Enabled          bool    `yaml:"enabled"`            // Enable AI-powered error analysis
-	Provider         string  `yaml:"provider"`           // openai, anthropic, ollama
-	APIKey           string  `yaml:"api_key"`            // API key for cloud providers
-	Model            string  `yaml:"model"`              // Model name (e.g., gpt-4-turbo, claude-3-sonnet)
-	BaseURL          string  `yaml:"base_url"`           // Custom base URL (for Ollama or Azure)
-	MaxTokens        int     `yaml:"max_tokens"`         // Max tokens per request
-	Temperature      float32 `yaml:"temperature"`        // Temperature for generation (0.0-1.0)
-	TimeoutSeconds   int     `yaml:"timeout_seconds"`    // Request timeout
-	RetryAttempts    int     `yaml:"retry_attempts"`     // Number of retry attempts
-	RateLimitRPM     int     `yaml:"rate_limit_rpm"`     // Rate limit (requests per minute)
-	EnableCaching    bool    `yaml:"enable_caching"`     // Cache LLM responses
-	CacheTTLMinutes  int     `yaml:"cache_ttl_minutes"`  // Cache TTL in minutes
-	FallbackProvider string  `yaml:"fallback_provider"`  // Fallback provider if primary fails
+	Enabled          bool    `yaml:"enabled"`           // Enable AI-powered error analysis
+	Provider         string  `yaml:"provider"`          // openai, anthropic, ollama
+	APIKey           string  `yaml:"api_key"`           // API key for cloud providers
+	Model            string  `yaml:"model"`             // Model name (e.g., gpt-4-turbo, claude-3-sonnet)
+	BaseURL          string  `yaml:"base_url"`          // Custom base URL (for Ollama or Azure)
+	MaxTokens        int     `yaml:"max_tokens"`        // Max tokens per request
+	Temperature      float32 `yaml:"temperature"`       // Temperature for generation (0.0-1.0)
+	TimeoutSeconds   int     `yaml:"timeout_seconds"`   // Request timeout
+	RetryAttempts    int     `yaml:"retry_attempts"`    // Number of retry attempts
+	RateLimitRPM     int     `yaml:"rate_limit_rpm"`    // Rate limit (requests per minute)
+	EnableCaching    bool    `yaml:"enable_caching"`    // Cache LLM responses
+	CacheTTLMinutes  int     `yaml:"cache_ttl_minutes"` // Cache TTL in minutes
+	FallbackProvider string  `yaml:"fallback_provider"` // Fallback provider if primary fails
 }
 
 // Config holds all gateway configuration
@@ -291,8 +293,8 @@ func defaultConfig() *Config {
 			ShutdownTimeout: 30 * time.Second,
 			EnableTLS:       false,
 		},
-	Database: DatabaseConfig{
-		DSN:             "", // Set via DATABASE_URL or DB_DSN environment variable
+		Database: DatabaseConfig{
+			DSN:             "", // Set via DATABASE_URL or DB_DSN environment variable
 			MaxOpenConns:    25,
 			MaxIdleConns:    25,
 			ConnMaxLifetime: 5 * time.Minute,
@@ -420,6 +422,21 @@ func loadEnvOverrides(cfg *Config) {
 		if rps, err := strconv.Atoi(v); err == nil {
 			cfg.Security.RateLimitRPS = rps
 		}
+	}
+	if v := os.Getenv("ENABLE_TLS"); v != "" {
+		cfg.Security.EnableTLS = v == "true" || v == "1"
+	}
+	if v := os.Getenv("TLS_CERT_FILE"); v != "" {
+		cfg.Security.TLSCertFile = v
+	}
+	if v := os.Getenv("TLS_KEY_FILE"); v != "" {
+		cfg.Security.TLSKeyFile = v
+	}
+	if v := os.Getenv("TLS_CA_CERT_FILE"); v != "" {
+		cfg.Security.TLSCACertFile = v
+	}
+	if v := os.Getenv("REQUIRE_CLIENT_CERT"); v != "" {
+		cfg.Security.RequireClientCert = v == "true" || v == "1"
 	}
 
 	// Database

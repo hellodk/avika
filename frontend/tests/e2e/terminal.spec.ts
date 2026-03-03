@@ -1,7 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { installBasePath } from './helpers';
 
 test.describe('Web Terminal', () => {
     test('should open terminal and execute command with screenshots', async ({ page }) => {
+        test.setTimeout(120000);
+        installBasePath(page);
         // Navigate to inventory
         await page.goto('/inventory');
         await page.waitForSelector('h1:has-text("Inventory")', { timeout: 15000 });

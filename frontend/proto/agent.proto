@@ -214,7 +214,7 @@ service AgentService {
 
   // Agent Configuration
   rpc GetAgentConfig(GetAgentConfigRequest) returns (AgentConfig);
-  rpc UpdateAgentConfig(AgentConfig) returns (AgentConfigResponse);
+  rpc UpdateAgentConfig(AgentConfig) returns (AgentConfigUpdateResult);
 
   // Reporting
   rpc GenerateReport(ReportRequest) returns (ReportResponse);
@@ -834,7 +834,7 @@ message AgentConfig {
   bool auto_apply_config = 19;
 }
 
-message AgentConfigResponse {
+message AgentConfigUpdateResult {
   bool success = 1;
   string error = 2;
   string message = 3;

@@ -32,27 +32,34 @@ func NewErrorAnalysisAPI(db *ClickHouseDB, llmClient LLMClient) *ErrorAnalysisAP
 	}
 }
 
+func (api *ErrorAnalysisAPI) SetLLMClient(llmClient LLMClient) {
+	api.llmClient = llmClient
+	if api.recEngine != nil {
+		api.recEngine.SetLLMClient(llmClient)
+	}
+}
+
 // ErrorAnalysisResponse is the API response for error analysis
 type ErrorAnalysisResponse struct {
-	Summary           *ErrorSummary          `json:"summary"`
-	Patterns          []*ErrorPattern        `json:"patterns"`
-	Trend             []ErrorTrendPoint      `json:"trend"`
-	TopErrorEndpoints []EndpointErrorStat    `json:"top_error_endpoints"`
-	AIAnalysis        *AnalysisResponse      `json:"ai_analysis,omitempty"`
-	Recommendations   []*AIRecommendation    `json:"recommendations,omitempty"`
-	GeneratedAt       int64                  `json:"generated_at"`
+	Summary           *ErrorSummary       `json:"summary"`
+	Patterns          []*ErrorPattern     `json:"patterns"`
+	Trend             []ErrorTrendPoint   `json:"trend"`
+	TopErrorEndpoints []EndpointErrorStat `json:"top_error_endpoints"`
+	AIAnalysis        *AnalysisResponse   `json:"ai_analysis,omitempty"`
+	Recommendations   []*AIRecommendation `json:"recommendations,omitempty"`
+	GeneratedAt       int64               `json:"generated_at"`
 }
 
 // ErrorSummary provides high-level error statistics
 type ErrorSummary struct {
-	TotalErrors         int64              `json:"total_errors"`
-	TotalRequests       int64              `json:"total_requests"`
-	ErrorRate           float64            `json:"error_rate"`
-	ErrorRateDelta      float64            `json:"error_rate_delta"`
-	ErrorsByStatus      map[string]int64   `json:"errors_by_status"`
-	ErrorsByCategory    map[string]int64   `json:"errors_by_category"`
-	MostAffectedEndpoint string            `json:"most_affected_endpoint"`
-	PrimaryRootCause    string             `json:"primary_root_cause"`
+	TotalErrors          int64            `json:"total_errors"`
+	TotalRequests        int64            `json:"total_requests"`
+	ErrorRate            float64          `json:"error_rate"`
+	ErrorRateDelta       float64          `json:"error_rate_delta"`
+	ErrorsByStatus       map[string]int64 `json:"errors_by_status"`
+	ErrorsByCategory     map[string]int64 `json:"errors_by_category"`
+	MostAffectedEndpoint string           `json:"most_affected_endpoint"`
+	PrimaryRootCause     string           `json:"primary_root_cause"`
 }
 
 // ErrorTrendPoint represents error counts at a point in time
@@ -128,7 +135,7 @@ func (api *ErrorAnalysisAPI) HandleGetErrorAnalysis(w http.ResponseWriter, r *ht
 	// Generate AI analysis if requested
 	if includeAI && api.llmClient != nil {
 		analysisCtx := api.buildAnalysisContext(summary, patterns, duration)
-		
+
 		// Get AI analysis
 		aiAnalysis, err := api.recEngine.AnalyzeErrors(ctx, analysisCtx)
 		if err != nil {
@@ -271,10 +278,10 @@ func (api *ErrorAnalysisAPI) HandleGetErrorTrend(w http.ResponseWriter, r *http.
 // HandleGetLLMConfig handles GET /api/v1/admin/llm/config
 func (api *ErrorAnalysisAPI) HandleGetLLMConfig(w http.ResponseWriter, r *http.Request) {
 	config := struct {
-		Provider    string `json:"provider"`
-		Model       string `json:"model"`
-		Enabled     bool   `json:"enabled"`
-		CacheEnabled bool  `json:"cache_enabled"`
+		Provider     string `json:"provider"`
+		Model        string `json:"model"`
+		Enabled      bool   `json:"enabled"`
+		CacheEnabled bool   `json:"cache_enabled"`
 	}{
 		Provider:     api.llmClient.GetProviderName(),
 		Model:        api.llmClient.GetModelName(),
@@ -346,7 +353,7 @@ func (api *ErrorAnalysisAPI) getErrorSummary(ctx context.Context, startTime time
 
 	var totalErrors, totalReqs, e4xx, e5xx, e499, e502, e503, e504 uint64
 	queryArgs := append([]interface{}{startTime}, args...)
-	
+
 	err := api.db.conn.QueryRow(ctx, query, queryArgs...).Scan(
 		&totalErrors, &totalReqs, &e4xx, &e5xx, &e499, &e502, &e503, &e504)
 	if err != nil {
@@ -617,11 +624,11 @@ func (api *ErrorAnalysisAPI) getTopErrorEndpoints(ctx context.Context, startTime
 
 func (api *ErrorAnalysisAPI) buildAnalysisContext(summary *ErrorSummary, patterns []*ErrorPattern, duration time.Duration) *ErrorAnalysisContext {
 	ctx := &ErrorAnalysisContext{
-		TimeWindow:      duration,
-		ErrorPatterns:   patterns,
-		TotalErrors:     summary.TotalErrors,
-		TotalRequests:   summary.TotalRequests,
-		CurrentConfig:   &NginxConfigContext{},
+		TimeWindow:    duration,
+		ErrorPatterns: patterns,
+		TotalErrors:   summary.TotalErrors,
+		TotalRequests: summary.TotalRequests,
+		CurrentConfig: &NginxConfigContext{},
 	}
 
 	if summary.TotalRequests > 0 {

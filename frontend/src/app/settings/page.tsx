@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+export const dynamic = "force-dynamic";
+
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,6 +26,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/lib/theme-provider";
 import { themes, ThemeName } from "@/lib/themes";
+import { DEFAULT_USER_SETTINGS, useUserSettings } from "@/lib/user-settings";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -31,8 +34,6 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-
-const DEFAULT_GRAFANA_URL = "http://monitoring-grafana.monitoring.svc.cluster.local";
 
 const themeIcons: Record<string, typeof Moon> = {
     dark: Moon,
@@ -43,14 +44,42 @@ const themeIcons: Record<string, typeof Moon> = {
     midnight: Eclipse,
 };
 
+const TIME_RANGES = [
+    { label: "Last 15m", value: "now-15m" },
+    { label: "Last 1h", value: "now-1h" },
+    { label: "Last 6h", value: "now-6h" },
+    { label: "Last 24h", value: "now-24h" },
+    { label: "Last 7d", value: "now-7d" },
+];
+
+const REFRESH_INTERVALS = [
+    { label: "Off", value: "" },
+    { label: "5s", value: "5s" },
+    { label: "10s", value: "10s" },
+    { label: "30s", value: "30s" },
+    { label: "1m", value: "1m" },
+    { label: "5m", value: "5m" },
+];
+
+const TIMEZONES = [
+    { label: "Browser", value: "browser" },
+    { label: "UTC", value: "UTC" },
+];
+
 export default function SettingsPage() {
     const { theme, setTheme } = useTheme();
+    const { settings: userSettings, updateSettings, resetSettings } = useUserSettings();
     const [createSuccess, setCreateSuccess] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [isDeletingAgents, setIsDeletingAgents] = useState(false);
     const [deletionMessage, setDeletionMessage] = useState("");
-    const [grafanaUrl, setGrafanaUrl] = useState(DEFAULT_GRAFANA_URL);
+    const [grafanaUrl, setGrafanaUrl] = useState(userSettings.integrations.grafanaUrl);
+    const [clickhouseUrl, setClickhouseUrl] = useState(userSettings.integrations.clickhouseUrl);
+    const [prometheusUrl, setPrometheusUrl] = useState(userSettings.integrations.prometheusUrl);
+    const [defaultTimeRange, setDefaultTimeRange] = useState(userSettings.display.defaultTimeRange);
+    const [refreshInterval, setRefreshInterval] = useState(userSettings.display.refreshInterval);
+    const [timezone, setTimezone] = useState(userSettings.display.timezone);
 
     // Telemetry & AI Settings State
     const [collectionInterval, setCollectionInterval] = useState("10");
@@ -59,11 +88,43 @@ export default function SettingsPage() {
     const [windowSize, setWindowSize] = useState("200");
 
     useEffect(() => {
-        const savedUrl = localStorage.getItem("grafana_url");
-        if (savedUrl) {
-            setGrafanaUrl(savedUrl);
-        }
-    }, []);
+        setGrafanaUrl(userSettings.integrations.grafanaUrl);
+        setClickhouseUrl(userSettings.integrations.clickhouseUrl);
+        setPrometheusUrl(userSettings.integrations.prometheusUrl);
+        setDefaultTimeRange(userSettings.display.defaultTimeRange);
+        setRefreshInterval(userSettings.display.refreshInterval);
+        setTimezone(userSettings.display.timezone);
+    }, [userSettings]);
+
+    const integrationsChanged = useMemo(() => {
+        return (
+            grafanaUrl !== userSettings.integrations.grafanaUrl ||
+            clickhouseUrl !== userSettings.integrations.clickhouseUrl ||
+            prometheusUrl !== userSettings.integrations.prometheusUrl
+        );
+    }, [
+        clickhouseUrl,
+        grafanaUrl,
+        prometheusUrl,
+        userSettings.integrations.clickhouseUrl,
+        userSettings.integrations.grafanaUrl,
+        userSettings.integrations.prometheusUrl
+    ]);
+
+    const displayChanged = useMemo(() => {
+        return (
+            defaultTimeRange !== userSettings.display.defaultTimeRange ||
+            refreshInterval !== userSettings.display.refreshInterval ||
+            timezone !== userSettings.display.timezone
+        );
+    }, [
+        defaultTimeRange,
+        refreshInterval,
+        timezone,
+        userSettings.display.defaultTimeRange,
+        userSettings.display.refreshInterval,
+        userSettings.display.timezone
+    ]);
 
     const handleDeleteOfflineAgents = async () => {
         setIsDeletingAgents(true);
@@ -110,18 +171,35 @@ export default function SettingsPage() {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            // Save Grafana URL to localStorage
-            localStorage.setItem("grafana_url", grafanaUrl);
+            updateSettings({
+                integrations: {
+                    grafanaUrl: grafanaUrl.trim(),
+                    clickhouseUrl: clickhouseUrl.trim(),
+                    prometheusUrl: prometheusUrl.trim(),
+                },
+                display: {
+                    defaultTimeRange,
+                    refreshInterval,
+                    timezone,
+                }
+            });
+
+            // Legacy key (back-compat for older builds)
+            try {
+                localStorage.setItem("grafana_url", grafanaUrl.trim());
+            } catch {
+                // ignore
+            }
 
             // Try to save to backend settings API
             const res = await apiFetch('/api/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    collection_interval: parseInt(collectionInterval, 10),
-                    retention_days: parseInt(retentionDays, 10),
-                    anomaly_threshold: parseFloat(anomalyThreshold),
-                    window_size: parseInt(windowSize, 10),
+                    collection_interval: 10,
+                    retention_days: 30,
+                    anomaly_threshold: 0.8,
+                    window_size: 200,
                     grafana_url: grafanaUrl
                 })
             });
@@ -142,6 +220,16 @@ export default function SettingsPage() {
             setIsSaving(false);
             setTimeout(() => setSaveSuccess(false), 3000);
         }
+    };
+
+    const handleResetDefaults = () => {
+        resetSettings();
+        try {
+            localStorage.removeItem("grafana_url");
+        } catch {
+            // ignore
+        }
+        toast.success("Defaults restored", { description: "Integrations and display preferences reset to defaults." });
     };
 
     const ActiveThemeIcon = themeIcons[theme as ThemeName] || Palette;
@@ -239,7 +327,7 @@ export default function SettingsPage() {
                                 type="url"
                                 value={grafanaUrl}
                                 onChange={(e) => setGrafanaUrl(e.target.value)}
-                                placeholder="http://monitoring-grafana.monitoring.svc.cluster.local"
+                                placeholder={DEFAULT_USER_SETTINGS.integrations.grafanaUrl}
                                 className="flex-1"
                                 style={{
                                     backgroundColor: 'rgb(var(--theme-surface-light))',
@@ -261,10 +349,131 @@ export default function SettingsPage() {
                         </div>
                         <p className="text-xs" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                             Default: <code className="px-1 py-0.5 rounded text-xs" style={{ backgroundColor: 'rgb(var(--theme-surface-light))' }}>
-                                {DEFAULT_GRAFANA_URL}
+                                {DEFAULT_USER_SETTINGS.integrations.grafanaUrl}
                             </code>
                         </p>
                     </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="clickhouse-url" style={{ color: 'rgb(var(--theme-text))' }}>ClickHouse URL (optional)</Label>
+                        <Input
+                            id="clickhouse-url"
+                            type="url"
+                            value={clickhouseUrl}
+                            onChange={(e) => setClickhouseUrl(e.target.value)}
+                            placeholder="http://clickhouse:8123"
+                            style={{
+                                backgroundColor: 'rgb(var(--theme-surface-light))',
+                                color: 'rgb(var(--theme-text))',
+                                borderColor: 'rgb(var(--theme-border))'
+                            }}
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="prometheus-url" style={{ color: 'rgb(var(--theme-text))' }}>Prometheus URL (optional)</Label>
+                        <Input
+                            id="prometheus-url"
+                            type="url"
+                            value={prometheusUrl}
+                            onChange={(e) => setPrometheusUrl(e.target.value)}
+                            placeholder="http://prometheus:9090"
+                            style={{
+                                backgroundColor: 'rgb(var(--theme-surface-light))',
+                                color: 'rgb(var(--theme-text))',
+                                borderColor: 'rgb(var(--theme-border))'
+                            }}
+                        />
+                    </div>
+
+                    {integrationsChanged && (
+                        <p className="text-xs" style={{ color: 'rgb(var(--theme-text-muted))' }}>
+                            Changes will apply after you click <span className="font-medium">Save Changes</span>.
+                        </p>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Display Preferences */}
+            <Card style={{ backgroundColor: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
+                <CardHeader>
+                    <CardTitle className="text-base" style={{ color: 'rgb(var(--theme-text))' }}>Display Preferences</CardTitle>
+                    <p className="text-sm mt-1" style={{ color: 'rgb(var(--theme-text-muted))' }}>
+                        Defaults used across dashboards.
+                    </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="default-time-range" style={{ color: 'rgb(var(--theme-text))' }}>Default Time Range</Label>
+                        <select
+                            id="default-time-range"
+                            value={defaultTimeRange}
+                            onChange={(e) => setDefaultTimeRange(e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                            style={{
+                                background: "rgb(var(--theme-surface-light))",
+                                borderColor: "rgb(var(--theme-border))",
+                                color: "rgb(var(--theme-text))"
+                            }}
+                        >
+                            {TIME_RANGES.map((range) => (
+                                <option key={range.value} value={range.value}>
+                                    {range.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="default-refresh-interval" style={{ color: 'rgb(var(--theme-text))' }}>Default Refresh Interval</Label>
+                        <select
+                            id="default-refresh-interval"
+                            value={refreshInterval}
+                            onChange={(e) => setRefreshInterval(e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                            style={{
+                                background: "rgb(var(--theme-surface-light))",
+                                borderColor: "rgb(var(--theme-border))",
+                                color: "rgb(var(--theme-text))"
+                            }}
+                        >
+                            {REFRESH_INTERVALS.map((interval) => (
+                                <option key={interval.value} value={interval.value}>
+                                    {interval.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="default-timezone" style={{ color: 'rgb(var(--theme-text))' }}>Timezone</Label>
+                        <select
+                            id="default-timezone"
+                            value={timezone}
+                            onChange={(e) => setTimezone(e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                            style={{
+                                background: "rgb(var(--theme-surface-light))",
+                                borderColor: "rgb(var(--theme-border))",
+                                color: "rgb(var(--theme-text))"
+                            }}
+                        >
+                            {TIMEZONES.map((tz) => (
+                                <option key={tz.value} value={tz.value}>
+                                    {tz.label}
+                                </option>
+                            ))}
+                        </select>
+                        <p className="text-xs" style={{ color: 'rgb(var(--theme-text-muted))' }}>
+                            \"Browser\" uses your local timezone.
+                        </p>
+                    </div>
+
+                    {displayChanged && (
+                        <p className="text-xs" style={{ color: 'rgb(var(--theme-text-muted))' }}>
+                            Changes will apply after you click <span className="font-medium">Save Changes</span>.
+                        </p>
+                    )}
                 </CardContent>
             </Card>
 
@@ -377,7 +586,19 @@ export default function SettingsPage() {
                 </Card>
             </div>
 
-            <div className="flex justify-end pt-4">
+            <div className="flex flex-col sm:flex-row gap-3 justify-end pt-4">
+                <Button
+                    variant="outline"
+                    onClick={handleResetDefaults}
+                    className="min-w-[140px]"
+                    style={{
+                        backgroundColor: 'rgb(var(--theme-surface))',
+                        color: 'rgb(var(--theme-text))',
+                        borderColor: 'rgb(var(--theme-border))'
+                    }}
+                >
+                    Reset Defaults
+                </Button>
                 <Button
                     onClick={handleSave}
                     disabled={isSaving}

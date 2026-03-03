@@ -39,20 +39,20 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-type DeepPartial<T> = {
-  [P in keyof T]?: DeepPartial<T[P]>;
-};
-
-function parseStoredSettings(raw: string | null): DeepPartial<UserSettings> | null {
+function parseStoredSettings(raw: string | null): Partial<UserSettings> | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
     if (!isObject(parsed)) return null;
-    return parsed as DeepPartial<UserSettings>;
+    return parsed as Partial<UserSettings>;
   } catch {
     return null;
   }
 }
+
+type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+};
 
 function mergeSettings(base: UserSettings, patch: DeepPartial<UserSettings>): UserSettings {
   const integrationsPatch = isObject(patch.integrations) ? (patch.integrations as Partial<IntegrationsSettings>) : {};
@@ -78,7 +78,7 @@ function normalizeBaseUrl(url: string): string {
 type UserSettingsContextValue = {
   settings: UserSettings;
   setSettings: (next: UserSettings) => void;
-  updateSettings: (patch: DeepPartial<UserSettings>) => void;
+  updateSettings: (patch: Partial<UserSettings>) => void;
   resetSettings: () => void;
   getGrafanaBaseUrl: () => string;
 };
@@ -119,7 +119,7 @@ export function UserSettingsProvider({ children }: { children: React.ReactNode }
     setSettingsState(mergeSettings(DEFAULT_USER_SETTINGS, next));
   }, []);
 
-  const updateSettings = useCallback((patch: DeepPartial<UserSettings>) => {
+  const updateSettings = useCallback((patch: Partial<UserSettings>) => {
     setSettingsState((prev) => mergeSettings(prev, patch));
   }, []);
 
