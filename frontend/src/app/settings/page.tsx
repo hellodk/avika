@@ -74,7 +74,18 @@ export default function SettingsPage() {
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [isDeletingAgents, setIsDeletingAgents] = useState(false);
     const [deletionMessage, setDeletionMessage] = useState("");
-    const [grafanaUrl, setGrafanaUrl] = useState(DEFAULT_GRAFANA_URL);
+    const [grafanaUrl, setGrafanaUrl] = useState(userSettings.integrations.grafanaUrl);
+    const [clickhouseUrl, setClickhouseUrl] = useState(userSettings.integrations.clickhouseUrl);
+    const [prometheusUrl, setPrometheusUrl] = useState(userSettings.integrations.prometheusUrl);
+    const [defaultTimeRange, setDefaultTimeRange] = useState(userSettings.display.defaultTimeRange);
+    const [refreshInterval, setRefreshInterval] = useState(userSettings.display.refreshInterval);
+    const [timezone, setTimezone] = useState(userSettings.display.timezone);
+
+    // Telemetry & AI Settings State
+    const [collectionInterval, setCollectionInterval] = useState("10");
+    const [retentionDays, setRetentionDays] = useState("30");
+    const [anomalyThreshold, setAnomalyThreshold] = useState("0.8");
+    const [windowSize, setWindowSize] = useState("200");
 
     useEffect(() => {
         setGrafanaUrl(userSettings.integrations.grafanaUrl);
