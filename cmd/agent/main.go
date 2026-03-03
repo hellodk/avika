@@ -3,6 +3,9 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
@@ -46,6 +49,7 @@ var (
 	version     = flag.Bool("version", false, "Display version and exit")
 	healthPort  = flag.Int("health-port", DefaultHealthPort, "Port for health check endpoints")
 	mgmtPort    = flag.Int("mgmt-port", DefaultMgmtPort, "Port for management gRPC server")
+	pskKey      = flag.String("psk", "", "Pre-Shared Key for gateway authentication")
 
 	// NGINX configuration
 	nginxStatusURL  = flag.String("nginx-status-url", "http://127.0.0.1/nginx_status", "URL for NGINX stub_status")
@@ -168,6 +172,10 @@ func loadConfig(path string) error {
 					*mgmtPort = i
 				}
 			}
+		case "PSK_KEY":
+			if !setFlags["psk"] {
+				*pskKey = val
+			}
 		default:
 			// Parse labels with LABEL_ prefix: LABEL_project=myproject
 			if strings.HasPrefix(key, "LABEL_") {
@@ -223,6 +231,7 @@ func loadEnv() {
 		{"BUFFER_DIR", "buffer-dir", func(val string) { *bufferDir = val }},
 		{"LOG_LEVEL", "log-level", func(val string) { *logLevel = val }},
 		{"LOG_FILE", "log-file", func(val string) { *logFile = val }},
+		{"PSK_KEY", "psk", func(val string) { *pskKey = val }},
 	}
 
 	for _, m := range envMappings {
@@ -252,7 +261,7 @@ func loadEnv() {
 // The -gateway flag (and GATEWAYS config) accepts comma-separated values for multi-gateway mode
 func getGatewayAddresses() []string {
 	var addresses []string
-	
+
 	// Parse comma-separated addresses from -gateway flag or GATEWAYS config
 	if *gatewayAddr != "" {
 		for _, addr := range strings.Split(*gatewayAddr, ",") {
@@ -264,12 +273,12 @@ func getGatewayAddresses() []string {
 			}
 		}
 	}
-	
+
 	// Default if nothing configured
 	if len(addresses) == 0 {
 		addresses = append(addresses, "localhost:5020")
 	}
-	
+
 	return addresses
 }
 
@@ -565,7 +574,7 @@ func main() {
 	// -------------------------------------------------------------------------
 	gateways := getGatewayAddresses()
 	log.Printf("Connecting to %d gateway(s): %v", len(gateways), gateways)
-	
+
 	for _, gwAddr := range gateways {
 		wg.Add(1)
 		go func(addr string) {
@@ -803,8 +812,25 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 
 			log.Printf("Connecting to gateway %s...", targetAddr)
 
+			dialOpts := []grpc.DialOption{
+				grpc.WithTransportCredentials(insecure.NewCredentials()),
+			}
+
+			if *pskKey != "" {
+				log.Printf("Using PSK authentication")
+				h, _ := os.Hostname()
+				if h == "" {
+					h = "unknown"
+				}
+				dialOpts = append(dialOpts, grpc.WithPerRPCCredentials(&pskCreds{
+					agentID:  agentID,
+					hostname: h,
+					key:      *pskKey,
+				}))
+			}
+
 			// Dial with backoff? Simple wait for now
-			conn, err = grpc.Dial(targetAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			conn, err = grpc.Dial(targetAddr, dialOpts...)
 			if err != nil {
 				log.Printf("Connection failed: %v. Retrying in 5s...", err)
 				select {
@@ -929,9 +955,9 @@ func isRunningInContainer() bool {
 	// Check cgroup for kubernetes/docker
 	if data, err := os.ReadFile("/proc/1/cgroup"); err == nil {
 		content := string(data)
-		if strings.Contains(content, "docker") || 
-		   strings.Contains(content, "kubepods") || 
-		   strings.Contains(content, "containerd") {
+		if strings.Contains(content, "docker") ||
+			strings.Contains(content, "kubepods") ||
+			strings.Contains(content, "containerd") {
 			return true
 		}
 	}
@@ -975,4 +1001,31 @@ func setupLogging() error {
 	}
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	return nil
+}
+
+// pskCreds implements grpc.PerRPCCredentials for PSK authentication
+type pskCreds struct {
+	agentID  string
+	hostname string
+	key      string
+}
+
+func (c *pskCreds) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+
+	// Compute HMAC-SHA256 signature
+	mac := hmac.New(sha256.New, []byte(c.key))
+	mac.Write([]byte(c.agentID + c.hostname + timestamp))
+	signature := hex.EncodeToString(mac.Sum(nil))
+
+	return map[string]string{
+		"x-avika-agent-id":  c.agentID,
+		"x-avika-hostname":  c.hostname,
+		"x-avika-timestamp": timestamp,
+		"x-avika-signature": signature,
+	}, nil
+}
+
+func (c *pskCreds) RequireTransportSecurity() bool {
+	return false // We are using insecure credentials currently
 }
