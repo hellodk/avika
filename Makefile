@@ -256,7 +256,7 @@ check-version:
 # Read VERSION only after confirming it exists
 VERSION = $(shell cat VERSION)
 
-docker-all: check-version docker-gateway docker-frontend
+docker-all: check-version docker-gateway docker-frontend docker-agent
 	@echo "$(GREEN)All Docker images built$(NC)"
 
 docker-gateway: check-version
@@ -275,6 +275,13 @@ docker-frontend: check-version
 		-f frontend/Dockerfile frontend/
 	@rm -f frontend/VERSION
 	@echo "$(GREEN)Frontend image built: $(DOCKER_REPO)/avika-frontend:$(VERSION)$(NC)"
+
+docker-agent: check-version
+	@echo "$(GREEN)Building agent Docker image v$(VERSION)...$(NC)"
+	docker build -t $(DOCKER_REPO)/avika-agent:$(VERSION) \
+		--build-arg VERSION=$(VERSION) \
+		-f cmd/agent/Dockerfile .
+	@echo "$(GREEN)Agent image built: $(DOCKER_REPO)/avika-agent:$(VERSION)$(NC)"
 
 docker-push: check-version docker-all
 	@echo "$(GREEN)Pushing Docker images v$(VERSION)...$(NC)"

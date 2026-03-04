@@ -13,6 +13,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import Link from "next/link";
+import { useUserSettings } from "@/lib/user-settings";
 
 const DEFAULT_GRAFANA_URL = "http://monitoring-grafana.monitoring.svc.cluster.local";
 
@@ -80,17 +81,17 @@ export default function GrafanaPage() {
     const [grafanaUrl, setGrafanaUrl] = useState("");
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const { getGrafanaBaseUrl } = useUserSettings();
 
     useEffect(() => {
-        // Priority: localStorage > env var > default
-        const savedUrl = typeof window !== 'undefined' ? localStorage.getItem("grafana_url") : null;
-        const envUrl = process.env.NEXT_PUBLIC_GRAFANA_URL;
-        const url = savedUrl || envUrl || DEFAULT_GRAFANA_URL;
-
+        const url = getGrafanaBaseUrl()
+            || (typeof window !== "undefined" ? localStorage.getItem("grafana_url")?.trim() : null)
+            || process.env.NEXT_PUBLIC_GRAFANA_URL
+            || DEFAULT_GRAFANA_URL;
         setGrafanaUrl(url);
         setError(null);
         setIsLoading(false);
-    }, []);
+    }, [getGrafanaBaseUrl]);
 
     const buildIframeUrl = (dashboard: GrafanaDashboard) => {
         if (!grafanaUrl) return "";
