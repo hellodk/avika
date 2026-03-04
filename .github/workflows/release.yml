@@ -10,6 +10,7 @@ on:
   push:
     branches:
       - master
+      - main
   # Manual trigger for forcing specific version bumps
   workflow_dispatch:
     inputs:
@@ -91,15 +92,15 @@ jobs:
           BUMP_TYPE="none"
           
           # Check for breaking changes (MAJOR)
-          if echo "$COMMITS" | grep -qE "^(feat|fix|refactor)!:|BREAKING CHANGE:"; then
+          if echo "$COMMITS" | grep -qEi "^(feat|fix|refactor)(\(.*\))?!:|BREAKING CHANGE:"; then
             BUMP_TYPE="major"
             echo "Found breaking change - MAJOR bump"
           # Check for features (MINOR)
-          elif echo "$COMMITS" | grep -qE "^feat(\(.+\))?:"; then
+          elif echo "$COMMITS" | grep -qEi "^feat(\(.*\))?:"; then
             BUMP_TYPE="minor"
             echo "Found feature - MINOR bump"
           # Check for fixes (PATCH)
-          elif echo "$COMMITS" | grep -qE "^fix(\(.+\))?:"; then
+          elif echo "$COMMITS" | grep -qEi "^fix(\(.*\))?:"; then
             BUMP_TYPE="patch"
             echo "Found fix - PATCH bump"
           # Check for perf improvements (PATCH)
