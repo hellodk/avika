@@ -95,10 +95,10 @@ jobs:
           if echo "$COMMITS" | grep -qEi "^(feat|fix|refactor)(\(.*\))?!:|BREAKING CHANGE:"; then
             BUMP_TYPE="major"
             echo "Found breaking change - MAJOR bump"
-          # Check for features (MINOR)
-          elif echo "$COMMITS" | grep -qEi "^feat(\(.*\))?:"; then
+          # Check for features (MINOR): conventional feat:, or Feat/... title, or merge commit
+          elif echo "$COMMITS" | grep -qEi "^feat(\(.*\))?:|^[Ff]eat/|^[Ff]eat |^Merge pull request #"; then
             BUMP_TYPE="minor"
-            echo "Found feature - MINOR bump"
+            echo "Found feature or merge - MINOR bump"
           # Check for fixes (PATCH)
           elif echo "$COMMITS" | grep -qEi "^fix(\(.*\))?:"; then
             BUMP_TYPE="patch"
@@ -275,7 +275,7 @@ jobs:
             dockerfile: frontend/Dockerfile
             context: ./frontend
           - name: agent
-            dockerfile: deploy/docker/Dockerfile.agent
+            dockerfile: cmd/agent/Dockerfile
             context: .
     steps:
       - name: Checkout code

@@ -156,7 +156,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./deploy/docker/Dockerfile.agent
+          file: ./cmd/agent/Dockerfile
           push: false
           tags: avika-agent:test
           cache-from: type=gha

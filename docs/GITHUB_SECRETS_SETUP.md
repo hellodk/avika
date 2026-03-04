@@ -54,26 +54,20 @@ Keep this token safe - you'll need it in the next part.
 2. Click on **Secrets and variables**
 3. Click on **Actions**
 
-### Step 4: Add DOCKER_USERNAME Secret
+### Step 4: Add DOCKERHUB_TOKEN Secret
 1. Click the **New repository secret** button (green button, top right)
 2. Fill in the form:
-   - **Name**: `DOCKER_USERNAME` (must be exactly this)
-   - **Secret**: Your Docker Hub username (e.g., `johndoe`)
-3. Click **Add secret**
-
-### Step 5: Add DOCKER_PASSWORD Secret
-1. Click **New repository secret** again
-2. Fill in the form:
-   - **Name**: `DOCKER_PASSWORD` (must be exactly this)
+   - **Name**: `DOCKERHUB_TOKEN` (must be exactly this)
    - **Secret**: Paste the access token you copied from Docker Hub
 3. Click **Add secret**
 
-### Step 6: Verify Secrets
-You should now see two secrets listed:
-- ✅ `DOCKER_USERNAME`
-- ✅ `DOCKER_PASSWORD`
+### Step 5: Verify Secrets
+You should now see the secret listed:
+- ✅ `DOCKERHUB_TOKEN`
 
-The values will be hidden (shown as `***`), which is correct for security.
+The value will be hidden (shown as `***`), which is correct for security.
+
+**Note:** Workflows use `DOCKERHUB_USERNAME` from the workflow env (default `hellodk`). To push to a different Docker Hub account, add a repository secret `DOCKERHUB_USERNAME` and reference it in the workflow files.
 
 ---
 
@@ -81,36 +75,26 @@ The values will be hidden (shown as `***`), which is correct for security.
 
 ### Option A: Trigger Automatic Build (Recommended)
 
-1. Make a small change to your code:
-   ```bash
-   cd /home/dk/Documents/git/nginx-manager
-   
-   # Make a small change
-   echo "# CI/CD enabled" >> README.md
-   
-   # Commit with semantic versioning message
-   git add README.md
-   git commit -m "feat: enable automated Docker builds"
-   
-   # Push to GitHub
-   git push origin main
-   ```
+1. **Build on every merge:** Push to `master` or `main`:
+   - **Build on Merge** workflow runs and pushes images with tags `latest` and `sha-<short-sha>`.
 
-2. Watch the build:
-   - Go to your repository on GitHub
-   - Click on **Actions** tab
-   - You should see a new workflow run starting
-   - Click on it to watch the progress
+2. **Build on PR:** Open a pull request targeting `master` or `main`:
+   - **Build on PR** workflow runs and pushes images with tags `pr-<number>` and `sha-<short-sha>` (for QA testing).
 
-### Option B: Manual Trigger
+3. **Full release (version bump + GitHub Release):** Push to `master`/`main` with conventional commits (`feat:`, `fix:`, etc.) or merge a PR:
+   - **Release** workflow analyzes commits; if releasable, it bumps version, pushes versioned images and `latest`, and creates a GitHub Release.
 
-1. Go to your repository on GitHub
-2. Click on **Actions** tab
-3. Click on **Build and Push Agent** workflow (left sidebar)
-4. Click **Run workflow** button (right side)
-5. Select:
-   - Branch: `main`
-   - Version bump type: `patch`
+4. Watch builds:
+   - Go to your repository on GitHub → **Actions** tab
+   - Click a workflow run to watch progress
+
+### Option B: Manual Release
+
+1. Go to your repository on GitHub → **Actions** tab
+2. Select **Release** workflow (left sidebar)
+3. Click **Run workflow**, choose branch `master` or `main`
+4. Select bump type: `auto`, `patch`, `minor`, or `major`
+5. (Optional) Enter a prerelease suffix (e.g. `rc.1`)
 6. Click **Run workflow**
 
 ---
@@ -122,17 +106,9 @@ The values will be hidden (shown as `***`), which is correct for security.
 - Ask the repository owner to add the secrets or grant you admin access
 
 ### "Workflow failed: authentication required"
-- Double-check that secret names are exactly `DOCKER_USERNAME` and `DOCKER_PASSWORD`
-- Verify the Docker Hub token hasn't expired
+- Ensure the repository secret is named exactly `DOCKERHUB_TOKEN`
+- Verify the Docker Hub token hasn't expired and has **Read, Write, Delete** (or Read & Write) permissions
 - Make sure you copied the entire token (they can be quite long)
-
-### "Repository not found" error
-- Update the image name in `.github/workflows/agent-build.yml`:
-  ```yaml
-  env:
-    REGISTRY: docker.io
-    IMAGE_NAME: nginx-manager-agent  # Change this if needed
-  ```
 
 ### "Permission denied" when pushing
 - Your Docker Hub token needs **Write** permissions
@@ -150,25 +126,24 @@ Repository → Settings → Secrets and variables → Actions → New repository
 ### Required Secrets
 | Name | Value | Example |
 |------|-------|---------|
-| `DOCKER_USERNAME` | Your Docker Hub username | `johndoe` |
-| `DOCKER_PASSWORD` | Docker Hub access token | `dckr_pat_abc123...` |
+| `DOCKERHUB_TOKEN` | Docker Hub access token | `dckr_pat_abc123...` |
 
-### Workflow File Location
+### Workflow Files
 ```
-.github/workflows/agent-build.yml
+.github/workflows/ci.yml              # Lint, test, Docker build test (no push)
+.github/workflows/build-on-merge.yml  # Build & push on push to master/main (latest, sha-*)
+.github/workflows/build-on-pr.yml    # Build & push on PR (pr-*, sha-*)
+.github/workflows/release.yml        # Version bump, release, versioned images (on releasable commits or manual)
 ```
 
 ---
 
 ## What Happens After Setup?
 
-Once secrets are configured, every push to `main` branch will:
-
-1. ✅ Detect version bump from commit message
-2. ✅ Build Docker image with version metadata
-3. ✅ Push to Docker Hub with multiple tags
-4. ✅ Create GitHub release
-5. ✅ Update VERSION file
+- **Push to `master` or `main`:** **Build on Merge** runs and pushes gateway, frontend, and agent images with tags `latest` and `sha-<short-sha>`.
+- **Pull request to `master`/`main`:** **Build on PR** runs and pushes images with tags `pr-<number>` and `sha-<short-sha>` for testing.
+- **Push with releasable commits** (e.g. `feat:`, `fix:`, or merge commit): **Release** runs, bumps version, pushes versioned images and creates a GitHub Release.
+- **Manual:** Run **Release** from the Actions tab with a chosen bump type.
 
 You can monitor progress in the **Actions** tab.
 

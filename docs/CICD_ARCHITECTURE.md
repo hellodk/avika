@@ -25,58 +25,69 @@ This document outlines the Continuous Integration and Continuous Deployment (CI/
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              GitHub Repository                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   PR Created/Updated          Push to master            Tag v1.x.x          │
-│         │                          │                        │               │
-│         ▼                          ▼                        ▼               │
-│   ┌─────────────┐           ┌─────────────┐          ┌─────────────┐       │
-│   │  CI Build   │           │  CI Build   │          │   Release   │       │
-│   │  (No Push)  │           │  (No Push)  │          │  Workflow   │       │
-│   └─────────────┘           └─────────────┘          └──────┬──────┘       │
-│         │                          │                        │               │
-│         ▼                          ▼                        ▼               │
-│   Build & Test              Build & Test            Build, Push, Release    │
-│                                                             │               │
-└─────────────────────────────────────────────────────────────┼───────────────┘
-                                                              │
-                    ┌─────────────────────────────────────────┼─────────────────┐
-                    │                                         │                 │
-                    ▼                                         ▼                 ▼
-             ┌─────────────┐                          ┌─────────────┐   ┌─────────────┐
-             │  DockerHub  │                          │   GitHub    │   │   GitHub    │
-             │   Images    │                          │  Releases   │   │  Packages   │
-             └─────────────┘                          └─────────────┘   └─────────────┘
+│   PR to master/main              Push to master/main                         │
+│         │                                      │                             │
+│         ▼                                      ▼                             │
+│   ┌─────────────┐  ┌─────────────┐     ┌─────────────┐  ┌─────────────┐     │
+│   │  CI (no     │  │ Build on PR │     │  CI (no     │  │ Build on    │     │
+│   │  push)      │  │ pr-*, sha-* │     │  push)      │  │ Merge       │     │
+│   └─────────────┘  └──────┬──────┘     └─────────────┘  │ latest,sha  │     │
+│                           │                             └──────┬──────┘     │
+│                           │                                      │          │
+│                           │              ┌─────────────┐          │          │
+│                           │              │  Release   │          │          │
+│                           │              │ (if feat/  │          │          │
+│                           │              │  fix/merge)│          │          │
+│                           │              └──────┬──────┘          │          │
+└───────────────────────────┼─────────────────────┼────────────────┼─────────┘
+                             │                     │                │
+                    ┌────────┴────────┐             │                │
+                    ▼                 ▼             ▼                ▼
+             ┌─────────────┐   ┌─────────────┐   ┌─────────────┐   DockerHub
+             │  DockerHub  │   │   GitHub    │   │  Releases   │   (versioned +
+             │  pr-*, sha  │   │  (no pkg)   │   │  binaries   │   latest, sha)
+             └─────────────┘   └─────────────┘   └─────────────┘
 ```
 
 ## 2. Workflow Triggers
 
 | Event | Workflow | Actions |
 |-------|----------|---------|
-| Pull Request to `master` | `ci.yml` | Build, Test, Lint (no push) |
-| Push to `master` | `ci.yml` | Build, Test, Lint (no push) |
-| Tag `v*` | `release.yml` | Build, Push Images, Create Release |
-| Manual | `release.yml` | Workflow dispatch with version input |
+| Pull Request to `master`/`main` | `ci.yml` | Lint, Test, Docker build test (no push) |
+| Pull Request to `master`/`main` | `build-on-pr.yml` | Build and push images with tags `pr-<n>`, `sha-<sha>` |
+| Push to `master`/`main` | `ci.yml` | Lint, Test, Docker build test (no push) |
+| Push to `master`/`main` | `build-on-merge.yml` | Build and push images with tags `latest`, `sha-<sha>` |
+| Push to `master`/`main` (releasable commits) | `release.yml` | Analyze commits; if feat/fix/merge: version bump, push versioned images, GitHub Release |
+| Manual | `release.yml` | Workflow dispatch with bump type (auto/patch/minor/major) |
 
 ### Trigger Configuration
 
 ```yaml
-# CI Workflow (ci.yml)
+# CI (ci.yml)
 on:
   pull_request:
     branches: [master, main]
   push:
-    branches: [master, main]
+    branches: [master, main, 'feat/*']
 
-# Release Workflow (release.yml)
+# Build on Merge (build-on-merge.yml) - ensures images always built on merge
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [master, main]
+
+# Build on PR (build-on-pr.yml) - QA images for pull requests
+on:
+  pull_request:
+    branches: [master, main]
+
+# Release (release.yml) - version bump and release when commits are releasable
+on:
+  push:
+    branches: [master, main]
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to release (e.g., v1.0.0)'
-        required: true
+      bump_type: [auto, patch, minor, major]
+      prerelease: ''
 ```
 
 ## 3. Build Artifacts
@@ -182,8 +193,8 @@ on:
 
 | Secret | Description | Required For |
 |--------|-------------|--------------|
-| `DOCKERHUB_USERNAME` | DockerHub username | Image push |
-| `DOCKERHUB_TOKEN` | DockerHub access token | Image push |
+| `DOCKERHUB_TOKEN` | DockerHub access token (not password) | Image push (all workflows that push) |
+| `DOCKERHUB_USERNAME` | Optional; workflows default to `hellodk` in env | Override image namespace |
 
 ### Optional Secrets
 
@@ -274,20 +285,22 @@ strategy:
 ```
 .github/
 └── workflows/
-    ├── ci.yml              # PR and push builds
-    ├── release.yml         # Release workflow
-    └── cleanup.yml         # (optional) Clean old artifacts
+    ├── ci.yml                # Lint, test, Docker build test (no push)
+    ├── build-on-merge.yml     # Build and push on push to master/main (latest, sha-*)
+    ├── build-on-pr.yml       # Build and push on PR (pr-*, sha-*)
+    └── release.yml           # Version bump, versioned images, GitHub Release
 ```
 
-### CI Workflow Jobs
+### CI Workflow Jobs (`ci.yml`)
 
 | Job | Runs On | Purpose |
 |-----|---------|---------|
 | `lint` | ubuntu-latest | Go linting with golangci-lint |
 | `test` | ubuntu-latest | Go unit tests |
-| `build-go` | ubuntu-latest | Build Go binaries (gateway, agent) |
+| `build-gateway` | ubuntu-latest | Build Gateway binary |
+| `build-agent` | ubuntu-latest | Build Agent binary |
 | `build-frontend` | ubuntu-latest | Build Next.js frontend |
-| `docker-build` | ubuntu-latest | Test Docker builds (no push) |
+| `docker-build-test` | ubuntu-latest | Test Docker builds (no push); uses `cmd/agent/Dockerfile` |
 
 ### Release Workflow Jobs
 
@@ -302,32 +315,33 @@ strategy:
 ### Automated Release Flow
 
 ```
-1. Developer creates tag:
-   git tag -a v1.0.0 -m "Release v1.0.0"
-   git push origin v1.0.0
+1. Developer merges PR or pushes to master/main with releasable commits:
+   - Conventional: feat:, fix:, perf:, or BREAKING CHANGE:
+   - Merge commits: "Merge pull request #N" (treated as minor)
+   - Title-style: "Feat/..." or "feat ..." (treated as minor)
 
-2. GitHub Actions triggered:
-   - Builds binaries for all architectures
-   - Builds Docker images for all architectures
-   - Pushes images to DockerHub
-   - Creates GitHub Release
-   - Uploads binary artifacts
-   - Generates checksums
+2. Release workflow (release.yml) runs on push to master/main:
+   - analyze-commits: sets should_release and bump_type from commit messages
+   - If should_release: version-bump (updates VERSION, commits, tags v*)
+   - build-binaries: cross-compile gateway and agent
+   - build-push-images: build and push gateway, frontend, agent (using cmd/agent/Dockerfile)
+   - package-helm: package Helm chart
+   - create-release: GitHub Release with binaries, checksums, release notes
 
 3. Artifacts available:
-   - DockerHub: hellodk/avika-gateway:v1.0.0
-   - DockerHub: hellodk/avika-frontend:v1.0.0
-   - DockerHub: hellodk/avika-agent:v1.0.0
-   - GitHub Release: gateway-linux-amd64, gateway-linux-arm64
-   - GitHub Release: agent-linux-amd64, agent-linux-arm64
-   - GitHub Release: checksums.txt
+   - DockerHub: hellodk/avika-gateway:vX.Y.Z, latest, sha-*
+   - DockerHub: hellodk/avika-frontend:vX.Y.Z, latest, sha-*
+   - DockerHub: hellodk/avika-agent:vX.Y.Z, latest, sha-*
+   - GitHub Release: gateway-*, agent-* binaries, helm chart, checksums.txt
 ```
+
+Separately, **Build on Merge** runs on every push to master/main and pushes `latest` and `sha-<sha>` so images are always available even when no release is created.
 
 ### Manual Release (workflow_dispatch)
 
 ```bash
-# Trigger via GitHub UI or CLI
-gh workflow run release.yml -f version=v1.0.0
+# Trigger via GitHub UI or CLI (bump_type: auto | patch | minor | major)
+gh workflow run release.yml -f bump_type=minor
 ```
 
 ### Release Checklist
