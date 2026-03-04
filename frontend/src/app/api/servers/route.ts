@@ -5,6 +5,16 @@ import * as grpc from '@grpc/grpc-js';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+    if (process.env.NEXT_PUBLIC_MOCK_BACKEND === "true") {
+        return NextResponse.json({
+            agents: [
+                { id: "mock-grpc-node-1", hostname: "ingress.mock", active: true },
+                { id: "mock-grpc-node-2", hostname: "app-server.mock", active: false }
+            ],
+            system_version: "mock-1.0.0"
+        });
+    }
+
     const client = getAgentServiceClient();
 
     return new Promise<NextResponse>((resolve) => {
