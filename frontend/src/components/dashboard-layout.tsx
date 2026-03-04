@@ -61,9 +61,9 @@ const NAV_SECTIONS: NavSection[] = [
         items: [
             { href: "/analytics", icon: <BarChart2 />, label: "Analytics" },
             { href: "/analytics/traces", icon: <GitBranch />, label: "Traces" },
-            { href: "/visitors", icon: <User />, label: "Visitors", badge: "New", badgeColor: "green" },
-            { href: "/geo", icon: <Globe />, label: "Geo Analytics", badge: "New", badgeColor: "green" },
-            { href: "/observability/grafana", icon: <LineChart />, label: "Grafana", badge: "New", badgeColor: "purple" },
+            { href: "/visitors", icon: <User />, label: "Visitor Analytics" },
+            { href: "/geo", icon: <Globe />, label: "Geo Analytics" },
+            { href: "/observability/grafana", icon: <LineChart />, label: "Grafana" },
             { href: "/alerts", icon: <ShieldAlert />, label: "Alerts" },
         ]
     },
@@ -78,9 +78,15 @@ const NAV_SECTIONS: NavSection[] = [
         title: "Admin",
         items: [
             { href: "/audit", icon: <ShieldAlert />, label: "Audit Logs" },
-            { href: "/waf", icon: <Lock />, label: "WAF Policies", badge: "New", badgeColor: "purple" },
-            { href: "/settings/llm", icon: <Zap />, label: "LLM" },
+        ],
+    },
+    {
+        title: "Settings",
+        items: [
+            { href: "/settings", icon: <Settings />, label: "General" },
             { href: "/settings/integrations", icon: <Globe />, label: "Integrations" },
+            { href: "/settings/llm", icon: <Zap />, label: "LLM" },
+            { href: "/waf", icon: <Lock />, label: "WAF Policies" },
         ],
     },
 ];

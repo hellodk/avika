@@ -18,7 +18,7 @@ const routeLabels: Record<string, string> = {
     provisions: "Provisions",
     analytics: "Analytics",
     traces: "Traces",
-    visitors: "Visitors",
+    visitors: "Visitor Analytics",
     geo: "Geo Analytics",
     observability: "Observability",
     grafana: "Grafana",

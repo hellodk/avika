@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -113,7 +114,7 @@ export default function VisitorsPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/avika/api/visitor-analytics?timeWindow=${timeWindow}`);
+      const response = await apiFetch(`/api/visitor-analytics?timeWindow=${timeWindow}`);
       const json = await response.json();
       setData(json);
     } catch (error) {
@@ -150,7 +151,6 @@ export default function VisitorsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Visitor Analytics</h1>
-          <p className="text-muted-foreground">GoAccess-style traffic analysis</p>
         </div>
         <Select value={timeWindow} onValueChange={setTimeWindow}>
           <SelectTrigger className="w-[180px] px-3 py-2 border rounded-md bg-background">

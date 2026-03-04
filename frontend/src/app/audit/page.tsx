@@ -35,8 +35,8 @@ export default function AuditPage() {
                     const data = await res.json();
                     setLogs(data || []);
                 } else {
-                    const errData = await res.json();
-                    setError(errData.message || "Failed to fetch audit logs");
+                    const errData = await res.json().catch(() => ({}));
+                    setError(errData.error || errData.message || "Failed to fetch audit logs");
                 }
             } catch (err) {
                 setError("Connection error");

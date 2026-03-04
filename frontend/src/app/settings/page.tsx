@@ -9,12 +9,15 @@ import { Save, Check, Loader2 } from "lucide-react";
 import { useUserSettings } from "@/lib/user-settings";
 import { toast } from "sonner";
 
+import Link from "next/link";
 import { AppearanceSettings } from "@/components/settings/appearance-settings";
 import { IntegrationSettings } from "@/components/settings/integration-settings";
 import { DisplaySettings } from "@/components/settings/display-settings";
 import { TelemetrySettings } from "@/components/settings/telemetry-settings";
 import { AIEngineSettings } from "@/components/settings/ai-engine-settings";
 import { AgentManagement } from "@/components/settings/agent-management";
+import { Zap, Lock, ChevronRight } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function SettingsPage() {
     const { settings: userSettings, updateSettings, resetSettings } = useUserSettings();
@@ -155,6 +158,41 @@ export default function SettingsPage() {
             </div>
 
             <AppearanceSettings />
+
+            <div className="grid gap-4 md:grid-cols-2">
+                <Link href="/settings/llm">
+                    <Card className="hover:border-blue-500/50 transition-colors cursor-pointer h-full" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
+                                <Zap className="h-4 w-4 text-amber-500" />
+                                LLM Settings
+                            </CardTitle>
+                            <ChevronRight className="h-4 w-4" style={{ color: "rgb(var(--theme-text-muted))" }} />
+                        </CardHeader>
+                        <CardContent>
+                            <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                Configure AI providers (OpenAI, Anthropic, Ollama) for error analysis and recommendations.
+                            </CardDescription>
+                        </CardContent>
+                    </Card>
+                </Link>
+                <Link href="/waf">
+                    <Card className="hover:border-blue-500/50 transition-colors cursor-pointer h-full" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
+                                <Lock className="h-4 w-4 text-purple-500" />
+                                WAF Policies
+                            </CardTitle>
+                            <ChevronRight className="h-4 w-4" style={{ color: "rgb(var(--theme-text-muted))" }} />
+                        </CardHeader>
+                        <CardContent>
+                            <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                Manage Web Application Firewall rule sets and distribution across your NGINX fleet.
+                            </CardDescription>
+                        </CardContent>
+                    </Card>
+                </Link>
+            </div>
 
             <IntegrationSettings
                 grafanaUrl={grafanaUrl}

@@ -22,7 +22,9 @@ export async function apiFetch(
 
   // Prepend base path if the path starts with /
   const url = path.startsWith("/") ? `${BASE_PATH}${path}` : path;
-  return fetch(url, options);
+  // Always send credentials (cookies) so session is forwarded to API routes
+  const opts = { ...options, credentials: "include" as RequestCredentials };
+  return fetch(url, opts);
 }
 
 /**
