@@ -177,7 +177,7 @@ type SAMLConfig struct {
 // LLMConfig holds configuration for AI/LLM-powered features
 type LLMConfig struct {
 	Enabled          bool    `yaml:"enabled"`           // Enable AI-powered error analysis
-	Provider         string  `yaml:"provider"`          // openai, anthropic, ollama
+	Provider         string  `yaml:"provider"`          // openai, anthropic, ollama, azure, mock, lmstudio, llamacpp, vllm, vllm_metal
 	APIKey           string  `yaml:"api_key"`           // API key for cloud providers
 	Model            string  `yaml:"model"`             // Model name (e.g., gpt-4-turbo, claude-3-sonnet)
 	BaseURL          string  `yaml:"base_url"`          // Custom base URL (for Ollama or Azure)

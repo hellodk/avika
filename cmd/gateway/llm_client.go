@@ -184,9 +184,21 @@ func getEnvFloat(key string, defaultVal float64) float64 {
 	return defaultVal
 }
 
+// openAICompatibleProviders are local/self-hosted providers that use OpenAI-compatible API; no API key required.
+var openAICompatibleProviders = map[string]string{
+	"lmstudio":   "http://localhost:1234/v1",
+	"llamacpp":   "http://localhost:8080/v1",
+	"llama.cpp":  "http://localhost:8080/v1",
+	"vllm":       "http://localhost:8000/v1",
+	"vllm_metal": "http://localhost:8000/v1",
+	"vllm-metal": "http://localhost:8000/v1",
+}
+
 // NewLLMClient creates an LLM client based on configuration
 func NewLLMClient(config *LLMConfig) (LLMClient, error) {
-	if config.APIKey == "" && config.Provider != "ollama" {
+	providerLower := strings.ToLower(config.Provider)
+	_, isOpenAICompatible := openAICompatibleProviders[providerLower]
+	if config.APIKey == "" && config.Provider != "ollama" && !isOpenAICompatible {
 		log.Printf("LLM: No API key configured, using mock client")
 		return NewMockLLMClient(), nil
 	}
@@ -194,13 +206,19 @@ func NewLLMClient(config *LLMConfig) (LLMClient, error) {
 	var client LLMClient
 	var err error
 
-	switch strings.ToLower(config.Provider) {
+	switch providerLower {
 	case "openai":
 		client, err = NewOpenAIClient(config)
 	case "anthropic", "claude":
 		client, err = NewClaudeClient(config)
 	case "ollama":
 		client, err = NewOllamaClient(config)
+	case "lmstudio", "llamacpp", "llama.cpp", "vllm", "vllm_metal", "vllm-metal":
+		cfg := *config
+		if cfg.BaseURL == "" {
+			cfg.BaseURL = openAICompatibleProviders[providerLower]
+		}
+		client, err = NewOpenAIClient(&cfg)
 	default:
 		return nil, fmt.Errorf("unsupported LLM provider: %s", config.Provider)
 	}
@@ -254,7 +272,9 @@ func (c *OpenAIClient) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -294,7 +314,9 @@ func (c *OpenAIClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 		return nil, err
 	}
 
-	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	if c.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(httpReq)
@@ -371,7 +393,9 @@ func (c *OpenAIClient) GenerateRecommendation(ctx context.Context, req *Recommen
 		return nil, err
 	}
 
-	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	if c.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(httpReq)

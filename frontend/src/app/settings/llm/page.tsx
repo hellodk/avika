@@ -151,6 +151,10 @@ export default function LLMSettingsPage() {
                 <SelectItem value="anthropic">Anthropic</SelectItem>
                 <SelectItem value="ollama">Ollama</SelectItem>
                 <SelectItem value="azure">Azure OpenAI</SelectItem>
+                <SelectItem value="lmstudio">LM Studio</SelectItem>
+                <SelectItem value="llamacpp">llama.cpp</SelectItem>
+                <SelectItem value="vllm">vLLM</SelectItem>
+                <SelectItem value="vllm_metal">vLLM Metal</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -171,7 +175,9 @@ export default function LLMSettingsPage() {
               value={cfg.base_url}
               onChange={(e) => setCfg((p) => ({ ...p, base_url: e.target.value }))}
               className="bg-neutral-950 border-neutral-800 text-white"
-              placeholder="https://api.openai.com"
+              placeholder={
+                { lmstudio: "http://localhost:1234/v1", ollama: "http://localhost:11434", llamacpp: "http://localhost:8080/v1", vllm: "http://localhost:8000/v1", vllm_metal: "http://localhost:8000/v1" }[cfg.provider] ?? "https://api.openai.com"
+              }
             />
           </div>
 
