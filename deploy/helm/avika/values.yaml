@@ -178,7 +178,7 @@ secretsProvider:
 #   enabled: true/false
 #   kind: Deployment (default) or StatefulSet
 #   replicaCount: number of replicas
-#   image: {repository, tag, pullPolicy}
+#   image: {repository, tag, pullPolicy}  # Use values here; avoid --set components.*.image.tag when deploying.
 #   ports: {name: {containerPort, servicePort}}
 #   env: environment variables
 #   livenessProbe / readinessProbe: health checks

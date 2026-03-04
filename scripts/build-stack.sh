@@ -223,17 +223,10 @@ build_image "frontend" "avika-frontend" "frontend/Dockerfile"
 if [ "${K8S_DEPLOY_ENABLED}" = "true" ]; then
     echo -e "\n${BLUE}☸️  Deploying to Kubernetes (namespace: ${K8S_NAMESPACE})...${NC}"
 
-    # NOTE: values.yaml already updated above - no need for blanket sed here
-    # Only override Avika-owned component tags via --set (not third-party images)
-    
-    # Build helm set arguments for Avika-owned image tags only
-    # NOTE: Third-party images (postgresql, clickhouse, otel-collector) use fixed
-    # versions in values.yaml and are NOT overridden here
-    HELM_SET_ARGS=(
-        "--set" "gateway.image.tag=${VERSION}"
-        "--set" "frontend.image.tag=${VERSION}"
-        "--set" "mockNginx.image.tag=${VERSION}"
-    )
+    # Deploy using image tags from values.yaml only (e.g. latest). Do not override
+    # components.gateway.image.tag or components.frontend.image.tag here, or the
+    # release will be pinned and subsequent deploys will keep that version.
+    HELM_SET_ARGS=()
     
     # Add password overrides from environment if provided (avoid hardcoding)
     if [ -n "${POSTGRES_PASSWORD}" ]; then

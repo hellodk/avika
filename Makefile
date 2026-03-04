@@ -47,6 +47,7 @@ help:
 	@echo "  make docker-gateway    - Build gateway Docker image"
 	@echo "  make docker-frontend   - Build frontend Docker image"
 	@echo "  make docker-push       - Build and push all images"
+	@echo "  make deploy            - Deploy to K8s (avika namespace, chart values only)"
 	@echo "  make docker-test       - Run tests in Docker containers"
 	@echo "  make setup-test-db     - Start test PostgreSQL container"
 	@echo "  make teardown-test-db  - Stop test PostgreSQL container"
@@ -296,6 +297,17 @@ docker-push-gateway: check-version
 docker-push-frontend: check-version
 	@echo "$(GREEN)Pushing frontend image v$(VERSION)...$(NC)"
 	docker push $(DOCKER_REPO)/avika-frontend:$(VERSION)
+
+#------------------------------------------------------------------------------
+# Deploy (use chart values only - gateway/frontend use tag from values.yaml, e.g. latest)
+# Do not override with --set components.*.image.tag or the release will be pinned.
+#------------------------------------------------------------------------------
+HELM_NAMESPACE ?= avika
+
+deploy:
+	@echo "$(GREEN)Deploying Avika to namespace $(HELM_NAMESPACE) (chart values only, no image overrides)...$(NC)"
+	helm upgrade -n $(HELM_NAMESPACE) avika ./deploy/helm/avika -f deploy/helm/avika/values.yaml --install
+	@echo "$(GREEN)Deploy complete. Gateway and frontend use image tags from values.yaml (e.g. latest).$(NC)"
 
 #------------------------------------------------------------------------------
 # Docker Tests

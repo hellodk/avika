@@ -22,11 +22,15 @@ The system consists of four primary components (see [docs/ARCHITECTURE.md](./doc
 
 ### Kubernetes Deployment
 
-Deploy the complete Avika stack using Helm:
+Deploy the complete Avika stack using Helm. Use the chart values only (no `--set` for image tags) so gateway and frontend use the configured images (e.g. `latest`):
 
 ```bash
-helm upgrade --install avika deploy/helm/avika -n avika --create-namespace
+make deploy
+# or explicitly:
+helm upgrade --install avika deploy/helm/avika -f deploy/helm/avika/values.yaml -n avika --create-namespace
 ```
+
+See **[deploy/helm/avika/README.md](deploy/helm/avika/README.md)** for why we avoid overriding image tags and how to pin a version when needed.
 
 ### Docker Compose (Development)
 
