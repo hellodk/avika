@@ -1,6 +1,6 @@
 # Avika NGINX Manager - Implemented vs Pending Analysis
 
-Based on the `Avika NGINX Manager — Deep Analysis Report` (Date: 2026-03-03) and recent codebase commits, here is the consolidated breakdown of what has been implemented and what remains pending.
+Based on the `Avika NGINX Manager — Deep Analysis Report` (Date: 2026-03-03) and recent codebase commits as of 2026-03-04, here is the consolidated breakdown of what has been implemented and what remains pending.
 
 ---
 
@@ -32,14 +32,23 @@ Based on the `Avika NGINX Manager — Deep Analysis Report` (Date: 2026-03-03) a
 - **Component Standardization**: Successfully purged lingering raw HTML `<select>` elements and completely substituted them with standard `Select`/`DropdownMenu` components across forms.
 - **Code Refactor (Settings Page)**: Systematically broke down and modularized the monolithic `settings/page.tsx` framework component (previously 600+ lines long) into 6 distinct sub-components located in `src/components/settings/`.
 
-### Security, Architecture & Integrations
+### Security, Architecture & Enterprise Integrations
+- **Authentication Governance**: Implemented robust **LDAP**, **SAML**, and **OIDC** support with multi-level team-based **RBAC** enforcement.
+- **Secret Management**: Generic secrets provider implemented with support for External Secrets, Vault, and CyberArk integration.
 - **WebSocket Terminal Security**: Validated token-based authentication added for remote terminal WebSocket connections.
 - **Default Credentials Flow**: Successfully enforced password-change requirements strictly avoiding passive `admin/admin` vulnerabilities.
 - **mTLS Functionality**: mTLS security directly enforced between the Gateway and Agent APIs.
 - **API Reliability**: Hardcoded internal API endpoint URLs uniformly replaced with Gateway helpers. 
 - **Notification Pipelines**: System integrations established for **Teams** and **PagerDuty** via webhooks alongside native SMTP config.
+- **Production Readiness (K8s)**:
+  - **HPA** (Horizontal Pod Autoscaler) and **PDB** (Pod Disruption Budget) configurations added to Helm charts.
+  - **Liveness & Readiness Probes** implemented for all core components.
+  - **Graceful Shutdown** verified and signals handled in Go services.
+
+### Infra & Deployment
 - **Deployment & Infra Builds**: Resolved correct Version flag injection processes utilizing `Makefile ldflags` to pass accurate binary parameters to production.
-- **Enterprise / NGINX Plus Parity Features**: 
+- **Gateway Yaml Cleanups**: Removed outdated and hardcoded 50051/50053 default root ports.
+- **Commercial NGINX parity features**: 
   - Comprehensive Audit Logging
   - WAF Policy Management
   - CVE Security Scanning 
@@ -47,7 +56,6 @@ Based on the `Avika NGINX Manager — Deep Analysis Report` (Date: 2026-03-03) a
 - ClickHouse schema TTL fixes applied using `toDateTime()`.
 - K8s integration transient auth issues with ClickHouse resolved.
 - Application Health paths `/health` and `/ready` mapped perfectly.
-- **Gateway Yaml Cleanups**: Removed outdated and hardcoded 50051/50053 default root ports.
 
 ---
 
@@ -56,14 +64,13 @@ Based on the `Avika NGINX Manager — Deep Analysis Report` (Date: 2026-03-03) a
 ### 🔴 P0 - Critical Blockers
 - *(All prior P0/Blocker tasks have been successfully resolved by recent commits)*
 
-### 🟡 P1 - Production Readiness (Security, Dev Flow, Core Engine)
-- *(All prior P1 blockages have been successfully resolved by recent commits)*
+### 🟡 P1 - Production Readiness
+- *(All prior P1 gaps have been successfully addressed)*
 
 ### 🟢 P2 - Quality & UX Polish (Technical Debt)
 - **Branch Management Cleanup**: Review unmerged PRs (`release-workflow-permissions`, `feature/grafana-embed`) and reconcile diverging `main` branch with `master`.
 
-### 🔮 Long-Term Enhancements & Enterprise Gaps (Future Roadmap)
-- Further advanced telemetry integration explicitly mirroring **NGINX Plus** telemetry properties.
-- **Authentication Governance**: Implementing robust SAML/LDAP support with deep multi-level team-based RBAC enforcement.
-- Dedicated vault active integrations involving properties inside Vault/CyberArk.
+### 🔮 Long-Term Roadmap
+- Further advanced telemetry integration for enhanced metrics (upstream health, zones, caches).
 - Implementing fully comprehensive PromQL search metric overlays natively inside Avika dashboards.
+- Continuous performance tuning for multi-terrabyte ClickHouse datasets.

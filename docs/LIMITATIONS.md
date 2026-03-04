@@ -6,8 +6,8 @@ This document tracks current limitations of the Avika platform compared to comme
 
 ## Table of Contents
 
-1. [Compared to NGINX Instance Manager (F5)](#compared-to-nginx-instance-manager-f5)
-2. [Compared to NGINX Amplify](#compared-to-nginx-amplify)
+1. [Compared to commercial NGINX management tools](#compared-to-commercial-nginx-management-tools)
+2. [Compared to third-party NGINX monitoring](#compared-to-third-party-nginx-monitoring)
 3. [Compared to General Observability Tools](#compared-to-general-observability-tools)
 4. [Agent Architecture Limitations](#agent-architecture-limitations)
 5. [Compared to OpenTelemetry Collector](#compared-to-opentelemetry-collector)
@@ -16,13 +16,13 @@ This document tracks current limitations of the Avika platform compared to comme
 
 ---
 
-## Compared to NGINX Instance Manager (F5)
+## Compared to commercial NGINX management tools
 
 ### Limitations
 
 | ID | Limitation | Priority | Status |
 |----|------------|----------|--------|
-| NIM-001 | No native NGINX Plus integration (enhanced metrics, health checks) | Medium | TODO |
+| NIM-001 | No native integration with commercial NGINX (enhanced metrics, health checks) | Medium | TODO |
 | NIM-002 | No built-in WAF policy management | High | TODO |
 | NIM-003 | No CVE scanning and patch management | High | TODO |
 | NIM-004 | No configuration templates/snippets marketplace | Medium | TODO |
@@ -30,12 +30,12 @@ This document tracks current limitations of the Avika platform compared to comme
 | NIM-006 | No audit log export to SIEM | Medium | TODO |
 | NIM-007 | No official support/SLA | Low | N/A (OSS) |
 | NIM-008 | No configuration staging/approval workflow | Medium | TODO |
-| NIM-009 | No native integration with F5 BIG-IP | Low | Won't Fix |
+| NIM-009 | No native integration with commercial load balancer platforms | Low | Won't Fix |
 | NIM-010 | No GUI-based configuration editor (only text) | Medium | TODO |
 
 ### Future Implementation TODOs
 
-- [ ] **NIM-001**: Add NGINX Plus API integration for enhanced metrics (upstream health, caches, zones)
+- [ ] **NIM-001**: Add API integration for enhanced metrics (upstream health, caches, zones) where supported by NGINX build
 - [ ] **NIM-002**: Implement WAF policy management (ModSecurity rules editor, policy versioning)
 - [ ] **NIM-003**: Integrate CVE database scanning (NVD API integration, version-to-CVE mapping)
 - [ ] **NIM-004**: Create configuration template system with versioning and sharing
@@ -46,7 +46,7 @@ This document tracks current limitations of the Avika platform compared to comme
 
 ---
 
-## Compared to NGINX Amplify
+## Compared to third-party NGINX monitoring
 
 ### Limitations
 
@@ -237,7 +237,7 @@ This document tracks current limitations of the Avika platform compared to comme
 - [ ] SEC-001: mTLS for agent-gateway communication
 
 ### Medium Priority (Nice to Have)
-- [ ] NIM-001: NGINX Plus integration
+- [ ] NIM-001: Commercial NGINX / enhanced metrics integration
 - [ ] NIM-004: Configuration templates
 - [ ] NIM-008: Config staging workflow
 - [ ] NIM-010: Visual config editor

@@ -817,7 +817,7 @@ upstream backend {
     server backend2:8080 max_fails=3 fail_timeout=30s;
     server backend3:8080 backup;
     
-    # Active health checks (NGINX Plus)
+    # Active health checks (requires NGINX with commercial/active health-check modules)
     # health_check interval=10s fails=3 passes=2;
 }
 
