@@ -33,8 +33,6 @@ import (
 	"google.golang.org/grpc/peer"
 )
 
-// ... existing code ...
-
 type EndpointStats struct {
 	Requests  int64
 	Errors    int64

@@ -101,13 +101,32 @@ llm:
   existingSecretKey: "api-key"    # Key within the secret
   apiKey: ""                      # Direct API key (use existingSecret instead in production)
 
-# VAULT INTEGRATION
 # =============================================================================
-vault:
-  enabled: false
-  address: "http://vault.utilities.svc.cluster.local:8200"
-  token: ""
-  secretsPath: "avika"
+# SECRETS MANAGEMENT PROVIDER (Vault / CyberArk / Native)
+# =============================================================================
+# Select the secrets management provider.
+# Options:
+#   "vault"    - HashiCorp Vault via external-secrets
+#   "cyberark" - CyberArk Conjur via external-secrets
+#   "none"     - Use native Kubernetes secrets (avika-db-secrets, etc.)
+#
+# If "none" is selected, you can bring your own external secrets by
+# ensuring Kubernetes secrets exist with the correct names/keys before installation.
+secretsProvider:
+  provider: "none"  # "vault", "cyberark", "none"
+  
+  # Configuration for HashiCorp Vault (if provider == "vault")
+  vault:
+    address: "http://vault.utilities.svc.cluster.local:8200"
+    token: ""
+    secretsPath: "avika"
+    
+  # Configuration for CyberArk (if provider == "cyberark")
+  cyberark:
+    applianceUrl: "https://conjur.utilities.svc.cluster.local"
+    account: "default"
+    authnSecretLabel: "conjur-authn-jwt"
+    secretsPath: "avika"
 
 # =============================================================================
 # COMPONENTS

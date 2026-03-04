@@ -1,10 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
+import {
     LineChart, Activity, AlertTriangle, Clock, Server,
     Maximize2, Minimize2, RefreshCw, ExternalLink, Settings
 } from "lucide-react";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import Link from "next/link";
 
 const DEFAULT_GRAFANA_URL = "http://monitoring-grafana.monitoring.svc.cluster.local";
@@ -79,7 +86,7 @@ export default function GrafanaPage() {
         const savedUrl = typeof window !== 'undefined' ? localStorage.getItem("grafana_url") : null;
         const envUrl = process.env.NEXT_PUBLIC_GRAFANA_URL;
         const url = savedUrl || envUrl || DEFAULT_GRAFANA_URL;
-        
+
         setGrafanaUrl(url);
         setError(null);
         setIsLoading(false);
@@ -87,7 +94,7 @@ export default function GrafanaPage() {
 
     const buildIframeUrl = (dashboard: GrafanaDashboard) => {
         if (!grafanaUrl) return "";
-        
+
         const params = new URLSearchParams({
             orgId: "1",
             from: timeRange,
@@ -95,7 +102,7 @@ export default function GrafanaPage() {
             timezone: "browser",
             kiosk: "tv",
         });
-        
+
         if (refresh) {
             params.set("refresh", refresh);
         }
@@ -116,7 +123,7 @@ export default function GrafanaPage() {
     if (error) {
         return (
             <div className="h-full flex items-center justify-center">
-                <div 
+                <div
                     className="max-w-md p-6 rounded-xl border text-center"
                     style={{
                         background: "rgb(var(--theme-surface))",
@@ -147,7 +154,7 @@ export default function GrafanaPage() {
     return (
         <div className={`flex flex-col ${isFullscreen ? 'fixed inset-0 z-50 bg-black' : 'h-[calc(100vh-8rem)]'}`}>
             {/* Header */}
-            <div 
+            <div
                 className="flex items-center justify-between p-4 border-b flex-shrink-0"
                 style={{
                     background: isFullscreen ? "#0a0a0a" : "rgb(var(--theme-surface))",
@@ -161,22 +168,21 @@ export default function GrafanaPage() {
                             Grafana Dashboards
                         </h1>
                     </div>
-                    
+
                     {/* Dashboard Tabs */}
                     <div className="flex items-center gap-1 ml-4">
                         {GRAFANA_DASHBOARDS.map((dash) => (
                             <button
                                 key={dash.id}
                                 onClick={() => setSelectedDashboard(dash)}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                                    selectedDashboard.id === dash.id 
-                                        ? 'bg-purple-500/20 text-purple-400' 
-                                        : 'hover:bg-white/5'
-                                }`}
-                                style={{ 
-                                    color: selectedDashboard.id === dash.id 
-                                        ? undefined 
-                                        : "rgb(var(--theme-text-muted))" 
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${selectedDashboard.id === dash.id
+                                    ? 'bg-purple-500/20 text-purple-400'
+                                    : 'hover:bg-white/5'
+                                    }`}
+                                style={{
+                                    color: selectedDashboard.id === dash.id
+                                        ? undefined
+                                        : "rgb(var(--theme-text-muted))"
                                 }}
                                 title={dash.description}
                             >
@@ -187,43 +193,50 @@ export default function GrafanaPage() {
                     </div>
                 </div>
 
+
                 {/* Controls */}
                 <div className="flex items-center gap-3">
                     {/* Time Range */}
-                    <select
-                        value={timeRange}
-                        onChange={(e) => setTimeRange(e.target.value)}
-                        className="px-3 py-1.5 rounded-lg text-sm border focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                        style={{
-                            background: "rgb(var(--theme-background))",
-                            borderColor: "rgb(var(--theme-border))",
-                            color: "rgb(var(--theme-text))"
-                        }}
-                    >
-                        {TIME_RANGES.map((range) => (
-                            <option key={range.value} value={range.value}>
-                                {range.label}
-                            </option>
-                        ))}
-                    </select>
+                    <Select value={timeRange} onValueChange={setTimeRange}>
+                        <SelectTrigger
+                            className="w-[130px] h-9"
+                            style={{
+                                background: "rgb(var(--theme-background))",
+                                borderColor: "rgb(var(--theme-border))",
+                                color: "rgb(var(--theme-text))"
+                            }}
+                        >
+                            <SelectValue placeholder="Time" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {TIME_RANGES.map((range) => (
+                                <SelectItem key={range.value} value={range.value}>
+                                    {range.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
 
                     {/* Refresh Interval */}
-                    <select
-                        value={refresh}
-                        onChange={(e) => setRefresh(e.target.value)}
-                        className="px-3 py-1.5 rounded-lg text-sm border focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                        style={{
-                            background: "rgb(var(--theme-background))",
-                            borderColor: "rgb(var(--theme-border))",
-                            color: "rgb(var(--theme-text))"
-                        }}
-                    >
-                        {REFRESH_INTERVALS.map((interval) => (
-                            <option key={interval.value} value={interval.value}>
-                                {interval.label}
-                            </option>
-                        ))}
-                    </select>
+                    <Select value={refresh} onValueChange={setRefresh}>
+                        <SelectTrigger
+                            className="w-[110px] h-9"
+                            style={{
+                                background: "rgb(var(--theme-background))",
+                                borderColor: "rgb(var(--theme-border))",
+                                color: "rgb(var(--theme-text))"
+                            }}
+                        >
+                            <SelectValue placeholder="Refresh" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {REFRESH_INTERVALS.map((interval) => (
+                                <SelectItem key={interval.value || "off"} value={interval.value || "off"}>
+                                    {interval.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
 
                     {/* Refresh Button */}
                     <button
@@ -273,7 +286,7 @@ export default function GrafanaPage() {
 
             {/* Dashboard Description */}
             {!isFullscreen && (
-                <div 
+                <div
                     className="px-4 py-2 border-b flex-shrink-0"
                     style={{
                         background: "rgb(var(--theme-surface))",
@@ -289,7 +302,7 @@ export default function GrafanaPage() {
             {/* Iframe Container */}
             <div className="flex-1 relative">
                 {isLoading && (
-                    <div 
+                    <div
                         className="absolute inset-0 flex items-center justify-center z-10"
                         style={{ background: "rgb(var(--theme-background))" }}
                     >
@@ -304,7 +317,7 @@ export default function GrafanaPage() {
                         </div>
                     </div>
                 )}
-                
+
                 {grafanaUrl && (
                     <iframe
                         key={`${selectedDashboard.uid}-${timeRange}-${refresh}`}
@@ -323,7 +336,7 @@ export default function GrafanaPage() {
 
             {/* Connection Info Footer */}
             {!isFullscreen && (
-                <div 
+                <div
                     className="px-4 py-2 border-t flex items-center justify-between text-xs"
                     style={{
                         background: "rgb(var(--theme-surface))",
@@ -332,8 +345,8 @@ export default function GrafanaPage() {
                     }}
                 >
                     <span>Connected to: {grafanaUrl}</span>
-                    <Link 
-                        href="/settings" 
+                    <Link
+                        href="/settings"
                         className="text-blue-500 hover:text-blue-400 hover:underline"
                     >
                         Change URL

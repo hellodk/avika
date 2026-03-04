@@ -14,3 +14,8 @@ clickhouse:
 kafka:
   brokers: "localhost:29092"
 
+llm:
+  enabled: true
+  provider: "ollama"
+  model: "llama2"
+  base_url: "http://localhost:11434"
