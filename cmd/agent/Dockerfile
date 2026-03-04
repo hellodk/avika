@@ -23,7 +23,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -X 'main.BuildDate=${BUILD_DATE}' \
     -X 'main.GitCommit=${GIT_COMMIT}' \
     -X 'main.GitBranch=${GIT_BRANCH}'" \
-    -o agent .
+    -o avika-agent .
 
 # Final stage - minimal runtime image
 FROM alpine:latest
@@ -31,21 +31,20 @@ FROM alpine:latest
 # Install ca-certificates for HTTPS
 RUN apk --no-cache add ca-certificates tzdata
 
-WORKDIR /app
-
-# Copy binary from builder
-COPY --from=builder /build/cmd/agent/agent .
+# Copy binary to /usr/local/bin (matches K8s deployment command)
+COPY --from=builder /build/cmd/agent/avika-agent /usr/local/bin/avika-agent
 
 # Create non-root user
 RUN addgroup -g 1000 agent && \
-    adduser -D -u 1000 -G agent agent && \
-    chown -R agent:agent /app
+    adduser -D -u 1000 -G agent agent
 
 USER agent
 
+WORKDIR /app
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD ["/app/agent", "-health-check"] || exit 1
+    CMD ["/usr/local/bin/avika-agent", "-health-check"] || exit 1
 
 # Expose management port
 # Application ports (5020-5050 range)
@@ -60,4 +59,4 @@ LABEL org.opencontainers.image.created="${BUILD_DATE}"
 LABEL org.opencontainers.image.revision="${GIT_COMMIT}"
 LABEL org.opencontainers.image.source="https://github.com/yourusername/avika"
 
-CMD ["./agent"]
+CMD ["/usr/local/bin/avika-agent"]

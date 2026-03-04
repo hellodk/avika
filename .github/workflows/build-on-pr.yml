@@ -1,0 +1,103 @@
+# Build and push Docker images for PRs targeting master/main.
+# Tags: pr-<number> and sha-<short-sha> for QA/testing before merge.
+name: Build on PR
+
+on:
+  pull_request:
+    branches:
+      - master
+      - main
+
+env:
+  DOCKERHUB_USERNAME: hellodk
+
+jobs:
+  build-push-images:
+    name: Build & Push Docker Images (PR)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version and refs
+        id: meta
+        run: |
+          if [ -f VERSION ]; then
+            VERSION=$(cat VERSION | tr -d '[:space:]')
+          else
+            VERSION="0.0.0-dev"
+          fi
+          SHA=$(git rev-parse --short HEAD)
+          PR_NUM="${{ github.event.pull_request.number }}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+          echo "pr_num=$PR_NUM" >> $GITHUB_OUTPUT
+          echo "Using version=$VERSION sha=$SHA pr=$PR_NUM"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Gateway
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./cmd/gateway/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_USERNAME }}/avika-gateway:pr-${{ steps.meta.outputs.pr_num }}
+            ${{ env.DOCKERHUB_USERNAME }}/avika-gateway:sha-${{ steps.meta.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+
+      - name: Build and push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_USERNAME }}/avika-frontend:pr-${{ steps.meta.outputs.pr_num }}
+            ${{ env.DOCKERHUB_USERNAME }}/avika-frontend:sha-${{ steps.meta.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+
+      - name: Build and push Agent
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./cmd/agent/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_USERNAME }}/avika-agent:pr-${{ steps.meta.outputs.pr_num }}
+            ${{ env.DOCKERHUB_USERNAME }}/avika-agent:sha-${{ steps.meta.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+
+      - name: Summary
+        run: |
+          echo "## PR Build" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Pushed images with tags \`pr-${{ steps.meta.outputs.pr_num }}\` and \`sha-${{ steps.meta.outputs.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- hellodk/avika-gateway" >> $GITHUB_STEP_SUMMARY
+          echo "- hellodk/avika-frontend" >> $GITHUB_STEP_SUMMARY
+          echo "- hellodk/avika-agent" >> $GITHUB_STEP_SUMMARY
