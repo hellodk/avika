@@ -63,6 +63,49 @@ auth:
   initialSecretPath: "/var/lib/avika/initial-admin-password"
 
 # =============================================================================
+# SSO / ENTERPRISE AUTHENTICATION (OIDC, LDAP, SAML)
+# =============================================================================
+
+# -- OpenID Connect (OIDC) --
+oidc:
+  enabled: false
+  providerUrl: ""       # e.g., https://accounts.google.com
+  clientId: ""
+  clientSecret: ""
+  redirectUrl: ""       # e.g., https://avika.example.com/api/auth/oidc/callback
+  scopes: ["openid", "profile", "email", "groups"]
+  groupsClaim: "groups"
+  groupMapping: {}      # {"oidc-group": "avika-team"}
+  defaultRole: "viewer"
+  autoProvision: true
+
+# -- LDAP / Active Directory --
+ldap:
+  enabled: false
+  url: ""               # ldap:// or ldaps://
+  bindDN: ""
+  bindPassword: ""
+  baseDN: ""
+  userFilter: "(uid=%s)"
+  groupFilter: "(memberUid=%s)"
+  groupMapping: {}
+  defaultRole: "viewer"
+  autoProvision: true
+
+# -- SAML 2.0 --
+saml:
+  enabled: false
+  idpMetadataUrl: ""
+  entityId: ""          # SP Entity ID
+  rootUrl: ""           # SP Root URL
+  certFile: "/etc/avika/saml/cert.pem"
+  keyFile: "/etc/avika/saml/key.pem"
+  groupsClaim: "groups"
+  groupMapping: {}
+  defaultRole: "viewer"
+  autoProvision: true
+
+# =============================================================================
 # PSK (Pre-Shared Key) for Agent Authentication
 # =============================================================================
 psk:

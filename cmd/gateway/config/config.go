@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -145,6 +146,34 @@ type OIDCConfig struct {
 	AutoProvision bool              `yaml:"auto_provision"` // Auto-create users on first SSO login
 }
 
+// LDAPConfig holds LDAP Enterprise configuration
+type LDAPConfig struct {
+	Enabled       bool              `yaml:"enabled"`
+	URL           string            `yaml:"url"`           // ldap:// or ldaps:// URL
+	BindDN        string            `yaml:"bind_dn"`       // Service account DN
+	BindPassword  string            `yaml:"bind_password"` // Service account password
+	BaseDN        string            `yaml:"base_dn"`       // Base DN for users and groups
+	UserFilter    string            `yaml:"user_filter"`   // e.g. (uid=%s) or (sAMAccountName=%s)
+	GroupFilter   string            `yaml:"group_filter"`  // e.g. (memberUid=%s) or (member=%s)
+	GroupMapping  map[string]string `yaml:"group_mapping"` // Map LDAP groups to Avika teams
+	DefaultRole   string            `yaml:"default_role"`
+	AutoProvision bool              `yaml:"auto_provision"`
+}
+
+// SAMLConfig holds SAML 2.0 Enterprise SSO configuration
+type SAMLConfig struct {
+	Enabled        bool              `yaml:"enabled"`
+	IdPMetadataURL string            `yaml:"idp_metadata_url"` // URL to fetch IdP metadata
+	EntityID       string            `yaml:"entity_id"`        // SP Entity ID (this gateway)
+	RootURL        string            `yaml:"root_url"`         // Gateway Root URL for ACS and Metadata
+	CertFile       string            `yaml:"cert_file"`        // SP Certificate
+	KeyFile        string            `yaml:"key_file"`         // SP Private Key
+	GroupsClaim    string            `yaml:"groups_claim"`     // Attribute containing groups
+	GroupMapping   map[string]string `yaml:"group_mapping"`    // Map SAML groups to Avika teams
+	DefaultRole    string            `yaml:"default_role"`
+	AutoProvision  bool              `yaml:"auto_provision"`
+}
+
 // LLMConfig holds configuration for AI/LLM-powered features
 type LLMConfig struct {
 	Enabled          bool    `yaml:"enabled"`           // Enable AI-powered error analysis
@@ -175,6 +204,8 @@ type Config struct {
 	Auth            AuthConfig            `yaml:"auth"`
 	PSK             PSKConfig             `yaml:"psk"`
 	OIDC            OIDCConfig            `yaml:"oidc"`
+	LDAP            LDAPConfig            `yaml:"ldap"`
+	SAML            SAMLConfig            `yaml:"saml"`
 	LLM             LLMConfig             `yaml:"llm"`
 }
 
@@ -394,6 +425,30 @@ func defaultConfig() *Config {
 			GroupMapping:  make(map[string]string),
 			DefaultRole:   "viewer",
 			AutoProvision: true,
+		},
+		LDAP: LDAPConfig{
+			Enabled:       false,
+			URL:           "",
+			BindDN:        "",
+			BindPassword:  "",
+			BaseDN:        "",
+			UserFilter:    "(uid=%s)",
+			GroupFilter:   "(memberUid=%s)",
+			GroupMapping:  make(map[string]string),
+			DefaultRole:   "viewer",
+			AutoProvision: true,
+		},
+		SAML: SAMLConfig{
+			Enabled:        false,
+			IdPMetadataURL: "",
+			EntityID:       "",
+			RootURL:        "",
+			CertFile:       "",
+			KeyFile:        "",
+			GroupsClaim:    "groups",
+			GroupMapping:   make(map[string]string),
+			DefaultRole:    "viewer",
+			AutoProvision:  true,
 		},
 		LLM: LLMConfig{
 			Enabled:          false,
@@ -626,6 +681,82 @@ func loadEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("OIDC_AUTO_PROVISION"); v != "" {
 		cfg.OIDC.AutoProvision = v == "true" || v == "1"
+	}
+	if v := os.Getenv("OIDC_GROUP_MAPPING"); v != "" {
+		var mapping map[string]string
+		if err := json.Unmarshal([]byte(v), &mapping); err == nil {
+			cfg.OIDC.GroupMapping = mapping
+		}
+	}
+
+	// LDAP (Enterprise Active Directory / OpenLDAP)
+	if v := os.Getenv("LDAP_ENABLED"); v != "" {
+		cfg.LDAP.Enabled = v == "true" || v == "1"
+	}
+	if v := os.Getenv("LDAP_URL"); v != "" {
+		cfg.LDAP.URL = v
+	}
+	if v := os.Getenv("LDAP_BIND_DN"); v != "" {
+		cfg.LDAP.BindDN = v
+	}
+	if v := os.Getenv("LDAP_BIND_PASSWORD"); v != "" {
+		cfg.LDAP.BindPassword = v
+	}
+	if v := os.Getenv("LDAP_BASE_DN"); v != "" {
+		cfg.LDAP.BaseDN = v
+	}
+	if v := os.Getenv("LDAP_USER_FILTER"); v != "" {
+		cfg.LDAP.UserFilter = v
+	}
+	if v := os.Getenv("LDAP_GROUP_FILTER"); v != "" {
+		cfg.LDAP.GroupFilter = v
+	}
+	if v := os.Getenv("LDAP_DEFAULT_ROLE"); v != "" {
+		cfg.LDAP.DefaultRole = v
+	}
+	if v := os.Getenv("LDAP_AUTO_PROVISION"); v != "" {
+		cfg.LDAP.AutoProvision = v == "true" || v == "1"
+	}
+	if v := os.Getenv("LDAP_GROUP_MAPPING"); v != "" {
+		var mapping map[string]string
+		if err := json.Unmarshal([]byte(v), &mapping); err == nil {
+			cfg.LDAP.GroupMapping = mapping
+		}
+	}
+
+	// SAML 2.0 (Enterprise SSO)
+	if v := os.Getenv("SAML_ENABLED"); v != "" {
+		cfg.SAML.Enabled = v == "true" || v == "1"
+	}
+	if v := os.Getenv("SAML_IDP_METADATA_URL"); v != "" {
+		cfg.SAML.IdPMetadataURL = v
+	}
+	if v := os.Getenv("SAML_ENTITY_ID"); v != "" {
+		cfg.SAML.EntityID = v
+	}
+	if v := os.Getenv("SAML_ROOT_URL"); v != "" {
+		cfg.SAML.RootURL = v
+	}
+	if v := os.Getenv("SAML_CERT_FILE"); v != "" {
+		cfg.SAML.CertFile = v
+	}
+	if v := os.Getenv("SAML_KEY_FILE"); v != "" {
+		cfg.SAML.KeyFile = v
+	}
+	if v := os.Getenv("SAML_GROUPS_CLAIM"); v != "" {
+		cfg.SAML.GroupsClaim = v
+	}
+	if v := os.Getenv("SAML_DEFAULT_ROLE"); v != "" {
+		cfg.SAML.DefaultRole = v
+	}
+	if v := os.Getenv("SAML_AUTO_PROVISION"); v != "" {
+		cfg.SAML.AutoProvision = v == "true" || v == "1"
+	}
+	if v := os.Getenv("SAML_GROUP_MAPPING"); v != "" {
+		var mapping map[string]string
+		if err := json.Unmarshal([]byte(v), &mapping); err == nil {
+			cfg.SAML.GroupMapping = mapping
+		}
 	}
 
 	// LLM (AI-powered Error Analysis)

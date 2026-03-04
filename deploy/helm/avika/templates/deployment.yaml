@@ -125,7 +125,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "avika.fullname" $ }}-auth-secrets
                   key: password-hash
-            {{- end }}
+            {{ end }}
             {{- /* LLM/AI Configuration */ -}}
             {{- if $.Values.llm }}
             {{- if $.Values.llm.enabled }}
@@ -168,10 +168,74 @@ spec:
                   {{- else }}
                   name: {{ include "avika.fullname" $ }}-llm-secrets
                   key: api-key
-                  {{- end }}
+                  {{ end }}
+            {{ end }}
+            {{ end }}
             {{- end }}
-            {{- end }}
-            {{- end }}
+
+            {{- /* SSO / Enterprise Auth Configuration */ -}}
+            - name: OIDC_ENABLED
+              value: {{ $.Values.oidc.enabled | quote }}
+            - name: OIDC_PROVIDER_URL
+              value: {{ $.Values.oidc.providerUrl | quote }}
+            - name: OIDC_CLIENT_ID
+              value: {{ $.Values.oidc.clientId | quote }}
+            - name: OIDC_CLIENT_SECRET
+              value: {{ $.Values.oidc.clientSecret | quote }}
+            - name: OIDC_REDIRECT_URL
+              value: {{ $.Values.oidc.redirectUrl | quote }}
+            - name: OIDC_SCOPES
+              value: {{ join "," $.Values.oidc.scopes | quote }}
+            - name: OIDC_GROUPS_CLAIM
+              value: {{ $.Values.oidc.groupsClaim | quote }}
+            - name: OIDC_DEFAULT_ROLE
+              value: {{ $.Values.oidc.defaultRole | quote }}
+            - name: OIDC_AUTO_PROVISION
+              value: {{ $.Values.oidc.autoProvision | quote }}
+            - name: OIDC_GROUP_MAPPING
+              value: {{ $.Values.oidc.groupMapping | toJson | quote }}
+
+            - name: LDAP_ENABLED
+              value: {{ $.Values.ldap.enabled | quote }}
+            - name: LDAP_URL
+              value: {{ $.Values.ldap.url | quote }}
+            - name: LDAP_BIND_DN
+              value: {{ $.Values.ldap.bindDN | quote }}
+            - name: LDAP_BIND_PASSWORD
+              value: {{ $.Values.ldap.bindPassword | quote }}
+            - name: LDAP_BASE_DN
+              value: {{ $.Values.ldap.baseDN | quote }}
+            - name: LDAP_USER_FILTER
+              value: {{ $.Values.ldap.userFilter | quote }}
+            - name: LDAP_GROUP_FILTER
+              value: {{ $.Values.ldap.groupFilter | quote }}
+            - name: LDAP_DEFAULT_ROLE
+              value: {{ $.Values.ldap.defaultRole | quote }}
+            - name: LDAP_AUTO_PROVISION
+              value: {{ $.Values.ldap.autoProvision | quote }}
+            - name: LDAP_GROUP_MAPPING
+              value: {{ $.Values.ldap.groupMapping | toJson | quote }}
+
+            - name: SAML_ENABLED
+              value: {{ $.Values.saml.enabled | quote }}
+            - name: SAML_IDP_METADATA_URL
+              value: {{ $.Values.saml.idpMetadataUrl | quote }}
+            - name: SAML_ENTITY_ID
+              value: {{ $.Values.saml.entityId | quote }}
+            - name: SAML_ROOT_URL
+              value: {{ $.Values.saml.rootUrl | quote }}
+            - name: SAML_CERT_FILE
+              value: {{ $.Values.saml.certFile | quote }}
+            - name: SAML_KEY_FILE
+              value: {{ $.Values.saml.keyFile | quote }}
+            - name: SAML_GROUPS_CLAIM
+              value: {{ $.Values.saml.groupsClaim | quote }}
+            - name: SAML_DEFAULT_ROLE
+              value: {{ $.Values.saml.defaultRole | quote }}
+            - name: SAML_AUTO_PROVISION
+              value: {{ $.Values.saml.autoProvision | quote }}
+            - name: SAML_GROUP_MAPPING
+              value: {{ $.Values.saml.groupMapping | toJson | quote }}
             {{- end }}
             {{- /* Frontend-specific dynamic env vars */ -}}
             {{- if eq $name "frontend" }}
