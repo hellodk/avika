@@ -8,6 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Bell, Plus, Trash2, Edit2, AlertCircle, Save, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
@@ -122,30 +129,30 @@ export function AlertConfiguration() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2">
                                     <Label htmlFor="metric">Metric</Label>
-                                    <select
-                                        id="metric"
-                                        className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
-                                        value={editingRule?.metric_type || ""}
-                                        onChange={(e) => setEditingRule({ ...editingRule, metric_type: e.target.value })}
-                                    >
-                                        <option value="">Select Metric</option>
-                                        <option value="cpu">CPU Usage (%)</option>
-                                        <option value="memory">Memory Usage (%)</option>
-                                        <option value="rps">Requests Per Second</option>
-                                        <option value="error_rate">Error Rate (%)</option>
-                                    </select>
+                                    <Select value={editingRule?.metric_type || ""} onValueChange={(val) => setEditingRule({ ...editingRule, metric_type: val })}>
+                                        <SelectTrigger className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                                            <SelectValue placeholder="Select Metric" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="metric">Select Metric</SelectItem>
+                                            <SelectItem value="cpu">CPU Usage (%)</SelectItem>
+                                            <SelectItem value="memory">Memory Usage (%)</SelectItem>
+                                            <SelectItem value="rps">Requests Per Second</SelectItem>
+                                            <SelectItem value="error_rate">Error Rate (%)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="comparison">Comparison</Label>
-                                    <select
-                                        id="comparison"
-                                        className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
-                                        value={editingRule?.comparison || "gt"}
-                                        onChange={(e) => setEditingRule({ ...editingRule, comparison: e.target.value })}
-                                    >
-                                        <option value="gt">Greater Than</option>
-                                        <option value="lt">Less Than</option>
-                                    </select>
+                                    <Select value={editingRule?.comparison || "gt"} onValueChange={(val) => setEditingRule({ ...editingRule, comparison: val })}>
+                                        <SelectTrigger className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                                            <SelectValue placeholder="Comparison" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="gt">Greater Than</SelectItem>
+                                            <SelectItem value="lt">Less Than</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">

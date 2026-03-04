@@ -9,6 +9,13 @@ import { ArrowRight, Clock, Search, Filter, X, XCircle, FileSearch, Copy, Check 
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { useProject } from "@/lib/project-context";
 
 export default function TracesPage() {
@@ -43,7 +50,7 @@ export default function TracesPage() {
             if (statusFilter) url += `&status=${statusFilter}`;
             if (methodFilter) url += `&method=${methodFilter}`;
             if (uriSearch) url += `&uri=${encodeURIComponent(uriSearch)}`;
-            
+
             // Project/environment filtering
             if (selectedEnvironment) {
                 url += `&environment_id=${selectedEnvironment.id}`;
@@ -87,11 +94,10 @@ export default function TracesPage() {
                                     <button
                                         key={w}
                                         onClick={() => setWindow(w)}
-                                        className={`px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${
-                                            window === w
+                                        className={`px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${window === w
                                                 ? 'bg-blue-600 text-white shadow-lg'
                                                 : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
-                                        } ${idx > 0 ? 'border-l border-slate-600/50' : ''}`}
+                                            } ${idx > 0 ? 'border-l border-slate-600/50' : ''}`}
                                     >
                                         {w}
                                     </button>
@@ -141,41 +147,41 @@ export default function TracesPage() {
                             </div>
 
                             {/* Method Filter */}
-                            <select
-                                className="h-10 w-[130px] rounded-lg border-2 px-3 py-1 text-sm font-medium transition-all duration-200 cursor-pointer
-                                    bg-slate-800/50 border-slate-600/50 text-white
-                                    hover:border-slate-500 hover:bg-slate-800/70
-                                    focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                                value={methodFilter}
-                                onChange={(e) => setMethodFilter(e.target.value)}
-                            >
-                                <option value="">All Methods</option>
-                                <option value="GET">GET</option>
-                                <option value="POST">POST</option>
-                                <option value="PUT">PUT</option>
-                                <option value="DELETE">DELETE</option>
-                                <option value="PATCH">PATCH</option>
-                            </select>
+                            <Select value={methodFilter} onValueChange={setMethodFilter}>
+                                <SelectTrigger
+                                    className="h-10 w-[130px] rounded-lg border-2 px-3 py-1 text-sm font-medium transition-all duration-200 cursor-pointer bg-slate-800/50 border-slate-600/50 text-white hover:border-slate-500 hover:bg-slate-800/70 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                                >
+                                    <SelectValue placeholder="All Methods" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Methods</SelectItem>
+                                    <SelectItem value="GET">GET</SelectItem>
+                                    <SelectItem value="POST">POST</SelectItem>
+                                    <SelectItem value="PUT">PUT</SelectItem>
+                                    <SelectItem value="DELETE">DELETE</SelectItem>
+                                    <SelectItem value="PATCH">PATCH</SelectItem>
+                                </SelectContent>
+                            </Select>
 
                             {/* Status Filter */}
-                            <select
-                                className="h-10 w-[140px] rounded-lg border-2 px-3 py-1 text-sm font-medium transition-all duration-200 cursor-pointer
-                                    bg-slate-800/50 border-slate-600/50 text-white
-                                    hover:border-slate-500 hover:bg-slate-800/70
-                                    focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                                value={statusFilter}
-                                onChange={(e) => setStatusFilter(e.target.value)}
-                            >
-                                <option value="">All Status</option>
-                                <option value="200">200 OK</option>
-                                <option value="201">201 Created</option>
-                                <option value="4xx">4xx Errors</option>
-                                <option value="403">403 Forbidden</option>
-                                <option value="404">404 Not Found</option>
-                                <option value="5xx">5xx Errors</option>
-                                <option value="500">500 Server Error</option>
-                                <option value="502">502 Bad Gateway</option>
-                            </select>
+                            <Select value={statusFilter} onValueChange={setStatusFilter}>
+                                <SelectTrigger
+                                    className="h-10 w-[140px] rounded-lg border-2 px-3 py-1 text-sm font-medium transition-all duration-200 cursor-pointer bg-slate-800/50 border-slate-600/50 text-white hover:border-slate-500 hover:bg-slate-800/70 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                                >
+                                    <SelectValue placeholder="All Status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Status</SelectItem>
+                                    <SelectItem value="200">200 OK</SelectItem>
+                                    <SelectItem value="201">201 Created</SelectItem>
+                                    <SelectItem value="4xx">4xx Errors</SelectItem>
+                                    <SelectItem value="403">403 Forbidden</SelectItem>
+                                    <SelectItem value="404">404 Not Found</SelectItem>
+                                    <SelectItem value="5xx">5xx Errors</SelectItem>
+                                    <SelectItem value="500">500 Server Error</SelectItem>
+                                    <SelectItem value="502">502 Bad Gateway</SelectItem>
+                                </SelectContent>
+                            </Select>
 
                             {/* Clear All Filters */}
                             {(statusFilter || methodFilter || uriSearch) && (
@@ -223,7 +229,7 @@ export default function TracesPage() {
                                             <FileSearch className="h-12 w-12 text-slate-500" />
                                             <div className="text-sm font-medium text-slate-300">No traces found</div>
                                             <div className="text-xs text-slate-500 max-w-sm">
-                                                No request traces found for the selected time range and filters. 
+                                                No request traces found for the selected time range and filters.
                                                 Try adjusting the time window or clearing filters.
                                             </div>
                                         </div>
@@ -253,7 +259,7 @@ export default function TracesPage() {
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2 group/id">
-                                                <span 
+                                                <span
                                                     className="font-mono text-xs text-slate-400 cursor-pointer hover:text-slate-200 transition-colors"
                                                     title={`Full ID: ${trace.request_id}\nClick to copy`}
                                                 >

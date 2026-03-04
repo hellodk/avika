@@ -33,8 +33,6 @@ import (
 	"google.golang.org/grpc/peer"
 )
 
-// ... existing code ...
-
 type EndpointStats struct {
 	Requests  int64
 	Errors    int64
@@ -1425,11 +1423,65 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		}
 	}
 
+	// LDAP SSO endpoints
+	if cfg.LDAP.Enabled {
+		ldapProvider, err := middleware.NewLDAPProvider(
+			middleware.LDAPConfig{
+				Enabled:       cfg.LDAP.Enabled,
+				URL:           cfg.LDAP.URL,
+				BindDN:        cfg.LDAP.BindDN,
+				BindPassword:  cfg.LDAP.BindPassword,
+				BaseDN:        cfg.LDAP.BaseDN,
+				UserFilter:    cfg.LDAP.UserFilter,
+				GroupFilter:   cfg.LDAP.GroupFilter,
+				GroupMapping:  cfg.LDAP.GroupMapping,
+				DefaultRole:   cfg.LDAP.DefaultRole,
+				AutoProvision: cfg.LDAP.AutoProvision,
+			},
+			authManager,
+			srv.db, // implements UserProvisioner
+			srv.db, // implements TeamMapper
+		)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize LDAP provider: %v", err)
+		} else {
+			mux.HandleFunc("/api/auth/ldap/login", ldapProvider.LoginHandler())
+		}
+	}
+
+	// SAML SSO endpoints
+	if cfg.SAML.Enabled {
+		samlProvider, err := middleware.NewSAMLProvider(
+			middleware.SAMLConfig{
+				Enabled:        cfg.SAML.Enabled,
+				IdPMetadataURL: cfg.SAML.IdPMetadataURL,
+				EntityID:       cfg.SAML.EntityID,
+				RootURL:        cfg.SAML.RootURL,
+				CertFile:       cfg.SAML.CertFile,
+				KeyFile:        cfg.SAML.KeyFile,
+				GroupsClaim:    cfg.SAML.GroupsClaim,
+				GroupMapping:   cfg.SAML.GroupMapping,
+				DefaultRole:    cfg.SAML.DefaultRole,
+				AutoProvision:  cfg.SAML.AutoProvision,
+			},
+			authManager,
+			srv.db, // implements UserProvisioner
+			srv.db, // implements TeamMapper
+		)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize SAML provider: %v", err)
+		} else {
+			mux.Handle("/saml/", samlProvider.HTTPHandlers())
+		}
+	}
+
 	// OIDC status endpoint (always available so frontend knows if SSO is enabled)
 	mux.HandleFunc("/api/auth/sso-config", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"oidc_enabled": cfg.OIDC.Enabled,
+			"ldap_enabled": cfg.LDAP.Enabled,
+			"saml_enabled": cfg.SAML.Enabled,
 		})
 	})
 
