@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getGatewayUrl } from "@/lib/gateway-url";
 
-const GATEWAY_URL = process.env.GATEWAY_HTTP_URL || process.env.NEXT_PUBLIC_GATEWAY_URL || "http://avika-gateway:5021";
+const GATEWAY_URL = getGatewayUrl();
 
 export async function GET(request: NextRequest) {
   try {

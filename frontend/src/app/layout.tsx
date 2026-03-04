@@ -3,7 +3,7 @@ import { Inter, Orbitron } from "next/font/google";
 import "./globals.css";
 import DashboardLayout from "@/components/dashboard-layout";
 import { ThemeProvider } from "@/lib/theme-provider";
-import { Toaster } from "sonner";
+import { Toaster } from "@/components/themed-toaster";
 import { AuthProvider } from "@/lib/auth-provider";
 import { ProjectProvider } from "@/lib/project-context";
 import { UserSettingsProvider } from "@/lib/user-settings";
@@ -36,11 +36,7 @@ export default function RootLayout({
               </UserSettingsProvider>
             </ProjectProvider>
           </AuthProvider>
-          <Toaster 
-            position="top-right" 
-            richColors
-            closeButton
-          />
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>
