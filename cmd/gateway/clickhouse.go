@@ -262,6 +262,13 @@ func (db *ClickHouseDB) migrate() error {
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS longitude Float64 DEFAULT 0",
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS timezone String DEFAULT ''",
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS isp String DEFAULT ''",
+		// Phase 5b: Visitor analytics columns (parsed from user_agent/referer; optional)
+		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS is_bot UInt8 DEFAULT 0",
+		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS browser_family String DEFAULT ''",
+		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS browser_version String DEFAULT ''",
+		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS os_family String DEFAULT ''",
+		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS os_version String DEFAULT ''",
+		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS device_type String DEFAULT ''",
 		// Phase 6: Materialized view for geo aggregation (hourly)
 		`CREATE TABLE IF NOT EXISTS nginx_analytics.geo_requests_hourly (
 			hour DateTime,

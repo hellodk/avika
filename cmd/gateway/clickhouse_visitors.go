@@ -52,9 +52,10 @@ type NotFoundStat struct {
 
 // HourlyDistribution represents traffic distribution by hour
 type HourlyDistribution struct {
-	Hour     int    `json:"hour"`
-	Hits     uint64 `json:"hits"`
-	Visitors uint64 `json:"visitors"`
+	Hour      int    `json:"hour"`
+	Hits      uint64 `json:"hits"`
+	Visitors  uint64 `json:"visitors"`
+	Bandwidth uint64 `json:"bandwidth"`
 }
 
 // DeviceStats represents device type distribution
@@ -286,21 +287,21 @@ func (db *ClickHouseDB) getOSStats(ctx context.Context, startTime time.Time, age
 }
 
 func (db *ClickHouseDB) getReferrerStats(ctx context.Context, startTime time.Time, agentID string) ([]ReferrerStat, error) {
-	whereClause := "WHERE timestamp >= ? AND referrer_domain != ''"
+	whereClause := "WHERE timestamp >= ? AND referer != ''"
 	args := []interface{}{startTime}
-	
+
 	if agentID != "" && agentID != "all" {
 		whereClause += " AND instance_id = ?"
 		args = append(args, agentID)
 	}
-	
+
 	query := `SELECT 
-		referrer_domain,
+		referer AS domain,
 		count(*) as hits,
 		uniq(cityHash64(remote_addr, user_agent)) as visitors
 	FROM nginx_analytics.access_logs 
 	` + whereClause + `
-	GROUP BY referrer_domain
+	GROUP BY referer
 	ORDER BY hits DESC
 	LIMIT 20`
 	
@@ -381,7 +382,8 @@ func (db *ClickHouseDB) getHourlyDistribution(ctx context.Context, startTime tim
 	query := `SELECT 
 		toHour(timestamp) as hour,
 		count(*) as hits,
-		uniq(cityHash64(remote_addr, user_agent)) as visitors
+		uniq(cityHash64(remote_addr, user_agent)) as visitors,
+		sum(body_bytes_sent) as bandwidth
 	FROM nginx_analytics.access_logs 
 	` + whereClause + `
 	GROUP BY hour
@@ -401,13 +403,14 @@ func (db *ClickHouseDB) getHourlyDistribution(ctx context.Context, startTime tim
 	
 	for rows.Next() {
 		var hour int
-		var hits, visitors uint64
-		if err := rows.Scan(&hour, &hits, &visitors); err != nil {
+		var hits, visitors, bandwidth uint64
+		if err := rows.Scan(&hour, &hits, &visitors, &bandwidth); err != nil {
 			continue
 		}
 		if hd, ok := hourlyMap[hour]; ok {
 			hd.Hits = hits
 			hd.Visitors = visitors
+			hd.Bandwidth = bandwidth
 		}
 	}
 	
