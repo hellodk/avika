@@ -604,8 +604,18 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		var serverTLSCreds credentials.TransportCredentials
+		if *enableTLS {
+			creds, err := loadAgentTLSCredentials()
+			if err == nil {
+				serverTLSCreds = creds
+			} else {
+				log.Printf("Warning: Failed to load TLS credentials for management service: %v", err)
+			}
+		}
+
 		log.Printf("Starting Management Service with NGINX config: %s", *nginxConfigPath)
-		startMgmtService(ctx, *nginxConfigPath, *mgmtPort)
+		startMgmtService(ctx, *nginxConfigPath, *mgmtPort, serverTLSCreds)
 	}()
 
 	// Mark service as ready

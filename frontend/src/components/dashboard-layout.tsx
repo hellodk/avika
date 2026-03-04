@@ -13,6 +13,7 @@ import {
 import { ProjectSelector } from "@/components/project-selector";
 import { EnvironmentTabs } from "@/components/environment-tabs";
 import { useProject } from "@/lib/project-context";
+import { Breadcrumb } from "@/components/breadcrumb";
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "dev";
 import { Badge } from "@/components/ui/badge";
@@ -265,20 +266,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                     {/* Left: Project Selector and Breadcrumb */}
                     <div className="flex items-center gap-4">
                         <ProjectSelector className="w-[180px]" />
-                        <div className="w-px h-6" style={{ background: "rgb(var(--theme-border))" }} />
-                        <nav className="flex items-center text-sm">
-                            <Link
-                                href="/"
-                                className="hover:underline"
-                                style={{ color: "rgb(var(--theme-text-muted))" }}
-                            >
-                                Home
-                            </Link>
-                            <ChevronRight className="h-4 w-4 mx-2" style={{ color: "rgb(var(--theme-text-muted))" }} />
-                            <span style={{ color: "rgb(var(--theme-text))" }} className="font-medium">
-                                {getCurrentPageTitle()}
-                            </span>
-                        </nav>
+                        <div className="w-px h-6 hidden md:block" style={{ background: "rgb(var(--theme-border))" }} />
+                        <div className="hidden md:block">
+                            <Breadcrumb />
+                        </div>
                     </div>
 
                     {/* Right: Actions */}

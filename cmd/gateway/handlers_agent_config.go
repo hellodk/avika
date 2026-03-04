@@ -14,6 +14,7 @@ import (
 	"github.com/avika-ai/avika/cmd/gateway/middleware"
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -92,7 +93,20 @@ func (s *server) getAgentConfigClient(agentID string) (pb.AgentConfigServiceClie
 	}
 	target := fmt.Sprintf("%s:%d", targetIP, agentPort)
 
-	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	var dialOpts []grpc.DialOption
+	if s.config.Security.EnableTLS && s.config.Security.TLSCertFile != "" {
+		tlsConfig, err := loadServerTLSConfig(s.config)
+		if err != nil {
+			log.Printf("Failed to load TLS config for dialing agent: %v. Falling back to insecure.", err)
+			dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		} else {
+			dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+		}
+	} else {
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	}
+
+	conn, err := grpc.Dial(target, dialOpts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to agent %s: %v", agentID, err)
 	}

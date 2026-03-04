@@ -117,6 +117,12 @@ func (e *AlertEngine) sendNotifications(rule *pb.AlertRule, value float64) {
 			if strings.Contains(email, "hooks.slack.com") {
 				// Special handling for Slack
 				err = SendSlackNotification(context.Background(), email, subject, body, "#f44336")
+			} else if strings.Contains(email, "webhook.office.com") || strings.Contains(email, "office365.com/webhook") {
+				// Special handling for Microsoft Teams
+				err = SendTeamsNotification(context.Background(), email, subject, body, "F44336")
+			} else if strings.Contains(email, "events.pagerduty.com") {
+				// Special handling for PagerDuty v2 Events API
+				err = SendPagerDutyEvent(context.Background(), email, subject, "Avika Alerts", "error")
 			} else {
 				// Generic Webhook
 				err = e.sendGenericWebhook(context.Background(), email, subject, body)
