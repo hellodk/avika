@@ -107,7 +107,7 @@ const nextConfig: NextConfig = {
     ];
   },
   
-  // Redirects - redirect root to basePath
+  // Redirects - redirect root to basePath; legacy routes to new locations
   async redirects() {
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "/avika";
     return [
@@ -117,6 +117,9 @@ const nextConfig: NextConfig = {
         basePath: false,
         permanent: false,
       },
+      { source: '/waf', destination: '/settings/waf', permanent: false },
+      { source: '/visitors', destination: '/analytics/visitors', permanent: false },
+      { source: '/geo', destination: '/analytics/geo', permanent: false },
     ];
   },
 };

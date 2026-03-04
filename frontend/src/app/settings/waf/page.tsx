@@ -19,7 +19,7 @@ interface WAFPolicy {
     created_at: string;
 }
 
-export default function WAFPage() {
+export default function WAFSettingsPage() {
     const [policies, setPolicies] = useState<WAFPolicy[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -59,9 +59,9 @@ export default function WAFPage() {
                 </Button>
             </div>
 
-            <Card className="border-border bg-surface shadow-xl overflow-hidden">
-                <CardHeader className="border-b border-border py-4 bg-gradient-to-r from-purple-500/10 to-transparent">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <Card className="shadow-xl overflow-hidden" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                <CardHeader className="border-b py-4 bg-gradient-to-r from-purple-500/10 to-transparent" style={{ borderColor: "rgb(var(--theme-border))" }}>
+                    <CardTitle className="text-sm font-medium flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
                         <Shield className="h-4 w-4 text-purple-400" />
                         Active Security Policies
                     </CardTitle>
@@ -69,7 +69,7 @@ export default function WAFPage() {
                 <CardContent className="p-0">
                     <Table>
                         <TableHeader className="bg-muted/50">
-                            <TableRow className="hover:bg-transparent border-border">
+                            <TableRow className="hover:bg-transparent" style={{ borderColor: "rgb(var(--theme-border))" }}>
                                 <TableHead className="w-[250px]">Policy Name</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead>Rules</TableHead>

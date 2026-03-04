@@ -176,7 +176,7 @@ export default function SettingsPage() {
                         </CardContent>
                     </Card>
                 </Link>
-                <Link href="/waf">
+                <Link href="/settings/waf">
                     <Card className="hover:border-blue-500/50 transition-colors cursor-pointer h-full" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>

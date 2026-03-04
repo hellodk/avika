@@ -55,26 +55,26 @@ export default function AuditPage() {
         return "blue";
     };
 
-    if (loading) return <div className="flex items-center justify-center h-64">Loading audit logs...</div>;
+    if (loading) return <div className="flex items-center justify-center h-64" style={{ color: "rgb(var(--theme-text))" }}>Loading audit logs...</div>;
     if (error) return <div className="p-4 bg-red-500/10 text-red-400 rounded-lg">{error}</div>;
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+                    <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3" style={{ color: "rgb(var(--theme-text))" }}>
                         <Shield className="h-8 w-8 text-blue-500" />
                         Audit Logs
                     </h1>
-                    <p className="text-muted-foreground mt-1">
+                    <p className="mt-1" style={{ color: "rgb(var(--theme-text-muted))" }}>
                         Track administrative actions and security events across the Avika fleet.
                     </p>
                 </div>
             </div>
 
-            <Card className="border-border bg-surface shadow-xl overflow-hidden">
-                <CardHeader className="border-b border-border py-4">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <Card className="shadow-xl overflow-hidden" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                <CardHeader className="border-b py-4" style={{ borderColor: "rgb(var(--theme-border))" }}>
+                    <CardTitle className="text-sm font-medium flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
                         <Clock className="h-4 w-4 text-blue-400" />
                         Recent Activities (Last 100)
                     </CardTitle>
@@ -82,7 +82,7 @@ export default function AuditPage() {
                 <CardContent className="p-0">
                     <Table>
                         <TableHeader className="bg-muted/50">
-                            <TableRow className="hover:bg-transparent border-border">
+                            <TableRow className="hover:bg-transparent" style={{ borderColor: "rgb(var(--theme-border))" }}>
                                 <TableHead className="w-[180px]">Timestamp</TableHead>
                                 <TableHead>User</TableHead>
                                 <TableHead>Action</TableHead>
@@ -94,13 +94,13 @@ export default function AuditPage() {
                         <TableBody>
                             {logs.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                                    <TableCell colSpan={6} className="text-center py-8" style={{ color: "rgb(var(--theme-text-muted))" }}>
                                         No audit entries found.
                                     </TableCell>
                                 </TableRow>
                             ) : (
                                 logs.map((log) => (
-                                    <TableRow key={log.id} className="border-border hover:bg-white/5 transition-colors">
+                                    <TableRow key={log.id} className="hover:bg-white/5 transition-colors" style={{ borderColor: "rgb(var(--theme-border))" }}>
                                         <TableCell className="font-mono text-xs whitespace-nowrap">
                                             {format(new Date(log.timestamp), "MMM dd, HH:mm:ss")}
                                         </TableCell>

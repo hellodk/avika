@@ -57,12 +57,17 @@ const NAV_SECTIONS: NavSection[] = [
         ]
     },
     {
+        title: "Analytics",
+        items: [
+            { href: "/analytics", icon: <BarChart2 />, label: "Dashboard" },
+            { href: "/analytics/traces", icon: <GitBranch />, label: "Traces" },
+            { href: "/analytics/visitors", icon: <User />, label: "Visitor Analytics" },
+            { href: "/analytics/geo", icon: <Globe />, label: "Geo Analytics" },
+        ]
+    },
+    {
         title: "Observability",
         items: [
-            { href: "/analytics", icon: <BarChart2 />, label: "Analytics" },
-            { href: "/analytics/traces", icon: <GitBranch />, label: "Traces" },
-            { href: "/visitors", icon: <User />, label: "Visitor Analytics" },
-            { href: "/geo", icon: <Globe />, label: "Geo Analytics" },
             { href: "/observability/grafana", icon: <LineChart />, label: "Grafana" },
             { href: "/alerts", icon: <ShieldAlert />, label: "Alerts" },
         ]
@@ -85,8 +90,6 @@ const NAV_SECTIONS: NavSection[] = [
         items: [
             { href: "/settings", icon: <Settings />, label: "General" },
             { href: "/settings/integrations", icon: <Globe />, label: "Integrations" },
-            { href: "/settings/llm", icon: <Zap />, label: "LLM" },
-            { href: "/waf", icon: <Lock />, label: "WAF Policies" },
         ],
     },
 ];
@@ -127,15 +130,20 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         );
     };
 
-    // Get current page title for breadcrumb
+    // Get current page title for breadcrumb (match longest href so /analytics/visitors -> Visitor Analytics)
     const getCurrentPageTitle = () => {
+        let best: string | null = null;
+        let bestLen = 0;
         for (const section of NAV_SECTIONS) {
             for (const item of section.items) {
-                if (item.href === pathname || (item.href !== "/" && pathname.startsWith(item.href))) {
-                    return item.label;
+                const match = item.href === pathname || (item.href !== "/" && pathname.startsWith(item.href));
+                if (match && item.href.length > bestLen) {
+                    best = item.label;
+                    bestLen = item.href.length;
                 }
             }
         }
+        if (best) return best;
         // Check for dynamic routes
         if (pathname.startsWith("/servers/")) return "Server Details";
         if (pathname.startsWith("/agents/")) return "Agent Config";

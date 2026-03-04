@@ -12,6 +12,7 @@ const routeLabels: Record<string, string> = {
     teams: "Teams",
     projects: "Projects",
     llm: "LLM Configuration",
+    waf: "WAF Policies",
     system: "System Health",
     monitoring: "Monitoring",
     inventory: "Inventory",
@@ -26,7 +27,6 @@ const routeLabels: Record<string, string> = {
     optimization: "AI Tuner",
     reports: "Reports",
     audit: "Audit Logs",
-    waf: "WAF Policies",
     agents: "Agents",
     config: "Configuration",
     servers: "Servers"
