@@ -8,7 +8,7 @@ export function generateProvisionSnippet(template: string, config: Record<string
             return `${header}limit_req_zone $binary_remote_addr zone=api_limit:10m rate=${rpm}r/m;\n\nserver {\n    location /api/ {\n        limit_req zone=api_limit burst=${burst} nodelay;\n        proxy_pass http://backend;\n    }\n}`;
 
         case 'health-checks':
-            return `${header}upstream ${config.upstream_name || 'backend'} {\n${config.servers || '    server 127.0.0.1:8080;'}\n    \n    # NOTE: 'check' directive requires nginx_upstream_check_module or NGINX Plus\n    check interval=${config.interval || 3000} rise=${config.rise || 2} fall=${config.fall || 3} timeout=${config.timeout || 1000};\n}`;
+            return `${header}upstream ${config.upstream_name || 'backend'} {\n${config.servers || '    server 127.0.0.1:8080;'}\n    \n    # NOTE: 'check' directive requires nginx_upstream_check_module or NGINX with active health-check modules\n    check interval=${config.interval || 3000} rise=${config.rise || 2} fall=${config.fall || 3} timeout=${config.timeout || 1000};\n}`;
 
         case 'location-blocks':
             return `${header}location ${config.path || '/'} {\n${config.directives || '    # Add directives here'}\n}`;

@@ -218,7 +218,7 @@
 | Solution | Agent Overhead | Data Freshness |
 |----------|----------------|----------------|
 | Avika | ~1% CPU, 50MB | 1 second |
-| NGINX Amplify | ~2% CPU, 80MB | 60 seconds |
+| Third-party SaaS monitoring | ~2% CPU, 80MB | 60 seconds |
 | Prometheus + Exporters | ~1% CPU, 30MB | 15-60 seconds |
 | Datadog Agent | ~3% CPU, 150MB | 10 seconds |
 
@@ -226,12 +226,12 @@
 
 # Slide 9: Competitive Comparison - NGINX Management Tools
 
-## Avika vs NGINX Instance Manager (F5)
+## Avika vs commercial NGINX management tools
 
-| Feature | Avika | NGINX Instance Manager |
+| Feature | Avika | Commercial NGINX management |
 |---------|-------|----------------------|
 | **Licensing** | Open Source (Free) | Commercial ($10K+/year) |
-| **NGINX Plus Required** | No | Recommended |
+| **Commercial NGINX required** | No | Often recommended |
 | **Real-time Metrics** | 1 second | 60 seconds |
 | **AI Diagnostics** | Built-in | Add-on (extra cost) |
 | **Log Streaming** | Real-time | Batch |
@@ -241,13 +241,13 @@
 | **Custom Dashboards** | Yes | Limited |
 | **API Completeness** | Full REST + gRPC | REST only |
 
-## Avika vs NGINX Amplify (Deprecated Jan 2026)
+## Avika vs deprecated SaaS NGINX monitoring
 
-| Feature | Avika | NGINX Amplify |
+| Feature | Avika | Deprecated SaaS monitoring |
 |---------|-------|---------------|
 | **Status** | Active Development | **End of Life** |
 | **Deployment** | Self-hosted | SaaS only |
-| **Data Sovereignty** | Full control | F5 servers |
+| **Data Sovereignty** | Full control | Vendor-hosted |
 | **Customization** | Full | Limited |
 
 ## Avika vs General Monitoring Tools (Datadog, New Relic)

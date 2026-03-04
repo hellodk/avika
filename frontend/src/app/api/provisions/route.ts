@@ -60,7 +60,7 @@ server {
             const interval = config.interval || 3000;
             const rise = config.rise || 2;
             const fall = config.fall || 3;
-            // Note: 'check' directive is NGINX Plus or Tengine. 
+            // Note: 'check' directive is available in Tengine or NGINX builds with active health-check modules. 
             // For standard NGINX, passive health checks (max_fails) are used.
             // We'll output a standard upstream block with max_fails.
             return `upstream ${upstream} {

@@ -30,11 +30,11 @@ Avika is a comprehensive NGINX fleet management platform comprising a **Go agent
 
 ## Competitive Comparison
 
-### vs. NGINX Instance Manager (F5/NIM)
+### vs. commercial NGINX management tools
 
-| Dimension | NIM | Avika | Gap |
+| Dimension | Commercial tools | Avika | Gap |
 |-----------|-----|-------|-----|
-| NGINX Plus integration | Native (enhanced metrics, zones, upstreams) | ❌ Missing | **High** — limits enterprise adoption |
+| Commercial NGINX integration | Native (enhanced metrics, zones, upstreams) | ❌ Missing | **High** — limits enterprise adoption |
 | WAF policy management | Built-in (ModSecurity, App Protect) | ❌ Missing | High |
 | CVE scanning | Integrated | ❌ Missing | High |
 | Config staging workflow | Draft → Review → Deploy pipeline | ❌ Missing | Medium |
