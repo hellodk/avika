@@ -17,6 +17,7 @@ import (
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 	"github.com/creack/pty"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 type mgmtServer struct {
@@ -361,7 +362,7 @@ func (s *mgmtServer) UpdateAgentConfig(ctx context.Context, cfg *pb.AgentConfig)
 	}, nil
 }
 
-func startMgmtService(ctx context.Context, configPath string, port int) {
+func startMgmtService(ctx context.Context, configPath string, port int, tlsCreds credentials.TransportCredentials) {
 	addr := fmt.Sprintf(":%d", port)
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -369,7 +370,12 @@ func startMgmtService(ctx context.Context, configPath string, port int) {
 		return
 	}
 
-	grpcServer := grpc.NewServer()
+	var grpcOpts []grpc.ServerOption
+	if tlsCreds != nil {
+		grpcOpts = append(grpcOpts, grpc.ServerOption(grpc.Creds(tlsCreds)))
+	}
+
+	grpcServer := grpc.NewServer(grpcOpts...)
 	pb.RegisterAgentServiceServer(grpcServer, newMgmtServer(configPath))
 	pb.RegisterAgentConfigServiceServer(grpcServer, &agentConfigServer{})
 
