@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getGatewayUrl } from "@/lib/gateway-url";
 
-const GATEWAY_URL = process.env.GATEWAY_HTTP_URL || process.env.NEXT_PUBLIC_GATEWAY_URL || "http://avika-gateway:5021";
+const GATEWAY_URL = getGatewayUrl();
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     // Create response and clear cookie
     const response = NextResponse.json(data, { status: gatewayResponse.status });
-    
+
     // Clear the session cookie
     response.cookies.set("avika_session", "", {
       expires: new Date(0),

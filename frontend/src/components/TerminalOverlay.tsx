@@ -18,6 +18,7 @@ export const TerminalOverlay: React.FC<TerminalOverlayProps> = ({ agentId, onClo
     const socketRef = useRef<WebSocket | null>(null);
     const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
     const [errorMessage, setErrorMessage] = useState<string>('');
+    const { token } = useAuth();
 
     useEffect(() => {
         if (!terminalRef.current) return;
@@ -37,8 +38,6 @@ export const TerminalOverlay: React.FC<TerminalOverlayProps> = ({ agentId, onClo
         fitAddon.fit();
 
         xtermRef.current = term;
-
-        const { token } = useAuth();
 
         // Fetch gateway config from server (which can resolve K8s DNS)
         const connectToTerminal = async () => {

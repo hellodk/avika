@@ -1,13 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { getGatewayUrl } from "@/lib/gateway-url";
 
-const GATEWAY_URL = process.env.GATEWAY_HTTP_URL || process.env.NEXT_PUBLIC_GATEWAY_URL || "http://avika-gateway:5021";
+const GATEWAY_URL = getGatewayUrl();
 
 export async function GET() {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-    const gatewayRes = await fetch(`${GATEWAY_URL}/ready`, { 
+    const gatewayRes = await fetch(`${GATEWAY_URL}/ready`, {
       signal: controller.signal,
       cache: 'no-store'
     }).catch(() => null);

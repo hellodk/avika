@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
+import { getGatewayUrl } from "@/lib/gateway-url";
 
 export const dynamic = 'force-dynamic';
 
-const GATEWAY_URL = process.env.GATEWAY_HTTP_URL || 'http://avika-gateway:5021';
+const GATEWAY_URL = getGatewayUrl();
 
 export async function GET() {
     try {

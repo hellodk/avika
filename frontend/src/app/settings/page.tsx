@@ -33,6 +33,13 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 
 const themeIcons: Record<string, typeof Moon> = {
@@ -82,10 +89,10 @@ export default function SettingsPage() {
     const [timezone, setTimezone] = useState(userSettings.display.timezone);
 
     // Telemetry & AI Settings State
-    const [collectionInterval, setCollectionInterval] = useState("10");
-    const [retentionDays, setRetentionDays] = useState("30");
-    const [anomalyThreshold, setAnomalyThreshold] = useState("0.8");
-    const [windowSize, setWindowSize] = useState("200");
+    const [collectionInterval, setCollectionInterval] = useState(userSettings.telemetry?.collectionInterval || "10");
+    const [retentionDays, setRetentionDays] = useState(userSettings.telemetry?.retentionDays || "30");
+    const [anomalyThreshold, setAnomalyThreshold] = useState(userSettings.aiEngine?.anomalyThreshold || "0.8");
+    const [windowSize, setWindowSize] = useState(userSettings.aiEngine?.windowSize || "200");
 
     useEffect(() => {
         setGrafanaUrl(userSettings.integrations.grafanaUrl);
@@ -94,6 +101,10 @@ export default function SettingsPage() {
         setDefaultTimeRange(userSettings.display.defaultTimeRange);
         setRefreshInterval(userSettings.display.refreshInterval);
         setTimezone(userSettings.display.timezone);
+        setCollectionInterval(userSettings.telemetry?.collectionInterval || "10");
+        setRetentionDays(userSettings.telemetry?.retentionDays || "30");
+        setAnomalyThreshold(userSettings.aiEngine?.anomalyThreshold || "0.8");
+        setWindowSize(userSettings.aiEngine?.windowSize || "200");
     }, [userSettings]);
 
     const integrationsChanged = useMemo(() => {
@@ -181,6 +192,14 @@ export default function SettingsPage() {
                     defaultTimeRange,
                     refreshInterval,
                     timezone,
+                },
+                telemetry: {
+                    collectionInterval,
+                    retentionDays,
+                },
+                aiEngine: {
+                    anomalyThreshold,
+                    windowSize,
                 }
             });
 
@@ -196,10 +215,10 @@ export default function SettingsPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    collection_interval: 10,
-                    retention_days: 30,
-                    anomaly_threshold: 0.8,
-                    window_size: 200,
+                    collection_interval: parseInt(collectionInterval),
+                    retention_days: parseInt(retentionDays),
+                    anomaly_threshold: parseFloat(anomalyThreshold),
+                    window_size: parseInt(windowSize),
                     grafana_url: grafanaUrl
                 })
             });
@@ -405,67 +424,73 @@ export default function SettingsPage() {
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="default-time-range" style={{ color: 'rgb(var(--theme-text))' }}>Default Time Range</Label>
-                        <select
-                            id="default-time-range"
-                            value={defaultTimeRange}
-                            onChange={(e) => setDefaultTimeRange(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                            style={{
-                                background: "rgb(var(--theme-surface-light))",
-                                borderColor: "rgb(var(--theme-border))",
-                                color: "rgb(var(--theme-text))"
-                            }}
-                        >
-                            {TIME_RANGES.map((range) => (
-                                <option key={range.value} value={range.value}>
-                                    {range.label}
-                                </option>
-                            ))}
-                        </select>
+                        <Select value={defaultTimeRange} onValueChange={setDefaultTimeRange}>
+                            <SelectTrigger
+                                id="default-time-range"
+                                style={{
+                                    background: "rgb(var(--theme-surface-light))",
+                                    borderColor: "rgb(var(--theme-border))",
+                                    color: "rgb(var(--theme-text))"
+                                }}
+                            >
+                                <SelectValue placeholder="Select time range" />
+                            </SelectTrigger>
+                            <SelectContent style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
+                                {TIME_RANGES.map((range) => (
+                                    <SelectItem key={range.value} value={range.value}>
+                                        {range.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     <div className="space-y-2">
                         <Label htmlFor="default-refresh-interval" style={{ color: 'rgb(var(--theme-text))' }}>Default Refresh Interval</Label>
-                        <select
-                            id="default-refresh-interval"
-                            value={refreshInterval}
-                            onChange={(e) => setRefreshInterval(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                            style={{
-                                background: "rgb(var(--theme-surface-light))",
-                                borderColor: "rgb(var(--theme-border))",
-                                color: "rgb(var(--theme-text))"
-                            }}
-                        >
-                            {REFRESH_INTERVALS.map((interval) => (
-                                <option key={interval.value} value={interval.value}>
-                                    {interval.label}
-                                </option>
-                            ))}
-                        </select>
+                        <Select value={refreshInterval} onValueChange={setRefreshInterval}>
+                            <SelectTrigger
+                                id="default-refresh-interval"
+                                style={{
+                                    background: "rgb(var(--theme-surface-light))",
+                                    borderColor: "rgb(var(--theme-border))",
+                                    color: "rgb(var(--theme-text))"
+                                }}
+                            >
+                                <SelectValue placeholder="Select refresh interval" />
+                            </SelectTrigger>
+                            <SelectContent style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
+                                {REFRESH_INTERVALS.map((interval) => (
+                                    <SelectItem key={interval.value} value={interval.value || "off"}>
+                                        {interval.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     <div className="space-y-2">
                         <Label htmlFor="default-timezone" style={{ color: 'rgb(var(--theme-text))' }}>Timezone</Label>
-                        <select
-                            id="default-timezone"
-                            value={timezone}
-                            onChange={(e) => setTimezone(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                            style={{
-                                background: "rgb(var(--theme-surface-light))",
-                                borderColor: "rgb(var(--theme-border))",
-                                color: "rgb(var(--theme-text))"
-                            }}
-                        >
-                            {TIMEZONES.map((tz) => (
-                                <option key={tz.value} value={tz.value}>
-                                    {tz.label}
-                                </option>
-                            ))}
-                        </select>
+                        <Select value={timezone} onValueChange={setTimezone}>
+                            <SelectTrigger
+                                id="default-timezone"
+                                style={{
+                                    background: "rgb(var(--theme-surface-light))",
+                                    borderColor: "rgb(var(--theme-border))",
+                                    color: "rgb(var(--theme-text))"
+                                }}
+                            >
+                                <SelectValue placeholder="Select timezone" />
+                            </SelectTrigger>
+                            <SelectContent style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
+                                {TIMEZONES.map((tz) => (
+                                    <SelectItem key={tz.value} value={tz.value}>
+                                        {tz.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                         <p className="text-xs" style={{ color: 'rgb(var(--theme-text-muted))' }}>
-                            \"Browser\" uses your local timezone.
+                            "Browser" uses your local timezone.
                         </p>
                     </div>
 

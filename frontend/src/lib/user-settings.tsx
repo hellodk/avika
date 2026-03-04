@@ -14,9 +14,21 @@ export type DisplaySettings = {
   timezone: string; // "browser" or IANA TZ
 };
 
+export type TelemetrySettings = {
+  collectionInterval: string;
+  retentionDays: string;
+};
+
+export type AIEngineSettings = {
+  anomalyThreshold: string;
+  windowSize: string;
+};
+
 export type UserSettings = {
   integrations: IntegrationsSettings;
   display: DisplaySettings;
+  telemetry: TelemetrySettings;
+  aiEngine: AIEngineSettings;
 };
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
@@ -30,6 +42,14 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     defaultTimeRange: "now-1h",
     refreshInterval: "30s",
     timezone: "browser",
+  },
+  telemetry: {
+    collectionInterval: "10",
+    retentionDays: "30",
+  },
+  aiEngine: {
+    anomalyThreshold: "0.8",
+    windowSize: "200",
   },
 };
 
@@ -57,6 +77,8 @@ type DeepPartial<T> = {
 function mergeSettings(base: UserSettings, patch: DeepPartial<UserSettings>): UserSettings {
   const integrationsPatch = isObject(patch.integrations) ? (patch.integrations as Partial<IntegrationsSettings>) : {};
   const displayPatch = isObject(patch.display) ? (patch.display as Partial<DisplaySettings>) : {};
+  const telemetryPatch = isObject(patch.telemetry) ? (patch.telemetry as Partial<TelemetrySettings>) : {};
+  const aiEnginePatch = isObject(patch.aiEngine) ? (patch.aiEngine as Partial<AIEngineSettings>) : {};
 
   return {
     integrations: {
@@ -66,6 +88,14 @@ function mergeSettings(base: UserSettings, patch: DeepPartial<UserSettings>): Us
     display: {
       ...base.display,
       ...displayPatch,
+    },
+    telemetry: {
+      ...base.telemetry,
+      ...telemetryPatch,
+    },
+    aiEngine: {
+      ...base.aiEngine,
+      ...aiEnginePatch,
     },
   };
 }
