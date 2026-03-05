@@ -4,7 +4,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: keycloak-postgres-secret
-  namespace: avika
+  namespace: utilities
 type: Opaque
 stringData:
   POSTGRES_USER: keycloak
@@ -15,7 +15,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: keycloak-postgres-pvc
-  namespace: avika
+  namespace: utilities
 spec:
   accessModes:
     - ReadWriteOnce
@@ -28,7 +28,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: keycloak-postgres
-  namespace: avika
+  namespace: utilities
   labels:
     app: keycloak-postgres
 spec:
@@ -68,7 +68,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: keycloak-postgres
-  namespace: avika
+  namespace: utilities
 spec:
   selector:
     app: keycloak-postgres
