@@ -50,13 +50,21 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
+    const creds = { username, password };
+    if (!creds.username?.trim() || !creds.password) {
+      setError("Please enter username and password");
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch(`${BASE_PATH}/api/auth/login`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify(creds),
       });
 
       const data = await response.json();
