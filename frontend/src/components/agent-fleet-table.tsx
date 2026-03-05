@@ -244,12 +244,12 @@ export function AgentFleetTable({
         <div className="space-y-6">
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="bg-slate-900 border-slate-800">
+                <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-medium text-slate-400">Total Agents</p>
-                                <p className="text-3xl font-bold mt-1 text-white">{stats.total}</p>
+                                <p className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>Total Agents</p>
+                                <p className="text-3xl font-bold mt-1" style={{ color: 'rgb(var(--theme-text))' }}>{stats.total}</p>
                             </div>
                             <div className="p-3 rounded-lg bg-blue-500/10">
                                 <Server className="h-6 w-6 text-blue-500" />
@@ -258,11 +258,11 @@ export function AgentFleetTable({
                     </CardContent>
                 </Card>
 
-                <Card className="bg-slate-900 border-slate-800">
+                <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-medium text-slate-400">Online</p>
+                                <p className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>Online</p>
                                 <p className="text-3xl font-bold mt-1 text-emerald-500">{stats.online}</p>
                             </div>
                             <div className="p-3 rounded-lg bg-emerald-500/10">
@@ -272,11 +272,11 @@ export function AgentFleetTable({
                     </CardContent>
                 </Card>
 
-                <Card className="bg-slate-900 border-slate-800">
+                <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-medium text-slate-400">Offline</p>
+                                <p className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>Offline</p>
                                 <p className="text-3xl font-bold mt-1 text-red-500">{stats.offline}</p>
                             </div>
                             <div className="p-3 rounded-lg bg-red-500/10">
@@ -286,11 +286,11 @@ export function AgentFleetTable({
                     </CardContent>
                 </Card>
 
-                <Card className="bg-slate-900 border-slate-800">
+                <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-medium text-slate-400">Needs Update</p>
+                                <p className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>Needs Update</p>
                                 <p className="text-3xl font-bold mt-1 text-amber-500">{stats.needsUpdate}</p>
                             </div>
                             <div className="p-3 rounded-lg bg-amber-500/10">
@@ -302,24 +302,25 @@ export function AgentFleetTable({
             </div>
 
             {/* Controls */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900 p-4 rounded-lg border border-slate-800">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-lg border" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                 <div className="flex items-center gap-3">
                     <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: 'rgb(var(--theme-text-muted))' }} />
                         <input
                             type="text"
                             placeholder="Search agents..."
                             value={searchQuery}
                             onChange={(e) => updateParams({ q: e.target.value })}
-                            className="pl-10 pr-4 py-2 text-sm rounded-lg border bg-slate-950 border-slate-700 w-72 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+                            className="pl-10 pr-4 py-2 text-sm rounded-lg border w-72 focus:outline-none focus:ring-2 focus:ring-blue-500"
+ style={{ background: 'rgb(var(--theme-background))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
                         />
                     </div>
-                    <div className="flex rounded-lg border border-slate-700 overflow-hidden bg-slate-950">
+                    <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: 'rgb(var(--theme-border))', background: 'rgb(var(--theme-background))' }}>
                         {(['all', 'online', 'offline'] as const).map((status) => (
                             <button
                                 key={status}
                                 onClick={() => updateParams({ status: status === 'all' ? null : status })}
-                                className={`px-4 py-2 text-xs font-medium capitalize transition-colors ${filterStatus === status ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'
+                                className={`px-4 py-2 text-xs font-medium capitalize transition-colors ${filterStatus === status ? 'bg-blue-600 text-white' : 'hover:opacity-80'
                                     }`}
                             >
                                 {status}
@@ -330,7 +331,7 @@ export function AgentFleetTable({
 
                 <div className="flex items-center gap-2">
                     {selectedAgents.size > 0 && (
-                        <div className="flex items-center gap-2 mr-2 pr-2 border-r border-slate-700">
+                        <div className="flex items-center gap-2 mr-2 pr-2 border-r" style={{ borderColor: 'rgb(var(--theme-border))' }}>
                             <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
                                 {selectedAgents.size} selected
                             </Badge>
@@ -356,7 +357,7 @@ export function AgentFleetTable({
                                     Remove
                                 </Button>
                             )}
-                            <Button variant="ghost" size="sm" onClick={() => onSelectionChange(new Set())} className="text-slate-400">
+                            <Button variant="ghost" size="sm" onClick={() => onSelectionChange(new Set())} style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                 Clear
                             </Button>
                         </div>
@@ -364,23 +365,23 @@ export function AgentFleetTable({
 
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="bg-slate-900 border-slate-700 text-slate-300">
+                            <Button variant="outline" size="sm" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}>
                                 <Download className="h-4 w-4 mr-2" />
                                 Export
                                 <ChevronDown className="h-3 w-3 ml-1" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
-                            <DropdownMenuItem onClick={() => exportInventory('csv')} className="text-slate-300 focus:bg-slate-800 focus:text-white">
+                        <DropdownMenuContent align="end" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
+                            <DropdownMenuItem onClick={() => exportInventory('csv')} style={{ color: 'rgb(var(--theme-text))' }} className="focus:bg-opacity-80">
                                 Export as CSV
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => exportInventory('json')} className="text-slate-300 focus:bg-slate-800 focus:text-white">
+                            <DropdownMenuItem onClick={() => exportInventory('json')} style={{ color: 'rgb(var(--theme-text))' }} className="focus:bg-opacity-80">
                                 Export as JSON
                             </DropdownMenuItem>
                             {selectedAgents.size > 0 && (
                                 <>
-                                    <DropdownMenuSeparator className="bg-slate-800" />
-                                    <DropdownMenuItem onClick={() => exportInventory('csv')} className="text-slate-500 focus:bg-slate-800">
+                                    <DropdownMenuSeparator style={{ borderColor: 'rgb(var(--theme-border))' }} />
+                                    <DropdownMenuItem onClick={() => exportInventory('csv')} style={{ color: 'rgb(var(--theme-text-muted))' }} className="focus:bg-opacity-80">
                                         Export selected ({selectedAgents.size})
                                     </DropdownMenuItem>
                                 </>
@@ -391,45 +392,46 @@ export function AgentFleetTable({
             </div>
 
             {/* Table */}
-            <div className="rounded-lg border border-slate-800 overflow-hidden bg-slate-900">
+            <div className="rounded-lg border overflow-hidden" style={{ borderColor: 'rgb(var(--theme-border))', background: 'rgb(var(--theme-surface))' }}>
                 <Table>
-                    <TableHeader className="bg-slate-950">
-                        <TableRow className="hover:bg-transparent border-slate-800">
+                    <TableHeader style={{ background: 'rgb(var(--theme-background))' }}>
+                        <TableRow className="hover:bg-transparent" style={{ borderColor: 'rgb(var(--theme-border))' }}>
                             <TableHead className="w-[40px]">
                                 <input
                                     type="checkbox"
                                     checked={selectedAgents.size === filteredInstances.length && filteredInstances.length > 0}
                                     onChange={toggleSelectAll}
-                                    className="rounded border-slate-700 bg-slate-900"
+                                    className="rounded"
+                                    style={{ borderColor: 'rgb(var(--theme-border))', background: 'rgb(var(--theme-surface))' }}
                                 />
                             </TableHead>
-                            <TableHead className="text-slate-400 font-medium">
+                            <TableHead className="font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                 <button onClick={() => handleSort('hostname')} className="flex items-center gap-1 hover:text-white transition-colors">
                                     Agent
                                     {sortField === 'hostname' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                                 </button>
                             </TableHead>
-                            <TableHead className="text-slate-400 font-medium">
+                            <TableHead className="font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                 <button onClick={() => handleSort('ip')} className="flex items-center gap-1 hover:text-white transition-colors">
                                     IP Address
                                     {sortField === 'ip' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                                 </button>
                             </TableHead>
-                            <TableHead className="text-slate-400 font-medium">NGINX</TableHead>
-                            <TableHead className="text-slate-400 font-medium">
+                            <TableHead className="font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>NGINX</TableHead>
+                            <TableHead className="font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                 <button onClick={() => handleSort('agent_version')} className="flex items-center gap-1 hover:text-white transition-colors">
                                     Version
                                     {sortField === 'agent_version' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                                 </button>
                             </TableHead>
-                            <TableHead className="text-slate-400 font-medium">Status</TableHead>
-                            <TableHead className="text-slate-400 font-medium whitespace-nowrap">
+                            <TableHead className="font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>Status</TableHead>
+                            <TableHead className="font-medium whitespace-nowrap" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                 <button onClick={() => handleSort('last_seen')} className="flex items-center gap-1 hover:text-white transition-colors">
                                     Last Seen
                                     {sortField === 'last_seen' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                                 </button>
                             </TableHead>
-                            <TableHead className="text-right text-slate-400 font-medium">Actions</TableHead>
+                            <TableHead className="text-right font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -437,13 +439,13 @@ export function AgentFleetTable({
                             Array.from({ length: 5 }).map((_, i) => (
                                 <TableRow key={i}>
                                     <TableCell colSpan={8}>
-                                        <div className="h-12 w-full animate-pulse bg-slate-800/30 rounded" />
+                                        <div className="h-12 w-full animate-pulse rounded" style={{ background: 'rgb(var(--theme-surface) / 0.4)' }} />
                                     </TableCell>
                                 </TableRow>
                             ))
                         ) : filteredInstances.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={8} className="h-40 text-center text-slate-500">
+                                <TableCell colSpan={8} className="h-40 text-center" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                     <div className="flex flex-col items-center justify-center gap-2">
                                         <Server className="h-8 w-8 opacity-20" />
                                         <p>No agents found matching your filters.</p>
@@ -457,19 +459,19 @@ export function AgentFleetTable({
                                 const isSelected = selectedAgents.has(instance.agent_id);
 
                                 return (
-                                    <TableRow key={instance.agent_id} className={`border-slate-800 hover:bg-slate-800/20 ${isSelected ? 'bg-blue-500/5' : ''}`}>
+                                    <TableRow key={instance.agent_id} className={`hover:opacity-95 ${isSelected ? 'bg-blue-500/5' : ''}`} style={{ borderColor: 'rgb(var(--theme-border))' }}>
                                         <TableCell>
                                             <input
                                                 type="checkbox"
                                                 checked={isSelected}
                                                 onChange={() => toggleSelectAgent(instance.agent_id)}
-                                                className="rounded border-slate-700 bg-slate-900"
+                                                className="rounded" style={{ borderColor: 'rgb(var(--theme-border))', background: 'rgb(var(--theme-surface))' }}
                                             />
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-3">
-                                                <div className={`p-2 rounded-lg ${statusInfo.label === "Online" ? 'bg-emerald-500/10' : 'bg-slate-500/10'}`}>
-                                                    <Cpu className={`h-4 w-4 ${statusInfo.label === "Online" ? 'text-emerald-500' : 'text-slate-500'}`} />
+                                                <div className={`p-2 rounded-lg ${statusInfo.label === "Online" ? 'bg-emerald-500/10' : 'bg-gray-500/10'}`}>
+                                                    <Cpu className={`h-4 w-4 ${statusInfo.label === "Online" ? 'text-emerald-500' : 'text-gray-500'}`} />
                                                 </div>
                                                 <div>
                                                     <div className="flex items-center gap-2">
@@ -480,7 +482,7 @@ export function AgentFleetTable({
                                                             <Shield className="h-3.5 w-3.5 text-emerald-500" />
                                                         )}
                                                         {instance.is_pod && (
-                                                            <Badge variant="outline" className="text-[10px] py-0 h-4 border-slate-700 text-slate-500 bg-slate-950">
+                                                            <Badge variant="outline" className="text-[10px] py-0 h-4" style={{ borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text-muted))', background: 'rgb(var(--theme-background))' }}>
                                                                 K8s
                                                             </Badge>
                                                         )}
@@ -488,7 +490,7 @@ export function AgentFleetTable({
                                                     <div className="flex items-center gap-1 group">
                                                         <button
                                                             onClick={() => copyAgentId(instance.agent_id)}
-                                                            className="text-[10px] font-mono text-slate-500 hover:text-slate-300 transition-colors"
+                                                            className="text-[10px] font-mono transition-colors hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }}
                                                         >
                                                             {instance.agent_id?.substring(0, 12)}...
                                                         </button>
@@ -497,15 +499,15 @@ export function AgentFleetTable({
                                                 </div>
                                             </div>
                                         </TableCell>
-                                        <TableCell className="font-mono text-xs text-slate-400">
+                                        <TableCell className="font-mono text-xs" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                             {instance.ip || instance.pod_ip || "N/A"}
                                         </TableCell>
-                                        <TableCell className="text-slate-300 text-sm">
+                                        <TableCell className="text-sm" style={{ color: 'rgb(var(--theme-text))' }}>
                                             {instance.version || "N/A"}
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-slate-300 text-sm">{instance.agent_version || "N/A"}</span>
+                                                <span className="text-sm" style={{ color: 'rgb(var(--theme-text))' }}>{instance.agent_version || "N/A"}</span>
                                                 {needsUpdate && (
                                                     <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[10px]">Update</Badge>
                                                 )}
@@ -517,12 +519,12 @@ export function AgentFleetTable({
                                                 {statusInfo.label}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell className="text-slate-400 text-xs">
+                                        <TableCell className="text-xs" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                             {instance.last_seen ? formatLastSeen(instance.last_seen) : "N/A"}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-0.5">
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }} asChild>
                                                     <Link href={`/servers/${instance.agent_id}`}>
                                                         <ExternalLink className="h-4 w-4" />
                                                     </Link>
@@ -530,12 +532,12 @@ export function AgentFleetTable({
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 text-slate-400 hover:text-white"
+                                                    className="h-8 w-8 hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }}
                                                     onClick={() => onTerminal?.(instance)}
                                                 >
                                                     <Terminal className="h-4 w-4" />
                                                 </Button>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }} asChild>
                                                     <Link href={`/servers/${encodeURIComponent(instance.agent_id)}?tab=drift`}>
                                                         <GitCompare className="h-4 w-4" />
                                                     </Link>

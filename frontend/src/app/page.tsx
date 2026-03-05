@@ -249,7 +249,7 @@ export default function Home() {
                         <span className={`w-2 h-2 rounded-full mr-2 ${onlineAgents === agentCount && agentCount > 0 ? 'bg-emerald-500' : 'bg-amber-500'}`} aria-hidden="true" />
                         {onlineAgents}/{agentCount} Agents Online
                     </Badge>
-                    <Button variant="outline" size="sm" onClick={fetchStats} disabled={loading} aria-label="Refresh dashboard data" className="border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-300">
+                    <Button variant="outline" size="sm" onClick={fetchStats} disabled={loading} aria-label="Refresh dashboard data" style={{ borderColor: 'rgb(var(--theme-border))', background: 'rgb(var(--theme-surface))', color: 'rgb(var(--theme-text-muted))' }} className="hover:opacity-90">
                         <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
                         Refresh
                     </Button>
@@ -611,7 +611,7 @@ function KPICard({ title, value, subValue, icon, iconBg, iconColor, loading, val
                                         <TooltipTrigger asChild>
                                             <Info className="h-3.5 w-3.5 text-slate-500 cursor-help" />
                                         </TooltipTrigger>
-                                        <TooltipContent className="bg-slate-900 border-slate-800 text-slate-200 max-w-[200px] text-xs">
+                                        <TooltipContent className="max-w-[200px] text-xs" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}>
                                             <p>{infoTooltip}</p>
                                         </TooltipContent>
                                     </UITooltip>

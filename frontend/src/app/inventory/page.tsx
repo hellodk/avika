@@ -179,8 +179,8 @@ function InventoryPageContent() {
                     <XCircle className="h-12 w-12 text-red-500" />
                 </div>
                 <div className="text-center space-y-2">
-                    <h2 className="text-xl font-semibold text-white">Unable to load inventory</h2>
-                    <p className="text-sm text-slate-400">{error}</p>
+                    <h2 className="text-xl font-semibold" style={{ color: 'rgb(var(--theme-text))' }}>Unable to load inventory</h2>
+                    <p className="text-sm" style={{ color: 'rgb(var(--theme-text-muted))' }}>{error}</p>
                 </div>
                 <Button onClick={fetchAgents} variant="outline">
                     <RefreshCw className="h-4 w-4 mr-2" />
@@ -202,17 +202,17 @@ function InventoryPageContent() {
             )}
 
             <Dialog open={isExecDialogOpen} onOpenChange={setIsExecDialogOpen}>
-                <DialogContent className="bg-slate-900 border-slate-800">
+                <DialogContent style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-white">
+                        <DialogTitle className="flex items-center gap-2" style={{ color: 'rgb(var(--theme-text))' }}>
                             <Terminal className="h-5 w-5 text-blue-500" />
                             Access Pod Terminal
                         </DialogTitle>
-                        <DialogDescription className="text-slate-400">
+                        <DialogDescription style={{ color: 'rgb(var(--theme-text-muted))' }}>
                             Run this command to access the Kubernetes pod terminal
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="flex items-center p-3 rounded-lg border border-slate-700 bg-slate-950 font-mono text-sm relative">
+                    <div className="flex items-center p-3 rounded-lg border font-mono text-sm relative" style={{ borderColor: 'rgb(var(--theme-border))', background: 'rgb(var(--theme-background))' }}>
                         <code className="text-blue-400 break-all pr-10">{execCommand}</code>
                         <Button
                             size="icon"
@@ -242,10 +242,10 @@ function InventoryPageContent() {
             </Dialog>
 
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                <AlertDialogContent className="bg-slate-900 border-slate-800">
+                <AlertDialogContent style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                     <AlertDialogHeader>
-                        <AlertDialogTitle className="text-white">Remove Agent</AlertDialogTitle>
-                        <AlertDialogDescription className="text-slate-400">
+                        <AlertDialogTitle style={{ color: 'rgb(var(--theme-text))' }}>Remove Agent</AlertDialogTitle>
+                        <AlertDialogDescription style={{ color: 'rgb(var(--theme-text-muted))' }}>
                             Are you sure you want to remove <strong>{agentToDelete?.hostname || agentToDelete?.agent_id}</strong>?
                             This action cannot be undone.
                         </AlertDialogDescription>

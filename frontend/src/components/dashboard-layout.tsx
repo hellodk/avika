@@ -208,44 +208,26 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                     ))}
                 </nav>
 
-                {/* Sidebar Footer */}
+                {/* Sidebar Footer - Collapse/Expand only (Settings is in System section) */}
                 <div className="border-t p-3" style={{ borderColor: "rgb(var(--theme-border))" }}>
                     {!sidebarCollapsed ? (
-                        <div className="space-y-1">
-                            <NavLink
-                                href="/settings"
-                                icon={<Settings />}
-                                label="Settings"
-                                pathname={pathname}
-                                collapsed={sidebarCollapsed}
-                            />
-                            <button
-                                onClick={() => setSidebarCollapsed(true)}
-                                className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg hover:bg-white/5 transition-colors"
-                                style={{ color: "rgb(var(--theme-text-muted))" }}
-                            >
-                                <Menu className="h-4 w-4" />
-                                <span>Collapse</span>
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => setSidebarCollapsed(true)}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg hover:opacity-80 transition-opacity"
+                            style={{ color: "rgb(var(--theme-text-muted))" }}
+                        >
+                            <Menu className="h-4 w-4" />
+                            <span>Collapse</span>
+                        </button>
                     ) : (
-                        <div className="space-y-1">
-                            <NavLink
-                                href="/settings"
-                                icon={<Settings />}
-                                label="Settings"
-                                pathname={pathname}
-                                collapsed={sidebarCollapsed}
-                            />
-                            <button
-                                onClick={() => setSidebarCollapsed(false)}
-                                className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-white/5 transition-colors"
-                                style={{ color: "rgb(var(--theme-text-muted))" }}
-                                title="Expand sidebar"
-                            >
-                                <ChevronRight className="h-4 w-4" />
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => setSidebarCollapsed(false)}
+                            className="w-full flex items-center justify-center p-2 rounded-lg hover:opacity-80 transition-opacity"
+                            style={{ color: "rgb(var(--theme-text-muted))" }}
+                            title="Expand sidebar"
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </button>
                     )}
                 </div>
             </aside>
