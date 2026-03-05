@@ -8,7 +8,7 @@ import {
     FileText, Heart, Cpu, ChevronDown, ChevronRight,
     Search, Bell, User, Menu, X, HelpCircle, LogOut,
     LayoutDashboard, Layers, GitBranch, Terminal, BookOpen, KeyRound, Globe,
-    LineChart, Users, FolderKanban, Lock, Info
+    LineChart, Users, FolderKanban, Lock, Info, Key, ShieldCheck
 } from "lucide-react";
 import { ProjectSelector } from "@/components/project-selector";
 import { EnvironmentTabs } from "@/components/environment-tabs";
@@ -90,6 +90,11 @@ const NAV_SECTIONS: NavSection[] = [
         items: [
             { href: "/settings", icon: <Settings />, label: "General" },
             { href: "/settings/integrations", icon: <Globe />, label: "Integrations" },
+            { href: "/settings/llm", icon: <Zap />, label: "LLM" },
+            { href: "/settings/waf", icon: <Lock />, label: "WAF" },
+            { href: "/settings/sso", icon: <KeyRound />, label: "SSO Integration" },
+            { href: "/settings/ldap", icon: <Key />, label: "LDAP" },
+            { href: "/settings/saml", icon: <ShieldCheck />, label: "SAML" },
         ],
     },
 ];

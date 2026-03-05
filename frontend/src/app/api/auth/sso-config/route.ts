@@ -15,13 +15,13 @@ export async function GET() {
         });
 
         if (!response.ok) {
-            return NextResponse.json({ oidc_enabled: false });
+            return NextResponse.json({ oidc_enabled: false, ldap_enabled: false, saml_enabled: false });
         }
 
         const data = await response.json();
         return NextResponse.json(data);
     } catch (error) {
         console.error('Error fetching SSO config:', error);
-        return NextResponse.json({ oidc_enabled: false });
+        return NextResponse.json({ oidc_enabled: false, ldap_enabled: false, saml_enabled: false });
     }
 }
