@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 
 	"os/signal"
@@ -532,6 +533,18 @@ func main() {
 				primaryNginxVersion := "unknown"
 				if len(instances) > 0 {
 					primaryNginxVersion = instances[0].Version
+				}
+
+				// Fallback for K8s sidecar mode: try to extract from HTTP Server header if native discovery fails
+				if primaryNginxVersion == "unknown" && *nginxStatusURL != "" {
+					client := &http.Client{Timeout: 1 * time.Second}
+					if resp, err := client.Get(*nginxStatusURL); err == nil {
+						serverHeader := resp.Header.Get("Server") // e.g. "nginx/1.25.3"
+						if strings.HasPrefix(strings.ToLower(serverHeader), "nginx/") {
+							primaryNginxVersion = serverHeader[6:]
+						}
+						resp.Body.Close()
+					}
 				}
 
 				hbMsg := &pb.AgentMessage{

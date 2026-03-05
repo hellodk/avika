@@ -216,17 +216,21 @@ security-scan:
 #------------------------------------------------------------------------------
 # Building
 #------------------------------------------------------------------------------
+# Build environment variables
+BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.BuildDate=$(BUILD_DATE) -X main.GitCommit=$(GIT_COMMIT)
+
 build: build-gateway build-agent build-frontend
-	@echo "$(GREEN)All builds completed$(NC)"
+	@echo "$(GREEN)Build complete!$(NC)"
 
 build-gateway: check-version
-	@echo "$(GREEN)Building gateway v$(VERSION)...$(NC)"
-	cd cmd/gateway && go build -ldflags="-s -w -X main.Version=$(VERSION)" -o ../../bin/gateway .
-	@echo "$(GREEN)Gateway built at bin/gateway$(NC)"
+	@echo "$(GREEN)Building gateway...$(NC)"
+	cd cmd/gateway && go build -ldflags="$(LDFLAGS)" -o ../../bin/gateway .
 
 build-agent: check-version
-	@echo "$(GREEN)Building agent v$(VERSION)...$(NC)"
-	cd cmd/agent && go build -ldflags="-s -w -X main.Version=$(VERSION)" -o ../../bin/agent .
+	@echo "$(GREEN)Building agent...$(NC)"
+	cd cmd/agent && go build -ldflags="$(LDFLAGS)" -o ../../bin/agent .
 	@echo "$(GREEN)Agent built at bin/agent$(NC)"
 
 build-frontend:

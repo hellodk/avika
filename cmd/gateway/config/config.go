@@ -211,19 +211,11 @@ type Config struct {
 
 // GetGRPCAddress returns the formatted gRPC listen address
 func (c *Config) GetGRPCAddress() string {
-	// Support legacy Port field
-	if c.Server.Port != "" && strings.HasPrefix(c.Server.Port, ":") {
-		return c.Server.Port
-	}
 	return fmt.Sprintf("%s:%d", c.Server.Host, c.Server.GRPCPort)
 }
 
 // GetHTTPAddress returns the formatted HTTP listen address
 func (c *Config) GetHTTPAddress() string {
-	// Support legacy WSPort field
-	if c.Server.WSPort != "" && strings.HasPrefix(c.Server.WSPort, ":") {
-		return c.Server.WSPort
-	}
 	return fmt.Sprintf("%s:%d", c.Server.Host, c.Server.HTTPPort)
 }
 
