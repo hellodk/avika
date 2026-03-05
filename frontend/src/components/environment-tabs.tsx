@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useProject, Environment } from "@/lib/project-context";
 import { Badge } from "@/components/ui/badge";
@@ -22,9 +23,9 @@ function getEnvironmentStyle(color: string) {
 }
 
 export function EnvironmentTabs({ className }: EnvironmentTabsProps) {
-  const { environments, selectedEnvironment, selectEnvironment, selectedProject, isLoading } = useProject();
+  const { environments, selectedEnvironment, selectEnvironment, selectedProject, isLoading, isSuperAdmin } = useProject();
 
-  if (!selectedProject || environments.length === 0) {
+  if (!selectedProject) {
     return null;
   }
 
@@ -34,6 +35,24 @@ export function EnvironmentTabs({ className }: EnvironmentTabsProps) {
         <div className="h-8 w-24 animate-pulse rounded-md bg-muted" />
         <div className="h-8 w-24 animate-pulse rounded-md bg-muted" />
         <div className="h-8 w-24 animate-pulse rounded-md bg-muted" />
+      </div>
+    );
+  }
+
+  if (environments.length === 0) {
+    return (
+      <div className={cn("rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground", className)}>
+        No environments yet. Connect agents with{" "}
+        <code className="rounded bg-muted px-1 text-xs">AVIKA_LABEL_PROJECT</code> and{" "}
+        <code className="rounded bg-muted px-1 text-xs">AVIKA_LABEL_ENVIRONMENT</code> set, or{" "}
+        {isSuperAdmin ? (
+          <Link href="/settings/projects" className="font-medium text-foreground underline hover:no-underline">
+            add an environment in Settings → Projects
+          </Link>
+        ) : (
+          "ask an admin to add an environment in Settings → Projects"
+        )}
+        .
       </div>
     );
   }

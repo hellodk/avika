@@ -9,7 +9,7 @@ import {
     CheckCircle2, XCircle, AlertTriangle, Terminal, Trash2, 
     RefreshCw, Copy, Check, Server, Cpu, Globe, Search,
     Download, ExternalLink, Shield, ShieldOff,
-    ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, FolderKanban, GitCompare
+    ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, FolderKanban, GitCompare, Settings
 } from "lucide-react";
 import Link from "next/link";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -1136,6 +1136,11 @@ function InventoryPageContent() {
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center justify-end gap-1">
+                                                    <Button variant="ghost" size="sm" asChild title="Edit agent config">
+                                                        <Link href={`/agents/${encodeURIComponent(instance.agent_id)}/config`}>
+                                                            <Settings className="h-4 w-4" />
+                                                        </Link>
+                                                    </Button>
                                                     <Button variant="ghost" size="sm" asChild>
                                                         <Link href={`/servers/${encodeURIComponent(instance.agent_id)}`}>
                                                             <ExternalLink className="h-4 w-4" />
