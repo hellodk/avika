@@ -55,20 +55,15 @@ export async function POST(
                 resolve(NextResponse.json(response));
             });
         } else if (action === 'restart') {
-            // Note: NGINX doesn't have a native "restart" command via nginx -s
-            // We'll implement this as stop + start, or use systemctl if available
-            // For now, we'll return a success response with a note
-            resolve(NextResponse.json({
-                success: true,
-                message: 'Restart functionality requires systemctl integration. Use reload for config changes.'
-            }));
+            client.RestartNginx({ instance_id: id }, (err: any, response: any) => {
+                if (err) return resolve(NextResponse.json({ success: false, error: err.message }, { status: 500 }));
+                resolve(NextResponse.json({ success: response?.success ?? true, error: response?.error }));
+            });
         } else if (action === 'stop') {
-            // Note: NGINX stop via nginx -s stop or systemctl
-            // This requires additional implementation in the agent
-            resolve(NextResponse.json({
-                success: true,
-                message: 'Stop functionality requires systemctl integration or nginx -s stop implementation.'
-            }));
+            client.StopNginx({ instance_id: id }, (err: any, response: any) => {
+                if (err) return resolve(NextResponse.json({ success: false, error: err.message }, { status: 500 }));
+                resolve(NextResponse.json({ success: response?.success ?? true, error: response?.error }));
+            });
         } else if (action === 'update_config') {
             client.UpdateConfig({
                 instance_id: id,

@@ -100,8 +100,20 @@ func (m *Manager) Reload() error {
 	return nil
 }
 
-// Restart restarts the NGINX service
+// TestConfig runs nginx -t to validate the current config without applying changes.
+func (m *Manager) TestConfig() error {
+	output, err := m.runCommand("nginx", "-t")
+	if err != nil {
+		return fmt.Errorf("config test failed: %s", string(output))
+	}
+	return nil
+}
+
+// Restart restarts the NGINX service. Runs nginx -t first; if config is invalid, returns error and does not restart.
 func (m *Manager) Restart() error {
+	if err := m.TestConfig(); err != nil {
+		return err
+	}
 	if m.hasSystemd() {
 		output, err := m.runCommand("systemctl", "restart", "nginx")
 		if err != nil {

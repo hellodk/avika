@@ -10,6 +10,8 @@ service AgentConfigService {
   rpc GetAgentConfig(google.protobuf.Empty) returns (AgentConfigResponse);
   rpc UpdateAgentConfig(AgentConfigUpdate) returns (AgentConfigUpdateResponse);
   rpc TestConnection(ConnectionTestRequest) returns (ConnectionTestResponse);
+  rpc ListConfigBackups(google.protobuf.Empty) returns (ListConfigBackupsResponse);
+  rpc RestoreConfigBackup(RestoreConfigBackupRequest) returns (AgentConfigUpdateResponse);
 }
 
 import "google/protobuf/empty.proto";
@@ -58,5 +60,18 @@ message ConnectionTestResponse {
   string message = 2;
   int64 latency_ms = 3;
   map<string, string> details = 4;
+}
+
+message ListConfigBackupsResponse {
+  repeated ConfigBackupEntry backups = 1;
+}
+
+message ConfigBackupEntry {
+  string name = 1;       // filename (e.g. avika-agent.conf.20060102T150405Z.bak)
+  int64 created_at = 2; // unix timestamp
+}
+
+message RestoreConfigBackupRequest {
+  string backup_name = 1; // filename from ListConfigBackups
 }
 

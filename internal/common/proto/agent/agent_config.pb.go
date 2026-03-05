@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v3.21.12
-// source: api/proto/agent_config.proto
+// source: agent_config.proto
 
 package agent
 
@@ -46,7 +46,7 @@ type AgentConfigResponse struct {
 
 func (x *AgentConfigResponse) Reset() {
 	*x = AgentConfigResponse{}
-	mi := &file_api_proto_agent_config_proto_msgTypes[0]
+	mi := &file_agent_config_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58,7 +58,7 @@ func (x *AgentConfigResponse) String() string {
 func (*AgentConfigResponse) ProtoMessage() {}
 
 func (x *AgentConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_agent_config_proto_msgTypes[0]
+	mi := &file_agent_config_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -71,7 +71,7 @@ func (x *AgentConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentConfigResponse.ProtoReflect.Descriptor instead.
 func (*AgentConfigResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_agent_config_proto_rawDescGZIP(), []int{0}
+	return file_agent_config_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AgentConfigResponse) GetGatewayAddress() string {
@@ -197,7 +197,7 @@ type AgentConfigUpdate struct {
 
 func (x *AgentConfigUpdate) Reset() {
 	*x = AgentConfigUpdate{}
-	mi := &file_api_proto_agent_config_proto_msgTypes[1]
+	mi := &file_agent_config_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -209,7 +209,7 @@ func (x *AgentConfigUpdate) String() string {
 func (*AgentConfigUpdate) ProtoMessage() {}
 
 func (x *AgentConfigUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_agent_config_proto_msgTypes[1]
+	mi := &file_agent_config_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -222,7 +222,7 @@ func (x *AgentConfigUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentConfigUpdate.ProtoReflect.Descriptor instead.
 func (*AgentConfigUpdate) Descriptor() ([]byte, []int) {
-	return file_api_proto_agent_config_proto_rawDescGZIP(), []int{1}
+	return file_agent_config_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *AgentConfigUpdate) GetUpdates() map[string]string {
@@ -258,7 +258,7 @@ type AgentConfigUpdateResponse struct {
 
 func (x *AgentConfigUpdateResponse) Reset() {
 	*x = AgentConfigUpdateResponse{}
-	mi := &file_api_proto_agent_config_proto_msgTypes[2]
+	mi := &file_agent_config_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -270,7 +270,7 @@ func (x *AgentConfigUpdateResponse) String() string {
 func (*AgentConfigUpdateResponse) ProtoMessage() {}
 
 func (x *AgentConfigUpdateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_agent_config_proto_msgTypes[2]
+	mi := &file_agent_config_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -283,7 +283,7 @@ func (x *AgentConfigUpdateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentConfigUpdateResponse.ProtoReflect.Descriptor instead.
 func (*AgentConfigUpdateResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_agent_config_proto_rawDescGZIP(), []int{2}
+	return file_agent_config_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *AgentConfigUpdateResponse) GetSuccess() bool {
@@ -326,7 +326,7 @@ type ConnectionTestRequest struct {
 
 func (x *ConnectionTestRequest) Reset() {
 	*x = ConnectionTestRequest{}
-	mi := &file_api_proto_agent_config_proto_msgTypes[3]
+	mi := &file_agent_config_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -338,7 +338,7 @@ func (x *ConnectionTestRequest) String() string {
 func (*ConnectionTestRequest) ProtoMessage() {}
 
 func (x *ConnectionTestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_agent_config_proto_msgTypes[3]
+	mi := &file_agent_config_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -351,7 +351,7 @@ func (x *ConnectionTestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionTestRequest.ProtoReflect.Descriptor instead.
 func (*ConnectionTestRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_agent_config_proto_rawDescGZIP(), []int{3}
+	return file_agent_config_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ConnectionTestRequest) GetTestType() string {
@@ -380,7 +380,7 @@ type ConnectionTestResponse struct {
 
 func (x *ConnectionTestResponse) Reset() {
 	*x = ConnectionTestResponse{}
-	mi := &file_api_proto_agent_config_proto_msgTypes[4]
+	mi := &file_agent_config_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -392,7 +392,7 @@ func (x *ConnectionTestResponse) String() string {
 func (*ConnectionTestResponse) ProtoMessage() {}
 
 func (x *ConnectionTestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_agent_config_proto_msgTypes[4]
+	mi := &file_agent_config_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -405,7 +405,7 @@ func (x *ConnectionTestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionTestResponse.ProtoReflect.Descriptor instead.
 func (*ConnectionTestResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_agent_config_proto_rawDescGZIP(), []int{4}
+	return file_agent_config_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ConnectionTestResponse) GetSuccess() bool {
@@ -436,11 +436,151 @@ func (x *ConnectionTestResponse) GetDetails() map[string]string {
 	return nil
 }
 
-var File_api_proto_agent_config_proto protoreflect.FileDescriptor
+type ListConfigBackupsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Backups       []*ConfigBackupEntry   `protobuf:"bytes,1,rep,name=backups,proto3" json:"backups,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
 
-const file_api_proto_agent_config_proto_rawDesc = "" +
+func (x *ListConfigBackupsResponse) Reset() {
+	*x = ListConfigBackupsResponse{}
+	mi := &file_agent_config_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListConfigBackupsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListConfigBackupsResponse) ProtoMessage() {}
+
+func (x *ListConfigBackupsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_config_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListConfigBackupsResponse.ProtoReflect.Descriptor instead.
+func (*ListConfigBackupsResponse) Descriptor() ([]byte, []int) {
+	return file_agent_config_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ListConfigBackupsResponse) GetBackups() []*ConfigBackupEntry {
+	if x != nil {
+		return x.Backups
+	}
+	return nil
+}
+
+type ConfigBackupEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`                             // filename (e.g. avika-agent.conf.20060102T150405Z.bak)
+	CreatedAt     int64                  `protobuf:"varint,2,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // unix timestamp
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigBackupEntry) Reset() {
+	*x = ConfigBackupEntry{}
+	mi := &file_agent_config_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigBackupEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigBackupEntry) ProtoMessage() {}
+
+func (x *ConfigBackupEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_config_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigBackupEntry.ProtoReflect.Descriptor instead.
+func (*ConfigBackupEntry) Descriptor() ([]byte, []int) {
+	return file_agent_config_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ConfigBackupEntry) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ConfigBackupEntry) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+type RestoreConfigBackupRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BackupName    string                 `protobuf:"bytes,1,opt,name=backup_name,json=backupName,proto3" json:"backup_name,omitempty"` // filename from ListConfigBackups
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestoreConfigBackupRequest) Reset() {
+	*x = RestoreConfigBackupRequest{}
+	mi := &file_agent_config_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreConfigBackupRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreConfigBackupRequest) ProtoMessage() {}
+
+func (x *RestoreConfigBackupRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_config_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreConfigBackupRequest.ProtoReflect.Descriptor instead.
+func (*RestoreConfigBackupRequest) Descriptor() ([]byte, []int) {
+	return file_agent_config_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *RestoreConfigBackupRequest) GetBackupName() string {
+	if x != nil {
+		return x.BackupName
+	}
+	return ""
+}
+
+var File_agent_config_proto protoreflect.FileDescriptor
+
+const file_agent_config_proto_rawDesc = "" +
 	"\n" +
-	"\x1capi/proto/agent_config.proto\x12\x0enginx.agent.v1\x1a\x1bgoogle/protobuf/empty.proto\"\xad\x05\n" +
+	"\x12agent_config.proto\x12\x0enginx.agent.v1\x1a\x1bgoogle/protobuf/empty.proto\"\xad\x05\n" +
 	"\x13AgentConfigResponse\x12'\n" +
 	"\x0fgateway_address\x18\x01 \x01(\tR\x0egatewayAddress\x12\x19\n" +
 	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12G\n" +
@@ -489,73 +629,92 @@ const file_api_proto_agent_config_proto_rawDesc = "" +
 	"\adetails\x18\x04 \x03(\v23.nginx.agent.v1.ConnectionTestResponse.DetailsEntryR\adetails\x1a:\n" +
 	"\fDetailsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x012\xa7\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"X\n" +
+	"\x19ListConfigBackupsResponse\x12;\n" +
+	"\abackups\x18\x01 \x03(\v2!.nginx.agent.v1.ConfigBackupEntryR\abackups\"F\n" +
+	"\x11ConfigBackupEntry\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x02 \x01(\x03R\tcreatedAt\"=\n" +
+	"\x1aRestoreConfigBackupRequest\x12\x1f\n" +
+	"\vbackup_name\x18\x01 \x01(\tR\n" +
+	"backupName2\xed\x03\n" +
 	"\x12AgentConfigService\x12M\n" +
 	"\x0eGetAgentConfig\x12\x16.google.protobuf.Empty\x1a#.nginx.agent.v1.AgentConfigResponse\x12a\n" +
 	"\x11UpdateAgentConfig\x12!.nginx.agent.v1.AgentConfigUpdate\x1a).nginx.agent.v1.AgentConfigUpdateResponse\x12_\n" +
-	"\x0eTestConnection\x12%.nginx.agent.v1.ConnectionTestRequest\x1a&.nginx.agent.v1.ConnectionTestResponseB7Z5github.com/avika-ai/avika/internal/common/proto/agentb\x06proto3"
+	"\x0eTestConnection\x12%.nginx.agent.v1.ConnectionTestRequest\x1a&.nginx.agent.v1.ConnectionTestResponse\x12V\n" +
+	"\x11ListConfigBackups\x12\x16.google.protobuf.Empty\x1a).nginx.agent.v1.ListConfigBackupsResponse\x12l\n" +
+	"\x13RestoreConfigBackup\x12*.nginx.agent.v1.RestoreConfigBackupRequest\x1a).nginx.agent.v1.AgentConfigUpdateResponseB7Z5github.com/avika-ai/avika/internal/common/proto/agentb\x06proto3"
 
 var (
-	file_api_proto_agent_config_proto_rawDescOnce sync.Once
-	file_api_proto_agent_config_proto_rawDescData []byte
+	file_agent_config_proto_rawDescOnce sync.Once
+	file_agent_config_proto_rawDescData []byte
 )
 
-func file_api_proto_agent_config_proto_rawDescGZIP() []byte {
-	file_api_proto_agent_config_proto_rawDescOnce.Do(func() {
-		file_api_proto_agent_config_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_proto_agent_config_proto_rawDesc), len(file_api_proto_agent_config_proto_rawDesc)))
+func file_agent_config_proto_rawDescGZIP() []byte {
+	file_agent_config_proto_rawDescOnce.Do(func() {
+		file_agent_config_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_agent_config_proto_rawDesc), len(file_agent_config_proto_rawDesc)))
 	})
-	return file_api_proto_agent_config_proto_rawDescData
+	return file_agent_config_proto_rawDescData
 }
 
-var file_api_proto_agent_config_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
-var file_api_proto_agent_config_proto_goTypes = []any{
-	(*AgentConfigResponse)(nil),       // 0: nginx.agent.v1.AgentConfigResponse
-	(*AgentConfigUpdate)(nil),         // 1: nginx.agent.v1.AgentConfigUpdate
-	(*AgentConfigUpdateResponse)(nil), // 2: nginx.agent.v1.AgentConfigUpdateResponse
-	(*ConnectionTestRequest)(nil),     // 3: nginx.agent.v1.ConnectionTestRequest
-	(*ConnectionTestResponse)(nil),    // 4: nginx.agent.v1.ConnectionTestResponse
-	nil,                               // 5: nginx.agent.v1.AgentConfigResponse.LabelsEntry
-	nil,                               // 6: nginx.agent.v1.AgentConfigUpdate.UpdatesEntry
-	nil,                               // 7: nginx.agent.v1.ConnectionTestResponse.DetailsEntry
-	(*emptypb.Empty)(nil),             // 8: google.protobuf.Empty
+var file_agent_config_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_agent_config_proto_goTypes = []any{
+	(*AgentConfigResponse)(nil),        // 0: nginx.agent.v1.AgentConfigResponse
+	(*AgentConfigUpdate)(nil),          // 1: nginx.agent.v1.AgentConfigUpdate
+	(*AgentConfigUpdateResponse)(nil),  // 2: nginx.agent.v1.AgentConfigUpdateResponse
+	(*ConnectionTestRequest)(nil),      // 3: nginx.agent.v1.ConnectionTestRequest
+	(*ConnectionTestResponse)(nil),     // 4: nginx.agent.v1.ConnectionTestResponse
+	(*ListConfigBackupsResponse)(nil),  // 5: nginx.agent.v1.ListConfigBackupsResponse
+	(*ConfigBackupEntry)(nil),          // 6: nginx.agent.v1.ConfigBackupEntry
+	(*RestoreConfigBackupRequest)(nil), // 7: nginx.agent.v1.RestoreConfigBackupRequest
+	nil,                                // 8: nginx.agent.v1.AgentConfigResponse.LabelsEntry
+	nil,                                // 9: nginx.agent.v1.AgentConfigUpdate.UpdatesEntry
+	nil,                                // 10: nginx.agent.v1.ConnectionTestResponse.DetailsEntry
+	(*emptypb.Empty)(nil),              // 11: google.protobuf.Empty
 }
-var file_api_proto_agent_config_proto_depIdxs = []int32{
-	5, // 0: nginx.agent.v1.AgentConfigResponse.labels:type_name -> nginx.agent.v1.AgentConfigResponse.LabelsEntry
-	6, // 1: nginx.agent.v1.AgentConfigUpdate.updates:type_name -> nginx.agent.v1.AgentConfigUpdate.UpdatesEntry
-	7, // 2: nginx.agent.v1.ConnectionTestResponse.details:type_name -> nginx.agent.v1.ConnectionTestResponse.DetailsEntry
-	8, // 3: nginx.agent.v1.AgentConfigService.GetAgentConfig:input_type -> google.protobuf.Empty
-	1, // 4: nginx.agent.v1.AgentConfigService.UpdateAgentConfig:input_type -> nginx.agent.v1.AgentConfigUpdate
-	3, // 5: nginx.agent.v1.AgentConfigService.TestConnection:input_type -> nginx.agent.v1.ConnectionTestRequest
-	0, // 6: nginx.agent.v1.AgentConfigService.GetAgentConfig:output_type -> nginx.agent.v1.AgentConfigResponse
-	2, // 7: nginx.agent.v1.AgentConfigService.UpdateAgentConfig:output_type -> nginx.agent.v1.AgentConfigUpdateResponse
-	4, // 8: nginx.agent.v1.AgentConfigService.TestConnection:output_type -> nginx.agent.v1.ConnectionTestResponse
-	6, // [6:9] is the sub-list for method output_type
-	3, // [3:6] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+var file_agent_config_proto_depIdxs = []int32{
+	8,  // 0: nginx.agent.v1.AgentConfigResponse.labels:type_name -> nginx.agent.v1.AgentConfigResponse.LabelsEntry
+	9,  // 1: nginx.agent.v1.AgentConfigUpdate.updates:type_name -> nginx.agent.v1.AgentConfigUpdate.UpdatesEntry
+	10, // 2: nginx.agent.v1.ConnectionTestResponse.details:type_name -> nginx.agent.v1.ConnectionTestResponse.DetailsEntry
+	6,  // 3: nginx.agent.v1.ListConfigBackupsResponse.backups:type_name -> nginx.agent.v1.ConfigBackupEntry
+	11, // 4: nginx.agent.v1.AgentConfigService.GetAgentConfig:input_type -> google.protobuf.Empty
+	1,  // 5: nginx.agent.v1.AgentConfigService.UpdateAgentConfig:input_type -> nginx.agent.v1.AgentConfigUpdate
+	3,  // 6: nginx.agent.v1.AgentConfigService.TestConnection:input_type -> nginx.agent.v1.ConnectionTestRequest
+	11, // 7: nginx.agent.v1.AgentConfigService.ListConfigBackups:input_type -> google.protobuf.Empty
+	7,  // 8: nginx.agent.v1.AgentConfigService.RestoreConfigBackup:input_type -> nginx.agent.v1.RestoreConfigBackupRequest
+	0,  // 9: nginx.agent.v1.AgentConfigService.GetAgentConfig:output_type -> nginx.agent.v1.AgentConfigResponse
+	2,  // 10: nginx.agent.v1.AgentConfigService.UpdateAgentConfig:output_type -> nginx.agent.v1.AgentConfigUpdateResponse
+	4,  // 11: nginx.agent.v1.AgentConfigService.TestConnection:output_type -> nginx.agent.v1.ConnectionTestResponse
+	5,  // 12: nginx.agent.v1.AgentConfigService.ListConfigBackups:output_type -> nginx.agent.v1.ListConfigBackupsResponse
+	2,  // 13: nginx.agent.v1.AgentConfigService.RestoreConfigBackup:output_type -> nginx.agent.v1.AgentConfigUpdateResponse
+	9,  // [9:14] is the sub-list for method output_type
+	4,  // [4:9] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
-func init() { file_api_proto_agent_config_proto_init() }
-func file_api_proto_agent_config_proto_init() {
-	if File_api_proto_agent_config_proto != nil {
+func init() { file_agent_config_proto_init() }
+func file_agent_config_proto_init() {
+	if File_agent_config_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_agent_config_proto_rawDesc), len(file_api_proto_agent_config_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_agent_config_proto_rawDesc), len(file_agent_config_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_api_proto_agent_config_proto_goTypes,
-		DependencyIndexes: file_api_proto_agent_config_proto_depIdxs,
-		MessageInfos:      file_api_proto_agent_config_proto_msgTypes,
+		GoTypes:           file_agent_config_proto_goTypes,
+		DependencyIndexes: file_agent_config_proto_depIdxs,
+		MessageInfos:      file_agent_config_proto_msgTypes,
 	}.Build()
-	File_api_proto_agent_config_proto = out.File
-	file_api_proto_agent_config_proto_goTypes = nil
-	file_api_proto_agent_config_proto_depIdxs = nil
+	File_agent_config_proto = out.File
+	file_agent_config_proto_goTypes = nil
+	file_agent_config_proto_depIdxs = nil
 }

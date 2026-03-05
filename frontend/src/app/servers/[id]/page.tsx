@@ -10,25 +10,40 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { FileCode, Save, RotateCcw, CheckCircle2, AlertTriangle, Shield, FileText, RefreshCw, Play, Square, RotateCcwIcon, Construction, Plus, Trash2, BarChart3, Activity, Terminal, Copy, Check, Settings, Server, Network, Zap, Globe, Info } from "lucide-react";
-import { useState, useEffect, use } from "react";
+import { FileCode, Save, RotateCcw, CheckCircle2, AlertTriangle, Shield, FileText, RefreshCw, Play, Square, RotateCcwIcon, Construction, Plus, Trash2, BarChart3, Activity, Terminal, Copy, Check, Settings, Server, Network, Zap, Globe, Info, GitCompare } from "lucide-react";
+import { useState, useEffect, use, useMemo } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip } from "recharts";
 import { TerminalOverlay } from "@/components/TerminalOverlay";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 
 interface LogEntry {
-    timestamp: string;
-    level: string;
+    timestamp?: number | string;
+    level?: string;
     message: string;
-    status: number;
+    status?: number;
     request_method?: string;
     request_uri?: string;
     formattedTime?: string;
+    remote_addr?: string;
+    content?: string;
 }
+
+const TAB_VALUES = ["config", "certs", "logs", "analytics", "uptime", "drift", "settings"] as const;
 
 export default function ServerDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const tabFromUrl = searchParams.get("tab");
+    const activeTab = (TAB_VALUES.includes(tabFromUrl as any) ? tabFromUrl : "config") as typeof TAB_VALUES[number];
+    const setActiveTab = (v: string) => {
+        const u = new URLSearchParams(searchParams.toString());
+        u.set("tab", v);
+        router.replace(`${pathname}?${u.toString()}`, { scroll: false });
+    };
     const [serverInfo, setServerInfo] = useState<any>(null);
     const [config, setConfig] = useState("");
     const [certificates, setCertificates] = useState<any[]>([]);
@@ -37,6 +52,10 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     const [maintenanceMode, setMaintenanceMode] = useState(false);
 
     const [logs, setLogs] = useState<LogEntry[]>([]);
+    const [logType, setLogType] = useState<'access' | 'error'>('access');
+    const [logStatusFilter, setLogStatusFilter] = useState<string>('all');
+    const [logClientIpFilter, setLogClientIpFilter] = useState('');
+    const [logTimeWindowMins, setLogTimeWindowMins] = useState<number>(60);
     const [uptimeReports, setUptimeReports] = useState<any[]>([]);
     const [analytics, setAnalytics] = useState<any>(null);
     const [isConnected, setIsConnected] = useState(false);
@@ -67,6 +86,13 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     });
     const [isSavingConfig, setIsSavingConfig] = useState(false);
     const [configLoading, setConfigLoading] = useState(false);
+    const [configBackups, setConfigBackups] = useState<{ name: string; created_at: number }[]>([]);
+    const [configBackupsLoading, setConfigBackupsLoading] = useState(false);
+    const [restoreLoading, setRestoreLoading] = useState(false);
+
+    // Drift (per-group status for this server)
+    const [driftGroups, setDriftGroups] = useState<{ group_id: string; group_name: string; report_id: string; status: string; baseline_type: string; diff_summary?: string; error_message?: string; created_at: number }[]>([]);
+    const [driftLoading, setDriftLoading] = useState(false);
 
     const fetchDetails = async () => {
         setIsLoading(true);
@@ -113,6 +139,62 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
             console.error("Failed to fetch agent config", err);
         } finally {
             setConfigLoading(false);
+        }
+    };
+
+    const fetchConfigBackups = async () => {
+        setConfigBackupsLoading(true);
+        try {
+            const res = await apiFetch(`/api/servers/${id}/config/backups`);
+            if (res.ok) {
+                const data = await res.json();
+                setConfigBackups(data.backups || []);
+            }
+        } catch (err) {
+            console.error("Failed to fetch config backups", err);
+        } finally {
+            setConfigBackupsLoading(false);
+        }
+    };
+
+    const fetchDrift = async () => {
+        setDriftLoading(true);
+        try {
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}/drift`);
+            if (res.ok) {
+                const data = await res.json();
+                setDriftGroups(data.groups || []);
+            } else {
+                setDriftGroups([]);
+            }
+        } catch (err) {
+            console.error("Failed to fetch drift", err);
+            setDriftGroups([]);
+        } finally {
+            setDriftLoading(false);
+        }
+    };
+
+    const restoreConfigBackup = async (backupName: string) => {
+        setRestoreLoading(true);
+        try {
+            const res = await apiFetch(`/api/servers/${id}/config/restore`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ backup_name: backupName }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success("Config restored", { description: data.message || "Agent restart may be required." });
+                fetchAgentConfig();
+                fetchConfigBackups();
+            } else {
+                toast.error("Restore failed", { description: data.error });
+            }
+        } catch (err: any) {
+            toast.error("Restore failed", { description: err?.message });
+        } finally {
+            setRestoreLoading(false);
         }
     };
 
@@ -184,13 +266,13 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
             });
             const result = await res.json();
             if (result.success) {
-                console.log(`NGINX ${action} success`);
-                // Optional: show toast
+                toast.success(`NGINX ${action} succeeded`);
             } else {
-                console.error(`NGINX ${action} failed:`, result.error);
+                const msg = result.error || result.message || `NGINX ${action} failed`;
+                toast.error(`NGINX ${action} failed`, { description: msg });
             }
-        } catch (err) {
-            console.error(`Failed to trigger ${action}`, err);
+        } catch (err: any) {
+            toast.error(`NGINX ${action} failed`, { description: err?.message || String(err) });
         }
     };
 
@@ -222,9 +304,12 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         fetchDetails();
         fetchAnalytics();
         fetchAgentConfig();
+        fetchConfigBackups();
+        fetchDrift();
 
-        // Connect to Log Stream
-        const eventSource = new EventSource(`/api/servers/${id}/logs`);
+        // Connect to Log Stream (encode id so + in e.g. hostname+ip is preserved)
+        const logsUrl = `${apiUrl("/api/servers/" + encodeURIComponent(id) + "/logs")}?follow=1&tail=200&log_type=${logType}`;
+        const eventSource = new EventSource(logsUrl);
 
         eventSource.onopen = () => {
             setIsConnected(true);
@@ -233,6 +318,10 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         eventSource.onmessage = (event) => {
             try {
                 const newLog = JSON.parse(event.data);
+                if (newLog.error) {
+                    console.error("Log stream error:", newLog.error);
+                    return;
+                }
                 const ts = newLog.timestamp || Math.floor(Date.now() / 1000);
                 const date = new Date(ts * 1000);
                 newLog.formattedTime = date.toLocaleString();
@@ -241,7 +330,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 if (!newLog.message && newLog.content) {
                     newLog.message = newLog.content;
                 } else if (!newLog.message) {
-                    newLog.message = `${newLog.request_method} ${newLog.request_uri} ${newLog.status}`;
+                    newLog.message = `${newLog.request_method || ""} ${newLog.request_uri || ""} ${newLog.status || ""}`.trim() || "—";
                 }
 
                 setLogs((prev) => [newLog, ...prev].slice(0, 50));
@@ -259,7 +348,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         return () => {
             eventSource.close();
         };
-    }, [id]);
+    }, [id, logType]);
 
     useEffect(() => {
         const fetchUptime = async () => {
@@ -286,6 +375,46 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
 
     const currentStatus = serverInfo?.status || "unknown";
     const execCommand = `kubectl exec -it ${serverInfo?.hostname} -- /bin/bash`;
+
+    // Client-side log filters
+    const filteredLogs = useMemo(() => {
+        const now = Date.now() / 1000;
+        const cutoff = now - logTimeWindowMins * 60;
+        return logs.filter((log) => {
+            const ts = typeof log.timestamp === 'number' ? log.timestamp : (typeof log.timestamp === 'string' ? parseInt(log.timestamp, 10) : 0);
+            if (logTimeWindowMins > 0 && ts > 0 && ts < cutoff) return false;
+            const status = log.status ?? 0;
+            if (logStatusFilter !== 'all') {
+                if (logStatusFilter === '2xx' && (status < 200 || status >= 300)) return false;
+                if (logStatusFilter === '4xx' && (status < 400 || status >= 500)) return false;
+                if (logStatusFilter === '5xx' && status < 500) return false;
+            }
+            const ip = (log.remote_addr || '').trim();
+            if (logClientIpFilter.trim()) {
+                const f = logClientIpFilter.trim();
+                if (f.includes('/')) {
+                    const [subnet, prefixLen] = f.split('/');
+                    const len = parseInt(prefixLen, 10) || 32;
+                    if (!ipStartsWithCIDR(ip, subnet, len)) return false;
+                } else if (!ip.startsWith(f)) return false;
+            }
+            return true;
+        });
+    }, [logs, logStatusFilter, logClientIpFilter, logTimeWindowMins]);
+
+    function ipStartsWithCIDR(ip: string, subnet: string, prefixLen: number): boolean {
+        const toInt = (s: string) => {
+            const parts = s.trim().split('.').map((n) => parseInt(n, 10) >>> 0);
+            if (parts.length !== 4 || parts.some((p) => Number.isNaN(p))) return null;
+            return (parts[0]! << 24) | (parts[1]! << 16) | (parts[2]! << 8) | parts[3]!;
+        };
+        const ipN = toInt(ip);
+        const subN = toInt(subnet);
+        if (ipN == null || subN == null) return ip === subnet;
+        const bits = Math.min(Math.max(0, prefixLen), 32);
+        const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+        return (ipN & mask) === (subN & mask);
+    }
 
     return (
         <div className="space-y-6">
@@ -446,7 +575,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 </CardContent>
             </Card>
 
-            <Tabs defaultValue="config" className="space-y-4">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
                 <TabsList className="border" style={{ background: `rgb(var(--theme-surface))`, borderColor: `rgb(var(--theme-border))` }}>
                     <TabsTrigger value="config" style={{ color: `rgb(var(--theme-text))` }}>
                         <FileCode className="h-4 w-4 mr-2" />
@@ -467,6 +596,10 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                     <TabsTrigger value="uptime" className="data-[state=active]:bg-neutral-800">
                         <Activity className="h-4 w-4 mr-2" />
                         Uptime
+                    </TabsTrigger>
+                    <TabsTrigger value="drift" className="data-[state=active]:bg-neutral-800">
+                        <GitCompare className="h-4 w-4 mr-2" />
+                        Drift
                     </TabsTrigger>
                     <TabsTrigger value="settings" className="data-[state=active]:bg-neutral-800">
                         <Settings className="h-4 w-4 mr-2" />
@@ -540,17 +673,65 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 </TabsContent>
 
                 <TabsContent value="logs">
-                    <Card className="bg-neutral-900 border-neutral-800">
+                    <Card className="bg-neutral-900 border-neutral-800" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
                         <CardHeader>
-                            <CardTitle className="text-white">Access Logs (Live)</CardTitle>
+                            <div className="flex flex-wrap items-center justify-between gap-4">
+                                <CardTitle style={{ color: "rgb(var(--theme-text))" }}>Live Logs</CardTitle>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <Select value={logType} onValueChange={(v: 'access' | 'error') => setLogType(v)}>
+                                        <SelectTrigger className="w-[120px] h-9" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="access">Access</SelectItem>
+                                            <SelectItem value="error">Error</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <Select value={logStatusFilter} onValueChange={setLogStatusFilter}>
+                                        <SelectTrigger className="w-[100px] h-9" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
+                                            <SelectValue placeholder="Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All</SelectItem>
+                                            <SelectItem value="2xx">2xx</SelectItem>
+                                            <SelectItem value="4xx">4xx</SelectItem>
+                                            <SelectItem value="5xx">5xx</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <Select value={String(logTimeWindowMins)} onValueChange={(v) => setLogTimeWindowMins(Number(v))}>
+                                        <SelectTrigger className="w-[110px] h-9" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="0">All time</SelectItem>
+                                            <SelectItem value="5">Last 5m</SelectItem>
+                                            <SelectItem value="15">Last 15m</SelectItem>
+                                            <SelectItem value="60">Last 1h</SelectItem>
+                                            <SelectItem value="360">Last 6h</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <Input
+                                        placeholder="IP or CIDR"
+                                        value={logClientIpFilter}
+                                        onChange={(e) => setLogClientIpFilter(e.target.value)}
+                                        className="w-[140px] h-9 font-mono text-xs"
+                                        style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}
+                                    />
+                                </div>
+                            </div>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-2 font-mono text-xs">
-                                {logs.length === 0 && isConnected && <div className="text-neutral-500 italic">Waiting for logs...</div>}
-                                {!isConnected && logs.length === 0 && <div className="text-neutral-500 italic">Connecting to log stream...</div>}
-                                {logs.map((log, idx) => (
-                                    <div key={idx} className={`p-2 rounded ${log.status >= 400 ? 'bg-red-500/10 text-red-400' : 'bg-neutral-950 text-neutral-300'}`}>
-                                        <span className="text-neutral-500">[{log.formattedTime || log.timestamp}]</span> {log.message}
+                                {logs.length === 0 && isConnected && <div className="italic" style={{ color: "rgb(var(--theme-text-muted))" }}>Waiting for logs...</div>}
+                                {!isConnected && logs.length === 0 && <div className="italic" style={{ color: "rgb(var(--theme-text-muted))" }}>Connecting to log stream...</div>}
+                                {filteredLogs.length < logs.length && logs.length > 0 && (
+                                    <div className="text-xs mb-2" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                        Showing {filteredLogs.length} of {logs.length} entries (filters applied)
+                                    </div>
+                                )}
+                                {filteredLogs.map((log, idx) => (
+                                    <div key={idx} className={`p-2 rounded ${(log.status ?? 0) >= 400 ? 'bg-red-500/10 text-red-400' : ''}`} style={{ color: (log.status ?? 0) >= 400 ? undefined : "rgb(var(--theme-text-muted))" }}>
+                                        <span className="opacity-80">[{log.formattedTime || log.timestamp}]</span> {log.remote_addr && <span className="text-neutral-500">{log.remote_addr} </span>}{log.message}
                                     </div>
                                 ))}
                             </div>
@@ -692,6 +873,53 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                             </CardContent>
                         </Card>
                     </div>
+                </TabsContent>
+
+                <TabsContent value="drift">
+                    <Card className="bg-neutral-900 border-neutral-800">
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="text-white">Drift by group</CardTitle>
+                                <Button size="sm" variant="outline" onClick={fetchDrift} disabled={driftLoading} className="border-neutral-700 text-white">
+                                    <RefreshCw className={`h-4 w-4 mr-2 ${driftLoading ? "animate-spin" : ""}`} />
+                                    Refresh
+                                </Button>
+                            </div>
+                            <CardDescription className="text-neutral-400">
+                                Status of this server compared to each group it belongs to
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {driftLoading && driftGroups.length === 0 ? (
+                                <div className="text-neutral-500 italic py-4">Loading drift…</div>
+                            ) : driftGroups.length === 0 ? (
+                                <div className="text-neutral-500 italic py-4">Not in any group, or no drift data yet.</div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {driftGroups.map((g) => (
+                                        <div key={g.group_id} className="flex items-center justify-between p-3 rounded-lg bg-neutral-950 border border-neutral-800">
+                                            <div>
+                                                <div className="font-medium text-white">{g.group_name}</div>
+                                                {g.diff_summary && <div className="text-sm text-neutral-400 mt-1">{g.diff_summary}</div>}
+                                                {g.error_message && <div className="text-sm text-amber-400 mt-1">{g.error_message}</div>}
+                                            </div>
+                                            <Badge
+                                                className={
+                                                    g.status === "in_sync"
+                                                        ? "bg-green-500/10 text-green-400 border-green-500/20"
+                                                        : g.status === "drifted"
+                                                        ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                                                        : "bg-red-500/10 text-red-400 border-red-500/20"
+                                                }
+                                            >
+                                                {g.status === "in_sync" ? "In sync" : g.status === "drifted" ? "Drifted" : g.status}
+                                            </Badge>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
                 </TabsContent>
 
                 <TabsContent value="settings">
@@ -937,6 +1165,55 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                         />
                                     </div>
                                 </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Config backups (last 5) */}
+                        <Card className="bg-neutral-900 border-neutral-800" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                            <CardHeader>
+                                <CardTitle className="text-white flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
+                                    <FileText className="h-5 w-5 text-amber-400" />
+                                    Config backups
+                                </CardTitle>
+                                <CardDescription className="text-neutral-400" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                    Last 5 backups of avika-agent.conf. Restore overwrites current config; agent restart may be required.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={fetchConfigBackups}
+                                        disabled={configBackupsLoading}
+                                        className="border-neutral-700 text-white hover:bg-neutral-800"
+                                    >
+                                        <RefreshCw className={`h-4 w-4 mr-2 ${configBackupsLoading ? 'animate-spin' : ''}`} />
+                                        Refresh list
+                                    </Button>
+                                </div>
+                                {configBackups.length === 0 && !configBackupsLoading && (
+                                    <p className="text-sm text-neutral-500" style={{ color: "rgb(var(--theme-text-muted))" }}>No backups yet. Save configuration to create one.</p>
+                                )}
+                                <ul className="space-y-2">
+                                    {configBackups.map((b) => (
+                                        <li key={b.name} className="flex items-center justify-between p-2 rounded-lg bg-neutral-950 border border-neutral-800">
+                                            <span className="font-mono text-sm text-white truncate" style={{ color: "rgb(var(--theme-text))" }}>{b.name}</span>
+                                            <span className="text-xs text-neutral-500 shrink-0 ml-2" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                                {b.created_at ? new Date(b.created_at * 1000).toLocaleString() : "—"}
+                                            </span>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="ml-2 border-amber-700 text-amber-400 hover:bg-amber-900/20"
+                                                disabled={restoreLoading}
+                                                onClick={() => restoreConfigBackup(b.name)}
+                                            >
+                                                Restore
+                                            </Button>
+                                        </li>
+                                    ))}
+                                </ul>
                             </CardContent>
                         </Card>
 

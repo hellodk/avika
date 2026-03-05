@@ -525,6 +525,36 @@ func (s *server) getGroupByID(ctx context.Context, groupID string) (*AgentGroup,
 	return group, nil
 }
 
+// groupAssignment holds group id and name for an agent
+type groupAssignment struct {
+	groupID   string
+	groupName string
+}
+
+// getGroupsForAgent returns all groups the agent is assigned to.
+func (s *server) getGroupsForAgent(ctx context.Context, agentID string) ([]groupAssignment, error) {
+	query := `
+		SELECT g.id, g.name
+		FROM agent_groups g
+		JOIN server_assignments sa ON sa.group_id = g.id
+		WHERE sa.agent_id = $1 AND sa.group_id IS NOT NULL
+	`
+	rows, err := s.db.conn.QueryContext(ctx, query, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []groupAssignment
+	for rows.Next() {
+		var a groupAssignment
+		if err := rows.Scan(&a.groupID, &a.groupName); err != nil {
+			continue
+		}
+		out = append(out, a)
+	}
+	return out, nil
+}
+
 func scanAgentGroup(rows *sql.Rows) (*AgentGroup, error) {
 	var group AgentGroup
 	var metadataJSON []byte
