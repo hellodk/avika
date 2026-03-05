@@ -256,6 +256,13 @@ function SystemHealthPageContent() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <Link
+                        href="/system/preview"
+                        className="text-sm hover:underline"
+                        style={{ color: "rgb(var(--theme-text-muted))" }}
+                    >
+                        Preview new layout
+                    </Link>
                     <Badge 
                         variant="outline" 
                         className={stats.active === stats.total && stats.total > 0 
