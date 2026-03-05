@@ -9,7 +9,7 @@ import {
     CheckCircle2, XCircle, AlertTriangle, Terminal, Trash2, 
     RefreshCw, Copy, Check, Server, Cpu, Globe, Search,
     Download, ExternalLink, Shield, ShieldOff,
-    ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, FolderKanban
+    ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, FolderKanban, GitCompare
 } from "lucide-react";
 import Link from "next/link";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -939,6 +939,12 @@ function InventoryPageContent() {
                                             )}
                                         </button>
                                     </TableHead>
+                                    <TableHead style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                        <div className="flex items-center gap-1">
+                                            <GitCompare className="h-3 w-3" />
+                                            Drift
+                                        </div>
+                                    </TableHead>
                                     <TableHead className="text-right" style={{ color: "rgb(var(--theme-text-muted))" }}>Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -1121,9 +1127,17 @@ function InventoryPageContent() {
                                                     : "Just now"}
                                             </TableCell>
                                             <TableCell>
+                                                <Button variant="ghost" size="sm" asChild>
+                                                    <Link href={`/servers/${encodeURIComponent(instance.agent_id)}?tab=drift`}>
+                                                        <GitCompare className="h-4 w-4 mr-1" />
+                                                        View
+                                                    </Link>
+                                                </Button>
+                                            </TableCell>
+                                            <TableCell>
                                                 <div className="flex items-center justify-end gap-1">
                                                     <Button variant="ghost" size="sm" asChild>
-                                                        <Link href={`/servers/${instance.agent_id}`}>
+                                                        <Link href={`/servers/${encodeURIComponent(instance.agent_id)}`}>
                                                             <ExternalLink className="h-4 w-4" />
                                                         </Link>
                                                     </Button>

@@ -97,6 +97,58 @@ func (s *agentConfigServer) TestConnection(ctx context.Context, req *pb.Connecti
 	}
 }
 
+func (s *agentConfigServer) ListConfigBackups(ctx context.Context, _ *emptypb.Empty) (*pb.ListConfigBackupsResponse, error) {
+	path := strings.TrimSpace(*configFile)
+	if path == "" {
+		return &pb.ListConfigBackupsResponse{Backups: nil}, nil
+	}
+	dir := filepath.Join(filepath.Dir(path), agentConfigBackupDir)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return &pb.ListConfigBackupsResponse{Backups: nil}, nil
+	}
+	var backups []*pb.ConfigBackupEntry
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".bak") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		backups = append(backups, &pb.ConfigBackupEntry{
+			Name:      e.Name(),
+			CreatedAt: info.ModTime().Unix(),
+		})
+	}
+	sort.Slice(backups, func(i, j int) bool { return backups[i].CreatedAt > backups[j].CreatedAt })
+	return &pb.ListConfigBackupsResponse{Backups: backups}, nil
+}
+
+func (s *agentConfigServer) RestoreConfigBackup(ctx context.Context, req *pb.RestoreConfigBackupRequest) (*pb.AgentConfigUpdateResponse, error) {
+	if req == nil || strings.TrimSpace(req.BackupName) == "" {
+		return &pb.AgentConfigUpdateResponse{Success: false, Error: "backup_name is required"}, nil
+	}
+	path := strings.TrimSpace(*configFile)
+	if path == "" {
+		return &pb.AgentConfigUpdateResponse{Success: false, Error: "config file path is empty"}, nil
+	}
+	backupDir := filepath.Join(filepath.Dir(path), agentConfigBackupDir)
+	name := filepath.Base(req.BackupName)
+	if name != req.BackupName || !strings.HasSuffix(name, ".bak") {
+		return &pb.AgentConfigUpdateResponse{Success: false, Error: "invalid backup_name"}, nil
+	}
+	backupPath := filepath.Join(backupDir, name)
+	if err := copyFileContents(backupPath, path); err != nil {
+		return &pb.AgentConfigUpdateResponse{Success: false, Error: fmt.Sprintf("restore failed: %v", err)}, nil
+	}
+	return &pb.AgentConfigUpdateResponse{
+		Success:         true,
+		Message:         "config restored from backup; agent restart required for changes to take effect",
+		RequiresRestart: true,
+	}, nil
+}
+
 func currentAgentConfigResponse() *pb.AgentConfigResponse {
 	labels := make(map[string]string)
 	agentLabelsMu.RLock()
@@ -248,6 +300,9 @@ func applyAgentUpdates(updates map[string]string, hotReload bool) (changed []str
 	return changed, requiresRestart, nil
 }
 
+const agentConfigBackupKeep = 5
+const agentConfigBackupDir = ".avika-agent-backups"
+
 func persistAgentConfigUpdates(path string, updates map[string]string) error {
 	if strings.TrimSpace(path) == "" {
 		return fmt.Errorf("config file path is empty")
@@ -260,12 +315,19 @@ func persistAgentConfigUpdates(path string, updates map[string]string) error {
 		}
 	}
 
-	// Backup existing file (if present)
+	// Backup existing file to a dedicated dir (keep last N)
 	if _, err := os.Stat(path); err == nil {
-		backupPath := path + ".bak." + time.Now().UTC().Format("20060102T150405Z")
+		backupDir := filepath.Join(dir, agentConfigBackupDir)
+		if err := os.MkdirAll(backupDir, 0755); err != nil {
+			return fmt.Errorf("failed to create backup directory: %w", err)
+		}
+		base := filepath.Base(path)
+		ts := time.Now().UTC().Format("20060102T150405Z")
+		backupPath := filepath.Join(backupDir, base+"."+ts+".bak")
 		if err := copyFileContents(path, backupPath); err != nil {
 			return fmt.Errorf("failed to backup config: %w", err)
 		}
+		pruneAgentConfigBackups(backupDir, agentConfigBackupKeep)
 	}
 
 	orig, _ := os.ReadFile(path)
@@ -345,6 +407,33 @@ func copyFileContents(src, dst string) error {
 	defer d.Close()
 	_, err = io.Copy(d, s)
 	return err
+}
+
+// pruneAgentConfigBackups keeps only the latest keepN backup files in backupDir (by name, which includes timestamp).
+func pruneAgentConfigBackups(backupDir string, keepN int) {
+	if keepN <= 0 {
+		return
+	}
+	entries, err := os.ReadDir(backupDir)
+	if err != nil {
+		return
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(e.Name(), ".bak") {
+			names = append(names, e.Name())
+		}
+	}
+	if len(names) <= keepN {
+		return
+	}
+	sort.Strings(names) // oldest first (timestamp in name)
+	for i := 0; i < len(names)-keepN; i++ {
+		_ = os.Remove(filepath.Join(backupDir, names[i]))
+	}
 }
 
 func firstGatewayAddress() string {

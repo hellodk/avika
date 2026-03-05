@@ -7,12 +7,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -720,4 +721,99 @@ func summarizeDiff(diff string) string {
 func computeConfigHash(content string) string {
 	hash := sha256.Sum256([]byte(content))
 	return hex.EncodeToString(hash[:])
+}
+
+// DriftForAgentGroupItem is the drift status of one agent in one group (for GET /api/servers/:id/drift).
+type DriftForAgentGroupItem struct {
+	GroupID      string `json:"group_id"`
+	GroupName    string `json:"group_name"`
+	ReportID     string `json:"report_id"`
+	Status       string `json:"status"`
+	BaselineType string `json:"baseline_type"`
+	DiffSummary  string `json:"diff_summary,omitempty"`
+	DiffContent  string `json:"diff_content,omitempty"`
+	ErrorMessage string `json:"error_message,omitempty"`
+	CreatedAt    int64  `json:"created_at"`
+}
+
+// getDriftForAgent returns drift status for the given agent in each of its groups.
+func (s *server) getDriftForAgent(ctx context.Context, agentID string) ([]DriftForAgentGroupItem, error) {
+	groups, err := s.getGroupsForAgent(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+	var result []DriftForAgentGroupItem
+	for _, g := range groups {
+		item := DriftForAgentGroupItem{GroupID: g.groupID, GroupName: g.groupName}
+		// Prefer latest stored report
+		listResp, err := s.ListDriftReports(ctx, &pb.ListDriftReportsRequest{
+			Scope:   "group",
+			ScopeId: g.groupID,
+			Limit:   1,
+		})
+		if err == nil && len(listResp.Reports) > 0 {
+			report := listResp.Reports[0]
+			item.ReportID = report.ReportId
+			item.BaselineType = report.BaselineType
+			item.CreatedAt = report.CreatedAt
+			for _, it := range report.Items {
+				if it.AgentId == agentID {
+					item.Status = it.Status
+					item.DiffSummary = it.DiffSummary
+					item.DiffContent = it.DiffContent
+					item.ErrorMessage = it.ErrorMessage
+					break
+				}
+			}
+			if item.Status == "" {
+				item.Status = "unknown"
+			}
+		} else {
+			// No report or error: run a fresh drift check for this group
+			checkResp, err := s.CheckDrift(ctx, &pb.DriftCheckRequest{
+				Scope:      "group",
+				ScopeId:    g.groupID,
+				CheckTypes: []string{"nginx_main_conf"},
+			})
+			if err != nil {
+				item.Status = "error"
+				item.ErrorMessage = err.Error()
+				result = append(result, item)
+				continue
+			}
+			item.ReportID = checkResp.ReportId
+			item.BaselineType = checkResp.BaselineType
+			item.CreatedAt = checkResp.CreatedAt
+			for _, it := range checkResp.Items {
+				if it.AgentId == agentID {
+					item.Status = it.Status
+					item.DiffSummary = it.DiffSummary
+					item.DiffContent = it.DiffContent
+					item.ErrorMessage = it.ErrorMessage
+					break
+				}
+			}
+			if item.Status == "" {
+				item.Status = "unknown"
+			}
+		}
+		result = append(result, item)
+	}
+	return result, nil
+}
+
+// handleGetServerDrift handles GET /api/servers/{agentId}/drift
+func (s *server) handleGetServerDrift(w http.ResponseWriter, r *http.Request) {
+	agentID := r.PathValue("agentId")
+	if agentID == "" {
+		http.Error(w, `{"error":"agent ID required"}`, http.StatusBadRequest)
+		return
+	}
+	items, err := s.getDriftForAgent(r.Context(), agentID)
+	if err != nil {
+		http.Error(w, `{"error":"`+strings.ReplaceAll(err.Error(), `"`, `\"`)+`"}`, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"groups": items})
 }

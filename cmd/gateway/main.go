@@ -1524,6 +1524,9 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Geo API endpoint
 	mux.Handle("/api/geo", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGeoData)))
 
+	// Visitor analytics API (shape expected by frontend)
+	mux.Handle("/api/visitor-analytics", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleVisitorAnalytics)))
+
 	// ============================================================================
 	// RBAC / Multi-Tenancy API Endpoints
 	// ============================================================================
@@ -1547,10 +1550,13 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.Handle("POST /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAssignServer)))
 	mux.Handle("DELETE /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUnassignServer)))
 	mux.Handle("PUT /api/servers/{agentId}/tags", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateServerTags)))
+	mux.Handle("GET /api/servers/{agentId}/drift", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetServerDrift)))
 
 	// Agent Runtime Configuration API (agent self-config, persisted on agent)
 	mux.Handle("GET /api/agents/{id}/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetAgentRuntimeConfig)))
 	mux.Handle("PATCH /api/agents/{id}/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateAgentRuntimeConfig)))
+	mux.Handle("GET /api/agents/{id}/config/backups", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListAgentConfigBackups)))
+	mux.Handle("POST /api/agents/{id}/config/restore", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRestoreAgentConfigBackup)))
 	mux.Handle("POST /api/agents/{id}/config/test", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleTestAgentConfigConnection)))
 
 	// LLM Configuration (persisted in DB)
@@ -2071,6 +2077,146 @@ func (srv *server) handleGeoData(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write(data)
+}
+
+// visitorAnalyticsFrontendShape is the JSON shape expected by the frontend visitor analytics page.
+type visitorAnalyticsFrontendShape struct {
+	Summary         map[string]string        `json:"summary"`
+	Browsers         []map[string]interface{} `json:"browsers"`
+	OperatingSystems []map[string]interface{} `json:"operating_systems"`
+	Referrers        []map[string]interface{} `json:"referrers"`
+	NotFound         []map[string]interface{} `json:"not_found"`
+	Hourly           []map[string]interface{} `json:"hourly"`
+	Devices          map[string]string       `json:"devices"`
+	StaticFiles      []map[string]interface{} `json:"static_files"`
+}
+
+func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if srv.clickhouse == nil {
+		empty := visitorAnalyticsFrontendShape{
+			Summary:         map[string]string{"unique_visitors": "0", "total_hits": "0", "total_bandwidth": "0", "bot_hits": "0", "human_hits": "0"},
+			Devices:         map[string]string{"desktop": "0", "mobile": "0", "tablet": "0", "other": "0"},
+		}
+		data, _ := json.Marshal(empty)
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
+		return
+	}
+
+	timeWindow := r.URL.Query().Get("timeWindow")
+	if timeWindow == "" {
+		timeWindow = "24h"
+	}
+	agentID := r.URL.Query().Get("agent_id")
+	if agentID == "" {
+		agentID = "all"
+	}
+
+	ctx := r.Context()
+	resp, err := srv.clickhouse.GetVisitorAnalytics(ctx, timeWindow, agentID)
+	if err != nil {
+		log.Printf("GetVisitorAnalytics error: %v", err)
+		empty := visitorAnalyticsFrontendShape{
+			Summary: map[string]string{"unique_visitors": "0", "total_hits": "0", "total_bandwidth": "0", "bot_hits": "0", "human_hits": "0"},
+			Devices: map[string]string{"desktop": "0", "mobile": "0", "tablet": "0", "other": "0"},
+		}
+		data, _ := json.Marshal(empty)
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
+		return
+	}
+
+	// Map gateway response to frontend shape (snake_case, string numbers where expected)
+	out := visitorAnalyticsFrontendShape{
+		Summary: map[string]string{
+			"unique_visitors":  strconv.FormatUint(resp.Summary.UniqueVisitors, 10),
+			"total_hits":       strconv.FormatUint(resp.Summary.TotalHits, 10),
+			"total_bandwidth":   strconv.FormatUint(resp.Summary.TotalBandwidth, 10),
+			"bot_hits":         strconv.FormatUint(resp.Summary.BotHits, 10),
+			"human_hits":       strconv.FormatUint(resp.Summary.HumanHits, 10),
+		},
+		Browsers:         make([]map[string]interface{}, 0, len(resp.Browsers)),
+		OperatingSystems: make([]map[string]interface{}, 0, len(resp.OperatingSystems)),
+		Referrers:        make([]map[string]interface{}, 0, len(resp.Referrers)),
+		NotFound:         make([]map[string]interface{}, 0, len(resp.NotFound)),
+		Hourly:           make([]map[string]interface{}, 0, len(resp.HourlyStats)),
+		Devices:          map[string]string{"desktop": "0", "mobile": "0", "tablet": "0", "other": "0"},
+		StaticFiles:      make([]map[string]interface{}, 0, len(resp.StaticFiles)),
+	}
+
+	for _, b := range resp.Browsers {
+		out.Browsers = append(out.Browsers, map[string]interface{}{
+			"browser":    b.Browser,
+			"version":    b.Version,
+			"hits":       strconv.FormatUint(b.Hits, 10),
+			"visitors":   strconv.FormatUint(b.Visitors, 10),
+			"percentage": b.Percentage,
+		})
+	}
+	for _, o := range resp.OperatingSystems {
+		out.OperatingSystems = append(out.OperatingSystems, map[string]interface{}{
+			"os":         o.OS,
+			"version":    o.Version,
+			"hits":       strconv.FormatUint(o.Hits, 10),
+			"visitors":   strconv.FormatUint(o.Visitors, 10),
+			"percentage": o.Percentage,
+		})
+	}
+	for _, ref := range resp.Referrers {
+		out.Referrers = append(out.Referrers, map[string]interface{}{
+			"referrer":   ref.Domain,
+			"hits":       strconv.FormatUint(ref.Hits, 10),
+			"visitors":   strconv.FormatUint(ref.Visitors, 10),
+			"percentage": ref.Percentage,
+		})
+	}
+	for _, nf := range resp.NotFound {
+		out.NotFound = append(out.NotFound, map[string]interface{}{
+			"path":     nf.URI,
+			"hits":     strconv.FormatUint(nf.Hits, 10),
+			"last_seen": strconv.FormatInt(nf.LastSeen, 10),
+		})
+	}
+	for _, h := range resp.HourlyStats {
+		out.Hourly = append(out.Hourly, map[string]interface{}{
+			"hour":      h.Hour,
+			"hits":      strconv.FormatUint(h.Hits, 10),
+			"visitors":  strconv.FormatUint(h.Visitors, 10),
+			"bandwidth": strconv.FormatUint(h.Bandwidth, 10),
+		})
+	}
+	for _, d := range resp.DeviceTypes {
+		key := strings.ToLower(d.DeviceType)
+		switch key {
+		case "desktop", "mobile", "tablet", "other":
+			out.Devices[key] = strconv.FormatUint(d.Hits, 10)
+		default:
+			n := mustParseUint(out.Devices["other"])
+			out.Devices["other"] = strconv.FormatUint(n+d.Hits, 10)
+		}
+	}
+	for _, s := range resp.StaticFiles {
+		out.StaticFiles = append(out.StaticFiles, map[string]interface{}{
+			"path":     s.URI,
+			"hits":     strconv.FormatUint(s.Hits, 10),
+			"bandwidth": strconv.FormatUint(s.Bandwidth, 10),
+		})
+	}
+
+	data, err := json.Marshal(out)
+	if err != nil {
+		http.Error(w, `{"error":"Failed to marshal response"}`, http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
+}
+
+func mustParseUint(s string) uint64 {
+	n, _ := strconv.ParseUint(s, 10, 64)
+	return n
 }
 
 // autoAssignAgentToEnvironment automatically assigns an agent to an environment based on its labels

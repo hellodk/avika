@@ -236,6 +236,88 @@ func (srv *server) handleUpdateAgentRuntimeConfig(w http.ResponseWriter, r *http
 	json.NewEncoder(w).Encode(resp)
 }
 
+// GET /api/agents/{id}/config/backups - List agent config backups (last 5)
+func (srv *server) handleListAgentConfigBackups(w http.ResponseWriter, r *http.Request) {
+	agentID := r.PathValue("id")
+	if agentID == "" {
+		http.Error(w, `{"error":"agent id required"}`, http.StatusBadRequest)
+		return
+	}
+	user := middleware.GetUserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	if !srv.canUserAccessAgent(user.Username, agentID) {
+		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	client, conn, err := srv.getAgentConfigClient(agentID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusNotFound)
+		return
+	}
+	defer conn.Close()
+	resp, err := client.ListConfigBackups(ctx, &emptypb.Empty{})
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// POST /api/agents/{id}/config/restore - Restore agent config from a backup
+func (srv *server) handleRestoreAgentConfigBackup(w http.ResponseWriter, r *http.Request) {
+	agentID := r.PathValue("id")
+	if agentID == "" {
+		http.Error(w, `{"error":"agent id required"}`, http.StatusBadRequest)
+		return
+	}
+	user := middleware.GetUserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	if !srv.canUserAccessAgent(user.Username, agentID) {
+		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		return
+	}
+	var body struct {
+		BackupName string `json:"backup_name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(body.BackupName) == "" {
+		http.Error(w, `{"error":"backup_name is required"}`, http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	client, conn, err := srv.getAgentConfigClient(agentID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusNotFound)
+		return
+	}
+	defer conn.Close()
+	resp, err := client.RestoreConfigBackup(ctx, &pb.RestoreConfigBackupRequest{BackupName: body.BackupName})
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusBadGateway)
+		return
+	}
+	if srv.db != nil {
+		srv.db.CreateAuditLog(user.Username, "restore_agent_config_backup", "agent", agentID, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
+			"backup_name": body.BackupName,
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
 // POST /api/agents/{id}/config/test
 func (srv *server) handleTestAgentConfigConnection(w http.ResponseWriter, r *http.Request) {
 	agentID := r.PathValue("id")

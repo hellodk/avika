@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.1
 // - protoc             v3.21.12
-// source: api/proto/agent_config.proto
+// source: agent_config.proto
 
 package agent
 
@@ -20,9 +20,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AgentConfigService_GetAgentConfig_FullMethodName    = "/nginx.agent.v1.AgentConfigService/GetAgentConfig"
-	AgentConfigService_UpdateAgentConfig_FullMethodName = "/nginx.agent.v1.AgentConfigService/UpdateAgentConfig"
-	AgentConfigService_TestConnection_FullMethodName    = "/nginx.agent.v1.AgentConfigService/TestConnection"
+	AgentConfigService_GetAgentConfig_FullMethodName      = "/nginx.agent.v1.AgentConfigService/GetAgentConfig"
+	AgentConfigService_UpdateAgentConfig_FullMethodName   = "/nginx.agent.v1.AgentConfigService/UpdateAgentConfig"
+	AgentConfigService_TestConnection_FullMethodName      = "/nginx.agent.v1.AgentConfigService/TestConnection"
+	AgentConfigService_ListConfigBackups_FullMethodName   = "/nginx.agent.v1.AgentConfigService/ListConfigBackups"
+	AgentConfigService_RestoreConfigBackup_FullMethodName = "/nginx.agent.v1.AgentConfigService/RestoreConfigBackup"
 )
 
 // AgentConfigServiceClient is the client API for AgentConfigService service.
@@ -35,6 +37,8 @@ type AgentConfigServiceClient interface {
 	GetAgentConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AgentConfigResponse, error)
 	UpdateAgentConfig(ctx context.Context, in *AgentConfigUpdate, opts ...grpc.CallOption) (*AgentConfigUpdateResponse, error)
 	TestConnection(ctx context.Context, in *ConnectionTestRequest, opts ...grpc.CallOption) (*ConnectionTestResponse, error)
+	ListConfigBackups(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListConfigBackupsResponse, error)
+	RestoreConfigBackup(ctx context.Context, in *RestoreConfigBackupRequest, opts ...grpc.CallOption) (*AgentConfigUpdateResponse, error)
 }
 
 type agentConfigServiceClient struct {
@@ -75,6 +79,26 @@ func (c *agentConfigServiceClient) TestConnection(ctx context.Context, in *Conne
 	return out, nil
 }
 
+func (c *agentConfigServiceClient) ListConfigBackups(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListConfigBackupsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListConfigBackupsResponse)
+	err := c.cc.Invoke(ctx, AgentConfigService_ListConfigBackups_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentConfigServiceClient) RestoreConfigBackup(ctx context.Context, in *RestoreConfigBackupRequest, opts ...grpc.CallOption) (*AgentConfigUpdateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentConfigUpdateResponse)
+	err := c.cc.Invoke(ctx, AgentConfigService_RestoreConfigBackup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentConfigServiceServer is the server API for AgentConfigService service.
 // All implementations must embed UnimplementedAgentConfigServiceServer
 // for forward compatibility.
@@ -85,6 +109,8 @@ type AgentConfigServiceServer interface {
 	GetAgentConfig(context.Context, *emptypb.Empty) (*AgentConfigResponse, error)
 	UpdateAgentConfig(context.Context, *AgentConfigUpdate) (*AgentConfigUpdateResponse, error)
 	TestConnection(context.Context, *ConnectionTestRequest) (*ConnectionTestResponse, error)
+	ListConfigBackups(context.Context, *emptypb.Empty) (*ListConfigBackupsResponse, error)
+	RestoreConfigBackup(context.Context, *RestoreConfigBackupRequest) (*AgentConfigUpdateResponse, error)
 	mustEmbedUnimplementedAgentConfigServiceServer()
 }
 
@@ -103,6 +129,12 @@ func (UnimplementedAgentConfigServiceServer) UpdateAgentConfig(context.Context, 
 }
 func (UnimplementedAgentConfigServiceServer) TestConnection(context.Context, *ConnectionTestRequest) (*ConnectionTestResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method TestConnection not implemented")
+}
+func (UnimplementedAgentConfigServiceServer) ListConfigBackups(context.Context, *emptypb.Empty) (*ListConfigBackupsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListConfigBackups not implemented")
+}
+func (UnimplementedAgentConfigServiceServer) RestoreConfigBackup(context.Context, *RestoreConfigBackupRequest) (*AgentConfigUpdateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RestoreConfigBackup not implemented")
 }
 func (UnimplementedAgentConfigServiceServer) mustEmbedUnimplementedAgentConfigServiceServer() {}
 func (UnimplementedAgentConfigServiceServer) testEmbeddedByValue()                            {}
@@ -179,6 +211,42 @@ func _AgentConfigService_TestConnection_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentConfigService_ListConfigBackups_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentConfigServiceServer).ListConfigBackups(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentConfigService_ListConfigBackups_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentConfigServiceServer).ListConfigBackups(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentConfigService_RestoreConfigBackup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RestoreConfigBackupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentConfigServiceServer).RestoreConfigBackup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentConfigService_RestoreConfigBackup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentConfigServiceServer).RestoreConfigBackup(ctx, req.(*RestoreConfigBackupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentConfigService_ServiceDesc is the grpc.ServiceDesc for AgentConfigService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -198,7 +266,15 @@ var AgentConfigService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "TestConnection",
 			Handler:    _AgentConfigService_TestConnection_Handler,
 		},
+		{
+			MethodName: "ListConfigBackups",
+			Handler:    _AgentConfigService_ListConfigBackups_Handler,
+		},
+		{
+			MethodName: "RestoreConfigBackup",
+			Handler:    _AgentConfigService_RestoreConfigBackup_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/agent_config.proto",
+	Metadata: "agent_config.proto",
 }
