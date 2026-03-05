@@ -62,6 +62,19 @@ To deploy a specific image version on purpose (e.g. for a rollback):
    ```
    If your cluster uses local images (e.g. Kind/Minikube), load them and use `latest` in `values.yaml`, or tag your built images as `latest` so the chart pulls them.
 
+## Gateway external URL (cluster FQDN) and HTTPS
+
+To have the frontend use the cluster FQDN instead of the internal service `http://avika-gateway:5021`, set `gatewayExternalUrl` in `values.yaml` (or via `--set`):
+
+```yaml
+gatewayExternalUrl: "https://avika.example.com"
+```
+
+- **HTTP:** Use `http://avika.example.com` (or your FQDN). The frontend will use it for API and WebSocket (`ws://`).
+- **HTTPS:** Use `https://avika.example.com`. The frontend will use it for API and secure WebSocket (`wss://`) in the same way. The `/api/config` endpoint returns `https://` and `wss://` when the URL scheme is `https`.
+
+When set, the frontend’s server-side and client-side gateway calls use this URL; gRPC from the frontend pod to the gateway remains internal.
+
 ## Values and profiles
 
 - **Default:** `deploy/helm/avika/values.yaml` — gateway and frontend use `tag: "latest"` and `pullPolicy: Always`.
