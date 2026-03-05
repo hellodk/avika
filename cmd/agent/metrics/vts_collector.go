@@ -37,8 +37,9 @@ type VtsResponse struct {
 }
 
 type VtsCollector struct {
-	vtsURL string
-	client *http.Client
+	vtsURL              string
+	client              *http.Client
+	LastDetectedVersion string
 }
 
 func NewVtsCollector(url string) *VtsCollector {
@@ -70,6 +71,8 @@ func (c *VtsCollector) Collect() (*pb.NginxMetrics, error) {
 	if err := json.Unmarshal(body, &vts); err != nil {
 		return nil, err
 	}
+
+	c.LastDetectedVersion = vts.NginxVersion
 
 	metrics := &pb.NginxMetrics{
 		ActiveConnections:   vts.Connections.Active,

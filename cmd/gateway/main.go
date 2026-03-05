@@ -511,15 +511,17 @@ func (s *server) ListAgents(ctx context.Context, req *pb.ListAgentsRequest) (*pb
 		return true
 	})
 
-	// Load latest version from file
-	version := "0.1.0"
-	if data, err := os.ReadFile("VERSION"); err == nil {
-		version = strings.TrimSpace(string(data))
+	// Use build-time version, fallback to file if needed
+	sysVersion := Version
+	if strings.Contains(sysVersion, "dev") || sysVersion == "0.0.1" {
+		if data, err := os.ReadFile("VERSION"); err == nil {
+			sysVersion = strings.TrimSpace(string(data))
+		}
 	}
 
 	return &pb.ListAgentsResponse{
 		Agents:        agents,
-		SystemVersion: version,
+		SystemVersion: sysVersion,
 	}, nil
 }
 
@@ -981,6 +983,11 @@ func (s *server) startUptimeCrawler() {
 }
 
 func (s *server) startRecommendationConsumer() {
+	if s.config == nil || !s.config.LLM.Enabled {
+		log.Println("AI Engine disabled, skipping recommendation consumer")
+		return
+	}
+
 	go func() {
 		brokers := os.Getenv("KAFKA_BROKERS")
 		if brokers == "" {
@@ -1611,7 +1618,9 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"healthy","version":"` + Version + `"}`))
+
+		pgVersion := srv.db.GetVersion()
+		fmt.Fprintf(w, `{"status":"healthy","version":"%s","database_version":"%s"}`, Version, pgVersion)
 	})
 
 	// Ready check endpoint (no rate limiting)
@@ -1629,10 +1638,13 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		}
 
 		// Check ClickHouse connectivity
+		var chVersion string = "unknown"
 		if srv.clickhouse != nil {
 			if err := srv.clickhouse.conn.Ping(r.Context()); err != nil {
 				chStatus = "disconnected"
 				allHealthy = false
+			} else {
+				chVersion = srv.clickhouse.GetVersion(r.Context())
 			}
 		}
 
@@ -1643,8 +1655,11 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 			httpStatus = http.StatusServiceUnavailable
 		}
 
+		pgVersion := srv.db.GetVersion()
+
 		w.WriteHeader(httpStatus)
-		fmt.Fprintf(w, `{"status":"%s","database":"%s","clickhouse":"%s"}`, status, pgStatus, chStatus)
+		fmt.Fprintf(w, `{"status":"%s","database":"%s","database_version":"%s","clickhouse":"%s","clickhouse_version":"%s"}`,
+			status, pgStatus, pgVersion, chStatus, chVersion)
 	})
 
 	// Prometheus metrics endpoint
@@ -2081,13 +2096,13 @@ func (srv *server) handleGeoData(w http.ResponseWriter, r *http.Request) {
 
 // visitorAnalyticsFrontendShape is the JSON shape expected by the frontend visitor analytics page.
 type visitorAnalyticsFrontendShape struct {
-	Summary         map[string]string        `json:"summary"`
+	Summary          map[string]string        `json:"summary"`
 	Browsers         []map[string]interface{} `json:"browsers"`
 	OperatingSystems []map[string]interface{} `json:"operating_systems"`
 	Referrers        []map[string]interface{} `json:"referrers"`
 	NotFound         []map[string]interface{} `json:"not_found"`
 	Hourly           []map[string]interface{} `json:"hourly"`
-	Devices          map[string]string       `json:"devices"`
+	Devices          map[string]string        `json:"devices"`
 	StaticFiles      []map[string]interface{} `json:"static_files"`
 }
 
@@ -2096,8 +2111,8 @@ func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request
 
 	if srv.clickhouse == nil {
 		empty := visitorAnalyticsFrontendShape{
-			Summary:         map[string]string{"unique_visitors": "0", "total_hits": "0", "total_bandwidth": "0", "bot_hits": "0", "human_hits": "0"},
-			Devices:         map[string]string{"desktop": "0", "mobile": "0", "tablet": "0", "other": "0"},
+			Summary: map[string]string{"unique_visitors": "0", "total_hits": "0", "total_bandwidth": "0", "bot_hits": "0", "human_hits": "0"},
+			Devices: map[string]string{"desktop": "0", "mobile": "0", "tablet": "0", "other": "0"},
 		}
 		data, _ := json.Marshal(empty)
 		w.WriteHeader(http.StatusOK)
@@ -2131,11 +2146,11 @@ func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request
 	// Map gateway response to frontend shape (snake_case, string numbers where expected)
 	out := visitorAnalyticsFrontendShape{
 		Summary: map[string]string{
-			"unique_visitors":  strconv.FormatUint(resp.Summary.UniqueVisitors, 10),
-			"total_hits":       strconv.FormatUint(resp.Summary.TotalHits, 10),
-			"total_bandwidth":   strconv.FormatUint(resp.Summary.TotalBandwidth, 10),
-			"bot_hits":         strconv.FormatUint(resp.Summary.BotHits, 10),
-			"human_hits":       strconv.FormatUint(resp.Summary.HumanHits, 10),
+			"unique_visitors": strconv.FormatUint(resp.Summary.UniqueVisitors, 10),
+			"total_hits":      strconv.FormatUint(resp.Summary.TotalHits, 10),
+			"total_bandwidth": strconv.FormatUint(resp.Summary.TotalBandwidth, 10),
+			"bot_hits":        strconv.FormatUint(resp.Summary.BotHits, 10),
+			"human_hits":      strconv.FormatUint(resp.Summary.HumanHits, 10),
 		},
 		Browsers:         make([]map[string]interface{}, 0, len(resp.Browsers)),
 		OperatingSystems: make([]map[string]interface{}, 0, len(resp.OperatingSystems)),
@@ -2174,8 +2189,8 @@ func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request
 	}
 	for _, nf := range resp.NotFound {
 		out.NotFound = append(out.NotFound, map[string]interface{}{
-			"path":     nf.URI,
-			"hits":     strconv.FormatUint(nf.Hits, 10),
+			"path":      nf.URI,
+			"hits":      strconv.FormatUint(nf.Hits, 10),
 			"last_seen": strconv.FormatInt(nf.LastSeen, 10),
 		})
 	}
@@ -2199,8 +2214,8 @@ func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request
 	}
 	for _, s := range resp.StaticFiles {
 		out.StaticFiles = append(out.StaticFiles, map[string]interface{}{
-			"path":     s.URI,
-			"hits":     strconv.FormatUint(s.Hits, 10),
+			"path":      s.URI,
+			"hits":      strconv.FormatUint(s.Hits, 10),
 			"bandwidth": strconv.FormatUint(s.Bandwidth, 10),
 		})
 	}

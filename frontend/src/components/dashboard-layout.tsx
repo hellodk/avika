@@ -42,34 +42,21 @@ interface NavItem {
 
 const NAV_SECTIONS: NavSection[] = [
     {
-        title: "Overview",
+        title: "Core",
         items: [
             { href: "/", icon: <LayoutDashboard />, label: "Dashboard" },
-            { href: "/system", icon: <Heart />, label: "System Health" },
-            { href: "/monitoring", icon: <Cpu />, label: "Monitoring" },
-        ]
-    },
-    {
-        title: "Infrastructure",
-        items: [
             { href: "/inventory", icon: <Server />, label: "Inventory" },
-            { href: "/provisions", icon: <Layers />, label: "Provisions" },
+            { href: "/monitoring", icon: <Cpu />, label: "Monitoring" },
+            { href: "/alerts", icon: <ShieldAlert />, label: "Alerts" },
         ]
     },
     {
         title: "Analytics",
         items: [
-            { href: "/analytics", icon: <BarChart2 />, label: "Dashboard" },
+            { href: "/analytics", icon: <BarChart2 />, label: "Traffic" },
+            { href: "/analytics/visitors", icon: <User />, label: "Visitors" },
+            { href: "/analytics/geo", icon: <Globe />, label: "Geo Analysis" },
             { href: "/analytics/traces", icon: <GitBranch />, label: "Traces" },
-            { href: "/analytics/visitors", icon: <User />, label: "Visitor Analytics" },
-            { href: "/analytics/geo", icon: <Globe />, label: "Geo Analytics" },
-        ]
-    },
-    {
-        title: "Observability",
-        items: [
-            { href: "/observability/grafana", icon: <LineChart />, label: "Grafana" },
-            { href: "/alerts", icon: <ShieldAlert />, label: "Alerts" },
         ]
     },
     {
@@ -77,24 +64,15 @@ const NAV_SECTIONS: NavSection[] = [
         items: [
             { href: "/optimization", icon: <Zap />, label: "AI Tuner", badge: "Beta", badgeColor: "purple" },
             { href: "/reports", icon: <FileText />, label: "Reports" },
+            { href: "/provisions", icon: <Layers />, label: "Provisions" },
         ]
     },
     {
-        title: "Admin",
+        title: "System",
         items: [
+            { href: "/system", icon: <Heart />, label: "System Health" },
             { href: "/audit", icon: <ShieldAlert />, label: "Audit Logs" },
-        ],
-    },
-    {
-        title: "Settings",
-        items: [
-            { href: "/settings", icon: <Settings />, label: "General" },
-            { href: "/settings/integrations", icon: <Globe />, label: "Integrations" },
-            { href: "/settings/llm", icon: <Zap />, label: "LLM" },
-            { href: "/settings/waf", icon: <Lock />, label: "WAF" },
-            { href: "/settings/sso", icon: <KeyRound />, label: "SSO Integration" },
-            { href: "/settings/ldap", icon: <Key />, label: "LDAP" },
-            { href: "/settings/saml", icon: <ShieldCheck />, label: "SAML" },
+            { href: "/settings", icon: <Settings />, label: "Settings" },
         ],
     },
 ];
@@ -333,10 +311,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                             className="p-2 rounded-lg hover:bg-white/5 transition-colors relative"
                             style={{ color: "rgb(var(--theme-text-muted))" }}
                             title="Notifications"
-                            aria-label="Notifications - you have new alerts"
+                            aria-label="Notifications"
                         >
                             <Bell className="h-5 w-5" aria-hidden="true" />
-                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full" aria-hidden="true" />
                         </button>
 
                         {/* Divider */}
