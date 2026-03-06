@@ -202,7 +202,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                     ))}
                 </nav>
 
-                {/* Sidebar Footer */}
+                {/* Sidebar Footer - Collapse/Expand only (Settings is in System section) */}
                 <div className="border-t p-3" style={{ borderColor: "rgb(var(--theme-border))" }}>
                     {!sidebarCollapsed ? (
                         <button
@@ -287,7 +287,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                             className="p-2 rounded-lg hover:bg-white/5 transition-colors relative"
                             style={{ color: "rgb(var(--theme-text-muted))" }}
                             title="Notifications"
-                            aria-label="Notifications - you have new alerts"
+                            aria-label="Notifications"
                         >
                             <Bell className="h-5 w-5" aria-hidden="true" />
                         </button>

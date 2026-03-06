@@ -511,15 +511,17 @@ func (s *server) ListAgents(ctx context.Context, req *pb.ListAgentsRequest) (*pb
 		return true
 	})
 
-	// Load latest version from file
-	version := "0.1.0"
-	if data, err := os.ReadFile("VERSION"); err == nil {
-		version = strings.TrimSpace(string(data))
+	// Use build-time version, fallback to file if needed
+	sysVersion := Version
+	if strings.Contains(sysVersion, "dev") || sysVersion == "0.0.1" {
+		if data, err := os.ReadFile("VERSION"); err == nil {
+			sysVersion = strings.TrimSpace(string(data))
+		}
 	}
 
 	return &pb.ListAgentsResponse{
 		Agents:        agents,
-		SystemVersion: version,
+		SystemVersion: sysVersion,
 	}, nil
 }
 
@@ -981,6 +983,11 @@ func (s *server) startUptimeCrawler() {
 }
 
 func (s *server) startRecommendationConsumer() {
+	if s.config == nil || !s.config.LLM.Enabled {
+		log.Println("AI Engine disabled, skipping recommendation consumer")
+		return
+	}
+
 	go func() {
 		brokers := os.Getenv("KAFKA_BROKERS")
 		if brokers == "" {
@@ -1651,10 +1658,13 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		}
 
 		// Check ClickHouse connectivity
+		var chVersion string = "unknown"
 		if srv.clickhouse != nil {
 			if err := srv.clickhouse.conn.Ping(r.Context()); err != nil {
 				chStatus = "disconnected"
 				allHealthy = false
+			} else {
+				chVersion = srv.clickhouse.GetVersion(r.Context())
 			}
 		}
 
@@ -1665,8 +1675,11 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 			httpStatus = http.StatusServiceUnavailable
 		}
 
+		pgVersion := srv.db.GetVersion()
+
 		w.WriteHeader(httpStatus)
-		fmt.Fprintf(w, `{"status":"%s","database":"%s","clickhouse":"%s"}`, status, pgStatus, chStatus)
+		fmt.Fprintf(w, `{"status":"%s","database":"%s","database_version":"%s","clickhouse":"%s","clickhouse_version":"%s"}`,
+			status, pgStatus, pgVersion, chStatus, chVersion)
 	})
 
 	// Prometheus metrics endpoint

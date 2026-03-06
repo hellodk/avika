@@ -45,6 +45,15 @@ func NewDB(dsn string) (*DB, error) {
 	return db, nil
 }
 
+func (db *DB) GetVersion() string {
+	var version string
+	err := db.conn.QueryRow("SHOW server_version").Scan(&version)
+	if err != nil {
+		return "unknown"
+	}
+	return version
+}
+
 // migrate is deprecated - migrations are now handled by embedded SQL files in migrations/
 // This function is kept for backwards compatibility but does nothing
 func (db *DB) migrate() error {

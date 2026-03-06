@@ -104,6 +104,17 @@ func (c *NginxCollector) Collect() (*pb.NginxMetrics, error) {
 	return metrics, nil
 }
 
+// GetLastDetectedVersion returns the last NGINX version detected by sub-collectors
+func (c *NginxCollector) GetLastDetectedVersion() string {
+	if c.advancedCollector.LastDetectedVersion != "" {
+		return c.advancedCollector.LastDetectedVersion
+	}
+	if c.vtsCollector.LastDetectedVersion != "" {
+		return c.vtsCollector.LastDetectedVersion
+	}
+	return ""
+}
+
 // CollectSystemOnly collects only system metrics, useful as fallback when NGINX metrics fail
 func (c *NginxCollector) CollectSystemOnly() (*pb.SystemMetrics, error) {
 	return c.systemCollector.Collect()

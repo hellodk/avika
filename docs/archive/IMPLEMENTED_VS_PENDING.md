@@ -69,8 +69,11 @@ Based on the `Avika NGINX Manager — Deep Analysis Report` (Date: 2026-03-03) a
 
 ### 🟢 P2 - Quality & UX Polish (Technical Debt)
 - **Branch Management Cleanup**: Review unmerged PRs (`release-workflow-permissions`, `feature/grafana-embed`) and reconcile diverging `main` branch with `master`.
+- **Documentation Hygiene**: Archived legacy reports and consolidated fragmented TODOs into [ROADMAP.md](file:///home/dk/Documents/git/nginx-manager-cursor/docs/ROADMAP.md).
 
-### 🔮 Long-Term Roadmap
-- Further advanced telemetry integration for enhanced metrics (upstream health, zones, caches).
-- Implementing fully comprehensive PromQL search metric overlays natively inside Avika dashboards.
-- Continuous performance tuning for multi-terrabyte ClickHouse datasets.
+## 🔮 Long-Term Roadmap
+See the centralized [ROADMAP.md](file:///home/dk/Documents/git/nginx-manager-cursor/docs/ROADMAP.md) for detailed future plans including:
+- Advanced labeling & multi-tenancy.
+- Rolling agent update architecture.
+- Full PromQL integration & Grafana drill-downs.
+- Web terminal session persistence.

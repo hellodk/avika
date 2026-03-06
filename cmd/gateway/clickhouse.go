@@ -12,9 +12,9 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"github.com/google/uuid"
-	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 	"github.com/avika-ai/avika/cmd/gateway/geo"
+	pb "github.com/avika-ai/avika/internal/common/proto/agent"
+	"github.com/google/uuid"
 )
 
 type ClickHouseDB struct {
@@ -69,11 +69,11 @@ type gwBatchItem struct {
 // ClickHouse buffer configuration (configurable via environment)
 var (
 	// Buffer channel sizes
-	logBufferSize     = getEnvInt("CH_LOG_BUFFER_SIZE", 100000)
-	spanBufferSize    = getEnvInt("CH_SPAN_BUFFER_SIZE", 200000)
-	sysBufferSize     = getEnvInt("CH_SYS_BUFFER_SIZE", 10000)
-	nginxBufferSize   = getEnvInt("CH_NGINX_BUFFER_SIZE", 10000)
-	gwBufferSize      = getEnvInt("CH_GW_BUFFER_SIZE", 1000)
+	logBufferSize   = getEnvInt("CH_LOG_BUFFER_SIZE", 100000)
+	spanBufferSize  = getEnvInt("CH_SPAN_BUFFER_SIZE", 200000)
+	sysBufferSize   = getEnvInt("CH_SYS_BUFFER_SIZE", 10000)
+	nginxBufferSize = getEnvInt("CH_NGINX_BUFFER_SIZE", 10000)
+	gwBufferSize    = getEnvInt("CH_GW_BUFFER_SIZE", 1000)
 
 	// Batch flush sizes
 	logBatchSize  = getEnvInt("CH_LOG_BATCH_SIZE", 10000)
@@ -113,7 +113,7 @@ func NewClickHouseDB(addr, username, password string) (*ClickHouseDB, error) {
 	log.Printf("ClickHouse config: buffers(log=%d, span=%d, sys=%d, nginx=%d, gw=%d) batches(log=%d, span=%d) conns(open=%d, idle=%d)",
 		logBufferSize, spanBufferSize, sysBufferSize, nginxBufferSize, gwBufferSize,
 		logBatchSize, spanBatchSize, maxOpenConns, maxIdleConns)
-	
+
 	// Debug: log connection parameters (password masked)
 	pwMask := "***"
 	if len(password) > 0 {
@@ -173,6 +173,15 @@ func NewClickHouseDB(addr, username, password string) (*ClickHouseDB, error) {
 	go db.runGwFlusher()
 
 	return db, nil
+}
+
+func (db *ClickHouseDB) GetVersion(ctx context.Context) string {
+	var version string
+	err := db.conn.QueryRow(ctx, "SELECT version()").Scan(&version)
+	if err != nil {
+		return "unknown"
+	}
+	return version
 }
 
 func (db *ClickHouseDB) migrate() error {
@@ -305,14 +314,14 @@ func (db *ClickHouseDB) migrate() error {
 func (db *ClickHouseDB) InsertAccessLog(entry *pb.LogEntry, agentID string) error {
 	// Extract client IP from X-Forwarded-For or remote_addr
 	clientIP := geo.ExtractClientIP(entry.XForwardedFor, entry.RemoteAddr)
-	
+
 	// Perform geo lookup
 	item := logBatchItem{
-		entry:   entry,
-		agentID: agentID,
+		entry:    entry,
+		agentID:  agentID,
 		clientIP: clientIP,
 	}
-	
+
 	if db.geoLookup != nil && clientIP != "" {
 		loc := db.geoLookup.Lookup(clientIP)
 		if loc != nil {
@@ -326,7 +335,7 @@ func (db *ClickHouseDB) InsertAccessLog(entry *pb.LogEntry, agentID string) erro
 			item.isp = loc.ISP
 		}
 	}
-	
+
 	select {
 	case db.logChan <- item:
 		return nil
@@ -1683,14 +1692,14 @@ func (db *ClickHouseDB) flushGw(batch []gwBatchItem) {
 
 // GeoDataResponse represents geo analytics data
 type GeoDataResponse struct {
-	Locations       []GeoLocation       `json:"locations"`
-	CountryStats    []CountryStat       `json:"country_stats"`
-	CityStats       []CityStat          `json:"city_stats"`
-	RecentRequests  []GeoRequest        `json:"recent_requests"`
-	TotalCountries  uint64              `json:"total_countries"`
-	TotalCities     uint64              `json:"total_cities"`
-	TotalRequests   uint64              `json:"total_requests"`
-	TopCountryCode  string              `json:"top_country_code"`
+	Locations      []GeoLocation `json:"locations"`
+	CountryStats   []CountryStat `json:"country_stats"`
+	CityStats      []CityStat    `json:"city_stats"`
+	RecentRequests []GeoRequest  `json:"recent_requests"`
+	TotalCountries uint64        `json:"total_countries"`
+	TotalCities    uint64        `json:"total_cities"`
+	TotalRequests  uint64        `json:"total_requests"`
+	TopCountryCode string        `json:"top_country_code"`
 }
 
 type GeoLocation struct {
