@@ -90,7 +90,7 @@ export default function WAFSettingsPage() {
                                 </TableRow>
                             ) : (
                                 policies.map((policy) => (
-                                    <TableRow key={policy.id} className="hover:bg-white/5 transition-colors" style={{ borderColor: "rgb(var(--theme-border))" }}>
+                                    <TableRow key={policy.id} className="hover-surface" style={{ borderColor: "rgb(var(--theme-border))" }}>
                                         <TableCell>
                                             <div className="flex flex-col">
                                                 <span className="font-semibold" style={{ color: "rgb(var(--theme-text))" }}>{policy.name}</span>

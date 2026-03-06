@@ -95,24 +95,27 @@ function KPICard({
     const colors = colorMap[iconColor] || colorMap.blue;
     
     // Bright trend colors
-    const trendColor = trend === "up" ? "text-emerald-300" : trend === "down" ? "text-red-300" : "text-slate-300";
+    const trendColor = trend === "up" ? "text-emerald-500" : trend === "down" ? "text-red-500" : "";
     const TrendIcon = trend === "up" ? ArrowUpRight : trend === "down" ? ArrowDownRight : null;
 
     return (
-        <Card className="border" style={{ background: "rgb(30, 41, 59)", borderColor: "rgb(71, 85, 105)" }}>
+        <Card className="border" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
             <CardContent className="pt-6">
                 <div className="flex items-start justify-between">
                     <div className="space-y-1">
-                        <p className="text-sm font-medium text-slate-300">
+                        <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>
                             {title}
                         </p>
-                        <p className="text-2xl font-bold text-white">
+                        <p className="text-2xl font-bold" style={{ color: "rgb(var(--theme-text))" }}>
                             {value}
                         </p>
                         {(delta !== undefined || subtitle) && (
                             <div className="flex items-center gap-1 mt-1">
                                 {TrendIcon && <TrendIcon className={`h-3 w-3 ${trendColor}`} />}
-                                <span className={`text-xs font-medium ${delta !== undefined ? trendColor : 'text-slate-400'}`}>
+                                <span
+                                    className={`text-xs font-medium ${delta !== undefined ? trendColor : ""}`}
+                                    style={delta === undefined ? { color: "rgb(var(--theme-text-muted))" } : undefined}
+                                >
                                     {delta !== undefined ? `${delta >= 0 ? '+' : ''}${delta}` : ''} {deltaLabel || subtitle}
                                 </span>
                             </div>
@@ -427,15 +430,22 @@ function AnalyticsView() {
     const selectedAgentData = agents.find((a: any) => (a.agent_id || a.id) === selectedAgent);
     const isOffline = selectedAgentData?.status === 'offline';
 
-    // Insights styling helper - HIGH VISIBILITY
+    // Insights styling helper - theme-aware for contrast (light: dark text on tinted bg; dark: bright text on tinted bg)
+    const isLight = theme === "light";
     const getInsightStyle = (type: string) => {
         switch (type) {
             case 'critical':
-                return { bg: 'bg-red-500/20', border: 'border-l-red-400', text: 'text-red-300', icon: AlertCircle };
+                return isLight
+                    ? { bg: 'bg-red-100', border: 'border-l-red-600', text: 'text-red-800', icon: AlertCircle }
+                    : { bg: 'bg-red-500/20', border: 'border-l-red-400', text: 'text-red-300', icon: AlertCircle };
             case 'warning':
-                return { bg: 'bg-amber-500/20', border: 'border-l-amber-400', text: 'text-amber-300', icon: TrendingUp };
+                return isLight
+                    ? { bg: 'bg-amber-100', border: 'border-l-amber-600', text: 'text-amber-800', icon: TrendingUp }
+                    : { bg: 'bg-amber-500/20', border: 'border-l-amber-400', text: 'text-amber-300', icon: TrendingUp };
             default:
-                return { bg: 'bg-blue-500/20', border: 'border-l-blue-400', text: 'text-blue-300', icon: Activity };
+                return isLight
+                    ? { bg: 'bg-blue-100', border: 'border-l-blue-600', text: 'text-blue-800', icon: Activity }
+                    : { bg: 'bg-blue-500/20', border: 'border-l-blue-400', text: 'text-blue-300', icon: Activity };
         }
     };
 
@@ -444,7 +454,7 @@ function AnalyticsView() {
             {/* Header */}
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-semibold text-white">
+                    <h1 className="text-2xl font-semibold" style={{ color: 'rgb(var(--theme-text))' }}>
                         Analytics
                     </h1>
                     <p className="text-sm mt-1" style={{ color: 'rgb(var(--theme-text-muted))' }}>
@@ -487,7 +497,8 @@ function AnalyticsView() {
                         variant={isLive ? "default" : "outline"}
                         size="sm"
                         onClick={() => setIsLive(!isLive)}
-                        className={`h-9 ${isLive ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600' : 'border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700'}`}
+                        className={`h-9 ${isLive ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600' : 'hover-surface hover-text-visible border-[rgb(var(--theme-border))]'}`}
+                        style={!isLive ? { color: 'rgb(var(--theme-text-muted))' } : undefined}
                     >
                         <Radio className={`h-4 w-4 mr-2 ${isLive && isConnected ? 'animate-pulse' : ''}`} />
                         {isLive ? 'Live' : 'Go Live'}
@@ -522,13 +533,19 @@ function AnalyticsView() {
                 </div>
             </div>
 
-            {/* Offline Alert */}
+            {/* Offline Alert - theme-aware contrast */}
             {isOffline && (
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 flex items-center gap-3">
-                    <AlertCircle className="h-5 w-5 text-amber-400 shrink-0" />
+                <div
+                    className="rounded-lg p-4 flex items-center gap-3 border"
+                    style={{
+                        background: theme === "light" ? "rgb(254 243 199)" : "rgb(245 158 11 / 0.15)",
+                        borderColor: theme === "light" ? "rgb(217 119 6)" : "rgb(245 158 11 / 0.4)",
+                    }}
+                >
+                    <AlertCircle className="h-5 w-5 shrink-0" style={{ color: theme === "light" ? "rgb(180 83 9)" : "rgb(251 191 36)" }} />
                     <div>
-                        <p className="text-sm font-medium text-amber-400">Viewing Historical Data</p>
-                        <p className="text-xs text-amber-400/70 mt-0.5">
+                        <p className="text-sm font-medium" style={{ color: theme === "light" ? "rgb(146 64 14)" : "rgb(251 191 36)" }}>Viewing Historical Data</p>
+                        <p className="text-xs mt-0.5" style={{ color: theme === "light" ? "rgb(120 53 15)" : "rgb(251 191 36 / 0.9)" }}>
                             This node is offline. Showing historical data from ClickHouse.
                         </p>
                     </div>
@@ -544,8 +561,8 @@ function AnalyticsView() {
                         return (
                             <Card 
                                 key={idx} 
-                                className={`${style.bg} border-l-4 ${style.border}`}
-                                style={{ borderColor: "rgb(var(--theme-border))", borderLeftColor: undefined }}
+                                className={`border-l-4 ${style.border} ${style.bg}`}
+                                style={{ borderColor: "rgb(var(--theme-border))" }}
                             >
                                 <CardHeader className="pb-2 flex flex-row items-start justify-between space-y-0">
                                     <CardTitle className={`text-sm font-semibold ${style.text}`}>
@@ -579,8 +596,8 @@ function AnalyticsView() {
                         <TabsTrigger
                             key={tab.value}
                             value={tab.value}
-                            className="flex items-center gap-2 px-4 py-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all rounded-md hover:opacity-90"
- style={{ color: 'rgb(var(--theme-text-muted))' }}
+                            className="analytics-tab-trigger flex items-center gap-2 px-4 py-2 data-[state=active]:shadow-md transition-all rounded-md hover:opacity-90"
+                            style={{ color: 'rgb(var(--theme-text-muted))' }}
                         >
                             <tab.icon className="h-4 w-4" />
                             {tab.label}
@@ -770,20 +787,20 @@ function AnalyticsView() {
                                                 analyticsData.server_distribution.slice(0, 5).map((s: any, idx: number) => (
                                                     <div key={idx} className="space-y-2">
                                                         <div className="flex items-center justify-between text-sm">
-                                                            <span className="font-medium truncate max-w-[200px] text-white">
+                                                            <span className="font-medium truncate max-w-[200px]" style={{ color: 'rgb(var(--theme-text))' }}>
                                                                 {s.hostname}
                                                             </span>
-                                                            <span className="text-slate-300">
+                                                            <span style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                                                 {s.requests.toLocaleString()} reqs
                                                             </span>
                                                         </div>
                                                         <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'rgb(var(--theme-surface-light))' }}>
                                                             <div
-                                                                className="h-full bg-blue-500 rounded-full transition-all"
-                                                                style={{ width: `${Math.min((s.requests / summary.total_requests * 100) || 0, 100)}%` }}
+                                                                className="h-full rounded-full transition-all"
+                                                                style={{ width: `${Math.min((s.requests / summary.total_requests * 100) || 0, 100)}%`, background: 'rgb(var(--theme-primary))' }}
                                                             />
                                                         </div>
-                                                        <div className="flex items-center justify-between text-xs text-slate-400">
+                                                        <div className="flex items-center justify-between text-xs" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                                             <span>{formatBandwidth(s.traffic)}</span>
                                                             <span className={s.error_rate > 5 ? "text-red-400" : ""}>
                                                                 {s.error_rate.toFixed(1)}% errors
@@ -792,7 +809,7 @@ function AnalyticsView() {
                                                     </div>
                                                 ))
                                             ) : (
-                                                <div className="text-center py-8 text-slate-400">
+                                                <div className="text-center py-8" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                                     No server distribution data available
                                                 </div>
                                             )}
@@ -1025,25 +1042,25 @@ function AnalyticsView() {
                                 <CardContent>
                                     <Table>
                                         <TableHeader>
-                                            <TableRow className="border-slate-600">
-                                                <TableHead className="text-slate-300 cursor-pointer hover:text-white" onClick={() => handleSort('uri')}>
+                                            <TableRow style={{ borderColor: 'rgb(var(--theme-border))' }}>
+                                                <TableHead className="cursor-pointer hover-surface rounded py-2" style={{ color: 'rgb(var(--theme-text-muted))' }} onClick={() => handleSort('uri')}>
                                                     Endpoint
                                                 </TableHead>
-                                                <TableHead className="text-slate-300 cursor-pointer hover:text-white" onClick={() => handleSort('avgLatency')}>
+                                                <TableHead className="cursor-pointer hover-surface rounded py-2" style={{ color: 'rgb(var(--theme-text-muted))' }} onClick={() => handleSort('avgLatency')}>
                                                     Avg Latency
                                                 </TableHead>
-                                                <TableHead className="text-slate-300 cursor-pointer hover:text-white" onClick={() => handleSort('p95')}>
+                                                <TableHead className="cursor-pointer hover-surface rounded py-2" style={{ color: 'rgb(var(--theme-text-muted))' }} onClick={() => handleSort('p95')}>
                                                     P95
                                                 </TableHead>
-                                                <TableHead className="text-slate-300 cursor-pointer hover:text-white" onClick={() => handleSort('requests')}>
+                                                <TableHead className="cursor-pointer hover-surface rounded py-2" style={{ color: 'rgb(var(--theme-text-muted))' }} onClick={() => handleSort('requests')}>
                                                     Requests
                                                 </TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {sortedEndpoints.slice(0, 5).map((endpoint, idx) => (
-                                                <TableRow key={idx} className="border-slate-600">
-                                                    <TableCell className="font-mono text-sm text-white">
+                                                <TableRow key={idx} style={{ borderColor: 'rgb(var(--theme-border))' }}>
+                                                    <TableCell className="font-mono text-sm" style={{ color: 'rgb(var(--theme-text))' }}>
                                                         {endpoint.uri}
                                                     </TableCell>
                                                     <TableCell>
@@ -1055,8 +1072,8 @@ function AnalyticsView() {
                                                             {endpoint.avgLatency}ms
                                                         </Badge>
                                                     </TableCell>
-                                                    <TableCell className="text-slate-300">{endpoint.p95}ms</TableCell>
-                                                    <TableCell className="text-slate-300">{endpoint.requests.toLocaleString()}</TableCell>
+                                                    <TableCell style={{ color: 'rgb(var(--theme-text-muted))' }}>{endpoint.p95}ms</TableCell>
+                                                    <TableCell style={{ color: 'rgb(var(--theme-text-muted))' }}>{endpoint.requests.toLocaleString()}</TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>
@@ -1110,17 +1127,17 @@ function AnalyticsView() {
                                 <CardContent>
                                     <Table>
                                         <TableHeader>
-                                            <TableRow className="border-slate-600">
-                                                <TableHead className="text-slate-300">Endpoint</TableHead>
-                                                <TableHead className="text-slate-300">Total Errors</TableHead>
-                                                <TableHead className="text-slate-300">Error Rate</TableHead>
-                                                <TableHead className="text-slate-300">Requests</TableHead>
+                                            <TableRow style={{ borderColor: 'rgb(var(--theme-border))' }}>
+                                                <TableHead style={{ color: 'rgb(var(--theme-text-muted))' }}>Endpoint</TableHead>
+                                                <TableHead style={{ color: 'rgb(var(--theme-text-muted))' }}>Total Errors</TableHead>
+                                                <TableHead style={{ color: 'rgb(var(--theme-text-muted))' }}>Error Rate</TableHead>
+                                                <TableHead style={{ color: 'rgb(var(--theme-text-muted))' }}>Requests</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {sortedEndpoints.filter(e => e.errors > 0).slice(0, 5).map((endpoint, idx) => (
-                                                <TableRow key={idx} className="border-slate-600">
-                                                    <TableCell className="font-mono text-sm text-white">
+                                                <TableRow key={idx} style={{ borderColor: 'rgb(var(--theme-border))' }}>
+                                                    <TableCell className="font-mono text-sm" style={{ color: 'rgb(var(--theme-text))' }}>
                                                         {endpoint.uri}
                                                     </TableCell>
                                                     <TableCell>
@@ -1128,17 +1145,17 @@ function AnalyticsView() {
                                                             {endpoint.errors}
                                                         </Badge>
                                                     </TableCell>
-                                                    <TableCell className="text-slate-300">
+                                                    <TableCell style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                                         {((endpoint.errors / endpoint.requests) * 100).toFixed(2)}%
                                                     </TableCell>
-                                                    <TableCell className="text-slate-300">
+                                                    <TableCell style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                                         {endpoint.requests.toLocaleString()}
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
                                             {sortedEndpoints.filter(e => e.errors > 0).length === 0 && (
                                                 <TableRow>
-                                                    <TableCell colSpan={4} className="text-center py-8 text-slate-400">
+                                                    <TableCell colSpan={4} className="text-center py-8" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                                         No errors recorded in the selected time range
                                                     </TableCell>
                                                 </TableRow>
@@ -1273,34 +1290,34 @@ function AnalyticsView() {
                                 <CardContent>
                                     <Table>
                                         <TableHeader>
-                                            <TableRow className="border-slate-600">
-                                                <TableHead className="text-slate-300 cursor-pointer hover:text-white" onClick={() => handleSort('uri')}>
+                                            <TableRow style={{ borderColor: 'rgb(var(--theme-border))' }}>
+                                                <TableHead className="cursor-pointer hover-surface rounded py-2" style={{ color: 'rgb(var(--theme-text-muted))' }} onClick={() => handleSort('uri')}>
                                                     URL Path
                                                 </TableHead>
-                                                <TableHead className="text-slate-300 cursor-pointer hover:text-white" onClick={() => handleSort('requests')}>
+                                                <TableHead className="cursor-pointer hover-surface rounded py-2" style={{ color: 'rgb(var(--theme-text-muted))' }} onClick={() => handleSort('requests')}>
                                                     Requests
                                                 </TableHead>
-                                                <TableHead className="text-slate-300 cursor-pointer hover:text-white" onClick={() => handleSort('traffic')}>
+                                                <TableHead className="cursor-pointer hover-surface rounded py-2" style={{ color: 'rgb(var(--theme-text-muted))' }} onClick={() => handleSort('traffic')}>
                                                     Bandwidth
                                                 </TableHead>
-                                                <TableHead className="text-slate-300 cursor-pointer hover:text-white" onClick={() => handleSort('avgLatency')}>
+                                                <TableHead className="cursor-pointer hover-surface rounded py-2" style={{ color: 'rgb(var(--theme-text-muted))' }} onClick={() => handleSort('avgLatency')}>
                                                     Avg Latency
                                                 </TableHead>
-                                                <TableHead className="text-slate-300 cursor-pointer hover:text-white" onClick={() => handleSort('errors')}>
+                                                <TableHead className="cursor-pointer hover-surface rounded py-2" style={{ color: 'rgb(var(--theme-text-muted))' }} onClick={() => handleSort('errors')}>
                                                     Errors
                                                 </TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {sortedEndpoints.map((stat, idx) => (
-                                                <TableRow key={idx} className="border-slate-600">
-                                                    <TableCell className="font-mono text-sm max-w-[300px] truncate text-white">
+                                                <TableRow key={idx} style={{ borderColor: 'rgb(var(--theme-border))' }}>
+                                                    <TableCell className="font-mono text-sm max-w-[300px] truncate" style={{ color: 'rgb(var(--theme-text))' }}>
                                                         {stat.uri}
                                                     </TableCell>
-                                                    <TableCell className="text-slate-300">
+                                                    <TableCell style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                                         {stat.requests.toLocaleString()}
                                                     </TableCell>
-                                                    <TableCell className="text-slate-300">
+                                                    <TableCell style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                                         {stat.traffic}
                                                     </TableCell>
                                                     <TableCell>
@@ -1317,14 +1334,14 @@ function AnalyticsView() {
                                                                 {stat.errors}
                                                             </Badge>
                                                         ) : (
-                                                            <span className="text-slate-300">0</span>
+                                                            <span style={{ color: 'rgb(var(--theme-text-muted))' }}>0</span>
                                                         )}
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
                                             {sortedEndpoints.length === 0 && (
                                                 <TableRow>
-                                                    <TableCell colSpan={5} className="text-center py-8 text-slate-400">
+                                                    <TableCell colSpan={5} className="text-center py-8" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                                         No traffic data available for the selected period
                                                     </TableCell>
                                                 </TableRow>
@@ -1350,7 +1367,7 @@ export default function AnalyticsPage() {
     return (
         <Suspense fallback={
             <div className="flex items-center justify-center h-64">
-                <RefreshCw className="h-8 w-8 animate-spin text-slate-400" />
+                <RefreshCw className="h-8 w-8 animate-spin" style={{ color: 'rgb(var(--theme-text-muted))' }} />
             </div>
         }>
             <AnalyticsContent />

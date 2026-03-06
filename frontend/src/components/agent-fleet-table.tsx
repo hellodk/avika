@@ -406,27 +406,27 @@ export function AgentFleetTable({
                                 />
                             </TableHead>
                             <TableHead className="font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>
-                                <button onClick={() => handleSort('hostname')} className="flex items-center gap-1 hover:text-white transition-colors">
+                                <button onClick={() => handleSort('hostname')} className="flex items-center gap-1 rounded hover-surface transition-colors w-full text-left py-1 px-1 -mx-1">
                                     Agent
                                     {sortField === 'hostname' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                                 </button>
                             </TableHead>
                             <TableHead className="font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>
-                                <button onClick={() => handleSort('ip')} className="flex items-center gap-1 hover:text-white transition-colors">
+                                <button onClick={() => handleSort('ip')} className="flex items-center gap-1 rounded hover-surface transition-colors w-full text-left py-1 px-1 -mx-1">
                                     IP Address
                                     {sortField === 'ip' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                                 </button>
                             </TableHead>
                             <TableHead className="font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>NGINX</TableHead>
                             <TableHead className="font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>
-                                <button onClick={() => handleSort('agent_version')} className="flex items-center gap-1 hover:text-white transition-colors">
+                                <button onClick={() => handleSort('agent_version')} className="flex items-center gap-1 rounded hover-surface transition-colors w-full text-left py-1 px-1 -mx-1">
                                     Version
                                     {sortField === 'agent_version' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                                 </button>
                             </TableHead>
                             <TableHead className="font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>Status</TableHead>
                             <TableHead className="font-medium whitespace-nowrap" style={{ color: 'rgb(var(--theme-text-muted))' }}>
-                                <button onClick={() => handleSort('last_seen')} className="flex items-center gap-1 hover:text-white transition-colors">
+                                <button onClick={() => handleSort('last_seen')} className="flex items-center gap-1 rounded hover-surface transition-colors w-full text-left py-1 px-1 -mx-1">
                                     Last Seen
                                     {sortField === 'last_seen' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                                 </button>
@@ -475,7 +475,7 @@ export function AgentFleetTable({
                                                 </div>
                                                 <div>
                                                     <div className="flex items-center gap-2">
-                                                        <Link href={`/servers/${instance.agent_id}`} className="font-medium text-white hover:text-blue-400 transition-colors">
+                                                        <Link href={`/servers/${instance.agent_id}`} className="font-medium link-theme transition-colors hover:underline">
                                                             {instance.hostname || "Unknown"}
                                                         </Link>
                                                         {instance.psk_authenticated && (

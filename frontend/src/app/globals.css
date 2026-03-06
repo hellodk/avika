@@ -178,6 +178,51 @@
   }
 }
 
+/* Theme-aware hover: visible in both light and dark themes */
+@layer utilities {
+  .hover-surface {
+    transition: background-color 0.15s ease;
+  }
+  .hover-surface:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+  [data-theme="light"] .hover-surface:hover {
+    background-color: rgba(0, 0, 0, 0.06);
+  }
+
+  .link-theme {
+    color: rgb(var(--theme-text));
+  }
+  .link-theme:hover {
+    color: rgb(var(--theme-primary));
+  }
+
+  .hover-text-visible {
+    color: rgb(var(--theme-text-muted));
+  }
+  .hover-text-visible:hover {
+    color: rgb(var(--theme-text));
+  }
+
+  /* Project selector / dropdown trigger: on hover use white bg + black text for clear visibility */
+  .hover-white-black {
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  .hover-white-black:hover {
+    background-color: #fff !important;
+    color: #111 !important;
+  }
+  .hover-white-black:hover svg {
+    color: #374151 !important;
+  }
+
+  /* Analytics tab trigger: active state uses theme primary */
+  .analytics-tab-trigger[data-state="active"] {
+    background: rgb(var(--theme-primary)) !important;
+    color: rgb(255, 255, 255) !important;
+  }
+}
+
 /* Enterprise utility classes */
 @layer utilities {
   .enterprise-card {

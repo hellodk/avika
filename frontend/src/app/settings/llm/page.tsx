@@ -116,11 +116,11 @@ export default function LLMSettingsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={load} disabled={loading} className="border-neutral-700">
+          <Button variant="outline" onClick={load} disabled={loading} style={{ borderColor: 'rgb(var(--theme-border))' }}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          <Button onClick={test} disabled={testing || loading} variant="outline" className="border-neutral-700">
+          <Button onClick={test} disabled={testing || loading} variant="outline" style={{ borderColor: 'rgb(var(--theme-border))' }}>
             <PlugZap className="h-4 w-4 mr-2" />
             {testing ? "Testing..." : "Test"}
           </Button>
@@ -140,12 +140,12 @@ export default function LLMSettingsPage() {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label className="text-neutral-300">Provider</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Provider</Label>
             <Select value={cfg.provider} onValueChange={(v) => setCfg((p) => ({ ...p, provider: v }))}>
-              <SelectTrigger className="bg-neutral-950 border-neutral-800 text-white">
+              <SelectTrigger>
                 <SelectValue placeholder="Select provider" />
               </SelectTrigger>
-              <SelectContent className="bg-neutral-900 border-neutral-800">
+              <SelectContent>
                 <SelectItem value="mock">Mock</SelectItem>
                 <SelectItem value="openai">OpenAI</SelectItem>
                 <SelectItem value="anthropic">Anthropic</SelectItem>
@@ -160,21 +160,21 @@ export default function LLMSettingsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">Model</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Model</Label>
             <Input
               value={cfg.model}
               onChange={(e) => setCfg((p) => ({ ...p, model: e.target.value }))}
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               placeholder="gpt-4.1-mini / claude-3-5-sonnet / llama3.1"
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">Base URL (optional)</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Base URL (optional)</Label>
             <Input
               value={cfg.base_url}
               onChange={(e) => setCfg((p) => ({ ...p, base_url: e.target.value }))}
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               placeholder={
                 { lmstudio: "http://localhost:1234/v1", ollama: "http://localhost:11434", llamacpp: "http://localhost:8080/v1", vllm: "http://localhost:8000/v1", vllm_metal: "http://localhost:8000/v1" }[cfg.provider] ?? "https://api.openai.com"
               }
@@ -182,34 +182,34 @@ export default function LLMSettingsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">API Key</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>API Key</Label>
             <Input
               type="password"
               value={cfg.api_key || ""}
               onChange={(e) => setCfg((p) => ({ ...p, api_key: e.target.value }))}
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               placeholder={cfg.api_key_set ? "•••••••• (set)" : "Enter API key"}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">Max tokens</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Max tokens</Label>
             <Input
               type="number"
               value={cfg.max_tokens}
               onChange={(e) => setCfg((p) => ({ ...p, max_tokens: Number(e.target.value) }))}
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">Temperature</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Temperature</Label>
             <Input
               type="number"
               step="0.1"
               value={cfg.temperature}
               onChange={(e) => setCfg((p) => ({ ...p, temperature: Number(e.target.value) }))}
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
             />
           </div>
         </CardContent>

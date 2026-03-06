@@ -175,7 +175,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                             {!sidebarCollapsed && (
                                 <button
                                     onClick={() => toggleSection(section.title)}
-                                    className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium uppercase tracking-wider rounded hover:bg-white/5 transition-colors"
+                                    className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium uppercase tracking-wider rounded hover-surface"
                                     style={{ color: "rgb(var(--theme-text-muted))" }}
                                 >
                                     <span>{section.title}</span>
@@ -207,7 +207,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                     {!sidebarCollapsed ? (
                         <button
                             onClick={() => setSidebarCollapsed(true)}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg hover:bg-white/5 transition-colors"
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg hover-surface"
                             style={{ color: "rgb(var(--theme-text-muted))" }}
                         >
                             <Menu className="h-4 w-4" />
@@ -216,7 +216,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                     ) : (
                         <button
                             onClick={() => setSidebarCollapsed(false)}
-                            className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-white/5 transition-colors"
+                            className="w-full flex items-center justify-center p-2 rounded-lg hover-surface"
                             style={{ color: "rgb(var(--theme-text-muted))" }}
                             title="Expand sidebar"
                         >
@@ -274,7 +274,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
                         {/* Help */}
                         <button
-                            className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                            className="p-2 rounded-lg hover-surface"
                             style={{ color: "rgb(var(--theme-text-muted))" }}
                             title="Help & Documentation"
                             aria-label="Help and documentation"
@@ -284,7 +284,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
                         {/* Notifications */}
                         <button
-                            className="p-2 rounded-lg hover:bg-white/5 transition-colors relative"
+                            className="p-2 rounded-lg hover-surface relative"
                             style={{ color: "rgb(var(--theme-text-muted))" }}
                             title="Notifications"
                             aria-label="Notifications"
@@ -299,7 +299,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <button
-                                    className="flex items-center gap-3 px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                                    className="flex items-center gap-3 px-3 py-1.5 rounded-lg hover-surface"
                                 >
                                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                                         <User className="h-4 w-4 text-white" />

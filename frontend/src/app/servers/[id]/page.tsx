@@ -457,7 +457,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                         <Button
                             size="icon"
                             variant="ghost"
-                            className="absolute right-1 top-1 h-8 w-8 text-neutral-500 hover:text-white"
+                            className="absolute right-1 top-1 h-8 w-8 hover-text-visible"
                             onClick={() => {
                                 navigator.clipboard.writeText(execCommand);
                                 setCopied(true);
@@ -1077,7 +1077,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                         <SelectTrigger className="bg-neutral-950 border-neutral-800 text-white">
                                             <SelectValue placeholder="Select log format" />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-neutral-900 border-neutral-800">
+                                        <SelectContent>
                                             <SelectItem value="combined">Combined (Apache/NGINX Standard)</SelectItem>
                                             <SelectItem value="json">JSON (Structured)</SelectItem>
                                             <SelectItem value="custom">Custom</SelectItem>
@@ -1138,7 +1138,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                             <SelectTrigger className="bg-neutral-950 border-neutral-800 text-white">
                                                 <SelectValue placeholder="Select log level" />
                                             </SelectTrigger>
-                                            <SelectContent className="bg-neutral-900 border-neutral-800">
+                                            <SelectContent>
                                                 <SelectItem value="debug">Debug</SelectItem>
                                                 <SelectItem value="info">Info</SelectItem>
                                                 <SelectItem value="warn">Warning</SelectItem>

@@ -265,11 +265,11 @@ function InventoryPageContent() {
 
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-semibold text-white">Inventory</h1>
+                    <h1 className="text-2xl font-semibold" style={{ color: 'rgb(var(--theme-text))' }}>Inventory</h1>
                     <div className="flex items-center gap-2 mt-1">
-                        <p className="text-sm text-slate-400">Manage your NGINX agent fleet</p>
+                        <p className="text-sm" style={{ color: 'rgb(var(--theme-text-muted))' }}>Manage your NGINX agent fleet</p>
                         {(selectedProject || selectedEnvironment) && (
-                            <Badge variant="outline" className="text-xs border-slate-700 text-slate-400">
+                            <Badge variant="outline" className="text-xs" style={{ borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text-muted))' }}>
                                 <FolderKanban className="h-3 w-3 mr-1" />
                                 {selectedEnvironment ? `${selectedProject?.name} / ${selectedEnvironment.name}` : selectedProject?.name}
                             </Badge>
