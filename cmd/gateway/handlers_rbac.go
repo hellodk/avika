@@ -101,11 +101,8 @@ func (srv *server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create default environments
-	if err := srv.db.CreateDefaultEnvironments(project.ID); err != nil {
-		// Log but don't fail - project was created
-		// log.Printf("Warning: failed to create default environments for project %s: %v", project.ID, err)
-	}
+	// Do not create default environments; they are created when agents connect
+	// with LABEL_ENVIRONMENT/AVIKA_LABEL_ENVIRONMENT or by admin in Settings.
 
 	// Audit log
 	srv.db.CreateAuditLog(user.Username, "create", "project", project.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
