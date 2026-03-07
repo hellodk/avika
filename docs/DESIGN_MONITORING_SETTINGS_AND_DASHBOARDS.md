@@ -278,11 +278,20 @@ Implementation can proceed: backend **GET/POST /api/settings**, frontend default
 
 ---
 
-## 8. Troubleshooting: “Failed to create ClickHouse client” in Grafana
+## 8. Troubleshooting Grafana dashboards
 
-If Grafana shows **“failed to create clickhouse client”** when using the ClickHouse datasource:
+### 8.1 "No data" in panels
+
+1. **Time range vs DateTime64(3)** – ClickHouse tables use `timestamp DateTime64(3)`. Grafana's `$__fromTime` / `$__toTime` are in milliseconds. The Avika dashboard JSON uses `toDateTime64($__fromTime/1000, 3)` and `toDateTime64($__toTime/1000, 3)` so the time filter matches. If you edited dashboards and reverted to `BETWEEN $__fromTime AND $__toTime`, panels will show no data; restore the `toDateTime64` form.
+2. **Datasource not provisioned** – The ClickHouse datasource ConfigMap is in the **avika** namespace. The Grafana sidecar (e.g. from kube-prometheus-stack) must be configured to scan the avika namespace for `grafana_datasource: "1"`. See `deploy/helm/avika/GRAFANA_DASHBOARDS.md`.
+3. **No data in ClickHouse** – Ensure the gateway and agents are running and sending metrics/logs so that `nginx_analytics.*` tables are populated. Test in Grafana with a query like `SELECT count(*) FROM nginx_analytics.nginx_metrics WHERE timestamp > now() - INTERVAL 1 HOUR`.
+
+### 8.2 "Failed to create ClickHouse client"
+
+If Grafana shows **"failed to create clickhouse client"** when using the ClickHouse datasource:
 
 1. **Empty password** – The Grafana ClickHouse plugin can fail when a password is set to empty string. The Helm template now **omits** `secureJsonData` when `grafana.datasources.clickhouse.password` is empty. If you provisioned the datasource manually, edit it in Grafana and clear the password field (or leave it unset) if ClickHouse has no password.
-2. **Reachability** – Grafana must reach ClickHouse on the HTTP port (8123). If Grafana runs in another namespace (e.g. `monitoring`) and Avika in `avika`, use the full FQDN: `avika-clickhouse.avika.svc.cluster.local`. Set `grafana.datasources.clickhouse.host` to that value (or to the pod DNS `avika-clickhouse-0.avika-clickhouse.avika.svc.cluster.local`) and upgrade the Helm release. For a manually added datasource, set **Server address** to that host and **Port** to `8123`.
-3. **ConfigMap namespace** – The datasource ConfigMap is created in the **avika** namespace (where the Helm chart is installed). Kube-prometheus-stack is configured to discover and provision datasources from that namespace, so the ConfigMap should stay in avika and not be copied to the Grafana (e.g. monitoring) namespace.
-4. **Timeout** – If the cluster is slow to resolve or connect, set `grafana.datasources.clickhouse.dialTimeout` to a higher value (e.g. 30) and re-apply.
+2. **Authentication failed (HTTP 403 / Code 516)** – ClickHouse is reachable but rejects the login. The Avika chart sets the `default` user pass from `avika-db-secrets`. Set the same value for the Grafana datasource (see `deploy/helm/avika/GRAFANA_DASHBOARDS.md` §3; you can pass it from the secret via `kubectl get secret -n avika avika-db-secrets -o jsonpath='{.data.clickhouse-password}' | base64 -d`).
+3. **Reachability** – Grafana must reach ClickHouse on the HTTP port (8123). If Grafana runs in another namespace (e.g. `monitoring`) and Avika in `avika`, use the full FQDN: `avika-clickhouse.avika.svc.cluster.local`. Set `grafana.datasources.clickhouse.host` to that value (or to the pod DNS `avika-clickhouse-0.avika-clickhouse.avika.svc.cluster.local`) and upgrade the Helm release. For a manually added datasource, set **Server address** to that host and **Port** to `8123`.
+4. **ConfigMap namespace** – The datasource ConfigMap is created in the **avika** namespace (where the Helm chart is installed). Kube-prometheus-stack is configured to discover and provision datasources from that namespace, so the ConfigMap should stay in avika and not be copied to the Grafana (e.g. monitoring) namespace.
+5. **Timeout** – If the cluster is slow to resolve or connect, set `grafana.datasources.clickhouse.dialTimeout` to a higher value (e.g. 30) and re-apply.
