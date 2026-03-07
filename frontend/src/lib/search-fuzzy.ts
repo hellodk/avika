@@ -73,7 +73,11 @@ export function filterAndSortByFuzzy<T>(
     .filter((x) => x.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      return (getSearchable(a.item) as string).length - (getSearchable(b.item) as string).length;
+      const sa = getSearchable(a.item);
+      const sb = getSearchable(b.item);
+      const lenA = Array.isArray(sa) ? Math.min(...sa.map((s) => (s || "").length)) : (sa || "").length;
+      const lenB = Array.isArray(sb) ? Math.min(...sb.map((s) => (s || "").length)) : (sb || "").length;
+      return lenA - lenB;
     });
   return scored.map((x) => x.item);
 }

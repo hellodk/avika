@@ -131,13 +131,16 @@ export function GlobalSearch({ onOpenChange, "aria-label": ariaLabel }: GlobalSe
     i.ip || "",
   ]);
 
-  const allSuggestions: Suggestion[] = [
-    ...filteredPages.map((p) => ({ type: "page" as const, href: p.href, label: p.label })),
-    ...filteredSettings.map((s) => ({ type: "settings" as const, label: s.label, q: s.q })),
-    ...filteredInstances,
-  ].slice(0, 12);
+  const hasQuery = query.trim().length >= 1;
+  const allSuggestions: Suggestion[] = hasQuery
+    ? [
+        ...filteredPages.map((p) => ({ type: "page" as const, href: p.href, label: p.label })),
+        ...filteredSettings.map((s) => ({ type: "settings" as const, label: s.label, q: s.q })),
+        ...filteredInstances,
+      ].slice(0, 12)
+    : PAGES.slice(0, 8).map((p) => ({ type: "page" as const, href: p.href, label: p.label }));
 
-  const showPanel = open && query.trim().length >= 1;
+  const showPanel = open;
 
   useEffect(() => {
     if (open) fetchInstances();
