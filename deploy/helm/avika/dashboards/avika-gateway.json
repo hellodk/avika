@@ -1,0 +1,76 @@
+{
+  "annotations": { "list": [{ "builtIn": 1, "datasource": { "type": "grafana", "uid": "-- Grafana --" }, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard" }] },
+  "description": "Avika Gateway health and performance (EPS, connections, CPU, memory, DB latency)",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "id": 1, "panels": [], "title": "Gateway Metrics", "type": "row" },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 }, "id": 2,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" }, "format": 1, "queryType": "sql", "rawSql": "SELECT avg(eps) as eps FROM nginx_analytics.gateway_metrics WHERE timestamp > now() - INTERVAL 5 MINUTE", "refId": "A" }],
+      "title": "Events/sec (EPS)", "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 }, "id": 3,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" }, "format": 1, "queryType": "sql", "rawSql": "SELECT avg(active_connections) as conn FROM nginx_analytics.gateway_metrics WHERE timestamp > now() - INTERVAL 5 MINUTE", "refId": "A" }],
+      "title": "Active Connections", "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 90 }] }, "unit": "percent" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 }, "id": 4,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" }, "format": 1, "queryType": "sql", "rawSql": "SELECT avg(cpu_usage) as cpu FROM nginx_analytics.gateway_metrics WHERE timestamp > now() - INTERVAL 5 MINUTE", "refId": "A" }],
+      "title": "CPU Usage %", "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "decmbytes" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 }, "id": 5,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" }, "format": 1, "queryType": "sql", "rawSql": "SELECT avg(memory_mb) as mem FROM nginx_analytics.gateway_metrics WHERE timestamp > now() - INTERVAL 5 MINUTE", "refId": "A" }],
+      "title": "Memory (MB)", "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 }] }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 }, "id": 6,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" }, "format": 1, "queryType": "sql", "rawSql": "SELECT avg(db_latency_ms) as lat FROM nginx_analytics.gateway_metrics WHERE timestamp > now() - INTERVAL 5 MINUTE", "refId": "A" }],
+      "title": "DB Latency (ms)", "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": true, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 }, "id": 10,
+      "options": { "legend": { "calcs": ["mean", "max", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" }, "format": 2, "queryType": "sql", "rawSql": "SELECT toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time, gateway_id, avg(eps) as eps FROM nginx_analytics.gateway_metrics WHERE timestamp BETWEEN $__fromTime AND $__toTime GROUP BY time, gateway_id ORDER BY time", "refId": "A" }],
+      "title": "EPS over time", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": true, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 }, "id": 11,
+      "options": { "legend": { "calcs": ["mean", "max", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" }, "format": 2, "queryType": "sql", "rawSql": "SELECT toStartOfInterval(timestamp, INTERVAL 1 MINUTE) as time, gateway_id, avg(db_latency_ms) as db_latency_ms FROM nginx_analytics.gateway_metrics WHERE timestamp BETWEEN $__fromTime AND $__toTime GROUP BY time, gateway_id ORDER BY time", "refId": "A" }],
+      "title": "DB Latency over time", "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["avika", "gateway", "monitoring"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "browser",
+  "title": "Avika Gateway",
+  "uid": "avika-gateway",
+  "version": 1
+}

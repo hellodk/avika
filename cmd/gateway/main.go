@@ -1579,6 +1579,10 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.Handle("PUT /api/integrations/{type}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handlePutIntegration)))
 	mux.Handle("POST /api/integrations/{type}/test", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleTestIntegration)))
 
+	// Settings (integrations URLs + display; persisted in DB)
+	mux.Handle("GET /api/settings", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetSettings)))
+	mux.Handle("POST /api/settings", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handlePostSettings)))
+
 	// Audit Logs API
 	mux.Handle("GET /api/audit", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListAuditLogs)))
 

@@ -27,6 +27,7 @@ export default function SettingsPage() {
     const [grafanaUrl, setGrafanaUrl] = useState(userSettings.integrations.grafanaUrl);
     const [clickhouseUrl, setClickhouseUrl] = useState(userSettings.integrations.clickhouseUrl);
     const [prometheusUrl, setPrometheusUrl] = useState(userSettings.integrations.prometheusUrl);
+    const [postgresUrl, setPostgresUrl] = useState(userSettings.integrations.postgresUrl ?? "");
 
     const [defaultTimeRange, setDefaultTimeRange] = useState(userSettings.display.defaultTimeRange);
     const [refreshInterval, setRefreshInterval] = useState(userSettings.display.refreshInterval);
@@ -41,6 +42,7 @@ export default function SettingsPage() {
         setGrafanaUrl(userSettings.integrations.grafanaUrl);
         setClickhouseUrl(userSettings.integrations.clickhouseUrl);
         setPrometheusUrl(userSettings.integrations.prometheusUrl);
+        setPostgresUrl(userSettings.integrations.postgresUrl ?? "");
         setDefaultTimeRange(userSettings.display.defaultTimeRange);
         setRefreshInterval(userSettings.display.refreshInterval);
         setTimezone(userSettings.display.timezone);
@@ -49,6 +51,30 @@ export default function SettingsPage() {
         setAnomalyThreshold(userSettings.aiEngine?.anomalyThreshold || "0.8");
         setWindowSize(userSettings.aiEngine?.windowSize || "200");
     }, [userSettings]);
+
+    // Load integrations from backend (source of truth when available)
+    useEffect(() => {
+        let cancelled = false;
+        apiFetch("/api/settings")
+            .then((res) => {
+                if (cancelled || !res.ok) return;
+                return res.json();
+            })
+            .then((data: { integrations?: { grafana_url?: string; prometheus_url?: string; clickhouse_url?: string; postgres_url?: string } }) => {
+                if (cancelled || !data?.integrations) return;
+                const i = data.integrations;
+                updateSettings({
+                    integrations: {
+                        grafanaUrl: i.grafana_url ?? userSettings.integrations.grafanaUrl,
+                        prometheusUrl: i.prometheus_url ?? userSettings.integrations.prometheusUrl,
+                        clickhouseUrl: i.clickhouse_url ?? userSettings.integrations.clickhouseUrl,
+                        postgresUrl: i.postgres_url ?? userSettings.integrations.postgresUrl,
+                    },
+                });
+            })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps -- load once on mount
 
     const integrationsChanged = useMemo(() => {
         return (
@@ -114,12 +140,16 @@ export default function SettingsPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    integrations: {
+                        grafana_url: grafanaUrl.trim(),
+                        prometheus_url: prometheusUrl.trim(),
+                        clickhouse_url: clickhouseUrl.trim(),
+                    },
                     collection_interval: parseInt(collectionInterval),
                     retention_days: parseInt(retentionDays),
                     anomaly_threshold: parseFloat(anomalyThreshold),
                     window_size: parseInt(windowSize),
-                    grafana_url: grafanaUrl
-                })
+                }),
             });
 
             if (res.ok) {
@@ -201,6 +231,7 @@ export default function SettingsPage() {
                 setClickhouseUrl={setClickhouseUrl}
                 prometheusUrl={prometheusUrl}
                 setPrometheusUrl={setPrometheusUrl}
+                postgresUrl={postgresUrl}
                 integrationsChanged={integrationsChanged}
             />
 

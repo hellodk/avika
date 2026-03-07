@@ -238,3 +238,6 @@ TEST_OBSERVATIONS_*.md
 LOAD_TEST_REPORT.md
 MANUAL_TEST_GUIDE.md
 WEB_TERMINAL_TEST_GUIDE.md
+
+# Extracted agent instructions (from Cursor transcripts)
+agent-instructions-extract.txt

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import {
-    LineChart, Activity, AlertTriangle, Clock, Server,
+    LineChart, Activity, AlertTriangle, Clock, Server, Gauge,
     Maximize2, Minimize2, RefreshCw, ExternalLink, Settings
 } from "lucide-react";
 import {
@@ -53,6 +53,13 @@ const GRAFANA_DASHBOARDS: GrafanaDashboard[] = [
         title: "Agent Detail",
         description: "Per-agent metrics, system resources, and logs",
         icon: <Server className="h-4 w-4" />,
+    },
+    {
+        id: "gateway",
+        uid: "avika-gateway",
+        title: "Gateway",
+        description: "Gateway health: EPS, connections, CPU, memory, DB latency",
+        icon: <Gauge className="h-4 w-4" />,
     },
 ];
 
