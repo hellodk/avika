@@ -584,7 +584,10 @@ grafana:
     clickhouse:
       name: "ClickHouse"
       uid: "DS_CLICKHOUSE"
+      # Host: leave empty to use in-cluster FQDN. Override if Grafana runs in another namespace or needs a different address.
+      host: ""  # e.g. "avika-clickhouse-0.avika-clickhouse.avika.svc.cluster.local" for direct pod DNS
       port: 8123
       database: "nginx_analytics"
       username: "default"
-      password: ""  # Set via --set grafana.datasources.clickhouse.password
+      password: ""  # Set via --set grafana.datasources.clickhouse.password. Omit (empty) if ClickHouse has no password.
+      dialTimeout: 10  # Connection timeout in seconds; increase if Grafana cannot reach ClickHouse in time

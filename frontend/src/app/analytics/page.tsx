@@ -174,6 +174,10 @@ function AnalyticsView() {
     const [analyticsData, setAnalyticsData] = useState<any>(initialData);
 
     const handleTabChange = (value: string) => {
+        if (value === "geo") {
+            router.push("/analytics/geo");
+            return;
+        }
         const params = new URLSearchParams(searchParams.toString());
         params.set("tab", value);
         router.push(`${pathname}?${params.toString()}`);
@@ -591,6 +595,7 @@ function AnalyticsView() {
                         { value: 'system', label: 'System', icon: HardDrive },
                         { value: 'errors', label: 'Errors', icon: AlertCircle },
                         { value: 'traffic', label: 'Traffic', icon: Wifi },
+                        { value: 'geo', label: 'Geo', icon: Globe },
                         { value: 'alerts', label: 'Alerts', icon: Activity },
                     ].map(tab => (
                         <TabsTrigger
