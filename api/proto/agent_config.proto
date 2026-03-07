@@ -7,7 +7,7 @@ option go_package = "github.com/avika-ai/avika/internal/common/proto/agent";
 // Separate service for agent self-configuration.
 // This service focuses on configuring the agent process itself (not NGINX config).
 service AgentConfigService {
-  rpc GetAgentConfig(google.protobuf.Empty) returns (AgentConfigResponse);
+  rpc GetAgentConfig(google.protobuf.Empty) returns (GetAgentConfigResponse);
   rpc UpdateAgentConfig(AgentConfigUpdate) returns (AgentConfigUpdateResponse);
   rpc TestConnection(ConnectionTestRequest) returns (ConnectionTestResponse);
   rpc ListConfigBackups(google.protobuf.Empty) returns (ListConfigBackupsResponse);
@@ -16,7 +16,7 @@ service AgentConfigService {
 
 import "google/protobuf/empty.proto";
 
-message AgentConfigResponse {
+message GetAgentConfigResponse {
   string gateway_address = 1;
   string agent_id = 2;
   map<string, string> labels = 3;

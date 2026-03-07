@@ -85,13 +85,18 @@ func (c *VtsCollector) Collect() (*pb.NginxMetrics, error) {
 		HttpStatus:          &pb.HttpStatusMetrics{},
 	}
 
-	// Aggregate HTTP statuses from all zones
+	// Aggregate HTTP statuses and bytes from all zones
+	var bytesIn, bytesOut int64
 	for _, zone := range vts.ServerZones {
 		metrics.HttpStatus.Status_2XxCount += zone.Responses.TwoXx
 		metrics.HttpStatus.Status_3XxCount += zone.Responses.ThreeXx
 		metrics.HttpStatus.Status_4XxCount += zone.Responses.FourXx
 		metrics.HttpStatus.Status_5XxCount += zone.Responses.FiveXx
+		bytesIn += zone.InBytes
+		bytesOut += zone.OutBytes
 	}
+	metrics.BytesInTotal = bytesIn
+	metrics.BytesOutTotal = bytesOut
 
 	return metrics, nil
 }
