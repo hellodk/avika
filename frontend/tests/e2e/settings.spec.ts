@@ -14,19 +14,27 @@ test.describe('Settings Page', () => {
     });
 
     test('should display theme selection', async ({ page }) => {
-        // Look for theme-related elements
-        const themeSection = page.getByText(/theme/i).first();
-        await expect(themeSection).toBeVisible();
+        await page.waitForLoadState('networkidle');
+        await expect(page.getByText('Configure your NGINX AI Manager').or(page.getByText('Appearance')).first()).toBeVisible({ timeout: 20000 });
+        await expect(page.getByText('Active Theme').first()).toBeVisible();
     });
 
     test('should allow theme switching', async ({ page }) => {
-        // Find and interact with theme selector
-        const themeSelector = page.locator('select').or(page.getByRole('combobox'));
-        
-        if (await themeSelector.isVisible()) {
-            await themeSelector.click();
-            // Should show theme options
-            await expect(page.getByText(/dark|light|nord|solarized/i).first()).toBeVisible();
-        }
+        const appearance = page.getByText('Appearance').first();
+        await appearance.scrollIntoViewIfNeeded();
+        const themeTrigger = page.getByRole('button', { name: /Dark|Light|UI Kit|Rocker|Select Theme/i });
+        await themeTrigger.scrollIntoViewIfNeeded();
+        await themeTrigger.click();
+        await expect(page.getByText(/Dark|Light|UI Kit|Rocker/i).first()).toBeVisible({ timeout: 5000 });
+    });
+
+    test('should list UI Kit and Rocker themes in appearance dropdown', async ({ page }) => {
+        const appearance = page.getByText('Appearance').first();
+        await appearance.scrollIntoViewIfNeeded();
+        const themeTrigger = page.getByRole('button', { name: /Dark|Light|UI Kit|Rocker|Select Theme/i });
+        await themeTrigger.scrollIntoViewIfNeeded();
+        await themeTrigger.click();
+        await expect(page.getByText('UI Kit').first()).toBeVisible({ timeout: 5000 });
+        await expect(page.getByText('Rocker').first()).toBeVisible({ timeout: 5000 });
     });
 });

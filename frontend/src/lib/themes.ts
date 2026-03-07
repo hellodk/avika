@@ -33,37 +33,50 @@ export const themes = {
         error: "220 38 38",
         border: "209 213 219",
     },
-    solarized: {
-        name: "Solarized Dark",
-        background: "0 43 54",
-        surface: "7 54 66",
-        surfaceLight: "88 110 117",
-        text: "238 232 213",
-        textMuted: "147 161 161",
-        textDim: "165 178 178",
-        primary: "38 139 210",
-        success: "133 153 0",
-        warning: "203 75 22",
-        error: "220 50 47",
-        border: "88 110 117",
+    /**
+     * UI Kit theme — inspired by Figma Dashboard UI Kit (light admin style).
+     * Reference: https://www.figma.com/community/file/1210542873091115123/dashboard-ui-kit-dashboard-free-admin-dashboard
+     * Palette: slate backgrounds, indigo primary, WCAG AA contrast.
+     */
+    dashboard: {
+        name: "UI Kit",
+        background: "248 250 252",
+        surface: "255 255 255",
+        surfaceLight: "241 245 249",
+        text: "15 23 42",
+        textMuted: "71 85 105",
+        textDim: "100 116 139",
+        primary: "99 102 241",
+        success: "34 197 94",
+        warning: "245 158 11",
+        error: "239 68 68",
+        border: "226 232 240",
     },
-    nord: {
-        name: "Nord",
-        background: "46 52 64",
-        surface: "59 66 82",
-        surfaceLight: "67 76 94",
-        text: "236 239 244",
-        textMuted: "229 233 240",
-        textDim: "216 222 233",
-        primary: "136 192 208",
-        success: "163 190 140",
-        warning: "235 203 139",
-        error: "191 97 106",
-        border: "76 86 106",
+    /**
+     * Rocker theme — aligned with Rocker (Bootstrap 5 admin dashboard) light style.
+     * Reference: https://codervent.com/rocker/demo/vertical/index.html
+     * Uses Bootstrap 5–style colors: primary #0d6efd, bg-light #f8f9fa, body #212529, borders #dee2e6.
+     */
+    rocker: {
+        name: "Rocker",
+        background: "248 249 250",
+        surface: "255 255 255",
+        surfaceLight: "248 249 250",
+        text: "33 37 41",
+        textMuted: "108 117 125",
+        textDim: "108 117 125",
+        primary: "13 110 253",
+        success: "25 135 84",
+        warning: "255 193 7",
+        error: "220 53 69",
+        border: "222 226 230",
     },
 } as const;
 
 export type ThemeName = keyof typeof themes;
+
+/** Explicit ordered list of theme ids for the UI dropdown. Ensures all themes always appear. */
+export const THEME_IDS: ThemeName[] = ["dark", "light", "dashboard", "rocker"];
 
 export function getThemeColors(themeName: ThemeName) {
     return themes[themeName];

@@ -1,9 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Palette, Check, Moon, Sun, Sparkles, ChevronDown } from "lucide-react";
+import { Palette, Check, Moon, Sun, LayoutDashboard, Layout, ChevronDown } from "lucide-react";
 import { useTheme } from "@/lib/theme-provider";
-import { themes, ThemeName } from "@/lib/themes";
+import { themes, ThemeName, THEME_IDS } from "@/lib/themes";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -14,8 +14,8 @@ import {
 const themeIcons: Record<string, typeof Moon> = {
     dark: Moon,
     light: Sun,
-    solarized: Sparkles,
-    nord: Sparkles,
+    dashboard: LayoutDashboard,
+    rocker: Layout,
 };
 
 export function AppearanceSettings() {
@@ -61,13 +61,15 @@ export function AppearanceSettings() {
                                 borderColor: 'rgb(var(--theme-border))'
                             }}
                         >
-                            {Object.entries(themes).map(([key, themeConfig]) => {
-                                const Icon = themeIcons[key as ThemeName] || Palette;
+                            {THEME_IDS.map((key) => {
+                                const themeConfig = themes[key];
+                                if (!themeConfig) return null;
+                                const Icon = themeIcons[key] || Palette;
                                 const isActive = theme === key;
                                 return (
                                     <DropdownMenuItem
                                         key={key}
-                                        onClick={() => setTheme(key as ThemeName)}
+                                        onClick={() => setTheme(key)}
                                         className="flex items-center justify-between cursor-pointer"
                                         style={{ color: 'rgb(var(--theme-text))' }}
                                     >
@@ -75,7 +77,7 @@ export function AppearanceSettings() {
                                             <Icon className="h-4 w-4" />
                                             <span>{themeConfig.name}</span>
                                         </div>
-                                        {isActive && <Check className="h-4 w-4 text-blue-500" />}
+                                        {isActive && <Check className="h-4 w-4" style={{ color: "rgb(var(--theme-primary))" }} />}
                                     </DropdownMenuItem>
                                 );
                             })}
