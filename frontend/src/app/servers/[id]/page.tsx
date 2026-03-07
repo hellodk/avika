@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { FileCode, Save, RotateCcw, CheckCircle2, AlertTriangle, Shield, FileText, RefreshCw, Play, Square, RotateCcwIcon, Construction, Plus, Trash2, BarChart3, Activity, Terminal, Copy, Check, Settings, Server, Network, Zap, Globe, Info, GitCompare } from "lucide-react";
 import { RefreshButton } from "@/components/ui/refresh-button";
+import Link from "next/link";
 import { useState, useEffect, use, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
@@ -942,6 +943,17 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
 
                 <TabsContent value="settings">
                     <div className="space-y-6">
+                        <div className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900/50 px-4 py-3">
+                            <p className="text-sm text-neutral-400">
+                                Edit labels, config file path, backups, and more in the full agent config page.
+                            </p>
+                            <Button variant="outline" size="sm" asChild className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10">
+                                <Link href={`/agents/${encodeURIComponent(id)}/config`}>
+                                    <Settings className="h-4 w-4 mr-2" />
+                                    Edit agent config
+                                </Link>
+                            </Button>
+                        </div>
                         {/* Multi-Gateway Configuration */}
                         <Card className="bg-neutral-900 border-neutral-800">
                             <CardHeader>
