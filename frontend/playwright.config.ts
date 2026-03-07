@@ -13,8 +13,11 @@ export default defineConfig({
         ['list'],
     ],
     outputDir: 'test-results',
+    /* Login credentials for E2E (global-setup and auth flows): E2E_LOGIN_USERNAME, E2E_LOGIN_PASSWORD (default: admin/admin) */
     use: {
-        baseURL: process.env.BASE_URL || 'http://localhost:3000',
+        baseURL:
+            process.env.BASE_URL ||
+            `http://localhost:3000${process.env.BASE_PATH || process.env.NEXT_PUBLIC_BASE_PATH || ''}`,
         storageState: 'tests/e2e/.auth/state.json',
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
@@ -41,8 +44,16 @@ export default defineConfig({
     /* Run your local dev server before starting the tests */
     webServer: process.env.CI ? undefined : {
         command: 'npm run dev',
-        url: 'http://localhost:3000',
+        url:
+            process.env.BASE_URL ||
+            `http://localhost:3000${process.env.BASE_PATH || process.env.NEXT_PUBLIC_BASE_PATH || ''}`,
         reuseExistingServer: true,
         timeout: 120000,
+        env: {
+            ...process.env,
+            ...((process.env.BASE_PATH || process.env.NEXT_PUBLIC_BASE_PATH) && {
+                NEXT_PUBLIC_BASE_PATH: process.env.BASE_PATH || process.env.NEXT_PUBLIC_BASE_PATH,
+            }),
+        },
     },
 });

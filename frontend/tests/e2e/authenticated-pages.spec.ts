@@ -1,12 +1,12 @@
 import { test, expect, Page } from '@playwright/test';
-import { installBasePath } from './helpers';
+import { installBasePath, E2E_LOGIN_USERNAME, E2E_LOGIN_PASSWORD } from './helpers';
 
-// Helper to login
+// Helper to login (uses E2E_LOGIN_USERNAME / E2E_LOGIN_PASSWORD)
 async function login(page: Page) {
     installBasePath(page);
     await page.goto('/login');
-    await page.fill('input[id="username"]', 'admin');
-    await page.fill('input[id="password"]', 'admin');
+    await page.fill('input[id="username"]', E2E_LOGIN_USERNAME);
+    await page.fill('input[id="password"]', E2E_LOGIN_PASSWORD);
     await page.click('button[type="submit"]');
     
     // Wait for sidebar to appear (only visible after login)

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { themes, getThemeColors, ThemeName } from '@/lib/themes';
+import { themes, getThemeColors, ThemeName, THEME_IDS } from '@/lib/themes';
 
 describe('themes', () => {
     describe('theme definitions', () => {
@@ -13,14 +13,23 @@ describe('themes', () => {
             expect(themes.light.name).toBe('Light');
         });
 
-        it('should have solarized theme defined', () => {
-            expect(themes.solarized).toBeDefined();
-            expect(themes.solarized.name).toBe('Solarized Dark');
+        it('should have dashboard (UI Kit) theme defined', () => {
+            expect(themes.dashboard).toBeDefined();
+            expect(themes.dashboard.name).toBe('UI Kit');
         });
 
-        it('should have nord theme defined', () => {
-            expect(themes.nord).toBeDefined();
-            expect(themes.nord.name).toBe('Nord');
+        it('should have rocker theme defined', () => {
+            expect(themes.rocker).toBeDefined();
+            expect(themes.rocker.name).toBe('Rocker');
+        });
+
+        it('THEME_IDS should include all theme keys including dashboard and rocker', () => {
+            expect(THEME_IDS).toContain('dashboard');
+            expect(THEME_IDS).toContain('rocker');
+            expect(THEME_IDS).toEqual(expect.arrayContaining(['dark', 'light', 'dashboard', 'rocker']));
+            THEME_IDS.forEach((id) => {
+                expect(themes[id as ThemeName]).toBeDefined();
+            });
         });
     });
 
@@ -62,14 +71,14 @@ describe('themes', () => {
             expect(colors).toEqual(themes.light);
         });
 
-        it('should return solarized theme colors', () => {
-            const colors = getThemeColors('solarized');
-            expect(colors).toEqual(themes.solarized);
+        it('should return dashboard theme colors', () => {
+            const colors = getThemeColors('dashboard');
+            expect(colors).toEqual(themes.dashboard);
         });
 
-        it('should return nord theme colors', () => {
-            const colors = getThemeColors('nord');
-            expect(colors).toEqual(themes.nord);
+        it('should return rocker theme colors', () => {
+            const colors = getThemeColors('rocker');
+            expect(colors).toEqual(themes.rocker);
         });
     });
 

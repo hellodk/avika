@@ -186,7 +186,9 @@
   .hover-surface:hover {
     background-color: rgba(255, 255, 255, 0.05);
   }
-  [data-theme="light"] .hover-surface:hover {
+  [data-theme="light"] .hover-surface:hover,
+  [data-theme="dashboard"] .hover-surface:hover,
+  [data-theme="rocker"] .hover-surface:hover {
     background-color: rgba(0, 0, 0, 0.06);
   }
 

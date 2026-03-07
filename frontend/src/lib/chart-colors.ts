@@ -5,7 +5,7 @@
  * that adapt to the current theme while maintaining WCAG AA contrast ratios.
  */
 
-export type ThemeMode = 'dark' | 'light' | 'solarized' | 'nord';
+export type ThemeMode = 'dark' | 'light';
 
 export interface ChartColorPalette {
     // Grid and axes
@@ -117,98 +117,6 @@ export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
         };
     }
     
-    if (theme === 'solarized') {
-        return {
-            // Solarized-specific palette
-            grid: 'rgba(131, 148, 150, 0.2)',
-            axis: '#93a1a1',          // Base1
-            axisLabel: '#eee8d5',     // Base2 - brighter for contrast
-            
-            tooltipBg: '#073642',     // Base02
-            tooltipText: '#fdf6e3',   // Base3 - maximum contrast
-            tooltipBorder: '#586e75', // Base01
-            
-            success: '#859900',       // Solarized green
-            warning: '#cb4b16',       // Solarized orange (more visible than yellow)
-            error: '#dc322f',         // Solarized red
-            info: '#268bd2',          // Solarized blue
-            
-            status2xx: '#859900',
-            status3xx: '#268bd2',
-            status4xx: '#cb4b16',
-            status5xx: '#dc322f',
-            
-            connectionActive: '#268bd2',
-            connectionReading: '#859900',
-            connectionWriting: '#cb4b16',
-            connectionWaiting: '#6c71c4',
-            
-            cpu: '#6c71c4',           // Solarized violet
-            memory: '#cb4b16',
-            networkRx: '#859900',
-            networkTx: '#268bd2',
-            
-            latencyP50: '#2aa198',    // Solarized cyan
-            latencyP95: '#cb4b16',
-            latencyP99: '#dc322f',
-            
-            series: [
-                '#268bd2',
-                '#859900',
-                '#cb4b16',
-                '#6c71c4',
-                '#d33682',
-                '#2aa198',
-            ],
-        };
-    }
-    
-    if (theme === 'nord') {
-        return {
-            // Nord-specific palette
-            grid: 'rgba(216, 222, 233, 0.15)',
-            axis: '#d8dee9',          // Snow Storm 1
-            axisLabel: '#eceff4',     // Snow Storm 2
-            
-            tooltipBg: '#3b4252',     // Polar Night 1
-            tooltipText: '#eceff4',   // Snow Storm 2
-            tooltipBorder: '#4c566a', // Polar Night 3
-            
-            success: '#a3be8c',       // Nord green
-            warning: '#ffb74d',       // FIXED: Brighter amber for visibility
-            error: '#bf616a',         // Nord red
-            info: '#88c0d0',          // Nord frost
-            
-            status2xx: '#a3be8c',
-            status3xx: '#88c0d0',
-            status4xx: '#ffb74d',     // FIXED: Brighter amber
-            status5xx: '#bf616a',
-            
-            connectionActive: '#88c0d0',
-            connectionReading: '#a3be8c',
-            connectionWriting: '#ffb74d',  // FIXED: Brighter amber
-            connectionWaiting: '#b48ead',
-            
-            cpu: '#b48ead',           // Nord purple
-            memory: '#ffb74d',        // FIXED: Brighter amber
-            networkRx: '#a3be8c',
-            networkTx: '#88c0d0',
-            
-            latencyP50: '#8fbcbb',    // Nord frost 0
-            latencyP95: '#ffb74d',    // FIXED: Brighter amber
-            latencyP99: '#bf616a',
-            
-            series: [
-                '#88c0d0',
-                '#a3be8c',
-                '#ffb74d',
-                '#b48ead',
-                '#bf616a',
-                '#8fbcbb',
-            ],
-        };
-    }
-    
     // Default dark theme - enterprise optimized for visibility
     return {
         // Grid and axes - visible but not distracting
@@ -266,10 +174,7 @@ export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
 export function getChartColorsForTheme(themeName: string): ChartColorPalette {
     const normalizedTheme = themeName?.toLowerCase() || 'dark';
     
-    if (normalizedTheme.includes('light')) return getChartColors('light');
-    if (normalizedTheme.includes('solarized')) return getChartColors('solarized');
-    if (normalizedTheme.includes('nord')) return getChartColors('nord');
-    
+    if (normalizedTheme.includes('light') || normalizedTheme.includes('dashboard') || normalizedTheme.includes('rocker')) return getChartColors('light');
     return getChartColors('dark');
 }
 

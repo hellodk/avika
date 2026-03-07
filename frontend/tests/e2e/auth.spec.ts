@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { installBasePath } from './helpers';
+import { installBasePath, E2E_LOGIN_USERNAME, E2E_LOGIN_PASSWORD } from './helpers';
 
 // This file validates unauthenticated login flows; override the default authenticated storage state.
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -52,9 +52,9 @@ test.describe('Authentication Flow', () => {
         test('should show loading state during login', async ({ page }) => {
             await page.goto('/login');
 
-            // Fill credentials
-            await page.getByLabel(/username/i).fill('admin');
-            await page.getByLabel(/password/i).fill('password');
+            // Fill credentials (configurable via E2E_LOGIN_*)
+            await page.getByLabel(/username/i).fill(E2E_LOGIN_USERNAME);
+            await page.getByLabel(/password/i).fill(E2E_LOGIN_PASSWORD);
 
             // Click sign in
             await page.getByRole('button', { name: /sign in/i }).click();
@@ -114,8 +114,8 @@ test.describe('Authentication Flow', () => {
         test('should submit form on Enter key', async ({ page }) => {
             await page.goto('/login');
 
-            await page.getByLabel(/username/i).fill('admin');
-            await page.getByLabel(/password/i).fill('password');
+            await page.getByLabel(/username/i).fill(E2E_LOGIN_USERNAME);
+            await page.getByLabel(/password/i).fill(E2E_LOGIN_PASSWORD);
 
             // Press Enter on password field
             await page.getByLabel(/password/i).press('Enter');
@@ -252,7 +252,7 @@ test.describe('Authentication Flow', () => {
         test('should not expose password in URL', async ({ page }) => {
             await page.goto('/login');
 
-            await page.getByLabel(/username/i).fill('admin');
+            await page.getByLabel(/username/i).fill(E2E_LOGIN_USERNAME);
             await page.getByLabel(/password/i).fill('secretpassword');
             await page.getByRole('button', { name: /sign in/i }).click();
 
@@ -270,8 +270,8 @@ test.describe('Authentication Flow', () => {
 
             await page.goto('/login');
 
-            await page.getByLabel(/username/i).fill('admin');
-            await page.getByLabel(/password/i).fill('password');
+            await page.getByLabel(/username/i).fill(E2E_LOGIN_USERNAME);
+            await page.getByLabel(/password/i).fill(E2E_LOGIN_PASSWORD);
             await page.getByRole('button', { name: /sign in/i }).click();
 
             const request = await requestPromise;
@@ -288,8 +288,8 @@ test.describe('Authentication Flow', () => {
 
             await page.goto('/login');
 
-            await page.getByLabel(/username/i).fill('admin');
-            await page.getByLabel(/password/i).fill('password');
+            await page.getByLabel(/username/i).fill(E2E_LOGIN_USERNAME);
+            await page.getByLabel(/password/i).fill(E2E_LOGIN_PASSWORD);
             await page.getByRole('button', { name: /sign in/i }).click();
 
             const request = await requestPromise;
@@ -305,7 +305,7 @@ test.describe('Authentication Flow', () => {
             await page.goto('/login');
 
             // Only fill password
-            await page.getByLabel(/password/i).fill('password');
+            await page.getByLabel(/password/i).fill(E2E_LOGIN_PASSWORD);
 
             // Try to submit - should show validation or error
             await page.getByRole('button', { name: /sign in/i }).click();
@@ -322,7 +322,7 @@ test.describe('Authentication Flow', () => {
             await page.goto('/login');
 
             // Only fill username
-            await page.getByLabel(/username/i).fill('admin');
+            await page.getByLabel(/username/i).fill(E2E_LOGIN_USERNAME);
 
             // Try to submit - should show validation or error
             await page.getByRole('button', { name: /sign in/i }).click();
@@ -339,7 +339,7 @@ test.describe('Authentication Flow', () => {
             await page.goto('/login');
 
             // First attempt with wrong password
-            await page.getByLabel(/username/i).fill('admin');
+            await page.getByLabel(/username/i).fill(E2E_LOGIN_USERNAME);
             await page.getByLabel(/password/i).fill('wrong');
             await page.getByRole('button', { name: /sign in/i }).click();
 
