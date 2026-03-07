@@ -7,13 +7,8 @@ export const dynamic = 'force-dynamic';
 const lookup = promisify(dns.lookup);
 
 export async function GET(request: Request) {
-    // Get the request's host to determine external access URL
-    const requestHost = request.headers.get('host')?.split(':')[0] || 'localhost';
-    
-    // Check for explicit external gateway URL (for browser WebSocket access)
-    // This should be set to the externally accessible gateway address
+    // Check for explicit external gateway URL (cluster FQDN; supports http and https)
     const externalGatewayUrl = process.env.GATEWAY_EXTERNAL_URL;
-    const gatewayNodePort = process.env.GATEWAY_HTTP_NODEPORT || '30521';
     
     // Internal gateway for server-side calls
     const gatewayHost = process.env.GATEWAY_HTTP_URL?.replace(/^https?:\/\//, '').split(':')[0] || 'avika-gateway';
@@ -35,18 +30,29 @@ export async function GET(request: Request) {
     let wsHost = gatewayIp;
     let wsPort = gatewayHttpPort;
     
+    let httpUrl: string;
+    let wsUrl: string;
+
     if (externalGatewayUrl) {
-        // Use explicitly configured external URL
+        // Use explicitly configured external URL (cluster FQDN); supports both http and https
         const url = new URL(externalGatewayUrl);
-        wsHost = url.hostname;
-        wsPort = url.port || '5021';
+        const scheme = url.protocol === 'https:' ? 'https' : 'http';
+        const wsScheme = url.protocol === 'https:' ? 'wss' : 'ws';
+        const port = url.port || (scheme === 'https' ? '443' : '80');
+        const hostPort = url.port ? `${url.hostname}:${url.port}` : url.hostname;
+        httpUrl = `${scheme}://${hostPort}`;
+        wsUrl = `${wsScheme}://${hostPort}`;
+        gatewayIp = url.hostname;
+        gatewayHttpPort = port;
+    } else {
+        httpUrl = `http://${gatewayIp}:${gatewayHttpPort}`;
+        wsUrl = `ws://${wsHost}:${wsPort}`;
     }
-    // Otherwise use the gateway's internal IP/port (works if browser can reach ClusterIPs)
-    
+
     return NextResponse.json({
         gateway: {
-            wsUrl: `ws://${wsHost}:${wsPort}`,
-            httpUrl: `http://${gatewayIp}:${gatewayHttpPort}`,
+            wsUrl,
+            httpUrl,
             host: gatewayIp,
             httpPort: gatewayHttpPort,
         }

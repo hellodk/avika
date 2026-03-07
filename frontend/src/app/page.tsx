@@ -4,10 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { apiFetch } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-    Activity, AlertTriangle, ArrowUpRight, RefreshCw, 
-    Globe, Clock, CheckCircle2, XCircle, TrendingUp, TrendingDown
+import {
+    Activity, AlertTriangle, ArrowUpRight, RefreshCw,
+    Globe, Clock, CheckCircle2, XCircle, TrendingUp, TrendingDown, Info
 } from "lucide-react";
+import {
+    Tooltip as UITooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ResponsiveContainer, Tooltip, XAxis, YAxis, Area, AreaChart, CartesianGrid, Line } from "recharts";
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
@@ -48,14 +54,14 @@ export default function Home() {
     const [agentCount, setAgentCount] = useState<number>(0);
     const [onlineAgents, setOnlineAgents] = useState<number>(0);
     const [error, setError] = useState<string | null>(null);
-    
+
     // Time range state
     const [timeRange, setTimeRange] = useState<TimeRange>({
         type: 'relative',
         value: '1h',
         label: 'Last 1 hour'
     });
-    
+
     const [stats, setStats] = useState({
         requestRate: "0",
         errorRate: "0",
@@ -76,16 +82,16 @@ export default function Home() {
 
     // Calculate trends
     const trends = {
-        requests: prevStats.totalRequests > 0 
+        requests: prevStats.totalRequests > 0
             ? ((stats.totalRequests - prevStats.totalRequests) / prevStats.totalRequests * 100)
             : 0,
-        errorRate: prevStats.errorRate > 0 
+        errorRate: prevStats.errorRate > 0
             ? (parseFloat(stats.errorRate) - prevStats.errorRate)
             : 0,
-        latency: prevStats.avgLatency > 0 
+        latency: prevStats.avgLatency > 0
             ? ((parseInt(stats.avgLatency) - prevStats.avgLatency) / prevStats.avgLatency * 100)
             : 0,
-        requestRate: prevStats.requestRate > 0 
+        requestRate: prevStats.requestRate > 0
             ? ((parseFloat(stats.requestRate) - prevStats.requestRate) / prevStats.requestRate * 100)
             : 0,
     };
@@ -112,14 +118,14 @@ export default function Home() {
             }
 
             const windowParam = getWindowParam(timeRange);
-            
+
             // Fetch Analytics Summary for current period (with project/environment filter)
             const analyticsRes = await apiFetch(`/api/analytics?window=${windowParam}${filterParams}`);
             if (analyticsRes.ok) {
                 const data = await analyticsRes.json();
                 const summary = data.summary || {};
                 const totalReqs = summary.total_requests || 0;
-                
+
                 // Calculate divisor based on window
                 const windowDivisors: Record<string, number> = {
                     '5m': 300, '15m': 900, '30m': 1800, '1h': 3600,
@@ -127,7 +133,7 @@ export default function Home() {
                     '2d': 172800, '7d': 604800, '30d': 2592000
                 };
                 const divisor = windowDivisors[windowParam] || 3600;
-                
+
                 // Process Traffic History - time is already formatted as "HH:MM" from the API
                 const history = (data.request_rate || []).map((p: any) => ({
                     time: p.time || '',
@@ -228,12 +234,12 @@ export default function Home() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <TimeRangePicker 
-                        value={timeRange} 
-                        onChange={setTimeRange} 
+                    <TimeRangePicker
+                        value={timeRange}
+                        onChange={setTimeRange}
                     />
-                    <Badge 
-                        variant="outline" 
+                    <Badge
+                        variant="outline"
                         className={onlineAgents === agentCount && agentCount > 0
                             ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                             : "bg-amber-500/10 text-amber-600 border-amber-500/20"
@@ -243,7 +249,7 @@ export default function Home() {
                         <span className={`w-2 h-2 rounded-full mr-2 ${onlineAgents === agentCount && agentCount > 0 ? 'bg-emerald-500' : 'bg-amber-500'}`} aria-hidden="true" />
                         {onlineAgents}/{agentCount} Agents Online
                     </Badge>
-                    <Button variant="outline" size="sm" onClick={fetchStats} disabled={loading} aria-label="Refresh dashboard data">
+                    <Button variant="outline" size="sm" onClick={fetchStats} disabled={loading} aria-label="Refresh dashboard data" style={{ borderColor: 'rgb(var(--theme-border))', background: 'rgb(var(--theme-surface))', color: 'rgb(var(--theme-text-muted))' }} className="hover:opacity-90">
                         <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
                         Refresh
                     </Button>
@@ -289,6 +295,7 @@ export default function Home() {
                     trendLabel={getPreviousPeriodLabel(timeRange)}
                     trendPositiveIsGood={false}
                     trendIsAbsolute={true}
+                    infoTooltip="This may include expected 4xx responses (auth failures, 404s, etc). Thresholds can be adjusted in Settings."
                 />
                 <KPICard
                     title="Avg Latency"
@@ -334,48 +341,48 @@ export default function Home() {
                                     <AreaChart data={stats.trafficHistory}>
                                         <defs>
                                             <linearGradient id="colorRequests" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
-                                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
+                                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                                             </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                                        <XAxis 
-                                            dataKey="time" 
-                                            stroke="rgb(var(--theme-text-muted))" 
-                                            fontSize={12} 
-                                            tickLine={false} 
-                                            axisLine={false} 
+                                        <XAxis
+                                            dataKey="time"
+                                            stroke="rgb(var(--theme-text-muted))"
+                                            fontSize={12}
+                                            tickLine={false}
+                                            axisLine={false}
                                         />
-                                        <YAxis 
-                                            stroke="rgb(var(--theme-text-muted))" 
-                                            fontSize={12} 
-                                            tickLine={false} 
+                                        <YAxis
+                                            stroke="rgb(var(--theme-text-muted))"
+                                            fontSize={12}
+                                            tickLine={false}
                                             axisLine={false}
                                             tickFormatter={(v) => v.toLocaleString()}
                                         />
                                         <Tooltip
-                                            contentStyle={{ 
-                                                backgroundColor: "rgb(var(--theme-surface))", 
+                                            contentStyle={{
+                                                backgroundColor: "rgb(var(--theme-surface))",
                                                 border: "1px solid rgb(var(--theme-border))",
                                                 borderRadius: "0.5rem",
                                                 color: "rgb(var(--theme-text))"
                                             }}
                                         />
-                                        <Area 
-                                            type="monotone" 
-                                            dataKey="requests" 
-                                            stroke="#3b82f6" 
+                                        <Area
+                                            type="monotone"
+                                            dataKey="requests"
+                                            stroke="#3b82f6"
                                             strokeWidth={2}
                                             fillOpacity={1}
                                             fill="url(#colorRequests)"
                                             name="Requests"
                                         />
-                                        <Line 
-                                            type="monotone" 
-                                            dataKey="errors" 
-                                            stroke="#ef4444" 
-                                            strokeWidth={2} 
-                                            dot={false} 
+                                        <Line
+                                            type="monotone"
+                                            dataKey="errors"
+                                            stroke="#ef4444"
+                                            strokeWidth={2}
+                                            dot={false}
                                             name="Errors"
                                         />
                                     </AreaChart>
@@ -403,30 +410,30 @@ export default function Home() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <StatusBar 
-                            label="2xx Success" 
-                            count={stats.statusCounts.success} 
+                        <StatusBar
+                            label="2xx Success"
+                            count={stats.statusCounts.success}
                             percent={getPercent(stats.statusCounts.success)}
                             color="bg-emerald-500"
                             loading={loading}
                         />
-                        <StatusBar 
-                            label="3xx Redirect" 
-                            count={stats.statusCounts.redirect} 
+                        <StatusBar
+                            label="3xx Redirect"
+                            count={stats.statusCounts.redirect}
                             percent={getPercent(stats.statusCounts.redirect)}
                             color="bg-blue-500"
                             loading={loading}
                         />
-                        <StatusBar 
-                            label="4xx Client Error" 
-                            count={stats.statusCounts.clientError} 
+                        <StatusBar
+                            label="4xx Client Error"
+                            count={stats.statusCounts.clientError}
                             percent={getPercent(stats.statusCounts.clientError)}
                             color="bg-amber-500"
                             loading={loading}
                         />
-                        <StatusBar 
-                            label="5xx Server Error" 
-                            count={stats.statusCounts.serverError} 
+                        <StatusBar
+                            label="5xx Server Error"
+                            count={stats.statusCounts.serverError}
                             percent={getPercent(stats.statusCounts.serverError)}
                             color="bg-red-500"
                             loading={loading}
@@ -465,8 +472,8 @@ export default function Home() {
                         ) : stats.topUrls.length > 0 ? (
                             <div className="space-y-2">
                                 {stats.topUrls.map((url, idx) => (
-                                    <div 
-                                        key={idx} 
+                                    <div
+                                        key={idx}
                                         className="flex items-center justify-between p-3 rounded-lg border"
                                         style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))" }}
                                     >
@@ -514,7 +521,7 @@ export default function Home() {
                         <InsightCard
                             type={agentCount > 0 && onlineAgents === agentCount ? "success" : "warning"}
                             title={agentCount > 0 ? "Fleet Status" : "No Agents Connected"}
-                            description={agentCount > 0 
+                            description={agentCount > 0
                                 ? `All ${agentCount} agents are reporting normally`
                                 : "Deploy agents to start monitoring your NGINX instances"
                             }
@@ -547,7 +554,7 @@ export default function Home() {
     );
 }
 
-function KPICard({ title, value, subValue, icon, iconBg, iconColor, loading, valueColor, trend, trendLabel, trendPositiveIsGood = true, trendIsAbsolute = false }: {
+function KPICard({ title, value, subValue, icon, iconBg, iconColor, loading, valueColor, trend, trendLabel, trendPositiveIsGood = true, trendIsAbsolute = false, infoTooltip }: {
     title: string;
     value: string;
     subValue: string;
@@ -560,6 +567,7 @@ function KPICard({ title, value, subValue, icon, iconBg, iconColor, loading, val
     trendLabel?: string;
     trendPositiveIsGood?: boolean;
     trendIsAbsolute?: boolean;
+    infoTooltip?: string;
 }) {
     if (loading) {
         return (
@@ -584,7 +592,7 @@ function KPICard({ title, value, subValue, icon, iconBg, iconColor, loading, val
     const isGood = trendPositiveIsGood ? isPositive : !isPositive;
     const trendColor = hasTrend ? (isGood ? 'text-emerald-500' : 'text-red-500') : 'text-gray-500';
     const TrendIcon = isPositive ? TrendingUp : TrendingDown;
-    const trendValue = trendIsAbsolute 
+    const trendValue = trendIsAbsolute
         ? `${isPositive ? '+' : ''}${trend?.toFixed(2)}%`
         : `${isPositive ? '+' : ''}${trend?.toFixed(1)}%`;
 
@@ -593,9 +601,23 @@ function KPICard({ title, value, subValue, icon, iconBg, iconColor, loading, val
             <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                     <div>
-                        <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                            {title}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                {title}
+                            </p>
+                            {infoTooltip && (
+                                <TooltipProvider>
+                                    <UITooltip>
+                                        <TooltipTrigger asChild>
+                                            <Info className="h-3.5 w-3.5 text-slate-500 cursor-help" />
+                                        </TooltipTrigger>
+                                        <TooltipContent className="max-w-[200px] text-xs" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}>
+                                            <p>{infoTooltip}</p>
+                                        </TooltipContent>
+                                    </UITooltip>
+                                </TooltipProvider>
+                            )}
+                        </div>
                         <p className={`text-3xl font-bold mt-1 ${valueColor || ''}`} style={!valueColor ? { color: "rgb(var(--theme-text))" } : undefined}>
                             {value}
                         </p>
@@ -645,7 +667,7 @@ function StatusBar({ label, count, percent, color, loading }: {
                 </span>
             </div>
             <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgb(var(--theme-border))" }}>
-                <div 
+                <div
                     className={`h-full ${color} transition-all duration-500`}
                     style={{ width: `${Math.min(parseFloat(percent), 100)}%` }}
                 />

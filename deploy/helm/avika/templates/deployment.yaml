@@ -239,6 +239,18 @@ spec:
             {{- end }}
             {{- /* Frontend-specific dynamic env vars */ -}}
             {{- if eq $name "frontend" }}
+            {{- if $.Values.gatewayExternalUrl }}
+            - name: NEXT_PUBLIC_GATEWAY_URL
+              value: {{ $.Values.gatewayExternalUrl | quote }}
+            - name: NEXT_PUBLIC_WS_URL
+              value: {{ $.Values.gatewayExternalUrl | replace "https://" "wss://" | replace "http://" "ws://" | quote }}
+            - name: GATEWAY_GRPC_ADDR
+              value: "{{ include "avika.fullname" $ }}-gateway:5020"
+            - name: GATEWAY_HTTP_URL
+              value: {{ $.Values.gatewayExternalUrl | quote }}
+            - name: GATEWAY_EXTERNAL_URL
+              value: {{ $.Values.gatewayExternalUrl | quote }}
+            {{- else }}
             - name: NEXT_PUBLIC_GATEWAY_URL
               value: "http://{{ include "avika.fullname" $ }}-gateway:5020"
             - name: NEXT_PUBLIC_WS_URL
@@ -247,6 +259,7 @@ spec:
               value: "{{ include "avika.fullname" $ }}-gateway:5020"
             - name: GATEWAY_HTTP_URL
               value: "http://{{ include "avika.fullname" $ }}-gateway:5021"
+            {{- end }}
             {{- if $.Values.grafana.url }}
             - name: NEXT_PUBLIC_GRAFANA_URL
               value: {{ $.Values.grafana.url | quote }}

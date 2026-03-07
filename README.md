@@ -100,3 +100,17 @@ For more details, see [docs/AGENT_DEPLOYMENT.md](./docs/AGENT_DEPLOYMENT.md).
 -   **API Definitions**: Located in `api/proto/agent.proto`.
 -   **Frontend**: Run `npm run dev` in the `frontend` directory.
 -   **Agent**: Run `go build -o agent ./cmd/agent`.
+
+### Integration tests
+
+Gateway integration tests require PostgreSQL. Use the Makefile defaults or set `DB_DSN`:
+
+```bash
+make setup-test-db    # start Postgres (admin/testpassword, avika_test)
+make test-integration # run gateway integration tests
+make teardown-test-db
+```
+
+To use your own database, set `DB_DSN` (or `TEST_DB_DSN`) when running:  
+`DB_DSN="postgres://user:pass@host:5432/db?sslmode=disable" make test-integration`  
+The Makefile defaults to `postgres://admin:testpassword@localhost:5432/avika_test?sslmode=disable` when neither is set.

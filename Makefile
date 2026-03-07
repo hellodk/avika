@@ -102,10 +102,13 @@ test-frontend:
 #------------------------------------------------------------------------------
 # Integration Tests
 #------------------------------------------------------------------------------
+# Default DSN for integration tests; override with: DB_DSN="postgres://..." make test-integration
+DB_DSN ?= postgres://admin:testpassword@localhost:5432/avika_test?sslmode=disable
+
 test-integration: check-db
 	@echo "$(GREEN)Running integration tests...$(NC)"
 	@mkdir -p test-results/integration
-	cd cmd/gateway && bash -o pipefail -c 'DB_DSN="postgres://admin:testpassword@localhost:5432/avika_test?sslmode=disable" go test -v -race -tags=integration -coverprofile=../../test-results/integration/coverage.out ./... 2>&1 | tee ../../test-results/integration/output.txt'
+	cd cmd/gateway && DB_DSN="$(DB_DSN)" go test -v -race -tags=integration -coverprofile=../../test-results/integration/coverage.out ./... 2>&1 | tee ../../test-results/integration/output.txt
 	@echo "$(GREEN)Integration tests completed$(NC)"
 
 check-db:

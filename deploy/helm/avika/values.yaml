@@ -172,6 +172,15 @@ secretsProvider:
     secretsPath: "avika"
 
 # =============================================================================
+# GATEWAY EXTERNAL URL (Cluster FQDN)
+# =============================================================================
+# When set, the frontend uses this URL to reach the gateway (HTTP API and WebSocket)
+# instead of the internal service name. Use the cluster FQDN where the gateway is
+# exposed (e.g. same host as ingress: https://avika.example.com).
+# Supports both http:// and https://; WebSocket uses ws:// or wss:// accordingly.
+gatewayExternalUrl: ""  # e.g. "https://avika.example.com" or "http://avika.example.com"
+
+# =============================================================================
 # COMPONENTS
 # =============================================================================
 # Each component follows a standard structure:

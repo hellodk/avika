@@ -447,18 +447,19 @@ function AnalyticsView() {
                     <h1 className="text-2xl font-semibold text-white">
                         Analytics
                     </h1>
-                    <p className="text-sm mt-1 text-slate-300">
+                    <p className="text-sm mt-1" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                         Comprehensive metrics and insights across your NGINX fleet
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     {/* Agent Selector */}
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-slate-800 border-slate-600">
-                        <Server className="h-4 w-4 text-slate-400" />
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
+                        <Server className="h-4 w-4" style={{ color: 'rgb(var(--theme-text-muted))' }} />
                         <select
                             value={selectedAgent}
                             onChange={(e) => setSelectedAgent(e.target.value)}
-                            className="text-sm font-medium bg-transparent border-none focus:ring-0 cursor-pointer pr-6 text-white"
+                            className="text-sm font-medium bg-transparent border-none focus:ring-0 cursor-pointer pr-6"
+ style={{ color: 'rgb(var(--theme-text))' }}
                         >
                             <option value="all">All Servers</option>
                             {agents.map((agent: any) => (
@@ -474,7 +475,8 @@ function AnalyticsView() {
                         variant="outline"
                         size="sm"
                         onClick={toggleTimezone}
-                        className="h-9 border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700"
+                        className="h-9 hover:opacity-90"
+ style={{ borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
                     >
                         <Globe className="h-4 w-4 mr-2" />
                         {timezone}
@@ -500,18 +502,19 @@ function AnalyticsView() {
                             <Button 
                                 variant="outline" 
                                 size="sm" 
-                                className="h-9 border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700"
+                                className="h-9 hover:opacity-90"
+ style={{ borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
                             >
                                 <Download className="h-4 w-4 mr-2" />
                                 Export
                                 <ChevronDown className="h-3 w-3 ml-1" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-slate-800 border-slate-600">
-                            <DropdownMenuItem onClick={() => handleExport('csv')} className="text-slate-200 hover:text-white hover:bg-slate-700 cursor-pointer">
+                        <DropdownMenuContent align="end" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
+                            <DropdownMenuItem onClick={() => handleExport('csv')} style={{ color: 'rgb(var(--theme-text))' }} className="cursor-pointer hover:opacity-90">
                                 Export as CSV
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleExport('json')} className="text-slate-200 hover:text-white hover:bg-slate-700 cursor-pointer">
+                            <DropdownMenuItem onClick={() => handleExport('json')} style={{ color: 'rgb(var(--theme-text))' }} className="cursor-pointer hover:opacity-90">
                                 Export as JSON
                             </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -551,7 +554,7 @@ function AnalyticsView() {
                                     <InsightIcon className={`h-4 w-4 ${style.text}`} />
                                 </CardHeader>
                                 <CardContent>
-                                    <p className="text-sm text-slate-300">
+                                    <p className="text-sm" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                         {insight.message}
                                     </p>
                                 </CardContent>
@@ -563,7 +566,7 @@ function AnalyticsView() {
 
             {/* Main Tabs */}
             <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-                <TabsList className="p-1.5 h-auto flex flex-wrap gap-1 bg-slate-800/80 border border-slate-600 rounded-lg">
+                <TabsList className="p-1.5 h-auto flex flex-wrap gap-1 rounded-lg" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                     {[
                         { value: 'overview', label: 'Overview', icon: LayoutDashboard },
                         { value: 'gateway', label: 'Gateway', icon: Database },
@@ -576,7 +579,8 @@ function AnalyticsView() {
                         <TabsTrigger
                             key={tab.value}
                             value={tab.value}
-                            className="flex items-center gap-2 px-4 py-2 text-slate-400 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md hover:text-slate-200 transition-all rounded-md"
+                            className="flex items-center gap-2 px-4 py-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all rounded-md hover:opacity-90"
+ style={{ color: 'rgb(var(--theme-text-muted))' }}
                         >
                             <tab.icon className="h-4 w-4" />
                             {tab.label}
@@ -655,17 +659,17 @@ function AnalyticsView() {
                             </div>
 
                             {/* Request Rate Chart */}
-                            <Card className="bg-slate-800 border-slate-600">
+                            <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                                 <CardHeader className="pb-2">
                                     <div className="flex items-center justify-between">
-                                        <CardTitle className="text-white">
+                                        <CardTitle style={{ color: 'rgb(var(--theme-text))' }}>
                                             Request Rate & Errors
                                         </CardTitle>
-                                        <span className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300">
+                                        <span className="text-xs px-2 py-1 rounded" style={{ background: 'rgb(var(--theme-surface-light))', color: 'rgb(var(--theme-text-muted))' }}>
                                             {getTimezoneLabel()}
                                         </span>
                                     </div>
-                                    <CardDescription className="text-slate-300">
+                                    <CardDescription style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                         Traffic volume and error trends over time
                                     </CardDescription>
                                 </CardHeader>
@@ -673,7 +677,7 @@ function AnalyticsView() {
                                     <div className="h-[300px]">
                                         {loading ? (
                                             <div className="h-full flex items-center justify-center">
-                                                <RefreshCw className="h-6 w-6 animate-spin text-slate-400" />
+                                                <RefreshCw className="h-6 w-6 animate-spin" style={{ color: 'rgb(var(--theme-text-muted))' }} />
                                             </div>
                                         ) : (
                                             <ResponsiveContainer width="100%" height="100%">
@@ -712,9 +716,9 @@ function AnalyticsView() {
                             {/* Status & Server Distribution */}
                             <div className="grid gap-4 lg:grid-cols-2">
                                 {/* HTTP Status Distribution */}
-                                <Card className="bg-slate-800 border-slate-600">
+                                <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                                     <CardHeader className="pb-2">
-                                        <CardTitle className="text-white">
+                                        <CardTitle style={{ color: 'rgb(var(--theme-text))' }}>
                                             HTTP Status Distribution
                                         </CardTitle>
                                     </CardHeader>
@@ -754,9 +758,9 @@ function AnalyticsView() {
                                 </Card>
 
                                 {/* Server Distribution */}
-                                <Card className="bg-slate-800 border-slate-600">
+                                <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                                     <CardHeader className="pb-2">
-                                        <CardTitle className="text-white">
+                                        <CardTitle style={{ color: 'rgb(var(--theme-text))' }}>
                                             Server Load Distribution
                                         </CardTitle>
                                     </CardHeader>
@@ -773,7 +777,7 @@ function AnalyticsView() {
                                                                 {s.requests.toLocaleString()} reqs
                                                             </span>
                                                         </div>
-                                                        <div className="w-full h-2 rounded-full overflow-hidden bg-slate-700">
+                                                        <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'rgb(var(--theme-surface-light))' }}>
                                                             <div
                                                                 className="h-full bg-blue-500 rounded-full transition-all"
                                                                 style={{ width: `${Math.min((s.requests / summary.total_requests * 100) || 0, 100)}%` }}
@@ -841,9 +845,9 @@ function AnalyticsView() {
                                 />
                             </div>
 
-                            <Card className="bg-slate-800 border-slate-600">
+                            <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                                 <CardHeader className="pb-2">
-                                    <CardTitle className="text-white">
+                                    <CardTitle style={{ color: 'rgb(var(--theme-text))' }}>
                                         Message Rate (EPS)
                                     </CardTitle>
                                 </CardHeader>
@@ -876,9 +880,9 @@ function AnalyticsView() {
                             </Card>
 
                             <div className="grid gap-4 lg:grid-cols-2">
-                                <Card className="bg-slate-800 border-slate-600">
+                                <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                                     <CardHeader className="pb-2">
-                                        <CardTitle className="text-white">
+                                        <CardTitle style={{ color: 'rgb(var(--theme-text))' }}>
                                             Resource Usage
                                         </CardTitle>
                                     </CardHeader>
@@ -906,9 +910,9 @@ function AnalyticsView() {
                                     </CardContent>
                                 </Card>
 
-                                <Card className="bg-slate-800 border-slate-600">
+                                <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                                     <CardHeader className="pb-2">
-                                        <CardTitle className="text-white">
+                                        <CardTitle style={{ color: 'rgb(var(--theme-text))' }}>
                                             DB Latency Trend
                                         </CardTitle>
                                     </CardHeader>
@@ -938,12 +942,12 @@ function AnalyticsView() {
 
                         {/* PERFORMANCE TAB */}
                         <TabsContent value="performance" className="space-y-6">
-                            <Card className="bg-slate-800 border-slate-600">
+                            <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                                 <CardHeader className="pb-2">
-                                    <CardTitle className="text-white">
+                                    <CardTitle style={{ color: 'rgb(var(--theme-text))' }}>
                                         Latency Percentiles
                                     </CardTitle>
-                                    <CardDescription className="text-slate-300">
+                                    <CardDescription style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                         P50, P95, and P99 response times over the selected period
                                     </CardDescription>
                                 </CardHeader>
@@ -972,9 +976,9 @@ function AnalyticsView() {
                                 </CardContent>
                             </Card>
 
-                            <Card className="bg-slate-800 border-slate-600">
+                            <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                                 <CardHeader className="pb-2">
-                                    <CardTitle className="text-white">
+                                    <CardTitle style={{ color: 'rgb(var(--theme-text))' }}>
                                         Latency Distribution
                                     </CardTitle>
                                 </CardHeader>
@@ -1012,9 +1016,9 @@ function AnalyticsView() {
                             </Card>
 
                             {/* Slowest Endpoints */}
-                            <Card className="bg-slate-800 border-slate-600">
+                            <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                                 <CardHeader className="pb-2">
-                                    <CardTitle className="text-white">
+                                    <CardTitle style={{ color: 'rgb(var(--theme-text))' }}>
                                         Slowest Endpoints
                                     </CardTitle>
                                 </CardHeader>
@@ -1063,9 +1067,9 @@ function AnalyticsView() {
 
                         {/* ERRORS TAB */}
                         <TabsContent value="errors" className="space-y-6">
-                            <Card className="bg-slate-800 border-slate-600">
+                            <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                                 <CardHeader className="pb-2">
-                                    <CardTitle className="text-white">
+                                    <CardTitle style={{ color: 'rgb(var(--theme-text))' }}>
                                         Error Rate Over Time
                                     </CardTitle>
                                 </CardHeader>
@@ -1097,9 +1101,9 @@ function AnalyticsView() {
                                 </CardContent>
                             </Card>
 
-                            <Card className="bg-slate-800 border-slate-600">
+                            <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                                 <CardHeader className="pb-2">
-                                    <CardTitle className="text-white">
+                                    <CardTitle style={{ color: 'rgb(var(--theme-text))' }}>
                                         Error-Prone Endpoints
                                     </CardTitle>
                                 </CardHeader>
@@ -1155,9 +1159,9 @@ function AnalyticsView() {
                             } : null} />
 
                             <div className="grid gap-4 lg:grid-cols-2">
-                                <Card className="bg-slate-800 border-slate-600">
+                                <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                                     <CardHeader className="pb-2">
-                                        <CardTitle className="text-white">
+                                        <CardTitle style={{ color: 'rgb(var(--theme-text))' }}>
                                             CPU Usage
                                         </CardTitle>
                                     </CardHeader>
@@ -1189,9 +1193,9 @@ function AnalyticsView() {
                                     </CardContent>
                                 </Card>
 
-                                <Card className="bg-slate-800 border-slate-600">
+                                <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                                     <CardHeader className="pb-2">
-                                        <CardTitle className="text-white">
+                                        <CardTitle style={{ color: 'rgb(var(--theme-text))' }}>
                                             Memory Usage
                                         </CardTitle>
                                     </CardHeader>
@@ -1224,9 +1228,9 @@ function AnalyticsView() {
                                 </Card>
                             </div>
 
-                            <Card className="bg-slate-800 border-slate-600">
+                            <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                                 <CardHeader className="pb-2">
-                                    <CardTitle className="text-white">
+                                    <CardTitle style={{ color: 'rgb(var(--theme-text))' }}>
                                         Network Throughput
                                     </CardTitle>
                                 </CardHeader>
@@ -1257,12 +1261,12 @@ function AnalyticsView() {
 
                         {/* TRAFFIC TAB */}
                         <TabsContent value="traffic" className="space-y-6">
-                            <Card className="bg-slate-800 border-slate-600">
+                            <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                                 <CardHeader className="pb-2">
-                                    <CardTitle className="text-white">
+                                    <CardTitle style={{ color: 'rgb(var(--theme-text))' }}>
                                         Top URLs by Traffic
                                     </CardTitle>
-                                    <CardDescription className="text-slate-300">
+                                    <CardDescription style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                         Most requested endpoints sorted by volume
                                     </CardDescription>
                                 </CardHeader>
