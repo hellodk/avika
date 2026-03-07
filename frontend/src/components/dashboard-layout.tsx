@@ -14,6 +14,7 @@ import { ProjectSelector } from "@/components/project-selector";
 import { EnvironmentTabs } from "@/components/environment-tabs";
 import { useProject } from "@/lib/project-context";
 import { Breadcrumb } from "@/components/breadcrumb";
+import { useTheme } from "@/lib/theme-provider";
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "dev";
 import { Badge } from "@/components/ui/badge";
@@ -80,7 +81,7 @@ function EnvironmentTabsBar() {
 
     return (
         <div
-            className="px-6 py-2 border-b flex-shrink-0"
+            className="dashboard-layout-env-tabs px-6 py-2 border-b flex-shrink-0"
             style={{
                 background: "rgb(var(--theme-surface))",
                 borderColor: "rgb(var(--theme-border))"
@@ -94,8 +95,10 @@ function EnvironmentTabsBar() {
 export default function DashboardLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
+    const { theme } = useTheme();
     const { user, logout } = useAuth();
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const layoutVariant = theme === "rocker" ? "layout-rocker" : theme === "dashboard" ? "layout-ui-kit" : "";
     const [searchQuery, setSearchQuery] = useState("");
     const searchInputRef = useRef<HTMLInputElement>(null);
     const [expandedSections, setExpandedSections] = useState<string[]>(
@@ -157,10 +160,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     }
 
     return (
-        <div className="flex h-screen overflow-hidden" style={{ background: "rgb(var(--theme-background))" }}>
+        <div
+            className={`flex h-screen overflow-hidden ${layoutVariant}`}
+            style={{ background: "rgb(var(--theme-background))" }}
+            data-layout-variant={layoutVariant || undefined}
+        >
             {/* Sidebar */}
             <aside
-                className={`${sidebarCollapsed ? 'w-16' : 'w-64'} flex-shrink-0 border-r flex flex-col transition-all duration-300`}
+                className={`dashboard-layout-sidebar ${sidebarCollapsed ? 'w-16' : 'w-64'} flex-shrink-0 border-r flex flex-col transition-all duration-300`}
                 style={{
                     background: "rgb(var(--theme-surface))",
                     borderColor: "rgb(var(--theme-border))"
@@ -199,7 +206,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                             {!sidebarCollapsed && (
                                 <button
                                     onClick={() => toggleSection(section.title)}
-                                    className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium uppercase tracking-wider rounded hover-surface"
+                                    className="nav-section-header w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium uppercase tracking-wider rounded hover-surface"
                                     style={{ color: "rgb(var(--theme-text-muted))" }}
                                 >
                                     <span>{section.title}</span>
@@ -251,10 +258,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </aside>
 
             {/* Main Area */}
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden dashboard-layout-main-wrap">
                 {/* Header */}
                 <header
-                    className="h-16 flex items-center justify-between px-6 border-b flex-shrink-0"
+                    className="dashboard-layout-header h-16 flex items-center justify-between px-6 border-b flex-shrink-0"
                     style={{
                         background: "rgb(var(--theme-surface))",
                         borderColor: "rgb(var(--theme-border))"
@@ -394,11 +401,19 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
                 {/* Main Content */}
                 <main
-                    className="flex-1 overflow-auto p-6"
+                    className="dashboard-layout-main flex-1 overflow-auto p-6"
                     style={{ background: "rgb(var(--theme-background))" }}
                     role="main"
                     aria-label="Main content"
                 >
+                    {/* Rocker / UI Kit: page title bar at top of content (matches reference demos) */}
+                    {(layoutVariant === "layout-rocker" || layoutVariant === "layout-ui-kit") && (
+                        <div className="dashboard-layout-page-title" data-layout-variant={layoutVariant}>
+                            <h1 className="dashboard-layout-page-title-text" style={{ color: "rgb(var(--theme-text))" }}>
+                                {getCurrentPageTitle()}
+                            </h1>
+                        </div>
+                    )}
                     {children}
                 </main>
             </div>
@@ -432,7 +447,7 @@ function NavLink({ href, icon, label, pathname, collapsed, badge, badgeColor = "
     return (
         <Link
             href={href}
-            className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all ${collapsed ? 'justify-center' : ''}`}
+            className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all nav-link ${collapsed ? 'justify-center' : ''} ${isActive ? 'nav-link-active' : ''}`}
             style={isActive ? {
                 background: "rgba(var(--theme-primary), 0.1)",
                 color: "rgb(var(--theme-primary))",
@@ -440,6 +455,7 @@ function NavLink({ href, icon, label, pathname, collapsed, badge, badgeColor = "
                 color: "rgb(var(--theme-text-muted))",
             }}
             title={collapsed ? label : undefined}
+            data-active={isActive ? "true" : undefined}
         >
             <span className="[&>svg]:h-4 [&>svg]:w-4 flex-shrink-0">{icon}</span>
             {!collapsed && (

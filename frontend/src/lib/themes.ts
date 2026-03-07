@@ -19,6 +19,7 @@ export const themes = {
         error: "239 68 68",
         border: "64 64 64",
     },
+    /** Default light — pure white base, blue primary. */
     light: {
         name: "Light",
         background: "255 255 255",
@@ -34,15 +35,14 @@ export const themes = {
         border: "209 213 219",
     },
     /**
-     * UI Kit theme — inspired by Figma Dashboard UI Kit (light admin style).
+     * UI Kit — Figma Dashboard UI Kit style: cool slate page background, white cards, indigo primary.
      * Reference: https://www.figma.com/community/file/1210542873091115123/dashboard-ui-kit-dashboard-free-admin-dashboard
-     * Palette: slate backgrounds, indigo primary, WCAG AA contrast.
      */
     dashboard: {
         name: "UI Kit",
-        background: "248 250 252",
+        background: "241 245 249",
         surface: "255 255 255",
-        surfaceLight: "241 245 249",
+        surfaceLight: "226 232 240",
         text: "15 23 42",
         textMuted: "71 85 105",
         textDim: "100 116 139",
@@ -50,18 +50,17 @@ export const themes = {
         success: "34 197 94",
         warning: "245 158 11",
         error: "239 68 68",
-        border: "226 232 240",
+        border: "203 213 225",
     },
     /**
-     * Rocker theme — aligned with Rocker (Bootstrap 5 admin dashboard) light style.
+     * Rocker — Bootstrap 5 style: #f8f9fa page, white surfaces, Bootstrap blue primary, neutral gray borders.
      * Reference: https://codervent.com/rocker/demo/vertical/index.html
-     * Uses Bootstrap 5–style colors: primary #0d6efd, bg-light #f8f9fa, body #212529, borders #dee2e6.
      */
     rocker: {
         name: "Rocker",
         background: "248 249 250",
         surface: "255 255 255",
-        surfaceLight: "248 249 250",
+        surfaceLight: "233 236 239",
         text: "33 37 41",
         textMuted: "108 117 125",
         textDim: "108 117 125",

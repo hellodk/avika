@@ -15,7 +15,8 @@ The Avika frontend supports multiple themes selectable under **Settings → Gene
 
 The **UI Kit** theme is inspired by the [Dashboard UI Kit – Free Admin Dashboard](https://www.figma.com/community/file/1210542873091115123/dashboard-ui-kit-dashboard-free-admin-dashboard) Figma file.
 
-- **Palette**: Slate backgrounds (`#f8fafc` / white), indigo primary (`#6366f1`), high-contrast text.
+- **Palette**: Slate backgrounds, white cards, indigo primary (`#6366f1`), high-contrast text.
+- **Layout**: When UI Kit is selected, the app uses a **UI Kit layout variant** so the arrangement matches the Figma kit: narrower sidebar (16rem), minimal header, content area with centered max-width (90rem), more spacing between sections, and cards with 0.75rem radius and subtle shadow.
 - **Use case**: Clean, light admin-dashboard look with WCAG AA contrast.
 
 ## Rocker theme (Bootstrap 5 reference)
@@ -23,6 +24,7 @@ The **UI Kit** theme is inspired by the [Dashboard UI Kit – Free Admin Dashboa
 The **Rocker** theme is aligned with the [Rocker – Bootstrap 5 Admin Dashboard Template](https://codervent.com/rocker/demo/vertical/index.html) light style.
 
 - **Palette**: Bootstrap 5–style — background `#f8f9fa` (bg-light), white cards, primary blue `#0d6efd`, body text `#212529`, muted `#6c757d`, borders `#dee2e6`. Success/warning/error use Bootstrap’s green, amber, and red.
+- **Layout**: When Rocker is selected, the app uses a **Rocker layout variant** so the arrangement matches the template: wider sidebar (17rem) with rounded right edge and light shadow, header with bottom shadow, content area with Bootstrap-style card radius (0.5rem) and subtle box-shadow.
 - **Use case**: Light admin dashboard look consistent with Bootstrap 5–based templates.
 
 ## Technical notes
@@ -30,6 +32,7 @@ The **Rocker** theme is aligned with the [Rocker – Bootstrap 5 Admin Dashboard
 - Themes are defined in `frontend/src/lib/themes.ts` as RGB triplets (for `rgb(var(--theme-*))`).
 - **`THEME_IDS`** in `themes.ts` is the explicit ordered list of theme keys shown in the Appearance dropdown. The dropdown renders from `THEME_IDS` so that all themes (including UI Kit and Rocker) always appear.
 - `ThemeProvider` applies tokens to `document.documentElement` and sets `data-theme` and `class="dark"` or `class="light"` so both custom UI and shadcn stay in sync.
+- **Layout variants**: For **UI Kit** and **Rocker**, `DashboardLayout` applies a layout class (`layout-ui-kit` or `layout-rocker`). Theme-specific layout CSS in `frontend/src/app/globals.css` then adjusts sidebar width and style, header, and main content spacing/cards to match the reference templates.
 - Preference is persisted in `localStorage` under the key `theme`.
 
 ## If a theme does not appear
