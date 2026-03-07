@@ -1,5 +1,6 @@
-# Build and push Docker images for PRs targeting master/main.
-# Tags: pr-<number> and sha-<short-sha> for QA/testing before merge.
+# Build and push Docker images for PRs targeting master/main/develop/etc.
+# Tags: pr-<number> (PR name) and sha-<short-sha> only — never "latest".
+# "latest" is reserved for master branch (see Build on Merge).
 name: Build on PR
 
 on:
