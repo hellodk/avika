@@ -1,7 +1,7 @@
 import { chromium, type FullConfig } from "@playwright/test";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { withBase } from "./helpers";
+import { withBase, E2E_LOGIN_USERNAME, E2E_LOGIN_PASSWORD } from "./helpers";
 
 export default async function globalSetup(config: FullConfig) {
   const project = config.projects[0];
@@ -27,8 +27,8 @@ export default async function globalSetup(config: FullConfig) {
   const loginURL = new URL(withBase("/login"), baseURL).toString();
   await page.goto(loginURL, { waitUntil: "domcontentloaded" });
 
-  await page.fill('input[id="username"]', "admin");
-  await page.fill('input[id="password"]', "admin");
+  await page.fill('input[id="username"]', E2E_LOGIN_USERNAME);
+  await page.fill('input[id="password"]', E2E_LOGIN_PASSWORD);
   const loginResponsePromise = page.waitForResponse(
     (r) => r.url().includes("/api/auth/login") && r.request().method() === "POST",
     { timeout: 30000 }
