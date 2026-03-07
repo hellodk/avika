@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Zap, TrendingUp, Settings2, CheckCircle2, AlertTriangle, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { toast } from "sonner";
 
 interface Recommendation {
@@ -148,16 +149,11 @@ export default function OptimizationPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={fetchRecommendations}
-                        disabled={loading}
-                        style={{ borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text-muted))" }}
-                    >
-                        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-                        Refresh
-                    </Button>
+                    <RefreshButton
+                        loading={loading}
+                        onRefresh={fetchRecommendations}
+                        aria-label="Refresh recommendations"
+                    />
                     <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30">
                         <Zap className="h-3 w-3 mr-1" />
                         {activeRecommendations.length} Active

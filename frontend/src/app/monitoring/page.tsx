@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RefreshButton } from "@/components/ui/refresh-button";
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import {
@@ -166,6 +167,7 @@ function MonitoringPageContent() {
     const [agents, setAgents] = useState<any[]>([]);
     const [selectedAgent, setSelectedAgent] = useState<string>('all');
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [refreshInterval, setRefreshInterval] = useState(5000);
     const [selectedAugment, setSelectedAugment] = useState<any>(null);
     const [augmentParams, setAugmentParams] = useState<any>({});
@@ -189,6 +191,20 @@ function MonitoringPageContent() {
             console.error("Failed to fetch agents", error);
         }
     };
+
+    // When navigated from header search with ?q=, pre-select matching agent
+    const qParam = searchParams.get('q')?.trim() || '';
+    useEffect(() => {
+        if (!qParam || agents.length === 0) return;
+        const lower = qParam.toLowerCase();
+        const match = agents.find(
+            (a: any) =>
+                (a.hostname && String(a.hostname).toLowerCase().includes(lower)) ||
+                (a.agent_id && String(a.agent_id).toLowerCase().includes(lower)) ||
+                (a.ip && String(a.ip).toLowerCase().includes(lower))
+        );
+        if (match?.agent_id) setSelectedAgent(match.agent_id);
+    }, [agents, qParam]);
 
     const fetchData = async () => {
         try {
@@ -331,14 +347,17 @@ function MonitoringPageContent() {
                             ))}
                         </SelectContent>
                     </Select>
-                    <Button
-                        variant="outline"
-                        onClick={fetchData}
-                        style={{ borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text-muted))" }}
-                    >
-                        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                        Refresh
-                    </Button>
+                    <RefreshButton
+                        loading={loading}
+                        refreshing={refreshing}
+                        onRefresh={() => {
+                            setRefreshing(true);
+                            fetchData().finally(() => setRefreshing(false));
+                        }}
+                        disabled={loading}
+                        aria-label="Refresh monitoring data"
+                        size="default"
+                    />
                 </div>
             </div>
 

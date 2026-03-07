@@ -8,6 +8,7 @@ import {
     Activity, AlertTriangle, ArrowUpRight, RefreshCw,
     Globe, Clock, CheckCircle2, XCircle, TrendingUp, TrendingDown, Info
 } from "lucide-react";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import {
     Tooltip as UITooltip,
     TooltipContent,
@@ -19,6 +20,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { TimeRangePicker, TimeRange } from "@/components/ui/time-range-picker";
 import { useProject } from "@/lib/project-context";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Convert time range value to API window parameter
 function getWindowParam(timeRange: TimeRange): string {
@@ -51,6 +53,7 @@ function getPreviousPeriodLabel(timeRange: TimeRange): string {
 export default function Home() {
     const { selectedProject, selectedEnvironment } = useProject();
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [agentCount, setAgentCount] = useState<number>(0);
     const [onlineAgents, setOnlineAgents] = useState<number>(0);
     const [error, setError] = useState<string | null>(null);
@@ -250,18 +253,24 @@ export default function Home() {
                         <span className={`w-2 h-2 rounded-full mr-2 ${onlineAgents === agentCount && agentCount > 0 ? 'bg-emerald-500' : 'bg-amber-500'}`} aria-hidden="true" />
                         {onlineAgents}/{agentCount} Agents Online
                     </Badge>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={fetchStats}
-                        disabled={loading}
-                        aria-label="Refresh dashboard data"
-                        style={{ borderColor: 'rgb(var(--theme-border))', background: 'rgb(var(--theme-surface))', color: 'rgb(var(--theme-text-muted))' }}
-                        className="hover:opacity-90 transition-transform duration-150 active:scale-95 select-none"
-                    >
-                        <RefreshCw className={`h-4 w-4 mr-2 shrink-0 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-                        <span className={loading ? 'opacity-90' : ''}>{loading ? 'Refreshing…' : 'Refresh'}</span>
-                    </Button>
+                    {loading && !refreshing ? (
+                        <Skeleton
+                            className="h-8 w-[100px] shrink-0 rounded-md"
+                            style={{ background: 'rgb(var(--theme-surface))' }}
+                            aria-hidden="true"
+                        />
+                    ) : (
+                        <RefreshButton
+                            loading={loading}
+                            refreshing={refreshing}
+                            onRefresh={() => {
+                                setRefreshing(true);
+                                fetchStats().finally(() => setRefreshing(false));
+                            }}
+                            disabled={loading}
+                            aria-label="Refresh dashboard data"
+                        />
+                    )}
                 </div>
             </div>
 

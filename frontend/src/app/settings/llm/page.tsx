@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RefreshCw, Save, PlugZap } from "lucide-react";
+import { RefreshButton } from "@/components/ui/refresh-button";
 
 type LLMConfig = {
   provider: string;
@@ -116,10 +117,12 @@ export default function LLMSettingsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={load} disabled={loading} style={{ borderColor: 'rgb(var(--theme-border))' }}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+          <RefreshButton
+            loading={loading}
+            onRefresh={load}
+            aria-label="Refresh LLM settings"
+            size="default"
+          />
           <Button onClick={test} disabled={testing || loading} variant="outline" style={{ borderColor: 'rgb(var(--theme-border))' }}>
             <PlugZap className="h-4 w-4 mr-2" />
             {testing ? "Testing..." : "Test"}
