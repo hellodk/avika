@@ -390,7 +390,7 @@ func escapeJSON(s string) string {
 	return s
 }
 
-func agentConfigResponseToAgentConfig(resp *pb.AgentConfigResponse) *pb.AgentConfig {
+func agentConfigResponseToAgentConfig(resp *pb.GetAgentConfigResponse) *pb.AgentConfig {
 	if resp == nil {
 		return &pb.AgentConfig{}
 	}

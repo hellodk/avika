@@ -269,13 +269,13 @@ func (db *DB) SetIntegrationTestResult(ctx context.Context, t string, success bo
 	return err
 }
 
-func (db *DB) UpsertAgentConfigCache(ctx context.Context, agentID string, cfg *pb.AgentConfigResponse) error {
+func (db *DB) UpsertAgentConfigCache(ctx context.Context, agentID string, cfg *pb.GetAgentConfigResponse) error {
 	agentID = strings.TrimSpace(agentID)
 	if agentID == "" {
 		return fmt.Errorf("agent_id is required")
 	}
 	if cfg == nil {
-		cfg = &pb.AgentConfigResponse{}
+		cfg = &pb.GetAgentConfigResponse{}
 	}
 	b, _ := json.Marshal(cfg)
 	_, err := db.conn.ExecContext(ctx, `

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Save, RefreshCw, Trash2, PlugZap, ShieldAlert } from "lucide-react";
+import { RefreshButton } from "@/components/ui/refresh-button";
 
 type AgentConfigResponse = {
   gateway_address: string;
@@ -157,10 +158,12 @@ export default function AgentConfigPage({ params }: { params: Promise<{ id: stri
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={load} disabled={loading} style={{ borderColor: 'rgb(var(--theme-border))' }}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+          <RefreshButton
+            loading={loading}
+            onRefresh={load}
+            aria-label="Refresh agent config"
+            size="default"
+          />
           <Button onClick={save} disabled={saving || loading || !cfg} className="bg-blue-600 hover:bg-blue-700">
             {saving ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
             Save

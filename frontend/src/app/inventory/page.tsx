@@ -10,6 +10,7 @@ import {
     XCircle, RefreshCw, Terminal, Check, Copy, Trash2, FolderKanban
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
 } from "@/components/ui/dialog";
@@ -277,10 +278,14 @@ function InventoryPageContent() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={fetchAgents} disabled={loading}>
-                        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                        Refresh
-                    </Button>
+                    <RefreshButton
+                        loading={loading}
+                        onRefresh={async () => {
+                            setLoading(true);
+                            await fetchAgents();
+                        }}
+                        aria-label="Refresh inventory"
+                    />
                 </div>
             </div>
 

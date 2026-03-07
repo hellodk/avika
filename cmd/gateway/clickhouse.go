@@ -245,6 +245,12 @@ func (db *ClickHouseDB) migrate() error {
 			writing UInt32,
 			waiting UInt32,
 			requests_per_second Float64,
+			status_2xx UInt64 DEFAULT 0,
+			status_3xx UInt64 DEFAULT 0,
+			status_4xx UInt64 DEFAULT 0,
+			status_5xx UInt64 DEFAULT 0,
+			bytes_in UInt64 DEFAULT 0,
+			bytes_out UInt64 DEFAULT 0,
 			labels Map(String, String)
 		) ENGINE = MergeTree() ORDER BY (timestamp, instance_id)`,
 		`CREATE TABLE IF NOT EXISTS nginx_analytics.spans (
@@ -261,6 +267,13 @@ func (db *ClickHouseDB) migrate() error {
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS labels Map(String, String)",
 		"ALTER TABLE nginx_analytics.system_metrics ADD COLUMN IF NOT EXISTS labels Map(String, String)",
 		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS labels Map(String, String)",
+		// Phase 4b: VTS/Advanced – HttpStatus and bytes in/out (from nginx-module-vts or Advanced API)
+		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS status_2xx UInt64 DEFAULT 0",
+		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS status_3xx UInt64 DEFAULT 0",
+		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS status_4xx UInt64 DEFAULT 0",
+		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS status_5xx UInt64 DEFAULT 0",
+		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS bytes_in UInt64 DEFAULT 0",
+		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS bytes_out UInt64 DEFAULT 0",
 		// Phase 5: Geo columns for access_logs
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS client_ip String DEFAULT ''",
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS country String DEFAULT ''",
@@ -1624,17 +1637,29 @@ func (db *ClickHouseDB) runNginxFlusher() {
 
 func (db *ClickHouseDB) flushNginx(batch []nginxBatchItem) {
 	ctx := context.Background()
-	b, err := db.conn.PrepareBatch(ctx, "INSERT INTO nginx_analytics.nginx_metrics (timestamp, instance_id, active_connections, accepted_connections, handled_connections, total_requests, reading, writing, waiting, requests_per_second)")
+	b, err := db.conn.PrepareBatch(ctx, `INSERT INTO nginx_analytics.nginx_metrics (
+		timestamp, instance_id, active_connections, accepted_connections, handled_connections,
+		total_requests, reading, writing, waiting, requests_per_second,
+		status_2xx, status_3xx, status_4xx, status_5xx, bytes_in, bytes_out
+	)`)
 	if err != nil {
 		log.Printf("Failed to prepare nginx metrics batch: %v", err)
 		return
 	}
 	for _, item := range batch {
-		// Calculate requests per second based on active connections as a rough estimate
 		rps := float64(0)
 		if item.entry.ActiveConnections > 0 {
-			rps = float64(item.entry.TotalRequests) / 60.0 // Rough estimate per minute
+			rps = float64(item.entry.TotalRequests) / 60.0
 		}
+		var s2xx, s3xx, s4xx, s5xx uint64
+		if item.entry.HttpStatus != nil {
+			s2xx = uint64(item.entry.HttpStatus.Status_2XxCount)
+			s3xx = uint64(item.entry.HttpStatus.Status_3XxCount)
+			s4xx = uint64(item.entry.HttpStatus.Status_4XxCount)
+			s5xx = uint64(item.entry.HttpStatus.Status_5XxCount)
+		}
+		bytesIn := uint64(item.entry.BytesInTotal)
+		bytesOut := uint64(item.entry.BytesOutTotal)
 		b.Append(
 			time.Now(),
 			item.agentID,
@@ -1646,6 +1671,8 @@ func (db *ClickHouseDB) flushNginx(batch []nginxBatchItem) {
 			uint32(item.entry.Writing),
 			uint32(item.entry.Waiting),
 			rps,
+			s2xx, s3xx, s4xx, s5xx,
+			bytesIn, bytesOut,
 		)
 	}
 	if err := b.Send(); err != nil {

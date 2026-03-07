@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { RefreshCw, Save, PlugZap } from "lucide-react";
+import { RefreshButton } from "@/components/ui/refresh-button";
 
 type IntegrationRow = {
   type: string;
@@ -194,10 +195,12 @@ export default function IntegrationsSettingsPage() {
             Configure external integrations persisted in the gateway database.
           </p>
         </div>
-        <Button variant="outline" onClick={load} disabled={loading} className="border-neutral-700">
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <RefreshButton
+          loading={loading}
+          onRefresh={load}
+          aria-label="Refresh integrations"
+          size="default"
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

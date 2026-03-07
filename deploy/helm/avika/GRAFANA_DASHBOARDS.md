@@ -3,7 +3,7 @@
 The chart creates **ConfigMaps in the avika namespace** for Grafana:
 
 - **Datasource:** one ConfigMap with label `grafana_datasource: "1"` (ClickHouse).
-- **Dashboards:** one ConfigMap per dashboard with label `grafana_dashboard: "1"` (folder: Avika).
+- **Dashboards:** one ConfigMap per dashboard with label `grafana_dashboard: "1"` (folder: Avika). Dashboards include: Avika NGINX Manager, Error Analysis, Latency Analysis, Agent Detail, Gateway, and **Geo Analytics** (request distribution by country/city from `access_logs` geo columns).
 
 Grafana itself is **not** deployed by this chart; it is usually run by **kube-prometheus-stack** in another namespace (e.g. `monitoring`). For dashboards to show data, the following must be true.
 

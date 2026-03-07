@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { FileCode, Save, RotateCcw, CheckCircle2, AlertTriangle, Shield, FileText, RefreshCw, Play, Square, RotateCcwIcon, Construction, Plus, Trash2, BarChart3, Activity, Terminal, Copy, Check, Settings, Server, Network, Zap, Globe, Info, GitCompare } from "lucide-react";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import Link from "next/link";
 import { useState, useEffect, use, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -896,10 +897,12 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <CardTitle className="text-white">Drift by group</CardTitle>
-                                <Button size="sm" variant="outline" onClick={fetchDrift} disabled={driftLoading} className="border-neutral-700 text-white">
-                                    <RefreshCw className={`h-4 w-4 mr-2 ${driftLoading ? "animate-spin" : ""}`} />
-                                    Refresh
-                                </Button>
+                                <RefreshButton
+                                    loading={driftLoading}
+                                    onRefresh={fetchDrift}
+                                    aria-label="Refresh drift"
+                                    className="border-neutral-700 text-white hover:bg-neutral-800"
+                                />
                             </div>
                             <CardDescription className="text-neutral-400">
                                 Status of this server compared to each group it belongs to
@@ -1208,16 +1211,13 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                             </CardHeader>
                             <CardContent>
                                 <div className="flex items-center gap-2 mb-3">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={fetchConfigBackups}
-                                        disabled={configBackupsLoading}
+                                    <RefreshButton
+                                        loading={configBackupsLoading}
+                                        onRefresh={fetchConfigBackups}
+                                        label="Refresh list"
+                                        aria-label="Refresh config backups list"
                                         className="border-neutral-700 text-white hover:bg-neutral-800"
-                                    >
-                                        <RefreshCw className={`h-4 w-4 mr-2 ${configBackupsLoading ? 'animate-spin' : ''}`} />
-                                        Refresh list
-                                    </Button>
+                                    />
                                 </div>
                                 {configBackups.length === 0 && !configBackupsLoading && (
                                     <p className="text-sm text-neutral-500" style={{ color: "rgb(var(--theme-text-muted))" }}>No backups yet. Save configuration to create one.</p>

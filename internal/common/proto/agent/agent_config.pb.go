@@ -22,7 +22,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type AgentConfigResponse struct {
+type GetAgentConfigResponse struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	GatewayAddress  string                 `protobuf:"bytes,1,opt,name=gateway_address,json=gatewayAddress,proto3" json:"gateway_address,omitempty"`
 	AgentId         string                 `protobuf:"bytes,2,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
@@ -44,20 +44,20 @@ type AgentConfigResponse struct {
 	sizeCache       protoimpl.SizeCache
 }
 
-func (x *AgentConfigResponse) Reset() {
-	*x = AgentConfigResponse{}
+func (x *GetAgentConfigResponse) Reset() {
+	*x = GetAgentConfigResponse{}
 	mi := &file_agent_config_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AgentConfigResponse) String() string {
+func (x *GetAgentConfigResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AgentConfigResponse) ProtoMessage() {}
+func (*GetAgentConfigResponse) ProtoMessage() {}
 
-func (x *AgentConfigResponse) ProtoReflect() protoreflect.Message {
+func (x *GetAgentConfigResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_agent_config_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -69,117 +69,117 @@ func (x *AgentConfigResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AgentConfigResponse.ProtoReflect.Descriptor instead.
-func (*AgentConfigResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetAgentConfigResponse.ProtoReflect.Descriptor instead.
+func (*GetAgentConfigResponse) Descriptor() ([]byte, []int) {
 	return file_agent_config_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *AgentConfigResponse) GetGatewayAddress() string {
+func (x *GetAgentConfigResponse) GetGatewayAddress() string {
 	if x != nil {
 		return x.GatewayAddress
 	}
 	return ""
 }
 
-func (x *AgentConfigResponse) GetAgentId() string {
+func (x *GetAgentConfigResponse) GetAgentId() string {
 	if x != nil {
 		return x.AgentId
 	}
 	return ""
 }
 
-func (x *AgentConfigResponse) GetLabels() map[string]string {
+func (x *GetAgentConfigResponse) GetLabels() map[string]string {
 	if x != nil {
 		return x.Labels
 	}
 	return nil
 }
 
-func (x *AgentConfigResponse) GetHealthPort() int32 {
+func (x *GetAgentConfigResponse) GetHealthPort() int32 {
 	if x != nil {
 		return x.HealthPort
 	}
 	return 0
 }
 
-func (x *AgentConfigResponse) GetMgmtPort() int32 {
+func (x *GetAgentConfigResponse) GetMgmtPort() int32 {
 	if x != nil {
 		return x.MgmtPort
 	}
 	return 0
 }
 
-func (x *AgentConfigResponse) GetNginxConfigPath() string {
+func (x *GetAgentConfigResponse) GetNginxConfigPath() string {
 	if x != nil {
 		return x.NginxConfigPath
 	}
 	return ""
 }
 
-func (x *AgentConfigResponse) GetNginxStatusUrl() string {
+func (x *GetAgentConfigResponse) GetNginxStatusUrl() string {
 	if x != nil {
 		return x.NginxStatusUrl
 	}
 	return ""
 }
 
-func (x *AgentConfigResponse) GetAccessLogPath() string {
+func (x *GetAgentConfigResponse) GetAccessLogPath() string {
 	if x != nil {
 		return x.AccessLogPath
 	}
 	return ""
 }
 
-func (x *AgentConfigResponse) GetErrorLogPath() string {
+func (x *GetAgentConfigResponse) GetErrorLogPath() string {
 	if x != nil {
 		return x.ErrorLogPath
 	}
 	return ""
 }
 
-func (x *AgentConfigResponse) GetLogFormat() string {
+func (x *GetAgentConfigResponse) GetLogFormat() string {
 	if x != nil {
 		return x.LogFormat
 	}
 	return ""
 }
 
-func (x *AgentConfigResponse) GetBufferDir() string {
+func (x *GetAgentConfigResponse) GetBufferDir() string {
 	if x != nil {
 		return x.BufferDir
 	}
 	return ""
 }
 
-func (x *AgentConfigResponse) GetUpdateServer() string {
+func (x *GetAgentConfigResponse) GetUpdateServer() string {
 	if x != nil {
 		return x.UpdateServer
 	}
 	return ""
 }
 
-func (x *AgentConfigResponse) GetUpdateInterval() string {
+func (x *GetAgentConfigResponse) GetUpdateInterval() string {
 	if x != nil {
 		return x.UpdateInterval
 	}
 	return ""
 }
 
-func (x *AgentConfigResponse) GetLogLevel() string {
+func (x *GetAgentConfigResponse) GetLogLevel() string {
 	if x != nil {
 		return x.LogLevel
 	}
 	return ""
 }
 
-func (x *AgentConfigResponse) GetLogFile() string {
+func (x *GetAgentConfigResponse) GetLogFile() string {
 	if x != nil {
 		return x.LogFile
 	}
 	return ""
 }
 
-func (x *AgentConfigResponse) GetConfigFilePath() string {
+func (x *GetAgentConfigResponse) GetConfigFilePath() string {
 	if x != nil {
 		return x.ConfigFilePath
 	}
@@ -580,11 +580,11 @@ var File_agent_config_proto protoreflect.FileDescriptor
 
 const file_agent_config_proto_rawDesc = "" +
 	"\n" +
-	"\x12agent_config.proto\x12\x0enginx.agent.v1\x1a\x1bgoogle/protobuf/empty.proto\"\xad\x05\n" +
-	"\x13AgentConfigResponse\x12'\n" +
+	"\x12agent_config.proto\x12\x0enginx.agent.v1\x1a\x1bgoogle/protobuf/empty.proto\"\xb3\x05\n" +
+	"\x16GetAgentConfigResponse\x12'\n" +
 	"\x0fgateway_address\x18\x01 \x01(\tR\x0egatewayAddress\x12\x19\n" +
-	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12G\n" +
-	"\x06labels\x18\x03 \x03(\v2/.nginx.agent.v1.AgentConfigResponse.LabelsEntryR\x06labels\x12\x1f\n" +
+	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12J\n" +
+	"\x06labels\x18\x03 \x03(\v22.nginx.agent.v1.GetAgentConfigResponse.LabelsEntryR\x06labels\x12\x1f\n" +
 	"\vhealth_port\x18\x04 \x01(\x05R\n" +
 	"healthPort\x12\x1b\n" +
 	"\tmgmt_port\x18\x05 \x01(\x05R\bmgmtPort\x12*\n" +
@@ -638,9 +638,9 @@ const file_agent_config_proto_rawDesc = "" +
 	"created_at\x18\x02 \x01(\x03R\tcreatedAt\"=\n" +
 	"\x1aRestoreConfigBackupRequest\x12\x1f\n" +
 	"\vbackup_name\x18\x01 \x01(\tR\n" +
-	"backupName2\xed\x03\n" +
-	"\x12AgentConfigService\x12M\n" +
-	"\x0eGetAgentConfig\x12\x16.google.protobuf.Empty\x1a#.nginx.agent.v1.AgentConfigResponse\x12a\n" +
+	"backupName2\xf0\x03\n" +
+	"\x12AgentConfigService\x12P\n" +
+	"\x0eGetAgentConfig\x12\x16.google.protobuf.Empty\x1a&.nginx.agent.v1.GetAgentConfigResponse\x12a\n" +
 	"\x11UpdateAgentConfig\x12!.nginx.agent.v1.AgentConfigUpdate\x1a).nginx.agent.v1.AgentConfigUpdateResponse\x12_\n" +
 	"\x0eTestConnection\x12%.nginx.agent.v1.ConnectionTestRequest\x1a&.nginx.agent.v1.ConnectionTestResponse\x12V\n" +
 	"\x11ListConfigBackups\x12\x16.google.protobuf.Empty\x1a).nginx.agent.v1.ListConfigBackupsResponse\x12l\n" +
@@ -660,7 +660,7 @@ func file_agent_config_proto_rawDescGZIP() []byte {
 
 var file_agent_config_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_agent_config_proto_goTypes = []any{
-	(*AgentConfigResponse)(nil),        // 0: nginx.agent.v1.AgentConfigResponse
+	(*GetAgentConfigResponse)(nil),     // 0: nginx.agent.v1.GetAgentConfigResponse
 	(*AgentConfigUpdate)(nil),          // 1: nginx.agent.v1.AgentConfigUpdate
 	(*AgentConfigUpdateResponse)(nil),  // 2: nginx.agent.v1.AgentConfigUpdateResponse
 	(*ConnectionTestRequest)(nil),      // 3: nginx.agent.v1.ConnectionTestRequest
@@ -668,13 +668,13 @@ var file_agent_config_proto_goTypes = []any{
 	(*ListConfigBackupsResponse)(nil),  // 5: nginx.agent.v1.ListConfigBackupsResponse
 	(*ConfigBackupEntry)(nil),          // 6: nginx.agent.v1.ConfigBackupEntry
 	(*RestoreConfigBackupRequest)(nil), // 7: nginx.agent.v1.RestoreConfigBackupRequest
-	nil,                                // 8: nginx.agent.v1.AgentConfigResponse.LabelsEntry
+	nil,                                // 8: nginx.agent.v1.GetAgentConfigResponse.LabelsEntry
 	nil,                                // 9: nginx.agent.v1.AgentConfigUpdate.UpdatesEntry
 	nil,                                // 10: nginx.agent.v1.ConnectionTestResponse.DetailsEntry
 	(*emptypb.Empty)(nil),              // 11: google.protobuf.Empty
 }
 var file_agent_config_proto_depIdxs = []int32{
-	8,  // 0: nginx.agent.v1.AgentConfigResponse.labels:type_name -> nginx.agent.v1.AgentConfigResponse.LabelsEntry
+	8,  // 0: nginx.agent.v1.GetAgentConfigResponse.labels:type_name -> nginx.agent.v1.GetAgentConfigResponse.LabelsEntry
 	9,  // 1: nginx.agent.v1.AgentConfigUpdate.updates:type_name -> nginx.agent.v1.AgentConfigUpdate.UpdatesEntry
 	10, // 2: nginx.agent.v1.ConnectionTestResponse.details:type_name -> nginx.agent.v1.ConnectionTestResponse.DetailsEntry
 	6,  // 3: nginx.agent.v1.ListConfigBackupsResponse.backups:type_name -> nginx.agent.v1.ConfigBackupEntry
@@ -683,7 +683,7 @@ var file_agent_config_proto_depIdxs = []int32{
 	3,  // 6: nginx.agent.v1.AgentConfigService.TestConnection:input_type -> nginx.agent.v1.ConnectionTestRequest
 	11, // 7: nginx.agent.v1.AgentConfigService.ListConfigBackups:input_type -> google.protobuf.Empty
 	7,  // 8: nginx.agent.v1.AgentConfigService.RestoreConfigBackup:input_type -> nginx.agent.v1.RestoreConfigBackupRequest
-	0,  // 9: nginx.agent.v1.AgentConfigService.GetAgentConfig:output_type -> nginx.agent.v1.AgentConfigResponse
+	0,  // 9: nginx.agent.v1.AgentConfigService.GetAgentConfig:output_type -> nginx.agent.v1.GetAgentConfigResponse
 	2,  // 10: nginx.agent.v1.AgentConfigService.UpdateAgentConfig:output_type -> nginx.agent.v1.AgentConfigUpdateResponse
 	4,  // 11: nginx.agent.v1.AgentConfigService.TestConnection:output_type -> nginx.agent.v1.ConnectionTestResponse
 	5,  // 12: nginx.agent.v1.AgentConfigService.ListConfigBackups:output_type -> nginx.agent.v1.ListConfigBackupsResponse

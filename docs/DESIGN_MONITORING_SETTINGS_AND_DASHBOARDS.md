@@ -191,7 +191,7 @@ So: **Grafana** is for power users and embedding in Observability; **Avika front
 **Geo analytics is available in both Grafana and the Avika frontend.**
 
 - **Frontend:** **Analytics** → **Geo** tab (or **/analytics/geo**) shows a geographic dashboard: summary cards (total requests, countries, cities, top country), a world map of request locations, tables (by country, by city), and recent geo-located requests. Data comes from the gateway **GET /api/geo** (ClickHouse `access_logs` geo columns: country, country_code, city, latitude, longitude). Time window (1h, 24h, 7d, 30d) is configurable. Legacy route **/geo** redirects to **/analytics/geo**.
-- **Grafana:** A **Geo** dashboard can be added to the same set (e.g. in the Avika folder) using the ClickHouse datasource and queries over `access_logs` geo columns, so the same geo data is visible in Grafana for power users.
+- **Grafana:** The **Avika Geo Analytics** dashboard (in the Avika folder) uses the ClickHouse datasource and queries over `access_logs` geo columns (country, country_code, city, latitude, longitude), so the same geo data is visible in Grafana for power users. Panels: overview stats (total requests, countries, cities, top country), By Country table, By City table, and Recent Geo-Located Requests.
 
 ---
 
@@ -218,9 +218,11 @@ So: **Grafana** is for power users and embedding in Observability; **Avika front
 | **access_logs** | timestamp, instance_id, status, request_time, upstream_*, body_bytes_sent, request_uri, method, … | LogEntry (all) |
 | **gateway_metrics** | timestamp, gateway_id, eps, active_connections, cpu_usage, memory_mb, goroutines, db_latency_ms | GatewayMetricPoint |
 
+**Persisted from VTS/Advanced:**  
+- **HttpStatus** (2xx/3xx/4xx/5xx) from NginxMetrics is written to `nginx_metrics` as `status_2xx`, `status_3xx`, `status_4xx`, `status_5xx` when the agent sends them (VTS or Advanced API).  
+- **Bytes in/out** (traffic volume per instance): NginxMetrics has `bytes_in_total` and `bytes_out_total`; the VTS collector aggregates InBytes/OutBytes from ServerZones. The gateway persists them as `bytes_in`, `bytes_out` in `nginx_metrics`. Stub_status-only agents send 0.
+
 **Not persisted today:**  
-- **HttpStatus** (2xx/3xx/4xx/5xx) from NginxMetrics is **not** written to `nginx_metrics`. Status distribution is derived from **access_logs** in the analytics API.  
-- **Bytes in/out** (traffic volume per instance) from VTS is not in the proto/table.  
 - **Cache** (hit/miss) is not in the proto or ClickHouse.  
 - **Latency histogram** (NginxMetrics.latency_distribution) is not persisted; latency comes from **access_logs** (request_time, upstream_response_time).
 
@@ -228,9 +230,9 @@ So: **Grafana** is for power users and embedding in Observability; **Avika front
 
 | Gap | Needed for | How to collect |
 |-----|------------|----------------|
-| **HTTP status counts per instance in nginx_metrics** | Redundant with access_logs; optional for “per-instance status without querying logs”. | **Option A:** Add columns to `nginx_metrics` (e.g. status_2xx, status_3xx, status_4xx, status_5xx) and persist from agent’s NginxMetrics.HttpStatus (VTS/Advanced already send this). **Option B:** Rely only on aggregating status from `access_logs` in dashboards (current approach). |
+| **HTTP status counts per instance in nginx_metrics** | Redundant with access_logs; optional for “per-instance status without querying logs”. | **Option A:** Add columns to `nginx_metrics` (e.g. status_2xx, status_3xx, status_4xx, status_5xx) and persist from agent’s NginxMetrics.HttpStatus (VTS/Advanced already send this). **Done.** Columns status_2xx/3xx/4xx/5xx and bytes_in/bytes_out in nginx_metrics; persisted from NginxMetrics (VTS/Advanced). |
 | **Cache hit/miss** | Dashboards that show cache efficiency (e.g. some VTS-style panels). | **Collect:** Extend NginxMetrics proto (or a new message) with optional `cache_hits`, `cache_misses` (or similar). In **VTS collector**, read from VTS JSON (e.g. `serverZones.*.inBytes` / cache zones if exposed). **Persist:** Add columns to `nginx_metrics` or a small `nginx_cache_metrics` table. **Stub_status** does not expose cache; only VTS (or similar) can supply this. |
-| **Bytes in/out (traffic volume) per instance** | “Network I/O” or “traffic by instance” panels. | **Collect:** VTS already has InBytes/OutBytes per server zone. Extend NginxMetrics (or labels) with optional `bytes_in_total`, `bytes_out_total` and have VTS collector aggregate zone bytes. **Persist:** Add columns to `nginx_metrics` (e.g. bytes_in, bytes_out) or derive from `access_logs` (sum of body_bytes_sent = out; request body size often not in log). **Alternative:** Dashboard aggregates `sum(body_bytes_sent)` from access_logs for “bytes out” only. |
+| **Bytes in/out (traffic volume) per instance** | "Network I/O" or "traffic by instance" panels. | **Done.** NginxMetrics has `bytes_in_total`, `bytes_out_total`; VTS collector aggregates ServerZones InBytes/OutBytes. Gateway persists as `bytes_in`, `bytes_out` in `nginx_metrics`. |
 | **Per-path or per-upstream request/latency from metrics** | Some panels show “by path” or “by upstream” from metrics. | **Already covered:** We have **access_logs** with request_uri, upstream_addr, request_time, upstream_response_time. Dashboards can aggregate by path or upstream from access_logs; no new collection needed. |
 | **Pre-aggregated latency histogram in ClickHouse** | Slightly faster percentile queries. | **Optional:** We have request_time per row in access_logs; ClickHouse `quantile*` is sufficient. To add: persist NginxMetrics.latency_distribution into a `latency_histogram` table or columns; agent would need to populate histogram from access log sampling or NGINX plus. |
 
@@ -243,8 +245,7 @@ So: **Grafana** is for power users and embedding in Observability; **Avika front
 
 - **Not collecting today (and impact):**  
   - **Cache hit/miss:** Not collected. Only needed for “cache efficiency” panels; optional. Collect via VTS (extend proto + collector + table) if required.  
-  - **Bytes in/out per instance:** Not in nginx_metrics. Partially available from access_logs (bytes out). For full bytes in/out, extend agent (VTS) + nginx_metrics columns.  
-  - **HttpStatus in nginx_metrics:** Collected by agent (VTS/Advanced) but not persisted. Optional; status from access_logs is sufficient for dashboards. Persist for redundancy or when access_logs are not available.
+  - **HttpStatus and bytes in/out:** Now persisted. Agent (VTS/Advanced) sends HttpStatus and, for VTS, bytes_in_total/bytes_out_total; gateway writes status_2xx/3xx/4xx/5xx and bytes_in/bytes_out to nginx_metrics.
 
 ---
 
