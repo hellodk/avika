@@ -163,13 +163,15 @@ spec:
           value: "platform"
 ```
 
-### Auto-Assignment
+### Auto-Assignment and Dynamic Environments
 
-When the gateway receives heartbeats with project and environment labels:
+Environments are **driven by agent config**: the list of environments for a project is not fixed (e.g. sit/dev/prod). When the gateway receives heartbeats with project and environment labels:
 
-1. It looks up the project by slug (e.g., `alpha` → Project Alpha)
-2. It looks up the environment within that project (e.g., `production`)
-3. If both exist and the agent isn't already assigned, it auto-assigns the agent
+1. It looks up the project by slug (e.g., `alpha` → Project Alpha).
+2. It finds or **creates** the environment within that project (e.g., `production`, `staging`, `dev`). If the environment slug does not exist yet, it is created automatically so that environments reflect what agents report.
+3. If the agent isn't already assigned, it auto-assigns the agent to that environment.
+
+New projects start with no environments; environments appear when agents connect with `AVIKA_LABEL_ENVIRONMENT` (or when an admin adds one in **Settings → Projects**). The UI shows the environments that exist for the selected project.
 
 ```
 Agent Heartbeat with Labels
@@ -182,10 +184,10 @@ Agent Heartbeat with Labels
           │ Found
           ▼
 ┌─────────────────────┐
-│ Look up Environment │──── Not Found ──► Skip Assignment
+│ Ensure Environment  │──── Create if missing (slug from agent label)
 │ by label "environment"│
 └─────────┬───────────┘
-          │ Found
+          │ Found or created
           ▼
 ┌─────────────────────┐
 │  Auto-Assign Agent  │

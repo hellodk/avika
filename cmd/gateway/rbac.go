@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -338,6 +339,27 @@ func (db *DB) GetEnvironmentBySlug(projectID, slug string) (*Environment, error)
 	}
 	e.Description = desc.String
 	return &e, nil
+}
+
+// EnsureEnvironment returns the environment for (projectID, slug), creating it if it does not exist.
+// Used when an agent connects with a new environment label so environments are driven by agent config.
+func (db *DB) EnsureEnvironment(projectID, slug string) (*Environment, error) {
+	existing, err := db.GetEnvironmentBySlug(projectID, slug)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return existing, nil
+	}
+	// Humanize slug as name (e.g. "prod" -> "Prod", "staging" -> "Staging")
+	name := slug
+	if len(slug) > 0 {
+		name = strings.ToUpper(slug[:1]) + strings.ToLower(slug[1:])
+	}
+	color := "#6366f1"
+	sortOrder := 999
+	isProduction := strings.EqualFold(slug, "production") || strings.EqualFold(slug, "prod")
+	return db.CreateEnvironment(projectID, name, slug, "", color, sortOrder, isProduction)
 }
 
 // ListEnvironments lists all environments in a project

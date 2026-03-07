@@ -2280,10 +2280,10 @@ func (s *server) autoAssignAgentToEnvironment(agentID string, labels map[string]
 		return
 	}
 
-	// Find environment by project and slug
-	env, err := s.db.GetEnvironmentBySlug(project.ID, envSlug)
+	// Find or create environment by project and slug (environments driven by agent config)
+	env, err := s.db.EnsureEnvironment(project.ID, envSlug)
 	if err != nil || env == nil {
-		log.Printf("Auto-assign: environment '%s' not found in project '%s' for agent %s", envSlug, projectSlug, agentID)
+		log.Printf("Auto-assign: failed to ensure environment '%s' in project '%s' for agent %s: %v", envSlug, projectSlug, agentID, err)
 		return
 	}
 
