@@ -97,6 +97,7 @@ export default function Home() {
     };
 
     const fetchStats = useCallback(async () => {
+        setLoading(true);
         try {
             // Build filter query string for project/environment filtering
             let filterParams = '';
@@ -249,9 +250,17 @@ export default function Home() {
                         <span className={`w-2 h-2 rounded-full mr-2 ${onlineAgents === agentCount && agentCount > 0 ? 'bg-emerald-500' : 'bg-amber-500'}`} aria-hidden="true" />
                         {onlineAgents}/{agentCount} Agents Online
                     </Badge>
-                    <Button variant="outline" size="sm" onClick={fetchStats} disabled={loading} aria-label="Refresh dashboard data" style={{ borderColor: 'rgb(var(--theme-border))', background: 'rgb(var(--theme-surface))', color: 'rgb(var(--theme-text-muted))' }} className="hover:opacity-90">
-                        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-                        Refresh
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={fetchStats}
+                        disabled={loading}
+                        aria-label="Refresh dashboard data"
+                        style={{ borderColor: 'rgb(var(--theme-border))', background: 'rgb(var(--theme-surface))', color: 'rgb(var(--theme-text-muted))' }}
+                        className="hover:opacity-90 transition-transform duration-150 active:scale-95 select-none"
+                    >
+                        <RefreshCw className={`h-4 w-4 mr-2 shrink-0 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+                        <span className={loading ? 'opacity-90' : ''}>{loading ? 'Refreshing…' : 'Refresh'}</span>
                     </Button>
                 </div>
             </div>

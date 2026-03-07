@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Calendar, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -121,7 +122,7 @@ export function TimeRangePicker({ value, onChange }: TimeRangePickerProps) {
                 </Button>
             </PopoverTrigger>
             <PopoverContent 
-                className="w-[500px] p-0" 
+                className="w-[520px] p-0" 
                 align="end"
                 style={{ 
                     background: "rgb(var(--theme-background))", 
@@ -129,12 +130,36 @@ export function TimeRangePicker({ value, onChange }: TimeRangePickerProps) {
                 }}
             >
                 <Tabs defaultValue="quick" className="w-full">
+                    <div className="px-4 pt-4 pb-2">
+                        <p className="text-sm font-semibold" style={{ color: "rgb(var(--theme-text))" }}>
+                            Choose time range
+                        </p>
+                        <p className="text-xs mt-0.5" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                            Quick presets or a custom start and end.
+                        </p>
+                    </div>
                     <TabsList 
-                        className="w-full grid grid-cols-2 rounded-none border-b"
-                        style={{ borderColor: "rgb(var(--theme-border))" }}
+                        className={cn(
+                            "w-[calc(100%-2rem)] mx-4 mb-1 grid grid-cols-2 p-1 rounded-lg",
+                            "bg-[rgb(var(--theme-surface))] border border-[rgb(var(--theme-border))]"
+                        )}
                     >
-                        <TabsTrigger value="quick">Quick ranges</TabsTrigger>
-                        <TabsTrigger value="absolute">Absolute time</TabsTrigger>
+                        <TabsTrigger
+                            value="quick"
+                            className="flex items-center justify-center gap-2 py-2.5 text-sm font-medium data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-sm rounded-md transition-colors"
+                            style={{ color: "rgb(var(--theme-text))" }}
+                        >
+                            <Clock className="h-4 w-4 shrink-0" />
+                            Quick ranges
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="absolute"
+                            className="flex items-center justify-center gap-2 py-2.5 text-sm font-medium data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-sm rounded-md transition-colors"
+                            style={{ color: "rgb(var(--theme-text))" }}
+                        >
+                            <Calendar className="h-4 w-4 shrink-0" />
+                            Custom range
+                        </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="quick" className="p-4 space-y-2">
@@ -194,6 +219,9 @@ export function TimeRangePicker({ value, onChange }: TimeRangePickerProps) {
                     </TabsContent>
 
                     <TabsContent value="absolute" className="p-4 space-y-4">
+                        <p className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                            Set any start and end date/time. Available on Dashboard, Analytics, and Reports.
+                        </p>
                         <div className="space-y-3">
                             <div>
                                 <label className="text-xs font-semibold mb-1 block" style={{ color: "rgb(var(--theme-text-muted))" }}>
