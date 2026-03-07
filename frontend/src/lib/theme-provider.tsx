@@ -19,6 +19,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const savedTheme = localStorage.getItem("theme") as ThemeName | null;
         if (savedTheme && savedTheme in themes) {
             setThemeState(savedTheme);
+        } else if (savedTheme) {
+            setThemeState("dark");
+            localStorage.setItem("theme", "dark");
         }
     }, []);
 
