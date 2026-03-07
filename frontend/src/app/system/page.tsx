@@ -5,14 +5,13 @@ import { apiFetch } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-    Activity, Shield, Database, RefreshCw, Cpu, Network, Globe,
+    Activity, Shield, Database, RefreshCw, Network, Globe,
     CheckCircle2, AlertCircle, Clock, ArrowUpRight,
-    Server, HardDrive, Zap, TrendingUp, ChevronRight,
+    Server, HardDrive, Zap, TrendingUp,
     AlertTriangle, XCircle, Info
 } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
 
 interface SystemStats {
     total_agents: number;
@@ -24,10 +23,6 @@ interface SystemStats {
 }
 
 function SystemHealthPageContent() {
-    const router = useRouter();
-    const pathname = usePathname();
-    const searchParams = useSearchParams();
-
     const [agents, setAgents] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [latestVersion, setLatestVersion] = useState<string | null>(null);
@@ -35,7 +30,6 @@ function SystemHealthPageContent() {
     const [componentHealth, setComponentHealth] = useState<{ [key: string]: any }>({});
     const [error, setError] = useState<string | null>(null);
 
-    // Calculate stats
     const stats = useMemo(() => {
         const active = agents.filter(a => isOnline(a.last_seen)).length;
         const total = agents.length;
@@ -46,7 +40,6 @@ function SystemHealthPageContent() {
         };
     }, [agents]);
 
-    // Infrastructure components
     const infrastructure = useMemo(() => [
         {
             name: "API Gateway",
@@ -81,7 +74,6 @@ function SystemHealthPageContent() {
             icon: Network,
         },
     ], [componentHealth, stats, latestVersion, systemStats]);
-
 
     useEffect(() => {
         fetchAll();
@@ -155,7 +147,6 @@ function SystemHealthPageContent() {
         } catch { /* silent */ }
     };
 
-    // IMPROVED CONTRAST: Increased opacity from 15% to 25% for better visibility
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'healthy': return 'bg-emerald-500/25 text-emerald-300 border-emerald-500/40';
@@ -165,7 +156,6 @@ function SystemHealthPageContent() {
         }
     };
 
-    // Get human-readable status label for accessibility
     const getStatusLabel = (status: string) => {
         switch (status) {
             case 'healthy': return 'Healthy';
@@ -234,8 +224,7 @@ function SystemHealthPageContent() {
                         </Button>
                     </CardContent>
                 </Card>
-            )
-            }
+            )}
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -411,7 +400,6 @@ function formatLastSeen(lastSeen: string | number) {
     return new Date(timestamp * 1000).toLocaleDateString();
 }
 
-// Suspense fallback skeleton
 function SystemHealthPageSkeleton() {
     return (
         <div className="space-y-6">
