@@ -42,59 +42,31 @@ interface NavItem {
 
 const NAV_SECTIONS: NavSection[] = [
     {
-        title: "Overview",
+        title: "Operations",
         items: [
             { href: "/", icon: <LayoutDashboard />, label: "Dashboard" },
             { href: "/system", icon: <Heart />, label: "System Health" },
             { href: "/monitoring", icon: <Cpu />, label: "Monitoring" },
-        ]
-    },
-    {
-        title: "Infrastructure",
-        items: [
-            { href: "/inventory", icon: <Server />, label: "Inventory" },
-            { href: "/provisions", icon: <Layers />, label: "Provisions" },
-        ]
-    },
-    {
-        title: "Analytics",
-        items: [
-            { href: "/analytics", icon: <BarChart2 />, label: "Dashboard" },
-            { href: "/analytics/traces", icon: <GitBranch />, label: "Traces" },
-            { href: "/analytics/visitors", icon: <User />, label: "Visitor Analytics" },
-            { href: "/analytics/geo", icon: <Globe />, label: "Geo Analytics" },
-        ]
-    },
-    {
-        title: "Observability",
-        items: [
-            { href: "/observability/grafana", icon: <LineChart />, label: "Grafana" },
+            { href: "/analytics", icon: <BarChart2 />, label: "Analytics" },
             { href: "/alerts", icon: <ShieldAlert />, label: "Alerts" },
-        ]
-    },
-    {
-        title: "Intelligence",
-        items: [
-            { href: "/optimization", icon: <Zap />, label: "AI Tuner", badge: "Beta", badgeColor: "purple" },
             { href: "/reports", icon: <FileText />, label: "Reports" },
         ]
     },
     {
-        title: "Admin",
+        title: "Management",
         items: [
-            { href: "/audit", icon: <ShieldAlert />, label: "Audit Logs" },
-        ],
+            { href: "/inventory", icon: <Server />, label: "Inventory" },
+            { href: "/provisions", icon: <Layers />, label: "Provisions" },
+            { href: "/optimization", icon: <Zap />, label: "AI Tuner", badge: "Beta", badgeColor: "purple" },
+            { href: "/audit", icon: <ShieldCheck />, label: "Audit Logs" },
+        ]
     },
     {
         title: "Settings",
         items: [
             { href: "/settings", icon: <Settings />, label: "General" },
             { href: "/settings/integrations", icon: <Globe />, label: "Integrations" },
-            { href: "/settings/llm", icon: <Zap />, label: "LLM" },
-            { href: "/settings/waf", icon: <Lock />, label: "WAF" },
-            { href: "/settings/sso", icon: <KeyRound />, label: "SSO Integration" },
-            { href: "/settings/ldap", icon: <Key />, label: "LDAP" },
-            { href: "/settings/saml", icon: <ShieldCheck />, label: "SAML" },
+            { href: "/settings/security", icon: <Lock />, label: "Security" },
         ],
     },
 ];
@@ -203,7 +175,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                             {!sidebarCollapsed && (
                                 <button
                                     onClick={() => toggleSection(section.title)}
-                                    className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium uppercase tracking-wider rounded hover:bg-white/5 transition-colors"
+                                    className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium uppercase tracking-wider rounded hover-surface"
                                     style={{ color: "rgb(var(--theme-text-muted))" }}
                                 >
                                     <span>{section.title}</span>
@@ -230,44 +202,26 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                     ))}
                 </nav>
 
-                {/* Sidebar Footer */}
+                {/* Sidebar Footer - Collapse/Expand only (Settings is in System section) */}
                 <div className="border-t p-3" style={{ borderColor: "rgb(var(--theme-border))" }}>
                     {!sidebarCollapsed ? (
-                        <div className="space-y-1">
-                            <NavLink
-                                href="/settings"
-                                icon={<Settings />}
-                                label="Settings"
-                                pathname={pathname}
-                                collapsed={sidebarCollapsed}
-                            />
-                            <button
-                                onClick={() => setSidebarCollapsed(true)}
-                                className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg hover:bg-white/5 transition-colors"
-                                style={{ color: "rgb(var(--theme-text-muted))" }}
-                            >
-                                <Menu className="h-4 w-4" />
-                                <span>Collapse</span>
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => setSidebarCollapsed(true)}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg hover-surface"
+                            style={{ color: "rgb(var(--theme-text-muted))" }}
+                        >
+                            <Menu className="h-4 w-4" />
+                            <span>Collapse</span>
+                        </button>
                     ) : (
-                        <div className="space-y-1">
-                            <NavLink
-                                href="/settings"
-                                icon={<Settings />}
-                                label="Settings"
-                                pathname={pathname}
-                                collapsed={sidebarCollapsed}
-                            />
-                            <button
-                                onClick={() => setSidebarCollapsed(false)}
-                                className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-white/5 transition-colors"
-                                style={{ color: "rgb(var(--theme-text-muted))" }}
-                                title="Expand sidebar"
-                            >
-                                <ChevronRight className="h-4 w-4" />
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => setSidebarCollapsed(false)}
+                            className="w-full flex items-center justify-center p-2 rounded-lg hover-surface"
+                            style={{ color: "rgb(var(--theme-text-muted))" }}
+                            title="Expand sidebar"
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </button>
                     )}
                 </div>
             </aside>
@@ -320,7 +274,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
                         {/* Help */}
                         <button
-                            className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                            className="p-2 rounded-lg hover-surface"
                             style={{ color: "rgb(var(--theme-text-muted))" }}
                             title="Help & Documentation"
                             aria-label="Help and documentation"
@@ -330,13 +284,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
                         {/* Notifications */}
                         <button
-                            className="p-2 rounded-lg hover:bg-white/5 transition-colors relative"
+                            className="p-2 rounded-lg hover-surface relative"
                             style={{ color: "rgb(var(--theme-text-muted))" }}
                             title="Notifications"
-                            aria-label="Notifications - you have new alerts"
+                            aria-label="Notifications"
                         >
                             <Bell className="h-5 w-5" aria-hidden="true" />
-                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full" aria-hidden="true" />
                         </button>
 
                         {/* Divider */}
@@ -346,7 +299,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <button
-                                    className="flex items-center gap-3 px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                                    className="flex items-center gap-3 px-3 py-1.5 rounded-lg hover-surface"
                                 >
                                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                                         <User className="h-4 w-4 text-white" />

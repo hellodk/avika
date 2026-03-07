@@ -1,5 +1,6 @@
-# Build and push Docker images for PRs targeting master/main.
-# Tags: pr-<number> and sha-<short-sha> for QA/testing before merge.
+# Build and push Docker images for PRs targeting master/main/develop/etc.
+# Tags: pr-<number> (PR name) and sha-<short-sha> only — never "latest".
+# "latest" is reserved for master branch (see Build on Merge).
 name: Build on PR
 
 on:
@@ -7,6 +8,8 @@ on:
     branches:
       - master
       - main
+      - develop
+      - intermediate
 
 env:
   DOCKERHUB_USERNAME: hellodk
@@ -31,9 +34,12 @@ jobs:
           fi
           SHA=$(git rev-parse --short HEAD)
           PR_NUM="${{ github.event.pull_request.number }}"
+          BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "sha=$SHA" >> $GITHUB_OUTPUT
           echo "pr_num=$PR_NUM" >> $GITHUB_OUTPUT
+          echo "build_date=$BUILD_DATE" >> $GITHUB_OUTPUT
+          echo "git_commit=$SHA" >> $GITHUB_OUTPUT
           echo "Using version=$VERSION sha=$SHA pr=$PR_NUM"
 
       - name: Set up QEMU
@@ -62,6 +68,8 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            GIT_COMMIT=${{ steps.meta.outputs.git_commit }}
 
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
@@ -92,6 +100,8 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            GIT_COMMIT=${{ steps.meta.outputs.git_commit }}
 
       - name: Summary
         run: |

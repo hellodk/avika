@@ -16,7 +16,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: nginx-config-shared
-  namespace: avika
+  namespace: mocks
   labels:
     app: nginx-multi-project
 data:
@@ -87,7 +87,7 @@ data:
         server_name _;
 
         location / {
-          proxy_pass http://backend-sidecar:5678;
+          proxy_pass http://backend-sidecar.mocks.svc.cluster.local:5678;
           proxy_set_header Host $host;
           proxy_set_header X-Real-IP $remote_addr;
           proxy_set_header X-Request-ID $req_id;
@@ -103,7 +103,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: avika-agent-config-shared
-  namespace: avika
+  namespace: mocks
   labels:
     app: nginx-multi-project
 data:
@@ -127,7 +127,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nginx-alpha-dev
-  namespace: avika
+  namespace: mocks
   labels:
     app: nginx-sidecar
     project: alpha
@@ -195,7 +195,7 @@ spec:
           mountPath: /var/log/nginx
       
       - name: avika-agent
-        image: hellodk/avika-agent:0.1.93
+        image: hellodk/avika-agent:latest
         imagePullPolicy: Always
         command: ["/usr/local/bin/avika-agent"]
         args: ["-config=/etc/avika/avika-agent.conf"]
@@ -270,7 +270,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nginx-alpha-stage
-  namespace: avika
+  namespace: mocks
   labels:
     app: nginx-sidecar
     project: alpha
@@ -338,7 +338,7 @@ spec:
           mountPath: /var/log/nginx
       
       - name: avika-agent
-        image: hellodk/avika-agent:0.1.93
+        image: hellodk/avika-agent:latest
         imagePullPolicy: Always
         command: ["/usr/local/bin/avika-agent"]
         args: ["-config=/etc/avika/avika-agent.conf"]
@@ -413,7 +413,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nginx-alpha-uat
-  namespace: avika
+  namespace: mocks
   labels:
     app: nginx-sidecar
     project: alpha
@@ -481,7 +481,7 @@ spec:
           mountPath: /var/log/nginx
       
       - name: avika-agent
-        image: hellodk/avika-agent:0.1.93
+        image: hellodk/avika-agent:latest
         imagePullPolicy: Always
         command: ["/usr/local/bin/avika-agent"]
         args: ["-config=/etc/avika/avika-agent.conf"]
@@ -556,7 +556,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nginx-beta-dev
-  namespace: avika
+  namespace: mocks
   labels:
     app: nginx-sidecar
     project: beta
@@ -624,7 +624,7 @@ spec:
           mountPath: /var/log/nginx
       
       - name: avika-agent
-        image: hellodk/avika-agent:0.1.93
+        image: hellodk/avika-agent:latest
         imagePullPolicy: Always
         command: ["/usr/local/bin/avika-agent"]
         args: ["-config=/etc/avika/avika-agent.conf"]
@@ -699,7 +699,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nginx-beta-stage
-  namespace: avika
+  namespace: mocks
   labels:
     app: nginx-sidecar
     project: beta
@@ -767,7 +767,7 @@ spec:
           mountPath: /var/log/nginx
       
       - name: avika-agent
-        image: hellodk/avika-agent:0.1.93
+        image: hellodk/avika-agent:latest
         imagePullPolicy: Always
         command: ["/usr/local/bin/avika-agent"]
         args: ["-config=/etc/avika/avika-agent.conf"]
@@ -842,7 +842,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nginx-beta-uat
-  namespace: avika
+  namespace: mocks
   labels:
     app: nginx-sidecar
     project: beta
@@ -910,7 +910,7 @@ spec:
           mountPath: /var/log/nginx
       
       - name: avika-agent
-        image: hellodk/avika-agent:0.1.93
+        image: hellodk/avika-agent:latest
         imagePullPolicy: Always
         command: ["/usr/local/bin/avika-agent"]
         args: ["-config=/etc/avika/avika-agent.conf"]

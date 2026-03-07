@@ -27,15 +27,15 @@ export function TrafficHeatmap({ data, keys, title }: TrafficHeatmapProps) {
     // For simplicity, we'll render a colored grid
 
     return (
-        <Card className="shadow-sm">
+        <Card className="shadow-sm border" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
             <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">{title}</CardTitle>
+                <CardTitle className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text))' }}>{title}</CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="flex flex-col gap-2">
                     {keys.map(key => (
                         <div key={key} className="flex items-center gap-2">
-                            <span className="text-[10px] font-medium w-6 text-slate-500 uppercase">{key}</span>
+                            <span className="text-[10px] font-medium w-6 uppercase" style={{ color: 'rgb(var(--theme-text-muted))' }}>{key}</span>
                             <div className="flex-1 flex gap-0.5 h-6">
                                 {data.map((point, i) => {
                                     const val = point[key] || 0;
@@ -56,7 +56,7 @@ export function TrafficHeatmap({ data, keys, title }: TrafficHeatmapProps) {
                             </div>
                         </div>
                     ))}
-                    <div className="flex justify-between items-center mt-1 px-8 text-[9px] text-slate-400">
+                    <div className="flex justify-between items-center mt-1 px-8 text-[9px]" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                         <span>Earlier</span>
                         <span>Time →</span>
                         <span>Now</span>

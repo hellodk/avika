@@ -102,10 +102,13 @@ test-frontend:
 #------------------------------------------------------------------------------
 # Integration Tests
 #------------------------------------------------------------------------------
+# Default DSN for integration tests; override with: DB_DSN="postgres://..." make test-integration
+DB_DSN ?= postgres://admin:testpassword@localhost:5432/avika_test?sslmode=disable
+
 test-integration: check-db
 	@echo "$(GREEN)Running integration tests...$(NC)"
 	@mkdir -p test-results/integration
-	cd cmd/gateway && bash -o pipefail -c 'DB_DSN="postgres://admin:testpassword@localhost:5432/avika_test?sslmode=disable" go test -v -race -tags=integration -coverprofile=../../test-results/integration/coverage.out ./... 2>&1 | tee ../../test-results/integration/output.txt'
+	cd cmd/gateway && DB_DSN="$(DB_DSN)" go test -v -race -tags=integration -coverprofile=../../test-results/integration/coverage.out ./... 2>&1 | tee ../../test-results/integration/output.txt
 	@echo "$(GREEN)Integration tests completed$(NC)"
 
 check-db:
@@ -216,17 +219,21 @@ security-scan:
 #------------------------------------------------------------------------------
 # Building
 #------------------------------------------------------------------------------
+# Build environment variables
+BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.BuildDate=$(BUILD_DATE) -X main.GitCommit=$(GIT_COMMIT)
+
 build: build-gateway build-agent build-frontend
-	@echo "$(GREEN)All builds completed$(NC)"
+	@echo "$(GREEN)Build complete!$(NC)"
 
 build-gateway: check-version
-	@echo "$(GREEN)Building gateway v$(VERSION)...$(NC)"
-	cd cmd/gateway && go build -ldflags="-s -w -X main.Version=$(VERSION)" -o ../../bin/gateway .
-	@echo "$(GREEN)Gateway built at bin/gateway$(NC)"
+	@echo "$(GREEN)Building gateway...$(NC)"
+	cd cmd/gateway && go build -ldflags="$(LDFLAGS)" -o ../../bin/gateway .
 
 build-agent: check-version
-	@echo "$(GREEN)Building agent v$(VERSION)...$(NC)"
-	cd cmd/agent && go build -ldflags="-s -w -X main.Version=$(VERSION)" -o ../../bin/agent .
+	@echo "$(GREEN)Building agent...$(NC)"
+	cd cmd/agent && go build -ldflags="$(LDFLAGS)" -o ../../bin/agent .
 	@echo "$(GREEN)Agent built at bin/agent$(NC)"
 
 build-frontend:

@@ -100,7 +100,7 @@ export default function AuditPage() {
                                 </TableRow>
                             ) : (
                                 logs.map((log) => (
-                                    <TableRow key={log.id} className="hover:bg-white/5 transition-colors" style={{ borderColor: "rgb(var(--theme-border))" }}>
+                                    <TableRow key={log.id} className="hover-surface" style={{ borderColor: "rgb(var(--theme-border))" }}>
                                         <TableCell className="font-mono text-xs whitespace-nowrap">
                                             {format(new Date(log.timestamp), "MMM dd, HH:mm:ss")}
                                         </TableCell>

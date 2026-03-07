@@ -1,8 +1,8 @@
-# Build and push Docker images on every push to master/main.
-# Two parallel jobs (amd64 + arm64) push arch-specific tags; a merge job
-# creates multi-arch manifests for latest and sha-xxx. No QEMU; each arch
-# is built natively. (Pushing the same tag from two jobs would overwrite
-# and leave only the last push's arch on Docker Hub.)
+# Build and push Docker images on push to configured branches.
+# Tag policy: "latest" only for master/main; all other branches use branch-name tag
+# (e.g. develop -> develop, feature/foo -> feature-foo). Also push sha-xxx.
+# Two parallel jobs (amd64 + arm64) push arch-specific tags; merge job
+# creates multi-arch manifests. No QEMU; each arch is built natively.
 name: Build on Merge
 
 on:
@@ -10,6 +10,8 @@ on:
     branches:
       - master
       - main
+      - develop
+      - intermediate
 
 env:
   GO_VERSION: '1.23'
@@ -26,7 +28,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get version and SHA
+      - name: Get version, SHA and image tag
         id: meta
         run: |
           if [ -f VERSION ]; then
@@ -35,9 +37,16 @@ jobs:
             VERSION="0.0.0-dev"
           fi
           SHA=$(git rev-parse --short HEAD)
+          BRANCH="${{ github.ref_name }}"
+          if [ "$BRANCH" = "master" ] || [ "$BRANCH" = "main" ]; then
+            IMAGE_TAG="latest"
+          else
+            IMAGE_TAG=$(echo "$BRANCH" | tr '/' '-')
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "sha=$SHA" >> $GITHUB_OUTPUT
-          echo "Using version=$VERSION sha=$SHA"
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "Using version=$VERSION sha=$SHA image_tag=$IMAGE_TAG"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -56,7 +65,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ${{ env.DOCKERHUB_USERNAME }}/avika-gateway:latest-amd64
+            ${{ env.DOCKERHUB_USERNAME }}/avika-gateway:${{ steps.meta.outputs.image_tag }}-amd64
             ${{ env.DOCKERHUB_USERNAME }}/avika-gateway:sha-${{ steps.meta.outputs.sha }}-amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -71,7 +80,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ${{ env.DOCKERHUB_USERNAME }}/avika-frontend:latest-amd64
+            ${{ env.DOCKERHUB_USERNAME }}/avika-frontend:${{ steps.meta.outputs.image_tag }}-amd64
             ${{ env.DOCKERHUB_USERNAME }}/avika-frontend:sha-${{ steps.meta.outputs.sha }}-amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -86,7 +95,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ${{ env.DOCKERHUB_USERNAME }}/avika-agent:latest-amd64
+            ${{ env.DOCKERHUB_USERNAME }}/avika-agent:${{ steps.meta.outputs.image_tag }}-amd64
             ${{ env.DOCKERHUB_USERNAME }}/avika-agent:sha-${{ steps.meta.outputs.sha }}-amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -96,7 +105,7 @@ jobs:
       - name: Summary
         run: |
           echo "## Build on Merge (amd64)" >> $GITHUB_STEP_SUMMARY
-          echo "Pushed \`latest-amd64\` and \`sha-${{ steps.meta.outputs.sha }}-amd64\`" >> $GITHUB_STEP_SUMMARY
+          echo "Pushed \`${{ steps.meta.outputs.image_tag }}-amd64\` and \`sha-${{ steps.meta.outputs.sha }}-amd64\`" >> $GITHUB_STEP_SUMMARY
           echo "- hellodk/avika-gateway" >> $GITHUB_STEP_SUMMARY
           echo "- hellodk/avika-frontend" >> $GITHUB_STEP_SUMMARY
           echo "- hellodk/avika-agent" >> $GITHUB_STEP_SUMMARY
@@ -110,7 +119,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get version and SHA
+      - name: Get version, SHA and image tag
         id: meta
         run: |
           if [ -f VERSION ]; then
@@ -119,9 +128,16 @@ jobs:
             VERSION="0.0.0-dev"
           fi
           SHA=$(git rev-parse --short HEAD)
+          BRANCH="${{ github.ref_name }}"
+          if [ "$BRANCH" = "master" ] || [ "$BRANCH" = "main" ]; then
+            IMAGE_TAG="latest"
+          else
+            IMAGE_TAG=$(echo "$BRANCH" | tr '/' '-')
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "sha=$SHA" >> $GITHUB_OUTPUT
-          echo "Using version=$VERSION sha=$SHA"
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "Using version=$VERSION sha=$SHA image_tag=$IMAGE_TAG"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -140,7 +156,7 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: |
-            ${{ env.DOCKERHUB_USERNAME }}/avika-gateway:latest-arm64
+            ${{ env.DOCKERHUB_USERNAME }}/avika-gateway:${{ steps.meta.outputs.image_tag }}-arm64
             ${{ env.DOCKERHUB_USERNAME }}/avika-gateway:sha-${{ steps.meta.outputs.sha }}-arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -155,7 +171,7 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: |
-            ${{ env.DOCKERHUB_USERNAME }}/avika-frontend:latest-arm64
+            ${{ env.DOCKERHUB_USERNAME }}/avika-frontend:${{ steps.meta.outputs.image_tag }}-arm64
             ${{ env.DOCKERHUB_USERNAME }}/avika-frontend:sha-${{ steps.meta.outputs.sha }}-arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -170,7 +186,7 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: |
-            ${{ env.DOCKERHUB_USERNAME }}/avika-agent:latest-arm64
+            ${{ env.DOCKERHUB_USERNAME }}/avika-agent:${{ steps.meta.outputs.image_tag }}-arm64
             ${{ env.DOCKERHUB_USERNAME }}/avika-agent:sha-${{ steps.meta.outputs.sha }}-arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -180,7 +196,7 @@ jobs:
       - name: Summary
         run: |
           echo "## Build on Merge (arm64)" >> $GITHUB_STEP_SUMMARY
-          echo "Pushed \`latest-arm64\` and \`sha-${{ steps.meta.outputs.sha }}-arm64\`" >> $GITHUB_STEP_SUMMARY
+          echo "Pushed \`${{ steps.meta.outputs.image_tag }}-arm64\` and \`sha-${{ steps.meta.outputs.sha }}-arm64\`" >> $GITHUB_STEP_SUMMARY
           echo "- hellodk/avika-gateway" >> $GITHUB_STEP_SUMMARY
           echo "- hellodk/avika-frontend" >> $GITHUB_STEP_SUMMARY
           echo "- hellodk/avika-agent" >> $GITHUB_STEP_SUMMARY
@@ -195,11 +211,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get SHA
+      - name: Get SHA and image tag
         id: meta
         run: |
           SHA=$(git rev-parse --short HEAD)
+          BRANCH="${{ github.ref_name }}"
+          if [ "$BRANCH" = "master" ] || [ "$BRANCH" = "main" ]; then
+            IMAGE_TAG="latest"
+          else
+            IMAGE_TAG=$(echo "$BRANCH" | tr '/' '-')
+          fi
           echo "sha=$SHA" >> $GITHUB_OUTPUT
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -214,11 +237,12 @@ jobs:
         run: |
           REPO="${{ env.DOCKERHUB_USERNAME }}"
           SHA="${{ steps.meta.outputs.sha }}"
+          IMAGE_TAG="${{ steps.meta.outputs.image_tag }}"
           for IMG in avika-gateway avika-frontend avika-agent; do
-            echo "Creating multi-arch manifest for ${REPO}/${IMG}:latest"
-            docker buildx imagetools create -t "${REPO}/${IMG}:latest" \
-              "${REPO}/${IMG}:latest-amd64" \
-              "${REPO}/${IMG}:latest-arm64"
+            echo "Creating multi-arch manifest for ${REPO}/${IMG}:${IMAGE_TAG}"
+            docker buildx imagetools create -t "${REPO}/${IMG}:${IMAGE_TAG}" \
+              "${REPO}/${IMG}:${IMAGE_TAG}-amd64" \
+              "${REPO}/${IMG}:${IMAGE_TAG}-arm64"
             echo "Creating multi-arch manifest for ${REPO}/${IMG}:sha-${SHA}"
             docker buildx imagetools create -t "${REPO}/${IMG}:sha-${SHA}" \
               "${REPO}/${IMG}:sha-${SHA}-amd64" \
@@ -228,7 +252,7 @@ jobs:
       - name: Summary
         run: |
           echo "## Multi-arch manifests" >> $GITHUB_STEP_SUMMARY
-          echo "Pushed \`latest\` and \`sha-${{ steps.meta.outputs.sha }}\` (amd64 + arm64) for:" >> $GITHUB_STEP_SUMMARY
+          echo "Pushed \`${{ steps.meta.outputs.image_tag }}\` and \`sha-${{ steps.meta.outputs.sha }}\` (amd64 + arm64) for:" >> $GITHUB_STEP_SUMMARY
           echo "- hellodk/avika-gateway" >> $GITHUB_STEP_SUMMARY
           echo "- hellodk/avika-frontend" >> $GITHUB_STEP_SUMMARY
           echo "- hellodk/avika-agent" >> $GITHUB_STEP_SUMMARY

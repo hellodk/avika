@@ -4,7 +4,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: phpldapadmin
-  namespace: avika
+  namespace: utilities
   labels:
     app: phpldapadmin
 spec:
@@ -25,7 +25,7 @@ spec:
               name: http
           env:
             - name: PHPLDAPADMIN_LDAP_HOSTS
-              value: "#PYTHON2BASH:[{'openldap': [{'server': [{'tls': False}, {'port': 389}]}, {'login': [{'bind_id': 'cn=admin,dc=avika,dc=local'}]}]}]"
+              value: "#PYTHON2BASH:[{'openldap.utilities.svc.cluster.local': [{'server': [{'tls': False}, {'port': 389}]}, {'login': [{'bind_id': 'cn=admin,dc=avika,dc=local'}]}]}]"
             - name: PHPLDAPADMIN_HTTPS
               value: "false"
             - name: PHPLDAPADMIN_LDAP_CLIENT_TLS
@@ -57,7 +57,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: phpldapadmin
-  namespace: avika
+  namespace: utilities
   labels:
     app: phpldapadmin
 spec:
@@ -73,7 +73,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: phpldapadmin-nodeport
-  namespace: avika
+  namespace: utilities
   labels:
     app: phpldapadmin
 spec:

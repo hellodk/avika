@@ -4,13 +4,13 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: keycloak-ldap-config
-  namespace: avika
+  namespace: utilities
 data:
   configure-ldap.sh: |
     #!/bin/bash
     set -e
 
-    KC_SERVER="http://keycloak:8080"
+    KC_SERVER="http://keycloak.utilities.svc.cluster.local:8080"
     KC_REALM="avika"
     KC_ADMIN="admin"
     KC_ADMIN_PASS="${KEYCLOAK_ADMIN_PASSWORD}"
@@ -50,7 +50,7 @@ data:
       -s 'config.rdnLDAPAttribute=["cn"]' \
       -s 'config.uuidLDAPAttribute=["entryUUID"]' \
       -s 'config.userObjectClasses=["inetOrgPerson, posixAccount"]' \
-      -s 'config.connectionUrl=["ldap://openldap:389"]' \
+      -s 'config.connectionUrl=["ldap://openldap.utilities.svc.cluster.local:389"]' \
       -s 'config.usersDn=["ou=users,dc=avika,dc=local"]' \
       -s 'config.authType=["simple"]' \
       -s 'config.bindDn=["cn=admin,dc=avika,dc=local"]' \
@@ -155,7 +155,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: keycloak-ldap-federation
-  namespace: avika
+  namespace: utilities
 spec:
   ttlSecondsAfterFinished: 600
   template:

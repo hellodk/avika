@@ -49,17 +49,17 @@ export function NginxCoreDashboard() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
-                    <span className="text-sm font-medium text-slate-500">
+                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : ''}`} style={!isConnected ? { background: 'rgb(var(--theme-text-muted))', opacity: 0.7 } : undefined} />
+                    <span className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                         {isConnected ? 'NGINX Core Stream Active' : 'Connecting...'}
                     </span>
                 </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-4">
-                <Card>
+                <Card className="border" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-center">Active Load</CardTitle>
+                        <CardTitle className="text-sm font-medium text-center" style={{ color: 'rgb(var(--theme-text))' }}>Active Load</CardTitle>
                     </CardHeader>
                     <CardContent className="flex justify-center items-center py-2">
                         <Gauge
@@ -76,9 +76,9 @@ export function NginxCoreDashboard() {
                 </div>
             </div>
 
-            <Card>
+            <Card className="border" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                 <CardHeader>
-                    <CardTitle className="text-sm font-medium">Connection States (Real-time)</CardTitle>
+                    <CardTitle className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text))' }}>Connection States (Real-time)</CardTitle>
                 </CardHeader>
                 <CardContent className="h-[400px]">
                     <ResponsiveContainer width="100%" height="100%">

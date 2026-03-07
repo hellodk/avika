@@ -11,7 +11,8 @@ export async function POST(
     const { id } = await params;
     const sessionCookie = request.cookies.get("avika_session")?.value;
     const body = await request.json();
-    const gatewayResponse = await fetch(`${GATEWAY_URL}/api/agents/${id}/config/test`, {
+    const encodedId = encodeURIComponent(id);
+    const gatewayResponse = await fetch(`${GATEWAY_URL}/api/agents/${encodedId}/config/test`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

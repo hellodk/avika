@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Simple secret detection regexes
-SECRETS_PATTERN="(?:access_key|secret_key|api_key|password|passwd|pwd|token|auth|key|secret)[[:space:]]*[:=][[:space:]]*[\"'][^\"']+[\"']"
+# Exclude bare "key" to avoid false positives (e.g. dataKey="..." in Recharts)
+SECRETS_PATTERN="(?:access_key|secret_key|api_key|password|passwd|pwd|token|auth|secret)[[:space:]]*[:=][[:space:]]*[\"'][^\"']+[\"']"
 
 # Find staged files
 STAGED_FILES=$(git diff --cached --name-only)

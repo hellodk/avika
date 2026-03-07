@@ -38,7 +38,7 @@ const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
 const agentWrapper = protoDescriptor.nginx.agent.v1;
 
 // Gateway address from environment or default (gRPC port is 5020)
-const GATEWAY_GRPC_ADDR = process.env.GATEWAY_GRPC_ADDR || process.env.GATEWAY_URL || process.env.NEXT_PUBLIC_GATEWAY_URL?.replace(/^https?:\/\//, '') || 'avika-gateway:5020';
+const GATEWAY_GRPC_ADDR = process.env.GATEWAY_GRPC_ADDR || process.env.GATEWAY_URL || process.env.NEXT_PUBLIC_GATEWAY_URL?.replace(/^https?:\/\//, '') || 'localhost:5020';
 
 let clientInstance: any = null;
 

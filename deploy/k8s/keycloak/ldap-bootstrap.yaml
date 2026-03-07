@@ -4,7 +4,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ldap-bootstrap-config
-  namespace: avika
+  namespace: utilities
 data:
   bootstrap.ldif: |
     # Create Users OU
@@ -142,7 +142,7 @@ data:
     set -e
     
     echo "Waiting for LDAP to be ready..."
-    until ldapsearch -x -H ldap://openldap:389 -D "cn=admin,dc=avika,dc=local" -w "$LDAP_ADMIN_PASSWORD" -b "dc=avika,dc=local" > /dev/null 2>&1; do
+    until ldapsearch -x -H ldap://openldap.utilities.svc.cluster.local:389 -D "cn=admin,dc=avika,dc=local" -w "$LDAP_ADMIN_PASSWORD" -b "dc=avika,dc=local" > /dev/null 2>&1; do
       echo "LDAP not ready, waiting..."
       sleep 5
     done
@@ -150,26 +150,26 @@ data:
     echo "LDAP is ready, checking if bootstrap is needed..."
     
     # Check if groups OU exists
-    if ldapsearch -x -H ldap://openldap:389 -D "cn=admin,dc=avika,dc=local" -w "$LDAP_ADMIN_PASSWORD" -b "ou=groups,dc=avika,dc=local" > /dev/null 2>&1; then
+    if ldapsearch -x -H ldap://openldap.utilities.svc.cluster.local:389 -D "cn=admin,dc=avika,dc=local" -w "$LDAP_ADMIN_PASSWORD" -b "ou=groups,dc=avika,dc=local" > /dev/null 2>&1; then
       echo "Groups OU already exists, skipping bootstrap"
       exit 0
     fi
     
     echo "Running LDAP bootstrap..."
-    ldapadd -x -H ldap://openldap:389 -D "cn=admin,dc=avika,dc=local" -w "$LDAP_ADMIN_PASSWORD" -f /ldif/bootstrap.ldif || true
+    ldapadd -x -H ldap://openldap.utilities.svc.cluster.local:389 -D "cn=admin,dc=avika,dc=local" -w "$LDAP_ADMIN_PASSWORD" -f /ldif/bootstrap.ldif || true
     
     echo "Bootstrap complete!"
     
     # Verify
     echo "Verifying groups..."
-    ldapsearch -x -H ldap://openldap:389 -D "cn=admin,dc=avika,dc=local" -w "$LDAP_ADMIN_PASSWORD" -b "ou=groups,dc=avika,dc=local" "(objectClass=groupOfNames)" cn
+    ldapsearch -x -H ldap://openldap.utilities.svc.cluster.local:389 -D "cn=admin,dc=avika,dc=local" -w "$LDAP_ADMIN_PASSWORD" -b "ou=groups,dc=avika,dc=local" "(objectClass=groupOfNames)" cn
 ---
 # Bootstrap Job
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: ldap-bootstrap
-  namespace: avika
+  namespace: utilities
 spec:
   ttlSecondsAfterFinished: 300
   template:

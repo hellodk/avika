@@ -53,17 +53,17 @@ export function SystemDashboard() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
-                    <span className="text-sm font-medium text-slate-500">
+                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : ''}`} style={!isConnected ? { background: 'rgb(var(--theme-text-muted))', opacity: 0.7 } : undefined} />
+                    <span className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                         {isConnected ? 'Live Stream Active' : 'Connecting to Live Stream...'}
                     </span>
                 </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card className="lg:col-span-2">
+                <Card className="lg:col-span-2 border" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Resource Overview</CardTitle>
+                        <CardTitle className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text))' }}>Resource Overview</CardTitle>
                     </CardHeader>
                     <CardContent className="flex justify-around items-center pt-0">
                         <Gauge
@@ -84,9 +84,9 @@ export function SystemDashboard() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-                <Card>
+                <Card className="border" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                     <CardHeader>
-                        <CardTitle className="text-sm font-medium">Gateway EPS (Events/sec)</CardTitle>
+                        <CardTitle className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text))' }}>Gateway EPS (Events/sec)</CardTitle>
                     </CardHeader>
                     <CardContent className="h-[250px]">
                         <ResponsiveContainer width="100%" height="100%">
@@ -110,9 +110,9 @@ export function SystemDashboard() {
                     </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="border" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                     <CardHeader>
-                        <CardTitle className="text-sm font-medium">CPU & Memory Usage (%)</CardTitle>
+                        <CardTitle className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text))' }}>CPU & Memory Usage (%)</CardTitle>
                     </CardHeader>
                     <CardContent className="h-[250px]">
                         <ResponsiveContainer width="100%" height="100%">
@@ -137,9 +137,9 @@ export function SystemDashboard() {
                     </CardContent>
                 </Card>
 
-                <Card className="md:col-span-2">
+                <Card className="md:col-span-2 border" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                     <CardHeader>
-                        <CardTitle className="text-sm font-medium">Network Throughput (KB/s)</CardTitle>
+                        <CardTitle className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text))' }}>Network Throughput (KB/s)</CardTitle>
                     </CardHeader>
                     <CardContent className="h-[250px]">
                         <ResponsiveContainer width="100%" height="100%">

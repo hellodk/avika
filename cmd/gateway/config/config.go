@@ -211,20 +211,34 @@ type Config struct {
 
 // GetGRPCAddress returns the formatted gRPC listen address
 func (c *Config) GetGRPCAddress() string {
-	// Support legacy Port field
-	if c.Server.Port != "" && strings.HasPrefix(c.Server.Port, ":") {
-		return c.Server.Port
+	// Prioritize GRPCPort (int) over legacy Port (string)
+	if c.Server.GRPCPort > 0 {
+		return fmt.Sprintf("%s:%d", c.Server.Host, c.Server.GRPCPort)
 	}
-	return fmt.Sprintf("%s:%d", c.Server.Host, c.Server.GRPCPort)
+	// Fallback to legacy field if set
+	if c.Server.Port != "" {
+		if strings.HasPrefix(c.Server.Port, ":") {
+			return c.Server.Port
+		}
+		return ":" + c.Server.Port
+	}
+	return fmt.Sprintf("%s:%d", c.Server.Host, DefaultGRPCPort)
 }
 
 // GetHTTPAddress returns the formatted HTTP listen address
 func (c *Config) GetHTTPAddress() string {
-	// Support legacy WSPort field
-	if c.Server.WSPort != "" && strings.HasPrefix(c.Server.WSPort, ":") {
-		return c.Server.WSPort
+	// Prioritize HTTPPort (int) over legacy WSPort (string)
+	if c.Server.HTTPPort > 0 {
+		return fmt.Sprintf("%s:%d", c.Server.Host, c.Server.HTTPPort)
 	}
-	return fmt.Sprintf("%s:%d", c.Server.Host, c.Server.HTTPPort)
+	// Fallback to legacy field
+	if c.Server.WSPort != "" {
+		if strings.HasPrefix(c.Server.WSPort, ":") {
+			return c.Server.WSPort
+		}
+		return ":" + c.Server.WSPort
+	}
+	return fmt.Sprintf("%s:%d", c.Server.Host, DefaultHTTPPort)
 }
 
 // GetMetricsAddress returns the formatted metrics listen address
@@ -331,9 +345,9 @@ func defaultConfig() *Config {
 			HTTPPort:    DefaultHTTPPort,
 			MetricsPort: DefaultMetricsPort,
 			Host:        "",
-			// Legacy defaults for backward compatibility
-			Port:   fmt.Sprintf(":%d", DefaultGRPCPort),
-			WSPort: fmt.Sprintf(":%d", DefaultHTTPPort),
+			// Legacy fields left empty to avoid overriding newer int fields
+			Port:   "",
+			WSPort: "",
 		},
 		Security: SecurityConfig{
 			AllowedOrigins:  []string{"http://localhost:5031", "http://localhost:3000", "http://127.0.0.1:5031"},

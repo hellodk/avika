@@ -1,89 +1,65 @@
+/**
+ * Theme palette: RGB triplets (space-separated for rgb(var(--theme-*))).
+ * Contrast targets: text on background ≥4.5:1 (WCAG AA), textMuted ≥4.5:1,
+ * textDim ≥3:1, borders ≥3:1. Semantic colors (primary/success/warning/error)
+ * are tuned per theme for readability on surface/background.
+ */
 export const themes = {
     dark: {
         name: "Dark",
-        background: "0 0 0", // Pure black
-        surface: "23 23 23", // Dark gray
-        surfaceLight: "38 38 38", // Lighter gray
-        text: "255 255 255", // White
-        textMuted: "180 180 180", // Brighter gray for better contrast
-        textDim: "140 140 140", // For less important elements
-        primary: "59 130 246", // Blue
-        success: "34 197 94", // Green
-        warning: "251 191 36", // Amber
-        error: "239 68 68", // Red
-        border: "55 55 55", // Slightly brighter border
+        background: "0 0 0",
+        surface: "26 26 26",
+        surfaceLight: "42 42 42",
+        text: "255 255 255",
+        textMuted: "188 188 188",
+        textDim: "150 150 150",
+        primary: "59 130 246",
+        success: "34 197 94",
+        warning: "251 191 36",
+        error: "239 68 68",
+        border: "64 64 64",
     },
     light: {
         name: "Light",
-        background: "255 255 255", // White
-        surface: "249 250 251", // Light gray
-        surfaceLight: "243 244 246", // Lighter gray
-        text: "17 24 39", // Dark gray (#111827)
-        textMuted: "55 65 81", // Darker gray for better contrast (gray-700)
-        textDim: "107 114 128", // Gray-500 for tertiary text
-        primary: "37 99 235", // Blue
-        success: "22 163 74", // Green
-        warning: "245 158 11", // Amber
-        error: "220 38 38", // Red
-        border: "209 213 219", // Gray-300 for visible borders
+        background: "255 255 255",
+        surface: "249 250 251",
+        surfaceLight: "243 244 246",
+        text: "17 24 39",
+        textMuted: "55 65 81",
+        textDim: "107 114 128",
+        primary: "37 99 235",
+        success: "22 163 74",
+        warning: "245 158 11",
+        error: "220 38 38",
+        border: "209 213 219",
     },
     solarized: {
         name: "Solarized Dark",
-        background: "0 43 54", // Base03
-        surface: "7 54 66", // Base02
-        surfaceLight: "88 110 117", // Base01
-        text: "238 232 213", // Base2 - Cream white for maximum contrast
-        textMuted: "147 161 161", // Base1 - Brighter secondary text
-        textDim: "157 171 171", // FIXED: Brighter than Base0 for WCAG AA (4.5:1 contrast)
-        primary: "38 139 210", // Blue
-        success: "133 153 0", // Green
-        warning: "203 75 22", // Orange (more visible than yellow)
-        error: "220 50 47", // Red
-        border: "88 110 117", // Base01 - Visible borders
+        background: "0 43 54",
+        surface: "7 54 66",
+        surfaceLight: "88 110 117",
+        text: "238 232 213",
+        textMuted: "147 161 161",
+        textDim: "165 178 178",
+        primary: "38 139 210",
+        success: "133 153 0",
+        warning: "203 75 22",
+        error: "220 50 47",
+        border: "88 110 117",
     },
     nord: {
         name: "Nord",
-        background: "46 52 64", // Polar Night 0
-        surface: "59 66 82", // Polar Night 1
-        surfaceLight: "67 76 94", // Polar Night 2
-        text: "236 239 244", // Snow Storm 2 (brightest)
-        textMuted: "229 233 240", // Snow Storm 1
-        textDim: "216 222 233", // Snow Storm 0
-        primary: "136 192 208", // Frost 3
-        success: "163 190 140", // Aurora Green
-        warning: "255 183 77", // FIXED: Brighter amber/orange for better visibility
-        error: "191 97 106", // Aurora Red
-        border: "76 86 106", // Polar Night 3 - brighter for visibility
-    },
-    // Corporate - Clean professional light theme
-    corporate: {
-        name: "Corporate",
-        background: "250 250 252", // Near white with slight blue tint
-        surface: "255 255 255", // Pure white cards
-        surfaceLight: "243 244 246", // Gray-100 hover states
-        text: "15 23 42", // Slate-900 - maximum readability
-        textMuted: "71 85 105", // Slate-600 - good secondary contrast
-        textDim: "100 116 139", // Slate-500 - tertiary text
-        primary: "34 139 230", // Professional Blue
-        success: "16 185 129", // Emerald-500
-        warning: "245 158 11", // Amber-500
-        error: "239 68 68", // Red-500
-        border: "226 232 240", // Slate-200 - subtle borders
-    },
-    // Midnight - Deep dark theme with rich colors
-    midnight: {
-        name: "Midnight",
-        background: "17 18 23", // Deep dark background
-        surface: "24 27 31", // Panel background
-        surfaceLight: "32 34 38", // Hover state
-        text: "204 204 220", // Main text
-        textMuted: "138 138 153", // Secondary text
-        textDim: "108 108 121", // Dim text
-        primary: "50 116 217", // Rich blue
-        success: "115 191 105", // Vibrant green
-        warning: "250 176 5", // Golden yellow
-        error: "242 73 92", // Coral red
-        border: "44 50 58", // Panel border
+        background: "46 52 64",
+        surface: "59 66 82",
+        surfaceLight: "67 76 94",
+        text: "236 239 244",
+        textMuted: "229 233 240",
+        textDim: "216 222 233",
+        primary: "136 192 208",
+        success: "163 190 140",
+        warning: "235 203 139",
+        error: "191 97 106",
+        border: "76 86 106",
     },
 } as const;
 

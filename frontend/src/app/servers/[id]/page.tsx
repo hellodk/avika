@@ -98,7 +98,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     const fetchDetails = async () => {
         setIsLoading(true);
         try {
-            const res = await apiFetch(`/api/servers/${id}`);
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}`);
             const data = await res.json();
             setServerInfo(data);
             if (data.config) {
@@ -109,6 +109,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
             }
         } catch (err) {
             console.error("Failed to fetch server details", err);
+            setServerInfo({ error: "Network or client error" });
         } finally {
             setIsLoading(false);
         }
@@ -116,7 +117,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
 
     const fetchAnalytics = async () => {
         try {
-            const res = await apiFetch(`/api/analytics?agent_id=${id}&window=24h`);
+            const res = await apiFetch(`/api/analytics?agent_id=${encodeURIComponent(id)}&window=24h`);
             const data = await res.json();
             setAnalytics(data);
         } catch (err) {
@@ -127,7 +128,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     const fetchAgentConfig = async () => {
         setConfigLoading(true);
         try {
-            const res = await apiFetch(`/api/servers/${id}/config`);
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}/config`);
             if (res.ok) {
                 const data = await res.json();
                 setAgentConfig(prev => ({
@@ -146,7 +147,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     const fetchConfigBackups = async () => {
         setConfigBackupsLoading(true);
         try {
-            const res = await apiFetch(`/api/servers/${id}/config/backups`);
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}/config/backups`);
             if (res.ok) {
                 const data = await res.json();
                 setConfigBackups(data.backups || []);
@@ -179,7 +180,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     const restoreConfigBackup = async (backupName: string) => {
         setRestoreLoading(true);
         try {
-            const res = await apiFetch(`/api/servers/${id}/config/restore`, {
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}/config/restore`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ backup_name: backupName }),
@@ -207,7 +208,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 gateway_addresses: agentConfig.gateway_addresses.filter(addr => addr.trim() !== ''),
             };
             
-            const res = await apiFetch(`/api/servers/${id}/config`, {
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}/config`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(configToSave)
@@ -260,7 +261,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
 
     const handleNginxAction = async (action: string) => {
         try {
-            const res = await apiFetch(`/api/servers/${id}`, {
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ action })
@@ -279,7 +280,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
 
     const handleSaveConfig = async () => {
         try {
-            const res = await apiFetch(`/api/servers/${id}`, {
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ action: "update_config", content: config })
@@ -354,7 +355,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     useEffect(() => {
         const fetchUptime = async () => {
             try {
-                const res = await apiFetch(`/api/servers/${id}/uptime`);
+                const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}/uptime`);
                 const data = await res.json();
                 setUptimeReports(Array.isArray(data) ? data : []);
             } catch (err) {
@@ -370,6 +371,20 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         return (
             <div className="flex items-center justify-center min-h-[400px]">
                 <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
+            </div>
+        );
+    }
+
+    if (serverInfo?.error) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 p-6">
+                <AlertTriangle className="h-12 w-12 text-amber-500" />
+                <h2 className="text-lg font-semibold" style={{ color: `rgb(var(--theme-text))` }}>Failed to load server</h2>
+                <p className="text-sm text-neutral-400 text-center max-w-md">{serverInfo.error}</p>
+                <Button variant="outline" onClick={() => { setIsLoading(true); setServerInfo(null); fetchDetails(); }}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Retry
+                </Button>
             </div>
         );
     }
@@ -443,7 +458,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                         <Button
                             size="icon"
                             variant="ghost"
-                            className="absolute right-1 top-1 h-8 w-8 text-neutral-500 hover:text-white"
+                            className="absolute right-1 top-1 h-8 w-8 hover-text-visible"
                             onClick={() => {
                                 navigator.clipboard.writeText(execCommand);
                                 setCopied(true);
@@ -1074,7 +1089,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                         <SelectTrigger className="bg-neutral-950 border-neutral-800 text-white">
                                             <SelectValue placeholder="Select log format" />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-neutral-900 border-neutral-800">
+                                        <SelectContent>
                                             <SelectItem value="combined">Combined (Apache/NGINX Standard)</SelectItem>
                                             <SelectItem value="json">JSON (Structured)</SelectItem>
                                             <SelectItem value="custom">Custom</SelectItem>
@@ -1135,7 +1150,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                             <SelectTrigger className="bg-neutral-950 border-neutral-800 text-white">
                                                 <SelectValue placeholder="Select log level" />
                                             </SelectTrigger>
-                                            <SelectContent className="bg-neutral-900 border-neutral-800">
+                                            <SelectContent>
                                                 <SelectItem value="debug">Debug</SelectItem>
                                                 <SelectItem value="info">Info</SelectItem>
                                                 <SelectItem value="warn">Warning</SelectItem>
