@@ -131,8 +131,13 @@ export default function IntegrationsSettingsPage() {
       const res = await apiFetch("/api/integrations");
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load integrations");
+      const list: IntegrationRow[] = Array.isArray(data)
+        ? data
+        : Array.isArray((data as { integrations?: IntegrationRow[] })?.integrations)
+          ? (data as { integrations: IntegrationRow[] }).integrations
+          : [];
       const next = { ...rows };
-      for (const row of data as IntegrationRow[]) {
+      for (const row of list) {
         next[row.type] = row;
       }
       setRows(next);

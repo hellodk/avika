@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Palette, Check, Moon, Sun, LayoutDashboard, Layout, ChevronDown } from "lucide-react";
+import { Palette, Check, Moon, Sun, ChevronDown } from "lucide-react";
 import { useTheme } from "@/lib/theme-provider";
 import { themes, ThemeName, THEME_IDS } from "@/lib/themes";
 import {
@@ -14,8 +14,6 @@ import {
 const themeIcons: Record<string, typeof Moon> = {
     dark: Moon,
     light: Sun,
-    dashboard: LayoutDashboard,
-    rocker: Layout,
 };
 
 export function AppearanceSettings() {

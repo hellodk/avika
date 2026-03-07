@@ -14,7 +14,6 @@ import { ProjectSelector } from "@/components/project-selector";
 import { EnvironmentTabs } from "@/components/environment-tabs";
 import { useProject } from "@/lib/project-context";
 import { Breadcrumb } from "@/components/breadcrumb";
-import { useTheme } from "@/lib/theme-provider";
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "dev";
 import { Badge } from "@/components/ui/badge";
@@ -95,10 +94,8 @@ function EnvironmentTabsBar() {
 export default function DashboardLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
-    const { theme } = useTheme();
     const { user, logout } = useAuth();
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-    const layoutVariant = theme === "rocker" ? "layout-rocker" : theme === "dashboard" ? "layout-ui-kit" : "";
     const [searchQuery, setSearchQuery] = useState("");
     const searchInputRef = useRef<HTMLInputElement>(null);
     const [expandedSections, setExpandedSections] = useState<string[]>(
@@ -160,11 +157,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     }
 
     return (
-        <div
-            className={`flex h-screen overflow-hidden ${layoutVariant}`}
-            style={{ background: "rgb(var(--theme-background))" }}
-            data-layout-variant={layoutVariant || undefined}
-        >
+        <div className="flex h-screen overflow-hidden" style={{ background: "rgb(var(--theme-background))" }}>
             {/* Sidebar */}
             <aside
                 className={`dashboard-layout-sidebar ${sidebarCollapsed ? 'w-16' : 'w-64'} flex-shrink-0 border-r flex flex-col transition-all duration-300`}
@@ -406,14 +399,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                     role="main"
                     aria-label="Main content"
                 >
-                    {/* Rocker / UI Kit: page title bar at top of content (matches reference demos) */}
-                    {(layoutVariant === "layout-rocker" || layoutVariant === "layout-ui-kit") && (
-                        <div className="dashboard-layout-page-title" data-layout-variant={layoutVariant}>
-                            <h1 className="dashboard-layout-page-title-text" style={{ color: "rgb(var(--theme-text))" }}>
-                                {getCurrentPageTitle()}
-                            </h1>
-                        </div>
-                    )}
                     {children}
                 </main>
             </div>
