@@ -178,7 +178,7 @@ export default function GrafanaPage() {
                                 onClick={() => setSelectedDashboard(dash)}
                                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${selectedDashboard.id === dash.id
                                     ? 'bg-purple-500/20 text-purple-400'
-                                    : 'hover:bg-white/5'
+                                    : 'hover-surface'
                                     }`}
                                 style={{
                                     color: selectedDashboard.id === dash.id
@@ -242,7 +242,7 @@ export default function GrafanaPage() {
                     {/* Refresh Button */}
                     <button
                         onClick={handleRefreshClick}
-                        className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                        className="p-2 rounded-lg hover-surface"
                         style={{ color: "rgb(var(--theme-text-muted))" }}
                         title="Refresh"
                     >
@@ -252,7 +252,7 @@ export default function GrafanaPage() {
                     {/* Open in New Tab */}
                     <button
                         onClick={openInNewTab}
-                        className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                        className="p-2 rounded-lg hover-surface"
                         style={{ color: "rgb(var(--theme-text-muted))" }}
                         title="Open in Grafana"
                     >
@@ -262,7 +262,7 @@ export default function GrafanaPage() {
                     {/* Fullscreen Toggle */}
                     <button
                         onClick={() => setIsFullscreen(!isFullscreen)}
-                        className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                        className="p-2 rounded-lg hover-surface"
                         style={{ color: "rgb(var(--theme-text-muted))" }}
                         title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
                     >
@@ -276,7 +276,7 @@ export default function GrafanaPage() {
                     {/* Settings Link */}
                     <Link
                         href="/settings"
-                        className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                        className="p-2 rounded-lg hover-surface"
                         style={{ color: "rgb(var(--theme-text-muted))" }}
                         title="Configure Grafana URL"
                     >

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 
 	"os/signal"
@@ -354,6 +355,13 @@ func main() {
 	// Load configuration from environment variables (overrides config file, but not CLI flags)
 	loadEnv()
 
+	// Load version from file if not set via ldflags (e.g. local dev)
+	if strings.Contains(Version, "dev") || Version == "0.1.0" {
+		if data, err := os.ReadFile("VERSION"); err == nil {
+			Version = strings.TrimSpace(string(data))
+		}
+	}
+
 	if *version {
 		fmt.Printf("NGINX Manager Agent\n")
 		fmt.Printf("Version:    %s\n", Version)
@@ -530,8 +538,31 @@ func main() {
 
 				// Determine primary NGINX version
 				primaryNginxVersion := "unknown"
+				lastMetricsVersion := metricsCollector.GetLastDetectedVersion()
+
 				if len(instances) > 0 {
+					for _, inst := range instances {
+						if inst.Version == "unknown" && lastMetricsVersion != "" {
+							inst.Version = lastMetricsVersion
+						}
+					}
 					primaryNginxVersion = instances[0].Version
+				} else if lastMetricsVersion != "" {
+					// Even if no process found via discovery (unlikely if metrics work),
+					// we can report the version from metrics API
+					primaryNginxVersion = lastMetricsVersion
+				}
+
+				// Fallback for K8s sidecar mode: try to extract from HTTP Server header if native discovery fails
+				if primaryNginxVersion == "unknown" && *nginxStatusURL != "" {
+					client := &http.Client{Timeout: 1 * time.Second}
+					if resp, err := client.Get(*nginxStatusURL); err == nil {
+						serverHeader := resp.Header.Get("Server") // e.g. "nginx/1.25.3"
+						if strings.HasPrefix(strings.ToLower(serverHeader), "nginx/") {
+							primaryNginxVersion = serverHeader[6:]
+						}
+						resp.Body.Close()
+					}
 				}
 
 				hbMsg := &pb.AgentMessage{

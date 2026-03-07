@@ -12,8 +12,9 @@ import (
 
 // AdvancedCollector collects metrics from Advanced NGINX API
 type AdvancedCollector struct {
-	apiURL string
-	client *http.Client
+	apiURL              string
+	client              *http.Client
+	LastDetectedVersion string
 }
 
 func NewAdvancedCollector(baseURL string) *AdvancedCollector {
@@ -59,8 +60,16 @@ func (c *AdvancedCollector) Collect() (*pb.NginxMetrics, error) {
 		return nil, fmt.Errorf("advanced api returned %s", resp.Status)
 	}
 
-	// For a real implementation, we would negotiate the version.
-	// For this parity feature, we'll try to fetch the common segments.
+	// Try to get version from root response
+	body, _ := io.ReadAll(resp.Body)
+	var rootData struct {
+		Nginx struct {
+			Version string `json:"version"`
+		} `json:"nginx"`
+	}
+	if json.Unmarshal(body, &rootData) == nil && rootData.Nginx.Version != "" {
+		c.LastDetectedVersion = rootData.Nginx.Version
+	}
 
 	metrics := &pb.NginxMetrics{
 		HttpStatus: &pb.HttpStatusMetrics{},

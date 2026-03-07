@@ -47,24 +47,22 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
+/*
+ * Fallback theme (before ThemeProvider runs). Matches dark theme for consistent first paint.
+ * Active theme overwrites these via JS; all themes target WCAG AA (4.5:1 text, 3:1 UI).
+ */
 :root {
-  /* 
-   * Enterprise Theme - MAXIMUM VISIBILITY Dark Mode
-   * Optimized for human eye readability with high contrast ratios
-   * All colors tested for WCAG AA compliance (4.5:1 for text, 3:1 for UI)
-   */
-  --theme-background: 15 23 42;        /* slate-900 - deep dark base */
-  --theme-surface: 30 41 59;           /* slate-800 - card backgrounds */
-  --theme-surface-light: 51 65 85;     /* slate-700 - hover states */
-  --theme-text: 248 250 252;           /* slate-50 - near white for maximum readability */
-  --theme-text-muted: 203 213 225;     /* slate-300 - BRIGHTER secondary text */
-  --theme-text-dim: 148 163 184;       /* slate-400 - for less important elements */
-  --theme-primary: 96 165 250;         /* blue-400 */
-  --theme-success: 74 222 128;         /* green-400 - BRIGHTER green */
-  --theme-warning: 251 191 36;         /* amber-400 */
-  --theme-error: 248 113 113;          /* red-400 */
-  --theme-border: 100 116 139;         /* slate-500 - MORE VISIBLE borders */
-  --theme-info: 96 165 250;            /* blue-400 - for info states */
+  --theme-background: 0 0 0;
+  --theme-surface: 26 26 26;
+  --theme-surface-light: 42 42 42;
+  --theme-text: 255 255 255;
+  --theme-text-muted: 188 188 188;
+  --theme-text-dim: 150 150 150;
+  --theme-primary: 59 130 246;
+  --theme-success: 34 197 94;
+  --theme-warning: 251 191 36;
+  --theme-error: 239 68 68;
+  --theme-border: 64 64 64;
 }
 
 :root {
@@ -180,6 +178,51 @@
   }
 }
 
+/* Theme-aware hover: visible in both light and dark themes */
+@layer utilities {
+  .hover-surface {
+    transition: background-color 0.15s ease;
+  }
+  .hover-surface:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+  [data-theme="light"] .hover-surface:hover {
+    background-color: rgba(0, 0, 0, 0.06);
+  }
+
+  .link-theme {
+    color: rgb(var(--theme-text));
+  }
+  .link-theme:hover {
+    color: rgb(var(--theme-primary));
+  }
+
+  .hover-text-visible {
+    color: rgb(var(--theme-text-muted));
+  }
+  .hover-text-visible:hover {
+    color: rgb(var(--theme-text));
+  }
+
+  /* Project selector / dropdown trigger: on hover use white bg + black text for clear visibility */
+  .hover-white-black {
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  .hover-white-black:hover {
+    background-color: #fff !important;
+    color: #111 !important;
+  }
+  .hover-white-black:hover svg {
+    color: #374151 !important;
+  }
+
+  /* Analytics tab trigger: active state uses theme primary */
+  .analytics-tab-trigger[data-state="active"] {
+    background: rgb(var(--theme-primary)) !important;
+    color: rgb(255, 255, 255) !important;
+  }
+}
+
 /* Enterprise utility classes */
 @layer utilities {
   .enterprise-card {
@@ -213,20 +256,20 @@
     color: rgb(var(--theme-text-muted));
   }
 
-  /* Status colors - HIGH VISIBILITY */
+  /* Status colors - theme-aware for contrast in every theme */
   .status-success {
-    color: #4ade80; /* green-400 */
+    color: rgb(var(--theme-success));
   }
-  
+
   .status-warning {
-    color: #fbbf24; /* amber-400 */
+    color: rgb(var(--theme-warning));
   }
-  
+
   .status-error {
-    color: #f87171; /* red-400 */
+    color: rgb(var(--theme-error));
   }
-  
+
   .status-info {
-    color: #60a5fa; /* blue-400 */
+    color: rgb(var(--theme-primary));
   }
 }

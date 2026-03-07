@@ -4,15 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { apiFetch } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-    Activity, Shield, Database, RefreshCw, Cpu, Network, Globe, 
-    CheckCircle2, AlertCircle, Clock, Search, ArrowUpRight, Terminal,
-    Server, HardDrive, Zap, TrendingUp, ChevronRight, ExternalLink,
+import {
+    Activity, Shield, Database, RefreshCw, Cpu, Network, Globe,
+    CheckCircle2, AlertCircle, Clock, ArrowUpRight,
+    Server, HardDrive, Zap, TrendingUp, ChevronRight,
     AlertTriangle, XCircle, Info
 } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
-import { toast } from "sonner";
 import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 
@@ -29,38 +27,13 @@ function SystemHealthPageContent() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
-    
+
     const [agents, setAgents] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [latestVersion, setLatestVersion] = useState<string | null>(null);
     const [systemStats, setSystemStats] = useState<SystemStats | null>(null);
-    const [componentHealth, setComponentHealth] = useState<{[key: string]: any}>({});
+    const [componentHealth, setComponentHealth] = useState<{ [key: string]: any }>({});
     const [error, setError] = useState<string | null>(null);
-    const [updatingAgent, setUpdatingAgent] = useState<string | null>(null);
-    
-    // URL-based state for persistence
-    const searchQuery = searchParams.get('q') || "";
-    const filterStatus = (searchParams.get('status') as "all" | "online" | "offline") || "all";
-    
-    const updateParams = useCallback((updates: Record<string, string | null>) => {
-        const params = new URLSearchParams(searchParams.toString());
-        Object.entries(updates).forEach(([key, value]) => {
-            if (value === null || value === "") {
-                params.delete(key);
-            } else {
-                params.set(key, value);
-            }
-        });
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    }, [searchParams, router, pathname]);
-    
-    const setSearchQuery = useCallback((value: string) => {
-        updateParams({ q: value || null });
-    }, [updateParams]);
-    
-    const setFilterStatus = useCallback((value: "all" | "online" | "offline") => {
-        updateParams({ status: value === "all" ? null : value });
-    }, [updateParams]);
 
     // Calculate stats
     const stats = useMemo(() => {
@@ -109,18 +82,6 @@ function SystemHealthPageContent() {
         },
     ], [componentHealth, stats, latestVersion, systemStats]);
 
-    // Filtered agents
-    const filteredAgents = useMemo(() => {
-        return agents.filter(a => {
-            const matchesSearch = 
-                a.hostname?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                a.agent_id?.toLowerCase().includes(searchQuery.toLowerCase());
-            const online = isOnline(a.last_seen);
-            if (filterStatus === "online") return matchesSearch && online;
-            if (filterStatus === "offline") return matchesSearch && !online;
-            return matchesSearch;
-        });
-    }, [agents, searchQuery, filterStatus]);
 
     useEffect(() => {
         fetchAll();
@@ -167,15 +128,15 @@ function SystemHealthPageContent() {
                 apiFetch('/api/health').catch(() => null),
                 apiFetch('/api/ready').catch(() => null)
             ]);
-            
+
             if (healthRes?.ok) {
                 const health = await healthRes.json();
-                setComponentHealth(prev => ({ 
-                    ...prev, 
+                setComponentHealth(prev => ({
+                    ...prev,
                     gateway: { status: health.status, version: health.version, latency: health.response_time_ms }
                 }));
             }
-            
+
             if (readyRes?.ok) {
                 const ready = await readyRes.json();
                 setComponentHealth(prev => ({
@@ -192,26 +153,6 @@ function SystemHealthPageContent() {
             const res = await apiFetch('/api/stats');
             if (res.ok) setSystemStats(await res.json());
         } catch { /* silent */ }
-    };
-
-    const triggerUpdate = async (agentId: string) => {
-        setUpdatingAgent(agentId);
-        try {
-            const res = await apiFetch(`/api/servers/${agentId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'update_agent' })
-            });
-            const data = await res.json();
-            if (res.ok && data.success) {
-                toast.success('Update command sent', { description: 'Agent will update and restart' });
-            } else {
-                toast.error('Update failed', { description: data.error || 'Unknown error' });
-            }
-        } catch (e: any) {
-            toast.error('Update failed', { description: e.message });
-        }
-        setTimeout(() => setUpdatingAgent(null), 3000);
     };
 
     // IMPROVED CONTRAST: Increased opacity from 15% to 25% for better visibility
@@ -256,30 +197,23 @@ function SystemHealthPageContent() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <Link
-                        href="/system/preview"
-                        className="text-sm hover:underline"
-                        style={{ color: "rgb(var(--theme-text-muted))" }}
-                    >
-                        Preview new layout
-                    </Link>
-                    <Badge 
-                        variant="outline" 
-                        className={stats.active === stats.total && stats.total > 0 
-                            ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/40" 
+                    <Badge
+                        variant="outline"
+                        className={stats.active === stats.total && stats.total > 0
+                            ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/40"
                             : "bg-amber-500/25 text-amber-300 border-amber-500/40"}
                         role="status"
                         aria-label={`${stats.active} of ${stats.total} agents online`}
                     >
-                        <span 
-                            className={`w-2 h-2 rounded-full mr-2 ${stats.active === stats.total && stats.total > 0 ? 'bg-emerald-400' : 'bg-amber-400'}`} 
+                        <span
+                            className={`w-2 h-2 rounded-full mr-2 ${stats.active === stats.total && stats.total > 0 ? 'bg-emerald-400' : 'bg-amber-400'}`}
                             aria-hidden="true"
                         />
                         {stats.active}/{stats.total} Agents Online
                     </Badge>
-                    <Button 
-                        variant="outline" 
-                        size="sm" 
+                    <Button
+                        variant="outline"
+                        size="sm"
                         onClick={fetchAll}
                         style={{ borderColor: "rgb(var(--theme-border))" }}
                     >
@@ -300,7 +234,8 @@ function SystemHealthPageContent() {
                         </Button>
                     </CardContent>
                 </Card>
-            )}
+            )
+            }
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -390,20 +325,20 @@ function SystemHealthPageContent() {
                 <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         {infrastructure.map((item) => (
-                            <div 
+                            <div
                                 key={item.name}
                                 className="p-4 rounded-lg border transition-colors hover:border-blue-500/30"
-                                style={{ 
-                                    background: "rgb(var(--theme-background))", 
-                                    borderColor: "rgb(var(--theme-border))" 
+                                style={{
+                                    background: "rgb(var(--theme-background))",
+                                    borderColor: "rgb(var(--theme-border))"
                                 }}
                             >
                                 <div className="flex items-start justify-between mb-3">
                                     <div className="p-2 rounded-lg" style={{ background: "rgba(var(--theme-primary), 0.1)" }}>
                                         <item.icon className="h-5 w-5 text-blue-500" />
                                     </div>
-                                    <Badge 
-                                        variant="outline" 
+                                    <Badge
+                                        variant="outline"
                                         className={getStatusColor(item.status)}
                                         role="status"
                                         aria-label={`${item.name} status: ${getStatusLabel(item.status)}`}
@@ -429,181 +364,30 @@ function SystemHealthPageContent() {
                 </CardContent>
             </Card>
 
-            {/* Agent Fleet */}
+            {/* Agent Fleet Summary — full table at /inventory */}
             <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
-                <CardHeader className="pb-4">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <div>
-                            <CardTitle className="text-lg" style={{ color: "rgb(var(--theme-text))" }}>
-                                Agent Fleet
-                            </CardTitle>
-                            <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                Connected NGINX agents and their status
-                            </CardDescription>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: "rgb(var(--theme-text-muted))" }} />
-                                <input
-                                    type="text"
-                                    placeholder="Search agents..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-10 pr-4 py-2 text-sm rounded-lg border w-64"
-                                    style={{ 
-                                        background: "rgb(var(--theme-background))", 
-                                        borderColor: "rgb(var(--theme-border))",
-                                        color: "rgb(var(--theme-text))"
-                                    }}
-                                />
+                <CardContent className="py-6">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 rounded-lg bg-blue-500/10">
+                                <Server className="h-6 w-6 text-blue-500" />
                             </div>
-                            <div className="flex rounded-lg border" style={{ borderColor: "rgb(var(--theme-border))" }}>
-                                {(['all', 'online', 'offline'] as const).map((status) => (
-                                    <button
-                                        key={status}
-                                        onClick={() => setFilterStatus(status)}
-                                        className={`px-3 py-2 text-xs font-medium capitalize transition-colors ${
-                                            filterStatus === status 
-                                                ? 'bg-blue-500 text-white' 
-                                                : ''
-                                        }`}
-                                        style={filterStatus !== status ? { color: "rgb(var(--theme-text-muted))" } : {}}
-                                    >
-                                        {status}
-                                    </button>
-                                ))}
+                            <div>
+                                <h3 className="font-medium" style={{ color: "rgb(var(--theme-text))" }}>
+                                    Agent Fleet
+                                </h3>
+                                <p className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                    {stats.active} of {stats.total} agents online — manage, update, and configure agents in the Inventory.
+                                </p>
                             </div>
                         </div>
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href="/inventory">
+                                View Inventory
+                                <ArrowUpRight className="h-4 w-4 ml-1" />
+                            </Link>
+                        </Button>
                     </div>
-                </CardHeader>
-                <CardContent>
-                    {loading ? (
-                        <div className="space-y-3">
-                            {[1, 2, 3].map((i) => (
-                                <div key={i} className="h-16 rounded-lg animate-pulse" style={{ background: "rgb(var(--theme-border))" }} />
-                            ))}
-                        </div>
-                    ) : filteredAgents.length === 0 ? (
-                        <div className="text-center py-12">
-                            <Server className="h-12 w-12 mx-auto mb-4" style={{ color: "rgb(var(--theme-text-muted))" }} />
-                            <p className="font-medium" style={{ color: "rgb(var(--theme-text))" }}>
-                                {searchQuery ? 'No agents match your search' : 'No agents connected'}
-                            </p>
-                            <p className="text-sm mt-1" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                {searchQuery ? 'Try a different search term' : 'Deploy agents to see them here'}
-                            </p>
-                        </div>
-                    ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow style={{ borderColor: "rgb(var(--theme-border))" }}>
-                                    <TableHead style={{ color: "rgb(var(--theme-text-muted))" }}>Agent</TableHead>
-                                    <TableHead style={{ color: "rgb(var(--theme-text-muted))" }}>Type</TableHead>
-                                    <TableHead style={{ color: "rgb(var(--theme-text-muted))" }}>Version</TableHead>
-                                    <TableHead style={{ color: "rgb(var(--theme-text-muted))" }}>Status</TableHead>
-                                    <TableHead style={{ color: "rgb(var(--theme-text-muted))" }}>Last Seen</TableHead>
-                                    <TableHead className="text-right" style={{ color: "rgb(var(--theme-text-muted))" }}>Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {filteredAgents.map((agent) => {
-                                    const online = isOnline(agent.last_seen);
-                                    const needsUpdate = latestVersion && agent.agent_version && agent.agent_version !== latestVersion;
-                                    
-                                    return (
-                                        <TableRow key={agent.agent_id} style={{ borderColor: "rgb(var(--theme-border))" }}>
-                                            <TableCell>
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`p-2 rounded-lg ${online ? 'bg-emerald-500/10' : 'bg-slate-500/10'}`}>
-                                                        <Cpu className={`h-4 w-4 ${online ? 'text-emerald-500' : 'text-slate-500'}`} />
-                                                    </div>
-                                                    <div>
-                                                        <Link 
-                                                            href={`/servers/${agent.agent_id}`}
-                                                            className="font-medium hover:text-blue-500 transition-colors"
-                                                            style={{ color: "rgb(var(--theme-text))" }}
-                                                        >
-                                                            {agent.hostname || 'Unknown'}
-                                                        </Link>
-                                                        <p className="text-xs font-mono" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                                            {agent.agent_id?.substring(0, 20)}...
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant="outline" className="text-xs">
-                                                    {agent.is_pod ? (
-                                                        <>
-                                                            <Globe className="h-3 w-3 mr-1" />
-                                                            Kubernetes
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Terminal className="h-3 w-3 mr-1" />
-                                                            VM/Bare Metal
-                                                        </>
-                                                    )}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm" style={{ color: "rgb(var(--theme-text))" }}>
-                                                        {agent.agent_version || 'N/A'}
-                                                    </span>
-                                                    {needsUpdate && (
-                                                        <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/30 text-xs">
-                                                            Update Available
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge 
-                                                    variant="outline" 
-                                                    className={online 
-                                                        ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" 
-                                                        : "bg-red-500/15 text-red-400 border-red-500/30"}
-                                                >
-                                                    <span className={`w-2 h-2 rounded-full mr-2 ${online ? 'bg-emerald-400' : 'bg-red-400'}`} />
-                                                    {online ? 'Online' : 'Offline'}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                                {agent.last_seen 
-                                                    ? formatLastSeen(agent.last_seen)
-                                                    : 'Just now'}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        asChild
-                                                    >
-                                                        <Link href={`/servers/${agent.agent_id}`}>
-                                                            <ExternalLink className="h-4 w-4" />
-                                                        </Link>
-                                                    </Button>
-                                                    {needsUpdate && online && (
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => triggerUpdate(agent.agent_id)}
-                                                            disabled={updatingAgent === agent.agent_id}
-                                                        >
-                                                            <RefreshCw className={`h-4 w-4 mr-1 ${updatingAgent === agent.agent_id ? 'animate-spin' : ''}`} />
-                                                            Update
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
-                    )}
                 </CardContent>
             </Card>
         </div>
@@ -620,7 +404,7 @@ function formatLastSeen(lastSeen: string | number) {
     const timestamp = typeof lastSeen === 'string' ? parseInt(lastSeen) : lastSeen;
     const now = Math.floor(Date.now() / 1000);
     const diff = now - timestamp;
-    
+
     if (diff < 60) return `${diff}s ago`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;

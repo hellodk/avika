@@ -10,7 +10,8 @@ export async function GET(
   try {
     const { id } = await params;
     const sessionCookie = request.cookies.get("avika_session")?.value;
-    const gatewayResponse = await fetch(`${GATEWAY_URL}/api/agents/${id}/config`, {
+    const encodedId = encodeURIComponent(id);
+    const gatewayResponse = await fetch(`${GATEWAY_URL}/api/agents/${encodedId}/config`, {
       method: "GET",
       headers: sessionCookie ? { Cookie: `avika_session=${sessionCookie}` } : {},
     });
@@ -30,7 +31,8 @@ export async function PATCH(
     const { id } = await params;
     const sessionCookie = request.cookies.get("avika_session")?.value;
     const body = await request.json();
-    const gatewayResponse = await fetch(`${GATEWAY_URL}/api/agents/${id}/config`, {
+    const encodedId = encodeURIComponent(id);
+    const gatewayResponse = await fetch(`${GATEWAY_URL}/api/agents/${encodedId}/config`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",

@@ -17,6 +17,12 @@ import {
     DialogFooter,
     DialogDescription
 } from "@/components/ui/dialog";
+import {
+    Tooltip as UITooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,8 +30,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
-import { 
-    Activity, Cpu, Server, Network, Wifi, AlertTriangle, CheckCircle, 
+import {
+    Activity, Cpu, Server, Network, Wifi, AlertTriangle, CheckCircle,
     RefreshCw, Globe, Shield, Clock, Zap, ArrowUpRight, ArrowDownRight,
     Settings, Terminal, Database, Loader2, TrendingUp, BarChart3,
     Gauge, Timer, Users, HardDrive, Radio, Info
@@ -71,13 +77,28 @@ interface MetricCardProps {
     icon: React.ReactNode;
     trend?: { value: number; isUp: boolean };
     colorClass?: string;
+    infoTooltip?: string;
 }
 
-const MetricCard: React.FC<MetricCardProps> = ({ title, value, subValue, icon, trend, colorClass = "text-blue-400" }) => {
+const MetricCard: React.FC<MetricCardProps> = ({ title, value, subValue, icon, trend, colorClass = "text-blue-400", infoTooltip }) => {
     return (
         <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>{title}</CardTitle>
+                <div className="flex items-center gap-1.5">
+                    <CardTitle className="text-sm font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>{title}</CardTitle>
+                    {infoTooltip && (
+                        <TooltipProvider>
+                            <UITooltip>
+                                <TooltipTrigger asChild>
+                                    <Info className="h-3.5 w-3.5 text-slate-500 cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 border-slate-800 text-slate-200 max-w-[200px] text-xs font-normal">
+                                    <p>{infoTooltip}</p>
+                                </TooltipContent>
+                            </UITooltip>
+                        </TooltipProvider>
+                    )}
+                </div>
                 <div className={`p-2 rounded-lg ${colorClass}`} style={{ background: "rgba(var(--theme-primary), 0.1)" }}>
                     {icon}
                 </div>
@@ -109,18 +130,18 @@ const AUGMENT_TEMPLATES = [
 function MonitoringPageContent() {
     const { theme } = useTheme();
     const { selectedProject, selectedEnvironment } = useProject();
-    
+
     // Theme-aware chart colors (WCAG compliant)
     const chartColors = getChartColorsForTheme(theme);
     const gridColor = chartColors.grid;
     const axisColor = chartColors.axis;
     const tooltipBg = chartColors.tooltipBg;
     const tooltipText = chartColors.tooltipText;
-    
+
     // Connection status colors from theme
     const CONNECTION_COLORS = [
         chartColors.connectionActive,
-        chartColors.connectionReading, 
+        chartColors.connectionReading,
         chartColors.connectionWriting,
         chartColors.connectionWaiting
     ];
@@ -129,7 +150,7 @@ function MonitoringPageContent() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
-    
+
     const activeTab = searchParams.get('tab') || "overview";
     const setActiveTab = useCallback((value: string) => {
         const params = new URLSearchParams(searchParams.toString());
@@ -172,7 +193,7 @@ function MonitoringPageContent() {
     const fetchData = async () => {
         try {
             const agentParam = selectedAgent !== 'all' ? `&agent_id=${selectedAgent}` : '';
-            
+
             // Project/environment filtering
             let filterParam = '';
             if (selectedEnvironment) {
@@ -180,7 +201,7 @@ function MonitoringPageContent() {
             } else if (selectedProject) {
                 filterParam = `&project_id=${selectedProject.id}`;
             }
-            
+
             const res = await apiFetch(`/api/analytics?window=1h${agentParam}${filterParam}`);
             const json = await res.json();
             setData(json);
@@ -215,7 +236,7 @@ function MonitoringPageContent() {
                 })
             });
             const result = await res.json();
-            
+
             if (result.success) {
                 toast.success(`Configuration applied to ${targetId}`);
                 setAugmentResult(`Successfully applied to ${targetId}`);
@@ -310,8 +331,8 @@ function MonitoringPageContent() {
                             ))}
                         </SelectContent>
                     </Select>
-                    <Button 
-                        variant="outline" 
+                    <Button
+                        variant="outline"
                         onClick={fetchData}
                         style={{ borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text-muted))" }}
                     >
@@ -350,29 +371,30 @@ function MonitoringPageContent() {
                 <TabsContent value="overview" className="space-y-6">
                     {/* Primary KPIs */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <MetricCard 
-                            title="Requests/sec" 
+                        <MetricCard
+                            title="Requests/sec"
                             value={requestsPerSec}
                             icon={<Zap className="h-4 w-4" />}
                             colorClass="text-blue-400"
                             subValue={`${(summary.total_requests || 0).toLocaleString()} total`}
                         />
-                        <MetricCard 
-                            title="Active Connections" 
+                        <MetricCard
+                            title="Active Connections"
                             value={latestNginx.active || 0}
                             icon={<Users className="h-4 w-4" />}
                             colorClass="text-purple-400"
                             subValue={`${latestNginx.accepted || 0} accepted`}
                         />
-                        <MetricCard 
-                            title="Error Rate" 
+                        <MetricCard
+                            title="Error Rate"
                             value={`${(summary.error_rate || 0).toFixed(2)}%`}
                             icon={<AlertTriangle className="h-4 w-4" />}
                             colorClass={summary.error_rate > 1 ? "text-rose-400" : "text-emerald-400"}
                             subValue={summary.error_rate > 1 ? "Above threshold" : "Healthy"}
+                            infoTooltip="This may include expected 4xx responses (auth failures, 404s, etc). Thresholds can be adjusted in Settings."
                         />
-                        <MetricCard 
-                            title="Avg Latency" 
+                        <MetricCard
+                            title="Avg Latency"
                             value={`${Math.round(summary.avg_latency || 0)}ms`}
                             icon={<Timer className="h-4 w-4" />}
                             colorClass="text-amber-400"
@@ -402,7 +424,7 @@ function MonitoringPageContent() {
                                         <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                         <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
                                         <YAxis stroke={axisColor} fontSize={12} />
-                                        <Tooltip 
+                                        <Tooltip
                                             contentStyle={{ backgroundColor: tooltipBg, borderColor: gridColor, borderRadius: "0.375rem", color: tooltipText }}
                                             itemStyle={{ color: tooltipText }}
                                         />
@@ -435,7 +457,7 @@ function MonitoringPageContent() {
                                                     <Cell key={`cell-${index}`} fill={CONNECTION_COLORS[index % CONNECTION_COLORS.length]} />
                                                 ))}
                                             </Pie>
-                                            <Tooltip 
+                                            <Tooltip
                                                 contentStyle={{ backgroundColor: tooltipBg, borderColor: gridColor, borderRadius: "0.375rem", color: tooltipText }}
                                             />
                                         </PieChart>
@@ -469,7 +491,7 @@ function MonitoringPageContent() {
                                     <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                     <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
                                     <YAxis stroke={axisColor} fontSize={12} />
-                                    <Tooltip 
+                                    <Tooltip
                                         contentStyle={{ backgroundColor: tooltipBg, borderColor: gridColor, borderRadius: "0.375rem", color: tooltipText }}
                                         itemStyle={{ color: tooltipText }}
                                     />
@@ -580,13 +602,13 @@ function MonitoringPageContent() {
                                     </div>
                                     <div>
                                         <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text))" }}>
-                                            {selectedAgent === 'all' 
+                                            {selectedAgent === 'all'
                                                 ? `Aggregated Metrics (${agents.length} NGINX Nodes)`
                                                 : `Host Metrics: ${agents.find(a => a.agent_id === selectedAgent)?.hostname || selectedAgent}`
                                             }
                                         </p>
                                         <p className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                            {selectedAgent === 'all' 
+                                            {selectedAgent === 'all'
                                                 ? 'Showing average CPU/Memory across all connected NGINX agent hosts'
                                                 : 'Showing system metrics from the selected agent\'s host machine'
                                             }
@@ -602,27 +624,27 @@ function MonitoringPageContent() {
 
                     {/* Summary Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <MetricCard 
+                        <MetricCard
                             title={selectedAgent === 'all' ? "Avg CPU Usage" : "CPU Usage"}
                             value={`${(latestSys.cpu_usage || latestSys.cpuUsage || 0).toFixed(1)}%`}
                             icon={<Cpu className="h-4 w-4" />}
                             colorClass="text-blue-400"
                             subValue={`User: ${(latestSys.cpu_user || 0).toFixed(1)}%`}
                         />
-                        <MetricCard 
+                        <MetricCard
                             title={selectedAgent === 'all' ? "Avg Memory Usage" : "Memory Usage"}
                             value={`${(latestSys.memory_usage || latestSys.memoryUsage || 0).toFixed(1)}%`}
                             icon={<HardDrive className="h-4 w-4" />}
                             colorClass="text-amber-400"
                         />
-                        <MetricCard 
-                            title="Network In" 
+                        <MetricCard
+                            title="Network In"
                             value={`${((latestSys.network_rx_rate || latestSys.networkRxRate || 0) / 1024).toFixed(1)} KB/s`}
                             icon={<ArrowDownRight className="h-4 w-4" />}
                             colorClass="text-green-400"
                         />
-                        <MetricCard 
-                            title="Network Out" 
+                        <MetricCard
+                            title="Network Out"
                             value={`${((latestSys.network_tx_rate || latestSys.networkTxRate || 0) / 1024).toFixed(1)} KB/s`}
                             icon={<ArrowUpRight className="h-4 w-4" />}
                             colorClass="text-purple-400"
@@ -650,8 +672,8 @@ function MonitoringPageContent() {
                                     </TableHeader>
                                     <TableBody>
                                         {agents.map((agent) => (
-                                            <TableRow 
-                                                key={agent.agent_id} 
+                                            <TableRow
+                                                key={agent.agent_id}
                                                 style={{ borderColor: "rgb(var(--theme-border))" }}
                                                 className="cursor-pointer hover:bg-blue-500/5"
                                                 onClick={() => setSelectedAgent(agent.agent_id)}
@@ -672,22 +694,22 @@ function MonitoringPageContent() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Badge 
-                                                        variant="outline" 
-                                                        className={agent.last_seen && (Date.now()/1000 - parseInt(agent.last_seen)) < 180
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={agent.last_seen && (Date.now() / 1000 - parseInt(agent.last_seen)) < 180
                                                             ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                                                             : "bg-red-500/10 text-red-400 border-red-500/20"
                                                         }
                                                     >
-                                                        {agent.last_seen && (Date.now()/1000 - parseInt(agent.last_seen)) < 180 ? 'Online' : 'Offline'}
+                                                        {agent.last_seen && (Date.now() / 1000 - parseInt(agent.last_seen)) < 180 ? 'Online' : 'Offline'}
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell style={{ color: "rgb(var(--theme-text-muted))" }}>
                                                     {agent.is_pod ? 'Kubernetes Pod' : 'VM / Bare Metal'}
                                                 </TableCell>
                                                 <TableCell className="text-right">
-                                                    <Badge 
-                                                        variant="outline" 
+                                                    <Badge
+                                                        variant="outline"
                                                         className="cursor-pointer hover:bg-blue-500/20"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
@@ -718,7 +740,7 @@ function MonitoringPageContent() {
                                     </Badge>
                                 </div>
                                 <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                    {selectedAgent === 'all' 
+                                    {selectedAgent === 'all'
                                         ? 'Mean CPU utilization across all NGINX host machines'
                                         : 'CPU utilization on the selected host machine'
                                     }
@@ -730,7 +752,7 @@ function MonitoringPageContent() {
                                         <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                         <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
                                         <YAxis stroke={axisColor} fontSize={12} unit="%" domain={[0, 100]} />
-                                        <Tooltip 
+                                        <Tooltip
                                             contentStyle={{ backgroundColor: tooltipBg, borderColor: gridColor, borderRadius: "0.375rem", color: tooltipText }}
                                         />
                                         <Area type="monotone" dataKey="cpu_usage" stroke={chartColors.cpu} fill={chartColors.cpu} fillOpacity={0.2} name="CPU" />
@@ -750,7 +772,7 @@ function MonitoringPageContent() {
                                     </Badge>
                                 </div>
                                 <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                    {selectedAgent === 'all' 
+                                    {selectedAgent === 'all'
                                         ? 'Mean memory utilization across all NGINX host machines'
                                         : 'Memory utilization on the selected host machine'
                                     }
@@ -762,7 +784,7 @@ function MonitoringPageContent() {
                                         <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                         <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
                                         <YAxis stroke={axisColor} fontSize={12} unit="%" domain={[0, 100]} />
-                                        <Tooltip 
+                                        <Tooltip
                                             contentStyle={{ backgroundColor: tooltipBg, borderColor: gridColor, borderRadius: "0.375rem", color: tooltipText }}
                                         />
                                         <Area type="monotone" dataKey="memory_usage" stroke={chartColors.memory} fill={chartColors.memory} fillOpacity={0.2} name="Memory" />
@@ -787,7 +809,7 @@ function MonitoringPageContent() {
                                 {AUGMENT_TEMPLATES.map(template => (
                                     <Dialog key={template.id}>
                                         <DialogTrigger asChild>
-                                            <Card 
+                                            <Card
                                                 className="cursor-pointer hover:border-blue-500/50 transition-colors"
                                                 style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))" }}
                                                 onClick={() => {
@@ -837,7 +859,7 @@ function MonitoringPageContent() {
                                                         </div>
                                                     ))
                                                 )}
-                                                
+
                                                 {selectedAgent === 'all' && agents.length > 0 && (
                                                     <div className="space-y-2">
                                                         <Label style={{ color: "rgb(var(--theme-text))" }}>Target Agent</Label>
@@ -906,8 +928,8 @@ function MonitoringPageContent() {
                                             <TableCell>
                                                 <Badge className={
                                                     log.status >= 500 ? 'bg-rose-500/20 text-rose-400' :
-                                                    log.status >= 400 ? 'bg-amber-500/20 text-amber-400' :
-                                                    'bg-emerald-500/20 text-emerald-400'
+                                                        log.status >= 400 ? 'bg-amber-500/20 text-amber-400' :
+                                                            'bg-emerald-500/20 text-emerald-400'
                                                 }>
                                                     {log.status}
                                                 </Badge>

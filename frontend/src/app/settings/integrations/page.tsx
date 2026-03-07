@@ -44,21 +44,21 @@ function IntegrationCard({
         <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>{description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center justify-between p-3 rounded-lg bg-neutral-950 border border-neutral-800">
+        <div className="flex items-center justify-between p-3 rounded-lg border" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
           <div>
-            <Label className="text-white text-sm">Enabled</Label>
-            <p className="text-xs text-neutral-500">Persisted in the gateway database</p>
+            <Label className="text-sm" style={{ color: 'rgb(var(--theme-text))' }}>Enabled</Label>
+            <p className="text-xs" style={{ color: 'rgb(var(--theme-text-dim))' }}>Persisted in the gateway database</p>
           </div>
           <Switch checked={row.is_enabled} onCheckedChange={(v) => onChange({ ...row, is_enabled: v })} />
         </div>
 
         {row.type === "grafana" && (
           <div className="space-y-2">
-            <Label className="text-neutral-300">URL</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>URL</Label>
             <Input
               value={row.config.url || ""}
               onChange={(e) => onChange({ ...row, config: { ...row.config, url: e.target.value } })}
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               placeholder="https://grafana.example.com"
             />
           </div>
@@ -66,11 +66,11 @@ function IntegrationCard({
 
         {row.type === "webhook" && (
           <div className="space-y-2">
-            <Label className="text-neutral-300">URL</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>URL</Label>
             <Input
               value={row.config.url || ""}
               onChange={(e) => onChange({ ...row, config: { ...row.config, url: e.target.value } })}
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               placeholder="https://example.com/webhook"
             />
           </div>
@@ -79,28 +79,28 @@ function IntegrationCard({
         {row.type === "smtp" && (
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label className="text-neutral-300">Host</Label>
+              <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Host</Label>
               <Input
                 value={row.config.host || ""}
                 onChange={(e) => onChange({ ...row, config: { ...row.config, host: e.target.value } })}
-                className="bg-neutral-950 border-neutral-800 text-white"
+                style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
                 placeholder="smtp.example.com"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-neutral-300">Port</Label>
+              <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Port</Label>
               <Input
                 type="number"
                 value={row.config.port ?? 25}
                 onChange={(e) => onChange({ ...row, config: { ...row.config, port: Number(e.target.value) } })}
-                className="bg-neutral-950 border-neutral-800 text-white"
+                style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               />
             </div>
           </div>
         )}
 
         <div className="flex items-center gap-2">
-          <Button onClick={onTest} disabled={testing} variant="outline" className="border-neutral-700">
+          <Button onClick={onTest} disabled={testing} variant="outline" style={{ borderColor: 'rgb(var(--theme-border))' }}>
             <PlugZap className="h-4 w-4 mr-2" />
             {testing ? "Testing..." : "Test"}
           </Button>

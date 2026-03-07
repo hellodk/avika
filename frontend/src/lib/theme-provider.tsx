@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { ThemeName, getThemeColors } from "./themes";
+import { ThemeName, themes, getThemeColors } from "./themes";
 
 interface ThemeContextType {
     theme: ThemeName;
@@ -16,8 +16,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         setMounted(true);
-        const savedTheme = localStorage.getItem("theme") as ThemeName;
-        if (savedTheme) {
+        const savedTheme = localStorage.getItem("theme") as ThemeName | null;
+        if (savedTheme && savedTheme in themes) {
             setThemeState(savedTheme);
         }
     }, []);

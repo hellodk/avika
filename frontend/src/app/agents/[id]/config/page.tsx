@@ -157,7 +157,7 @@ export default function AgentConfigPage({ params }: { params: Promise<{ id: stri
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={load} disabled={loading} className="border-neutral-700">
+          <Button variant="outline" onClick={load} disabled={loading} style={{ borderColor: 'rgb(var(--theme-border))' }}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
@@ -193,7 +193,7 @@ export default function AgentConfigPage({ params }: { params: Promise<{ id: stri
               variant="outline"
               onClick={() => test("gateway")}
               disabled={testing !== null}
-              className="border-neutral-700"
+              style={{ borderColor: 'rgb(var(--theme-border))' }}
             >
               <PlugZap className="h-4 w-4 mr-2" />
               {testing === "gateway" ? "Testing..." : "Test Gateway"}
@@ -202,7 +202,7 @@ export default function AgentConfigPage({ params }: { params: Promise<{ id: stri
               variant="outline"
               onClick={() => test("nginx_status")}
               disabled={testing !== null}
-              className="border-neutral-700"
+              style={{ borderColor: 'rgb(var(--theme-border))' }}
             >
               <PlugZap className="h-4 w-4 mr-2" />
               {testing === "nginx_status" ? "Testing..." : "Test NGINX Status"}
@@ -211,7 +211,7 @@ export default function AgentConfigPage({ params }: { params: Promise<{ id: stri
               variant="outline"
               onClick={() => test("update_server")}
               disabled={testing !== null}
-              className="border-neutral-700"
+              style={{ borderColor: 'rgb(var(--theme-border))' }}
             >
               <PlugZap className="h-4 w-4 mr-2" />
               {testing === "update_server" ? "Testing..." : "Test Update Server"}
@@ -240,7 +240,7 @@ export default function AgentConfigPage({ params }: { params: Promise<{ id: stri
                     setLabels((prev) => prev.map((p, i) => (i === idx ? { ...p, key: e.target.value } : p)))
                   }
                   placeholder="key"
-                  className="bg-neutral-950 border-neutral-800 text-white"
+                  style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
                 />
                 <Input
                   value={kv.value}
@@ -248,7 +248,7 @@ export default function AgentConfigPage({ params }: { params: Promise<{ id: stri
                     setLabels((prev) => prev.map((p, i) => (i === idx ? { ...p, value: e.target.value } : p)))
                   }
                   placeholder="value"
-                  className="bg-neutral-950 border-neutral-800 text-white"
+                  style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
                 />
                 <Button
                   size="icon"
@@ -260,7 +260,7 @@ export default function AgentConfigPage({ params }: { params: Promise<{ id: stri
                 </Button>
               </div>
             ))}
-            <Button variant="outline" onClick={addLabel} className="border-neutral-700">
+            <Button variant="outline" onClick={addLabel} style={{ borderColor: 'rgb(var(--theme-border))' }}>
               <Plus className="h-4 w-4 mr-2" />
               Add label
             </Button>
@@ -284,137 +284,137 @@ export default function AgentConfigPage({ params }: { params: Promise<{ id: stri
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label className="text-neutral-300">Gateway Address(es)</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Gateway Address(es)</Label>
             <Input
               value={cfg?.gateway_address || ""}
               onChange={(e) => cfg && setCfg({ ...cfg, gateway_address: e.target.value })}
               placeholder="gateway:5020,gateway2:5020"
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               disabled={!cfg}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">Update Interval</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Update Interval</Label>
             <Input
               value={cfg?.update_interval || ""}
               onChange={(e) => cfg && setCfg({ ...cfg, update_interval: e.target.value })}
               placeholder="168h"
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               disabled={!cfg}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">Update Server</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Update Server</Label>
             <Input
               value={cfg?.update_server || ""}
               onChange={(e) => cfg && setCfg({ ...cfg, update_server: e.target.value })}
               placeholder="http://gateway:8090"
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               disabled={!cfg}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">Buffer Dir</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Buffer Dir</Label>
             <Input
               value={cfg?.buffer_dir || ""}
               onChange={(e) => cfg && setCfg({ ...cfg, buffer_dir: e.target.value })}
               placeholder="/var/lib/avika/buffer"
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               disabled={!cfg}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">Health Port</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Health Port</Label>
             <Input
               type="number"
               value={cfg?.health_port ?? 0}
               onChange={(e) => cfg && setCfg({ ...cfg, health_port: Number(e.target.value) })}
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               disabled={!cfg}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">Mgmt Port</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Mgmt Port</Label>
             <Input
               type="number"
               value={cfg?.mgmt_port ?? 0}
               onChange={(e) => cfg && setCfg({ ...cfg, mgmt_port: Number(e.target.value) })}
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               disabled={!cfg}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">NGINX Status URL</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>NGINX Status URL</Label>
             <Input
               value={cfg?.nginx_status_url || ""}
               onChange={(e) => cfg && setCfg({ ...cfg, nginx_status_url: e.target.value })}
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               disabled={!cfg}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">NGINX Config Path</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>NGINX Config Path</Label>
             <Input
               value={cfg?.nginx_config_path || ""}
               onChange={(e) => cfg && setCfg({ ...cfg, nginx_config_path: e.target.value })}
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               disabled={!cfg}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">Access Log Path</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Access Log Path</Label>
             <Input
               value={cfg?.access_log_path || ""}
               onChange={(e) => cfg && setCfg({ ...cfg, access_log_path: e.target.value })}
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               disabled={!cfg}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">Error Log Path</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Error Log Path</Label>
             <Input
               value={cfg?.error_log_path || ""}
               onChange={(e) => cfg && setCfg({ ...cfg, error_log_path: e.target.value })}
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               disabled={!cfg}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">Log Format</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Log Format</Label>
             <Input
               value={cfg?.log_format || ""}
               onChange={(e) => cfg && setCfg({ ...cfg, log_format: e.target.value })}
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               disabled={!cfg}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">Log Level</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Log Level</Label>
             <Input
               value={cfg?.log_level || ""}
               onChange={(e) => cfg && setCfg({ ...cfg, log_level: e.target.value })}
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               disabled={!cfg}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-neutral-300">Log File</Label>
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Log File</Label>
             <Input
               value={cfg?.log_file || ""}
               onChange={(e) => cfg && setCfg({ ...cfg, log_file: e.target.value })}
-              className="bg-neutral-950 border-neutral-800 text-white"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               disabled={!cfg}
             />
           </div>

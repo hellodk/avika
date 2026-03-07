@@ -5,7 +5,7 @@
  * that adapt to the current theme while maintaining WCAG AA contrast ratios.
  */
 
-export type ThemeMode = 'dark' | 'light' | 'solarized' | 'nord' | 'corporate' | 'midnight';
+export type ThemeMode = 'dark' | 'light' | 'solarized' | 'nord';
 
 export interface ChartColorPalette {
     // Grid and axes
@@ -56,7 +56,7 @@ export interface ChartColorPalette {
  * All colors are chosen to meet WCAG AA contrast requirements
  */
 export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
-    const isDark = theme !== 'light' && theme !== 'corporate';
+    const isDark = theme !== 'light';
     
     // Common colors that work in both modes (with slight adjustments)
     const baseColors = {
@@ -209,98 +209,6 @@ export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
         };
     }
     
-    // Corporate - Clean professional light theme
-    if (theme === 'corporate') {
-        return {
-            grid: 'rgba(0, 0, 0, 0.06)',
-            axis: '#64748b',          // slate-500
-            axisLabel: '#475569',     // slate-600
-            
-            tooltipBg: '#ffffff',
-            tooltipText: '#0f172a',   // slate-900
-            tooltipBorder: '#e2e8f0', // slate-200
-            
-            success: '#10b981',       // emerald-500
-            warning: '#f59e0b',       // amber-500
-            error: '#ef4444',         // red-500
-            info: '#228be6',          // Professional blue
-            
-            status2xx: '#10b981',     // emerald-500
-            status3xx: '#228be6',     // Professional blue
-            status4xx: '#f59e0b',     // amber-500
-            status5xx: '#ef4444',     // red-500
-            
-            connectionActive: '#228be6',
-            connectionReading: '#10b981',
-            connectionWriting: '#f59e0b',
-            connectionWaiting: '#8b5cf6',
-            
-            cpu: '#6366f1',           // indigo-500
-            memory: '#f59e0b',
-            networkRx: '#10b981',
-            networkTx: '#228be6',
-            
-            latencyP50: '#10b981',
-            latencyP95: '#f59e0b',
-            latencyP99: '#ef4444',
-            
-            series: [
-                '#228be6',  // Professional blue
-                '#10b981',  // emerald-500
-                '#f59e0b',  // amber-500
-                '#8b5cf6',  // violet-500
-                '#ec4899',  // pink-500
-                '#06b6d4',  // cyan-500
-            ],
-        };
-    }
-    
-    // Midnight - Deep dark theme with rich colors
-    if (theme === 'midnight') {
-        return {
-            grid: 'rgba(255, 255, 255, 0.1)',
-            axis: '#ccccdc',
-            axisLabel: '#ccccdc',
-            
-            tooltipBg: '#1f1f1f',
-            tooltipText: '#ccccdc',
-            tooltipBorder: '#2c323a',
-            
-            success: '#73bf69',       // Vibrant green
-            warning: '#fab005',       // Golden yellow
-            error: '#f2495c',         // Coral red
-            info: '#3274d9',          // Rich blue
-            
-            status2xx: '#73bf69',
-            status3xx: '#3274d9',
-            status4xx: '#fab005',
-            status5xx: '#f2495c',
-            
-            connectionActive: '#3274d9',
-            connectionReading: '#73bf69',
-            connectionWriting: '#fab005',
-            connectionWaiting: '#8f3bb8',  // Purple
-            
-            cpu: '#8f3bb8',
-            memory: '#fab005',
-            networkRx: '#73bf69',
-            networkTx: '#3274d9',
-            
-            latencyP50: '#73bf69',
-            latencyP95: '#fab005',
-            latencyP99: '#f2495c',
-            
-            series: [
-                '#3274d9',  // Rich blue
-                '#73bf69',  // Vibrant green
-                '#fab005',  // Golden yellow
-                '#8f3bb8',  // Purple
-                '#f2495c',  // Coral red
-                '#56a3ff',  // Light blue
-            ],
-        };
-    }
-    
     // Default dark theme - enterprise optimized for visibility
     return {
         // Grid and axes - visible but not distracting
@@ -358,8 +266,6 @@ export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
 export function getChartColorsForTheme(themeName: string): ChartColorPalette {
     const normalizedTheme = themeName?.toLowerCase() || 'dark';
     
-    if (normalizedTheme === 'corporate') return getChartColors('corporate');
-    if (normalizedTheme === 'midnight') return getChartColors('midnight');
     if (normalizedTheme.includes('light')) return getChartColors('light');
     if (normalizedTheme.includes('solarized')) return getChartColors('solarized');
     if (normalizedTheme.includes('nord')) return getChartColors('nord');

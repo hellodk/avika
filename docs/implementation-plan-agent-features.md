@@ -1,5 +1,7 @@
 # Implementation Plan: Agent Config, Drift, Logs, SSH, NGINX Control
 
+**Tracking:** [GitHub Project (avika)](https://github.com/hellodk/avika/projects) — see [docs/GITHUB_PROJECTS_SETUP.md](GITHUB_PROJECTS_SETUP.md) for initial setup and onboarding.
+
 ## Requirements Summary
 
 - **Agent config (avika-agent.conf)**: Persist to file per agent; all keys editable; apply at group level; backup mandatory (keep last 5), restore.
