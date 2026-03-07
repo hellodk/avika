@@ -23,7 +23,8 @@ test.describe('Navigation', () => {
     });
 
     test('should navigate to settings page', async ({ page }) => {
-        await page.click('text=Settings');
+        // Settings is a section with a "General" link to /settings; click the link that navigates
+        await page.getByRole('link', { name: /General/i }).click();
         await expect(page).toHaveURL(withBase('/settings'));
     });
 

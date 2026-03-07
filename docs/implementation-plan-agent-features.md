@@ -1,6 +1,6 @@
 # Implementation Plan: Agent Config, Drift, Logs, SSH, NGINX Control
 
-**Tracking:** [GitHub Project (avika)](https://github.com/hellodk/avika/projects) — link once via [docs/GITHUB_PROJECTS_SETUP.md](GITHUB_PROJECTS_SETUP.md).
+**Tracking:** [GitHub Project (avika)](https://github.com/hellodk/avika/projects) — see [docs/GITHUB_PROJECTS_SETUP.md](GITHUB_PROJECTS_SETUP.md) for initial setup and onboarding.
 
 ## Requirements Summary
 

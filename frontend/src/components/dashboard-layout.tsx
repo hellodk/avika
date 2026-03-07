@@ -42,37 +42,31 @@ interface NavItem {
 
 const NAV_SECTIONS: NavSection[] = [
     {
-        title: "Core",
+        title: "Operations",
         items: [
             { href: "/", icon: <LayoutDashboard />, label: "Dashboard" },
-            { href: "/inventory", icon: <Server />, label: "Inventory" },
-            { href: "/monitoring", icon: <Cpu />, label: "Monitoring" },
-            { href: "/alerts", icon: <ShieldAlert />, label: "Alerts" },
-        ]
-    },
-    {
-        title: "Analytics",
-        items: [
-            { href: "/analytics", icon: <BarChart2 />, label: "Traffic" },
-            { href: "/analytics/visitors", icon: <User />, label: "Visitors" },
-            { href: "/analytics/geo", icon: <Globe />, label: "Geo Analysis" },
-            { href: "/analytics/traces", icon: <GitBranch />, label: "Traces" },
-        ]
-    },
-    {
-        title: "Intelligence",
-        items: [
-            { href: "/optimization", icon: <Zap />, label: "AI Tuner", badge: "Beta", badgeColor: "purple" },
-            { href: "/reports", icon: <FileText />, label: "Reports" },
-            { href: "/provisions", icon: <Layers />, label: "Provisions" },
-        ]
-    },
-    {
-        title: "System",
-        items: [
             { href: "/system", icon: <Heart />, label: "System Health" },
-            { href: "/audit", icon: <ShieldAlert />, label: "Audit Logs" },
-            { href: "/settings", icon: <Settings />, label: "Settings" },
+            { href: "/monitoring", icon: <Cpu />, label: "Monitoring" },
+            { href: "/analytics", icon: <BarChart2 />, label: "Analytics" },
+            { href: "/alerts", icon: <ShieldAlert />, label: "Alerts" },
+            { href: "/reports", icon: <FileText />, label: "Reports" },
+        ]
+    },
+    {
+        title: "Management",
+        items: [
+            { href: "/inventory", icon: <Server />, label: "Inventory" },
+            { href: "/provisions", icon: <Layers />, label: "Provisions" },
+            { href: "/optimization", icon: <Zap />, label: "AI Tuner", badge: "Beta", badgeColor: "purple" },
+            { href: "/audit", icon: <ShieldCheck />, label: "Audit Logs" },
+        ]
+    },
+    {
+        title: "Settings",
+        items: [
+            { href: "/settings", icon: <Settings />, label: "General" },
+            { href: "/settings/integrations", icon: <Globe />, label: "Integrations" },
+            { href: "/settings/security", icon: <Lock />, label: "Security" },
         ],
     },
 ];
@@ -181,7 +175,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                             {!sidebarCollapsed && (
                                 <button
                                     onClick={() => toggleSection(section.title)}
-                                    className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium uppercase tracking-wider rounded hover:bg-white/5 transition-colors"
+                                    className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium uppercase tracking-wider rounded hover-surface"
                                     style={{ color: "rgb(var(--theme-text-muted))" }}
                                 >
                                     <span>{section.title}</span>
@@ -213,7 +207,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                     {!sidebarCollapsed ? (
                         <button
                             onClick={() => setSidebarCollapsed(true)}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg hover:opacity-80 transition-opacity"
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg hover-surface"
                             style={{ color: "rgb(var(--theme-text-muted))" }}
                         >
                             <Menu className="h-4 w-4" />
@@ -222,7 +216,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                     ) : (
                         <button
                             onClick={() => setSidebarCollapsed(false)}
-                            className="w-full flex items-center justify-center p-2 rounded-lg hover:opacity-80 transition-opacity"
+                            className="w-full flex items-center justify-center p-2 rounded-lg hover-surface"
                             style={{ color: "rgb(var(--theme-text-muted))" }}
                             title="Expand sidebar"
                         >
@@ -280,7 +274,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
                         {/* Help */}
                         <button
-                            className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                            className="p-2 rounded-lg hover-surface"
                             style={{ color: "rgb(var(--theme-text-muted))" }}
                             title="Help & Documentation"
                             aria-label="Help and documentation"
@@ -290,7 +284,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
                         {/* Notifications */}
                         <button
-                            className="p-2 rounded-lg hover:bg-white/5 transition-colors relative"
+                            className="p-2 rounded-lg hover-surface relative"
                             style={{ color: "rgb(var(--theme-text-muted))" }}
                             title="Notifications"
                             aria-label="Notifications"
@@ -305,7 +299,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <button
-                                    className="flex items-center gap-3 px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                                    className="flex items-center gap-3 px-3 py-1.5 rounded-lg hover-surface"
                                 >
                                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                                         <User className="h-4 w-4 text-white" />

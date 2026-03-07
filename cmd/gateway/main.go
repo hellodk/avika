@@ -1213,7 +1213,9 @@ func main() {
 
 	// Start background services
 	srv.startUptimeCrawler()
-	srv.startRecommendationConsumer()
+	if cfg.LLM.Enabled {
+		srv.startRecommendationConsumer()
+	}
 	srv.startBackgroundPruning()
 	srv.startGatewayMonitoring()
 	srv.alerts.Start()
@@ -1617,10 +1619,28 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Health check endpoint (no rate limiting)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
 
-		pgVersion := srv.db.GetVersion()
-		fmt.Fprintf(w, `{"status":"healthy","version":"%s","database_version":"%s"}`, Version, pgVersion)
+		pgVer := "unknown"
+		chVer := "unknown"
+
+		// Query PG version
+		if srv.db != nil && srv.db.conn != nil {
+			var v string
+			if err := srv.db.conn.QueryRow("SHOW server_version").Scan(&v); err == nil {
+				pgVer = v
+			}
+		}
+
+		// Query ClickHouse version
+		if srv.clickhouse != nil && srv.clickhouse.conn != nil {
+			var v string
+			if err := srv.clickhouse.conn.QueryRow(r.Context(), "SELECT version()").Scan(&v); err == nil {
+				chVer = v
+			}
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status":"healthy","version":"%s","build_date":"%s","git_commit":"%s","postgres_version":"%s","clickhouse_version":"%s"}`, Version, BuildDate, GitCommit, pgVer, chVer)
 	})
 
 	// Ready check endpoint (no rate limiting)

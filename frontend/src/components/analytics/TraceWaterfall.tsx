@@ -19,7 +19,7 @@ interface Trace {
 }
 
 export function TraceWaterfall({ trace }: { trace: Trace }) {
-    if (!trace || !trace.spans || trace.spans.length === 0) return <div className="p-4 text-muted-foreground">No spans found in trace.</div>;
+    if (!trace || !trace.spans || trace.spans.length === 0) return <div className="p-4" style={{ color: 'rgb(var(--theme-text-muted))' }}>No spans found in trace.</div>;
 
     // Find range
     let minStart = Number.MAX_SAFE_INTEGER;
@@ -39,7 +39,7 @@ export function TraceWaterfall({ trace }: { trace: Trace }) {
 
     return (
         <div className="space-y-4">
-            <div className="flex justify-between text-sm text-muted-foreground pb-2 border-b">
+            <div className="flex justify-between text-sm pb-2 border-b" style={{ color: 'rgb(var(--theme-text-muted))', borderColor: 'rgb(var(--theme-border))' }}>
                 <span>Timeline ({totalDuration.toFixed(2)}ms)</span>
                 <span>Start: {format(new Date(minStart), "HH:mm:ss.SSS")}</span>
             </div>
@@ -56,7 +56,7 @@ export function TraceWaterfall({ trace }: { trace: Trace }) {
                     const isRoot = !span.parent_span_id;
 
                     return (
-                        <div key={span.span_id} className="group relative flex items-center h-8 hover:bg-muted/50 rounded px-2 text-sm transition-colors">
+                        <div key={span.span_id} className="group relative flex items-center h-8 rounded px-2 text-sm transition-colors hover-surface" style={{ color: 'rgb(var(--theme-text))' }}>
                             <div className="w-1/4 min-w-[150px] truncate font-medium pr-4 flex items-center gap-2" title={span.name}>
                                 <span className={`w-2 h-2 rounded-full ${isRoot ? "bg-blue-500" : "bg-green-500"}`}></span>
                                 {span.name}
@@ -71,7 +71,7 @@ export function TraceWaterfall({ trace }: { trace: Trace }) {
                                     }}
                                     title={`Start: ${(start - minStart).toFixed(2)}ms | Duration: ${duration.toFixed(2)}ms`}
                                 />
-                                <span className="absolute text-xs text-muted-foreground ml-2 whitespace-nowrap" style={{ left: `calc(${leftPercent + widthPercent}% + 8px)` }}>
+                                <span className="absolute text-xs ml-2 whitespace-nowrap" style={{ left: `calc(${leftPercent + widthPercent}% + 8px)`, color: 'rgb(var(--theme-text-muted))' }}>
                                     {duration.toFixed(2)} ms
                                 </span>
                             </div>
@@ -82,17 +82,17 @@ export function TraceWaterfall({ trace }: { trace: Trace }) {
 
             {/* Attributes Table for Root Span or Selected */}
             {trace.spans.length > 0 && (
-                <div className="mt-8 pt-4 border-t">
-                    <h3 className="text-sm font-semibold mb-3">Trace Attributes</h3>
+                <div className="mt-8 pt-4 border-t" style={{ borderColor: 'rgb(var(--theme-border))' }}>
+                    <h3 className="text-sm font-semibold mb-3" style={{ color: 'rgb(var(--theme-text))' }}>Trace Attributes</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {trace.spans.map((span) => (
-                            <Card key={span.span_id} className="p-4 text-xs">
-                                <div className="font-semibold mb-2 border-b pb-1">{span.name}</div>
+                            <Card key={span.span_id} className="p-4 text-xs border" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
+                                <div className="font-semibold mb-2 border-b pb-1" style={{ color: 'rgb(var(--theme-text))', borderColor: 'rgb(var(--theme-border))' }}>{span.name}</div>
                                 <div className="space-y-1">
                                     {Object.entries(span.attributes || {}).map(([k, v]) => (
                                         <div key={k} className="flex flex-col">
-                                            <span className="text-muted-foreground font-mono">{k}</span>
-                                            <span className="font-mono break-all">{v}</span>
+                                            <span className="font-mono" style={{ color: 'rgb(var(--theme-text-muted))' }}>{k}</span>
+                                            <span className="font-mono break-all" style={{ color: 'rgb(var(--theme-text))' }}>{v}</span>
                                         </div>
                                     ))}
                                 </div>

@@ -9,13 +9,13 @@ const lookup = promisify(dns.lookup);
 export async function GET(request: Request) {
     // Check for explicit external gateway URL (cluster FQDN; supports http and https)
     const externalGatewayUrl = process.env.GATEWAY_EXTERNAL_URL;
-    
+
     // Internal gateway for server-side calls
     const gatewayHost = process.env.GATEWAY_HTTP_URL?.replace(/^https?:\/\//, '').split(':')[0] || 'avika-gateway';
-    const gatewayHttpPort = process.env.AVIKA_GATEWAY_SERVICE_PORT_HTTP || '5021';
-    
+    let gatewayHttpPort = process.env.AVIKA_GATEWAY_SERVICE_PORT_HTTP || '5021';
+
     let gatewayIp = gatewayHost;
-    
+
     // Try to resolve the K8s service name to an IP
     try {
         const result = await lookup(gatewayHost);
@@ -25,11 +25,11 @@ export async function GET(request: Request) {
             gatewayIp = process.env.AVIKA_GATEWAY_SERVICE_HOST;
         }
     }
-    
+
     // For WebSocket URLs (browser access), use external URL or gateway ClusterIP
     let wsHost = gatewayIp;
     let wsPort = gatewayHttpPort;
-    
+
     let httpUrl: string;
     let wsUrl: string;
 

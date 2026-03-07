@@ -4,15 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { apiFetch } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
     Activity, Shield, Database, RefreshCw, Cpu, Network, Globe,
-    CheckCircle2, AlertCircle, Clock, Search, ArrowUpRight, Terminal,
-    Server, HardDrive, Zap, TrendingUp, ChevronRight, ExternalLink,
+    CheckCircle2, AlertCircle, Clock, ArrowUpRight,
+    Server, HardDrive, Zap, TrendingUp, ChevronRight,
     AlertTriangle, XCircle, Info
 } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
-import { toast } from "sonner";
 import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 
@@ -36,31 +34,6 @@ function SystemHealthPageContent() {
     const [systemStats, setSystemStats] = useState<SystemStats | null>(null);
     const [componentHealth, setComponentHealth] = useState<{ [key: string]: any }>({});
     const [error, setError] = useState<string | null>(null);
-    const [updatingAgent, setUpdatingAgent] = useState<string | null>(null);
-
-    // URL-based state for persistence
-    const searchQuery = searchParams.get('q') || "";
-    const filterStatus = (searchParams.get('status') as "all" | "online" | "offline") || "all";
-
-    const updateParams = useCallback((updates: Record<string, string | null>) => {
-        const params = new URLSearchParams(searchParams.toString());
-        Object.entries(updates).forEach(([key, value]) => {
-            if (value === null || value === "") {
-                params.delete(key);
-            } else {
-                params.set(key, value);
-            }
-        });
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    }, [searchParams, router, pathname]);
-
-    const setSearchQuery = useCallback((value: string) => {
-        updateParams({ q: value || null });
-    }, [updateParams]);
-
-    const setFilterStatus = useCallback((value: "all" | "online" | "offline") => {
-        updateParams({ status: value === "all" ? null : value });
-    }, [updateParams]);
 
     // Calculate stats
     const stats = useMemo(() => {
@@ -109,18 +82,6 @@ function SystemHealthPageContent() {
         },
     ], [componentHealth, stats, latestVersion, systemStats]);
 
-    // Filtered agents
-    const filteredAgents = useMemo(() => {
-        return agents.filter(a => {
-            const matchesSearch =
-                a.hostname?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                a.agent_id?.toLowerCase().includes(searchQuery.toLowerCase());
-            const online = isOnline(a.last_seen);
-            if (filterStatus === "online") return matchesSearch && online;
-            if (filterStatus === "offline") return matchesSearch && !online;
-            return matchesSearch;
-        });
-    }, [agents, searchQuery, filterStatus]);
 
     useEffect(() => {
         fetchAll();
@@ -194,26 +155,6 @@ function SystemHealthPageContent() {
         } catch { /* silent */ }
     };
 
-    const triggerUpdate = async (agentId: string) => {
-        setUpdatingAgent(agentId);
-        try {
-            const res = await apiFetch(`/api/servers/${agentId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'update_agent' })
-            });
-            const data = await res.json();
-            if (res.ok && data.success) {
-                toast.success('Update command sent', { description: 'Agent will update and restart' });
-            } else {
-                toast.error('Update failed', { description: data.error || 'Unknown error' });
-            }
-        } catch (e: any) {
-            toast.error('Update failed', { description: e.message });
-        }
-        setTimeout(() => setUpdatingAgent(null), 3000);
-    };
-
     // IMPROVED CONTRAST: Increased opacity from 15% to 25% for better visibility
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -256,13 +197,6 @@ function SystemHealthPageContent() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <Link
-                        href="/system/preview"
-                        className="text-sm hover:underline"
-                        style={{ color: "rgb(var(--theme-text-muted))" }}
-                    >
-                        Preview new layout
-                    </Link>
                     <Badge
                         variant="outline"
                         className={stats.active === stats.total && stats.total > 0
@@ -300,7 +234,8 @@ function SystemHealthPageContent() {
                         </Button>
                     </CardContent>
                 </Card>
-            )}
+            )
+            }
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -429,7 +364,32 @@ function SystemHealthPageContent() {
                 </CardContent>
             </Card>
 
-
+            {/* Agent Fleet Summary — full table at /inventory */}
+            <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                <CardContent className="py-6">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 rounded-lg bg-blue-500/10">
+                                <Server className="h-6 w-6 text-blue-500" />
+                            </div>
+                            <div>
+                                <h3 className="font-medium" style={{ color: "rgb(var(--theme-text))" }}>
+                                    Agent Fleet
+                                </h3>
+                                <p className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                    {stats.active} of {stats.total} agents online — manage, update, and configure agents in the Inventory.
+                                </p>
+                            </div>
+                        </div>
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href="/inventory">
+                                View Inventory
+                                <ArrowUpRight className="h-4 w-4 ml-1" />
+                            </Link>
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }

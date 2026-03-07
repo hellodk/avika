@@ -62,8 +62,8 @@ export function TrafficDashboard() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
-                    <span className="text-sm font-medium text-slate-500">
+                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : ''}`} style={!isConnected ? { background: 'rgb(var(--theme-text-muted))', opacity: 0.7 } : undefined} />
+                    <span className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                         {isConnected ? 'Real-time Traffic Stream' : 'Connecting...'}
                     </span>
                 </div>
@@ -83,9 +83,9 @@ export function TrafficDashboard() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
-                <Card className="md:col-span-2">
+                <Card className="md:col-span-2 border" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                     <CardHeader>
-                        <CardTitle className="text-sm font-medium">Request Rate (RPS)</CardTitle>
+                        <CardTitle className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text))' }}>Request Rate (RPS)</CardTitle>
                     </CardHeader>
                     <CardContent className="h-[300px]">
                         <ResponsiveContainer width="100%" height="100%">
@@ -111,9 +111,9 @@ export function TrafficDashboard() {
                     </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="border" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                     <CardHeader>
-                        <CardTitle className="text-sm font-medium">Status Distribution</CardTitle>
+                        <CardTitle className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text))' }}>Status Distribution</CardTitle>
                     </CardHeader>
                     <CardContent className="h-[300px] flex items-center justify-center">
                         <ResponsiveContainer width="100%" height="100%">
