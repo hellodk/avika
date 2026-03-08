@@ -671,3 +671,36 @@ func getUsernameFromContext(ctx context.Context) *string {
 	// For now, return nil
 	return nil
 }
+
+// ProjectGroupItem is a group summary for API listing (e.g. drift compare).
+type ProjectGroupItem struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	EnvironmentID  string `json:"environment_id"`
+	EnvironmentName string `json:"environment_name"`
+}
+
+// getGroupsForProject returns all groups in the project (all environments).
+func (s *server) getGroupsForProject(ctx context.Context, projectID string) ([]ProjectGroupItem, error) {
+	query := `
+		SELECT g.id, g.name, g.environment_id, e.name as environment_name
+		FROM agent_groups g
+		JOIN environments e ON e.id = g.environment_id
+		WHERE e.project_id = $1
+		ORDER BY e.sort_order, e.name, g.name
+	`
+	rows, err := s.db.conn.QueryContext(ctx, query, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ProjectGroupItem
+	for rows.Next() {
+		var item ProjectGroupItem
+		if err := rows.Scan(&item.ID, &item.Name, &item.EnvironmentID, &item.EnvironmentName); err != nil {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}

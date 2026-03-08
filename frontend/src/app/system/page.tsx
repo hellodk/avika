@@ -427,7 +427,7 @@ function SystemHealthPageContent() {
                                 ) : agents.map((a, i) => (
                                     <Link
                                         key={a.id ?? i}
-                                        href={`/servers/${a.id}`}
+                                        href={`/servers/${encodeURIComponent(a.agent_id || a.id)}`}
                                         className="w-8 h-8 rounded border flex-shrink-0 transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent"
                                         style={{
                                             background: isOnline(a.last_seen) ? "rgb(16 185 129 / 0.25)" : "rgb(var(--theme-border))",
