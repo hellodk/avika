@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
     BarChart3, TrendingUp, AlertCircle, Activity, Clock, Globe, Server, 
     Radio, Download, ChevronDown, RefreshCw, Zap, ArrowUpRight, ArrowDownRight,
-    Gauge, Wifi, HardDrive, Database, LayoutDashboard, Filter
+    Gauge, Wifi, HardDrive, Database, LayoutDashboard, Filter, Users
 } from "lucide-react";
 import { 
     Line, LineChart, Bar, BarChart, ResponsiveContainer, Tooltip, 
@@ -20,11 +20,11 @@ import { TimeRangePicker, TimeRange } from "@/components/ui/time-range-picker";
 import { AutoRefreshSelector, AutoRefreshConfig } from "@/components/ui/auto-refresh-selector";
 import { SystemMetricCards, NginxMetricCards } from "@/components/analytics/metric-cards";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import { LiveMetricsProvider, useLiveMetrics } from "@/components/analytics/LiveMetricsProvider";
 import { SystemDashboard } from "@/components/analytics/dashboards/SystemDashboard";
 import { TrafficDashboard } from "@/components/analytics/dashboards/TrafficDashboard";
 import { NginxCoreDashboard } from "@/components/analytics/dashboards/NginxCoreDashboard";
-import { AlertConfiguration } from "@/components/alerts/AlertConfiguration";
 import { useTheme } from "@/lib/theme-provider";
 import { getChartColorsForTheme, getHttpStatusColor } from "@/lib/chart-colors";
 import { useProject } from "@/lib/project-context";
@@ -174,6 +174,14 @@ function AnalyticsView() {
     const [analyticsData, setAnalyticsData] = useState<any>(initialData);
 
     const handleTabChange = (value: string) => {
+        if (value === "geo") {
+            router.push("/analytics/geo");
+            return;
+        }
+        if (value === "visitors") {
+            router.push("/analytics/visitors");
+            return;
+        }
         const params = new URLSearchParams(searchParams.toString());
         params.set("tab", value);
         router.push(`${pathname}?${params.toString()}`);
@@ -581,38 +589,40 @@ function AnalyticsView() {
                 </div>
             )}
 
-            {/* Main Tabs */}
+            {/* Main Tabs - scrollable so Geo & Visitor Analytics are always reachable */}
             <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-                <TabsList className="p-1.5 h-auto flex flex-wrap gap-1 rounded-lg" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
-                    {[
-                        { value: 'overview', label: 'Overview', icon: LayoutDashboard },
-                        { value: 'gateway', label: 'Gateway', icon: Database },
-                        { value: 'performance', label: 'Performance', icon: Gauge },
-                        { value: 'system', label: 'System', icon: HardDrive },
-                        { value: 'errors', label: 'Errors', icon: AlertCircle },
+                <div className="overflow-x-auto pb-1 -mx-1 scrollbar-thin" style={{ scrollbarWidth: 'thin' }}>
+                    <TabsList className="p-1.5 h-auto inline-flex flex-nowrap gap-1 rounded-lg w-max min-w-full" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
+                        {[
+                            { value: 'overview', label: 'Overview', icon: LayoutDashboard },
+                            { value: 'gateway', label: 'Gateway', icon: Database },
+                            { value: 'performance', label: 'Performance', icon: Gauge },
+                            { value: 'system', label: 'System', icon: HardDrive },
+                            { value: 'errors', label: 'Errors', icon: AlertCircle },
+                            { value: 'visitors', label: 'Visitor Analytics', icon: Users },
+                            { value: 'geo', label: 'Geo', icon: Globe },
                         { value: 'traffic', label: 'Traffic', icon: Wifi },
-                        { value: 'alerts', label: 'Alerts', icon: Activity },
                     ].map(tab => (
-                        <TabsTrigger
-                            key={tab.value}
-                            value={tab.value}
-                            className="analytics-tab-trigger flex items-center gap-2 px-4 py-2 data-[state=active]:shadow-md transition-all rounded-md hover:opacity-90"
-                            style={{ color: 'rgb(var(--theme-text-muted))' }}
-                        >
-                            <tab.icon className="h-4 w-4" />
-                            {tab.label}
-                        </TabsTrigger>
-                    ))}
-                </TabsList>
+                            <TabsTrigger
+                                key={tab.value}
+                                value={tab.value}
+                                className="analytics-tab-trigger flex items-center gap-2 px-4 py-2 data-[state=active]:shadow-md transition-all rounded-md hover:opacity-90 flex-shrink-0"
+                                style={{ color: 'rgb(var(--theme-text-muted))' }}
+                            >
+                                <tab.icon className="h-4 w-4" />
+                                {tab.label}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </div>
 
                 {isLive ? (
                     <div className="space-y-4">
                         {activeTab === 'overview' && <TrafficDashboard />}
                         {activeTab === 'traffic' && <TrafficDashboard />}
-                        {activeTab === 'alerts' && <AlertConfiguration />}
                         {(activeTab === 'system' || activeTab === 'performance') && <SystemDashboard />}
                         {activeTab === 'gateway' && <TrafficDashboard />}
-                        {(!['overview', 'traffic', 'system', 'performance', 'gateway', 'alerts'].includes(activeTab)) && (
+                        {(!['overview', 'traffic', 'system', 'performance', 'gateway'].includes(activeTab)) && (
                             <div 
                                 className="p-12 text-center rounded-lg border-2 border-dashed"
                                 style={{ borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text-muted))" }}
@@ -625,6 +635,37 @@ function AnalyticsView() {
                     <>
                         {/* OVERVIEW TAB */}
                         <TabsContent value="overview" className="space-y-6">
+                            {/* Quick links to Visitor & Geo analytics */}
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <Link
+                                    href="/analytics/visitors"
+                                    className="flex items-center gap-4 p-4 rounded-lg border-2 transition-colors hover:border-blue-500/50"
+                                    style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
+                                >
+                                    <div className="p-2 rounded-lg" style={{ background: 'rgba(var(--theme-primary), 0.15)' }}>
+                                        <Users className="h-6 w-6" style={{ color: 'rgb(var(--theme-primary))' }} />
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold">Visitor Analytics</p>
+                                        <p className="text-sm" style={{ color: 'rgb(var(--theme-text-muted))' }}>Browsers, devices, referrers, status codes (GoAccess-style)</p>
+                                    </div>
+                                    <ArrowUpRight className="h-4 w-4 ml-auto flex-shrink-0" style={{ color: 'rgb(var(--theme-text-muted))' }} />
+                                </Link>
+                                <Link
+                                    href="/analytics/geo"
+                                    className="flex items-center gap-4 p-4 rounded-lg border-2 transition-colors hover:border-blue-500/50"
+                                    style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
+                                >
+                                    <div className="p-2 rounded-lg" style={{ background: 'rgba(var(--theme-primary), 0.15)' }}>
+                                        <Globe className="h-6 w-6" style={{ color: 'rgb(var(--theme-primary))' }} />
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold">Geo Analytics</p>
+                                        <p className="text-sm" style={{ color: 'rgb(var(--theme-text-muted))' }}>Traffic by country and city</p>
+                                    </div>
+                                    <ArrowUpRight className="h-4 w-4 ml-auto flex-shrink-0" style={{ color: 'rgb(var(--theme-text-muted))' }} />
+                                </Link>
+                            </div>
                             {/* NGINX Metrics */}
                             <NginxMetricCards data={analyticsData.connections_history.length > 0 ? {
                                 active_connections: analyticsData.connections_history[analyticsData.connections_history.length - 1].active,
@@ -1353,9 +1394,6 @@ function AnalyticsView() {
                         </TabsContent>
 
                         {/* ALERTS TAB */}
-                        <TabsContent value="alerts" className="space-y-6">
-                            <AlertConfiguration />
-                        </TabsContent>
                     </>
                 )}
             </Tabs>

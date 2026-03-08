@@ -10,9 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { FileCode, Save, RotateCcw, CheckCircle2, AlertTriangle, Shield, FileText, RefreshCw, Play, Square, RotateCcwIcon, Construction, Plus, Trash2, BarChart3, Activity, Terminal, Copy, Check, Settings, Server, Network, Zap, Globe, Info, GitCompare } from "lucide-react";
+import { FileCode, Save, RotateCcw, CheckCircle2, AlertTriangle, Shield, FileText, RefreshCw, Play, Square, RotateCcwIcon, Construction, Plus, Trash2, BarChart3, Activity, Terminal, Copy, Check, Settings, Server, Network, Zap, Globe, Info, GitCompare, Download, Search, X } from "lucide-react";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import Link from "next/link";
-import { useState, useEffect, use, useMemo } from "react";
+import { useState, useEffect, use, useMemo, useRef, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip } from "recharts";
@@ -57,6 +58,11 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     const [logStatusFilter, setLogStatusFilter] = useState<string>('all');
     const [logClientIpFilter, setLogClientIpFilter] = useState('');
     const [logTimeWindowMins, setLogTimeWindowMins] = useState<number>(60);
+    const [logStreaming, setLogStreaming] = useState(true);
+    const [logTailLines, setLogTailLines] = useState(200);
+    const [logSearch, setLogSearch] = useState('');
+    const [logSearchMatchIndex, setLogSearchMatchIndex] = useState(-1);
+    const logEventSourceRef = useRef<EventSource | null>(null);
     const [uptimeReports, setUptimeReports] = useState<any[]>([]);
     const [analytics, setAnalytics] = useState<any>(null);
     const [isConnected, setIsConnected] = useState(false);
@@ -309,48 +315,58 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         fetchConfigBackups();
         fetchDrift();
 
-        // Connect to Log Stream (encode id so + in e.g. hostname+ip is preserved)
-        const logsUrl = `${apiUrl("/api/servers/" + encodeURIComponent(id) + "/logs")}?follow=1&tail=200&log_type=${logType}`;
+        if (!logStreaming) {
+            setIsConnected(false);
+            return () => { logEventSourceRef.current = null; };
+        }
+
+        const tail = logTailLines;
+        const logsUrl = `${apiUrl("/api/servers/" + encodeURIComponent(id) + "/logs")}?follow=1&tail=${tail}&log_type=${logType}`;
         const eventSource = new EventSource(logsUrl);
+        logEventSourceRef.current = eventSource;
 
-        eventSource.onopen = () => {
+        eventSource.addEventListener("connected", () => {
             setIsConnected(true);
-        };
+        });
 
-        eventSource.onmessage = (event) => {
+        eventSource.addEventListener("log", (event: MessageEvent) => {
             try {
-                const newLog = JSON.parse(event.data);
-                if (newLog.error) {
-                    console.error("Log stream error:", newLog.error);
-                    return;
-                }
-                const ts = newLog.timestamp || Math.floor(Date.now() / 1000);
+                const newLog = JSON.parse(event.data) as LogEntry;
+                const ts = (newLog.timestamp as number) || Math.floor(Date.now() / 1000);
                 const date = new Date(ts * 1000);
-                newLog.formattedTime = date.toLocaleString();
-
-                // Construct a message string if it doesn't exist
-                if (!newLog.message && newLog.content) {
-                    newLog.message = newLog.content;
-                } else if (!newLog.message) {
-                    newLog.message = `${newLog.request_method || ""} ${newLog.request_uri || ""} ${newLog.status || ""}`.trim() || "—";
-                }
-
-                setLogs((prev) => [newLog, ...prev].slice(0, 50));
+                (newLog as any).formattedTime = date.toLocaleString();
+                if (!newLog.message && newLog.content) (newLog as any).message = newLog.content;
+                else if (!newLog.message) (newLog as any).message = `${newLog.request_method || ""} ${newLog.request_uri || ""} ${newLog.status ?? ""}`.trim() || "—";
+                setLogs((prev) => [newLog, ...prev].slice(0, Math.max(500, logTailLines)));
             } catch (e) {
                 console.error("Failed to parse log", e);
             }
-        };
+        });
 
-        eventSource.onerror = (err) => {
-            console.error("SSE Error:", err);
+        eventSource.addEventListener("error", (event: MessageEvent) => {
+            try {
+                const data = JSON.parse(event.data || "{}");
+                if (data.error) console.error("Log stream error:", data.error);
+            } catch { /* no payload */ }
+            setIsConnected(false);
+            eventSource.close();
+        });
+
+        eventSource.addEventListener("end", () => {
+            setIsConnected(false);
+            eventSource.close();
+        });
+
+        eventSource.onerror = () => {
             setIsConnected(false);
             eventSource.close();
         };
 
         return () => {
             eventSource.close();
+            logEventSourceRef.current = null;
         };
-    }, [id, logType]);
+    }, [id, logType, logStreaming, logTailLines]);
 
     useEffect(() => {
         const fetchUptime = async () => {
@@ -392,10 +408,11 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     const currentStatus = serverInfo?.status || "unknown";
     const execCommand = `kubectl exec -it ${serverInfo?.hostname} -- /bin/bash`;
 
-    // Client-side log filters
+    // Client-side log filters and search
     const filteredLogs = useMemo(() => {
         const now = Date.now() / 1000;
         const cutoff = now - logTimeWindowMins * 60;
+        const searchLower = logSearch.trim().toLowerCase();
         return logs.filter((log) => {
             const ts = typeof log.timestamp === 'number' ? log.timestamp : (typeof log.timestamp === 'string' ? parseInt(log.timestamp, 10) : 0);
             if (logTimeWindowMins > 0 && ts > 0 && ts < cutoff) return false;
@@ -414,9 +431,39 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                     if (!ipStartsWithCIDR(ip, subnet, len)) return false;
                 } else if (!ip.startsWith(f)) return false;
             }
+            if (searchLower) {
+                const line = (log.message || log.content || '').toLowerCase();
+                if (!line.includes(searchLower)) return false;
+            }
             return true;
         });
-    }, [logs, logStatusFilter, logClientIpFilter, logTimeWindowMins]);
+    }, [logs, logStatusFilter, logClientIpFilter, logTimeWindowMins, logSearch]);
+
+    const logSearchMatches = useMemo(() => {
+        if (!logSearch.trim()) return [];
+        const s = logSearch.trim().toLowerCase();
+        return filteredLogs.map((log, i) => (log.message || log.content || '').toLowerCase().includes(s) ? i : -1).filter((i) => i >= 0);
+    }, [filteredLogs, logSearch]);
+
+    const goToSearchMatch = useCallback((delta: number) => {
+        if (logSearchMatches.length === 0) return;
+        setLogSearchMatchIndex((prev) => {
+            const next = prev < 0 ? (delta >= 0 ? 0 : logSearchMatches.length - 1) : (prev + delta + logSearchMatches.length) % logSearchMatches.length;
+            const el = document.getElementById(`log-line-${logSearchMatches[next]}`);
+            el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            return next;
+        });
+    }, [logSearchMatches]);
+
+    const downloadLogs = useCallback(() => {
+        const lines = filteredLogs.map((log) => `[${log.formattedTime || log.timestamp}] ${log.remote_addr || ''} ${log.message || log.content || ''}`.trim());
+        const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `logs-${id}-${logType}-${new Date().toISOString().slice(0, 19)}.txt`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }, [filteredLogs, id, logType]);
 
     function ipStartsWithCIDR(ip: string, subnet: string, prefixLen: number): boolean {
         const toInt = (s: string) => {
@@ -694,6 +741,21 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                             <div className="flex flex-wrap items-center justify-between gap-4">
                                 <CardTitle style={{ color: "rgb(var(--theme-text))" }}>Live Logs</CardTitle>
                                 <div className="flex flex-wrap items-center gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <Label className="text-xs whitespace-nowrap" style={{ color: "rgb(var(--theme-text-muted))" }}>Stream</Label>
+                                        <Switch checked={logStreaming} onCheckedChange={setLogStreaming} />
+                                    </div>
+                                    <Select value={String(logTailLines)} onValueChange={(v) => setLogTailLines(Number(v))}>
+                                        <SelectTrigger className="w-[90px] h-9" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="100">100 lines</SelectItem>
+                                            <SelectItem value="200">200 lines</SelectItem>
+                                            <SelectItem value="500">500 lines</SelectItem>
+                                            <SelectItem value="1000">1000 lines</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                     <Select value={logType} onValueChange={(v: 'access' | 'error') => setLogType(v)}>
                                         <SelectTrigger className="w-[120px] h-9" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
                                             <SelectValue />
@@ -733,20 +795,50 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                         className="w-[140px] h-9 font-mono text-xs"
                                         style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}
                                     />
+                                    <div className="flex items-center gap-1 border rounded-md pl-2 h-9" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))" }}>
+                                        <Search className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--theme-text-muted))" }} />
+                                        <Input
+                                            placeholder="Search (Ctrl+F)"
+                                            value={logSearch}
+                                            onChange={(e) => { setLogSearch(e.target.value); setLogSearchMatchIndex(-1); }}
+                                            className="border-0 w-[120px] h-8 font-mono text-xs focus-visible:ring-0 focus-visible:ring-offset-0"
+                                            style={{ background: "transparent", color: "rgb(var(--theme-text))" }}
+                                        />
+                                        {logSearch.trim() && (
+                                            <>
+                                                <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                                    {logSearchMatches.length > 0 ? `${logSearchMatchIndex >= 0 ? logSearchMatchIndex + 1 : "0"}/${logSearchMatches.length}` : "0"}
+                                                </span>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => goToSearchMatch(-1)} title="Previous">↑</Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => goToSearchMatch(1)} title="Next">↓</Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setLogSearch(""); setLogSearchMatchIndex(-1); }} title="Clear"><X className="h-3.5 w-3.5" /></Button>
+                                            </>
+                                        )}
+                                    </div>
+                                    <Button variant="outline" size="sm" className="h-9 gap-1" onClick={downloadLogs} disabled={filteredLogs.length === 0}>
+                                        <Download className="h-4 w-4" /> Download
+                                    </Button>
+                                    <Button variant="outline" size="sm" className="h-9" onClick={() => setLogs([])}>Clear</Button>
                                 </div>
                             </div>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-2 font-mono text-xs">
                                 {logs.length === 0 && isConnected && <div className="italic" style={{ color: "rgb(var(--theme-text-muted))" }}>Waiting for logs...</div>}
-                                {!isConnected && logs.length === 0 && <div className="italic" style={{ color: "rgb(var(--theme-text-muted))" }}>Connecting to log stream...</div>}
+                                {!logStreaming && logs.length === 0 && <div className="italic" style={{ color: "rgb(var(--theme-text-muted))" }}>Stream is off. Turn on to connect.</div>}
+                                {logStreaming && !isConnected && logs.length === 0 && <div className="italic" style={{ color: "rgb(var(--theme-text-muted))" }}>Connecting to log stream...</div>}
                                 {filteredLogs.length < logs.length && logs.length > 0 && (
                                     <div className="text-xs mb-2" style={{ color: "rgb(var(--theme-text-muted))" }}>
                                         Showing {filteredLogs.length} of {logs.length} entries (filters applied)
                                     </div>
                                 )}
                                 {filteredLogs.map((log, idx) => (
-                                    <div key={idx} className={`p-2 rounded ${(log.status ?? 0) >= 400 ? 'bg-red-500/10 text-red-400' : ''}`} style={{ color: (log.status ?? 0) >= 400 ? undefined : "rgb(var(--theme-text-muted))" }}>
+                                    <div
+                                        key={idx}
+                                        id={`log-line-${idx}`}
+                                        className={`p-2 rounded ${(log.status ?? 0) >= 400 ? 'bg-red-500/10 text-red-400' : ''} ${logSearchMatchIndex >= 0 && logSearchMatches[logSearchMatchIndex] === idx ? 'ring-1 ring-primary' : ''}`}
+                                        style={{ color: (log.status ?? 0) >= 400 ? undefined : "rgb(var(--theme-text-muted))" }}
+                                    >
                                         <span className="opacity-80">[{log.formattedTime || log.timestamp}]</span> {log.remote_addr && <span className="text-neutral-500">{log.remote_addr} </span>}{log.message}
                                     </div>
                                 ))}
@@ -896,13 +988,16 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <CardTitle className="text-white">Drift by group</CardTitle>
-                                <Button size="sm" variant="outline" onClick={fetchDrift} disabled={driftLoading} className="border-neutral-700 text-white">
-                                    <RefreshCw className={`h-4 w-4 mr-2 ${driftLoading ? "animate-spin" : ""}`} />
-                                    Refresh
-                                </Button>
+                                <RefreshButton
+                                    loading={driftLoading}
+                                    onRefresh={fetchDrift}
+                                    aria-label="Refresh drift"
+                                    className="border-neutral-700 text-white hover:bg-neutral-800"
+                                />
                             </div>
                             <CardDescription className="text-neutral-400">
-                                Status of this server compared to each group it belongs to
+                                Status of this server compared to each group it belongs to.{" "}
+                                <Link href="/drift/compare" className="text-sky-400 hover:underline">Compare groups</Link>
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -919,7 +1014,11 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                                 {g.diff_summary && <div className="text-sm text-neutral-400 mt-1">{g.diff_summary}</div>}
                                                 {g.error_message && <div className="text-sm text-amber-400 mt-1">{g.error_message}</div>}
                                             </div>
-                                            <Badge
+                                            <div className="flex items-center gap-2">
+                                                <Button variant="ghost" size="sm" asChild>
+                                                    <Link href={`/groups/${encodeURIComponent(g.group_id)}/logs`}>Group logs</Link>
+                                                </Button>
+                                                <Badge
                                                 className={
                                                     g.status === "in_sync"
                                                         ? "bg-green-500/10 text-green-400 border-green-500/20"
@@ -930,6 +1029,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                             >
                                                 {g.status === "in_sync" ? "In sync" : g.status === "drifted" ? "Drifted" : g.status}
                                             </Badge>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -1208,16 +1308,13 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                             </CardHeader>
                             <CardContent>
                                 <div className="flex items-center gap-2 mb-3">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={fetchConfigBackups}
-                                        disabled={configBackupsLoading}
+                                    <RefreshButton
+                                        loading={configBackupsLoading}
+                                        onRefresh={fetchConfigBackups}
+                                        label="Refresh list"
+                                        aria-label="Refresh config backups list"
                                         className="border-neutral-700 text-white hover:bg-neutral-800"
-                                    >
-                                        <RefreshCw className={`h-4 w-4 mr-2 ${configBackupsLoading ? 'animate-spin' : ''}`} />
-                                        Refresh list
-                                    </Button>
+                                    />
                                 </div>
                                 {configBackups.length === 0 && !configBackupsLoading && (
                                     <p className="text-sm text-neutral-500" style={{ color: "rgb(var(--theme-text-muted))" }}>No backups yet. Save configuration to create one.</p>

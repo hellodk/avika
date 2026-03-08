@@ -2,7 +2,8 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Save, Check, Loader2 } from "lucide-react";
@@ -19,7 +20,9 @@ import { AgentManagement } from "@/components/settings/agent-management";
 import { Zap, Lock, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-export default function SettingsPage() {
+function SettingsContent() {
+    const searchParams = useSearchParams();
+    const integrationsRef = useRef<HTMLDivElement>(null);
     const { settings: userSettings, updateSettings, resetSettings } = useUserSettings();
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
@@ -27,6 +30,7 @@ export default function SettingsPage() {
     const [grafanaUrl, setGrafanaUrl] = useState(userSettings.integrations.grafanaUrl);
     const [clickhouseUrl, setClickhouseUrl] = useState(userSettings.integrations.clickhouseUrl);
     const [prometheusUrl, setPrometheusUrl] = useState(userSettings.integrations.prometheusUrl);
+    const [postgresUrl, setPostgresUrl] = useState(userSettings.integrations.postgresUrl ?? "");
 
     const [defaultTimeRange, setDefaultTimeRange] = useState(userSettings.display.defaultTimeRange);
     const [refreshInterval, setRefreshInterval] = useState(userSettings.display.refreshInterval);
@@ -41,6 +45,7 @@ export default function SettingsPage() {
         setGrafanaUrl(userSettings.integrations.grafanaUrl);
         setClickhouseUrl(userSettings.integrations.clickhouseUrl);
         setPrometheusUrl(userSettings.integrations.prometheusUrl);
+        setPostgresUrl(userSettings.integrations.postgresUrl ?? "");
         setDefaultTimeRange(userSettings.display.defaultTimeRange);
         setRefreshInterval(userSettings.display.refreshInterval);
         setTimezone(userSettings.display.timezone);
@@ -49,6 +54,30 @@ export default function SettingsPage() {
         setAnomalyThreshold(userSettings.aiEngine?.anomalyThreshold || "0.8");
         setWindowSize(userSettings.aiEngine?.windowSize || "200");
     }, [userSettings]);
+
+    // Load integrations from backend (source of truth when available)
+    useEffect(() => {
+        let cancelled = false;
+        apiFetch("/api/settings")
+            .then((res) => {
+                if (cancelled || !res.ok) return;
+                return res.json();
+            })
+            .then((data: { integrations?: { grafana_url?: string; prometheus_url?: string; clickhouse_url?: string; postgres_url?: string } }) => {
+                if (cancelled || !data?.integrations) return;
+                const i = data.integrations;
+                updateSettings({
+                    integrations: {
+                        grafanaUrl: i.grafana_url ?? userSettings.integrations.grafanaUrl,
+                        prometheusUrl: i.prometheus_url ?? userSettings.integrations.prometheusUrl,
+                        clickhouseUrl: i.clickhouse_url ?? userSettings.integrations.clickhouseUrl,
+                        postgresUrl: i.postgres_url ?? userSettings.integrations.postgresUrl,
+                    },
+                });
+            })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps -- load once on mount
 
     const integrationsChanged = useMemo(() => {
         return (
@@ -114,12 +143,16 @@ export default function SettingsPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    integrations: {
+                        grafana_url: grafanaUrl.trim(),
+                        prometheus_url: prometheusUrl.trim(),
+                        clickhouse_url: clickhouseUrl.trim(),
+                    },
                     collection_interval: parseInt(collectionInterval),
                     retention_days: parseInt(retentionDays),
                     anomaly_threshold: parseFloat(anomalyThreshold),
                     window_size: parseInt(windowSize),
-                    grafana_url: grafanaUrl
-                })
+                }),
             });
 
             if (res.ok) {
@@ -147,6 +180,16 @@ export default function SettingsPage() {
         }
         toast.success("Defaults restored", { description: "Integrations and display preferences reset to defaults." });
     };
+
+    // When navigated from header search with ?q=, scroll to relevant section
+    const qParam = searchParams.get("q")?.trim().toLowerCase() || "";
+    useEffect(() => {
+        if (!qParam || !integrationsRef.current) return;
+        const integrationKeywords = ["integration", "integrations", "prometheus", "grafana", "clickhouse", "postgres", "monitoring", "endpoint"];
+        if (integrationKeywords.some((k) => qParam.includes(k))) {
+            integrationsRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+    }, [qParam]);
 
     return (
         <div className="space-y-6">
@@ -194,15 +237,18 @@ export default function SettingsPage() {
                 </Link>
             </div>
 
-            <IntegrationSettings
-                grafanaUrl={grafanaUrl}
-                setGrafanaUrl={setGrafanaUrl}
-                clickhouseUrl={clickhouseUrl}
-                setClickhouseUrl={setClickhouseUrl}
-                prometheusUrl={prometheusUrl}
-                setPrometheusUrl={setPrometheusUrl}
-                integrationsChanged={integrationsChanged}
-            />
+            <div ref={integrationsRef} id="settings-integrations">
+                <IntegrationSettings
+                    grafanaUrl={grafanaUrl}
+                    setGrafanaUrl={setGrafanaUrl}
+                    clickhouseUrl={clickhouseUrl}
+                    setClickhouseUrl={setClickhouseUrl}
+                    prometheusUrl={prometheusUrl}
+                    setPrometheusUrl={setPrometheusUrl}
+                    postgresUrl={postgresUrl}
+                    integrationsChanged={integrationsChanged}
+                />
+            </div>
 
             <DisplaySettings
                 defaultTimeRange={defaultTimeRange}
@@ -269,5 +315,13 @@ export default function SettingsPage() {
                 </Button>
             </div>
         </div>
+    );
+}
+
+export default function SettingsPage() {
+    return (
+        <Suspense fallback={<div className="space-y-6 p-4" style={{ color: "rgb(var(--theme-text-muted))" }}>Loading settings...</div>}>
+            <SettingsContent />
+        </Suspense>
     );
 }

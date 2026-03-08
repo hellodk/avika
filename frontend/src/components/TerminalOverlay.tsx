@@ -86,18 +86,34 @@ export const TerminalOverlay: React.FC<TerminalOverlayProps> = ({ agentId, onClo
             };
 
             socket.onmessage = async (event) => {
+                let text: string;
                 if (event.data instanceof Blob) {
-                    const text = await event.data.text();
-                    term.write(text);
+                    text = await event.data.text();
                 } else {
-                    term.write(event.data);
+                    text = typeof event.data === 'string' ? event.data : String(event.data);
                 }
+                // Radar-style: structured error { type: "error", error: "...", code: "..." }
+                if (typeof text === 'string' && text.trim().startsWith('{')) {
+                    try {
+                        const obj = JSON.parse(text);
+                        if (obj && obj.type === 'error') {
+                            setConnectionStatus('error');
+                            setErrorMessage(obj.error || obj.message || 'Unknown error');
+                            const code = obj.code || '';
+                            term.writeln(`\r\n\x1b[1;31m[${code || 'error'}] ${obj.error || obj.message}\x1b[0m`);
+                            return;
+                        }
+                    } catch {
+                        /* not JSON, fall through to write */
+                    }
+                }
+                term.write(text);
             };
 
             socket.onclose = (event) => {
-                if (event.code !== 1000) {
+                if (event.code !== 1000 && connectionStatus === 'connected') {
                     term.writeln(`\r\n\x1b[1;31mConnection closed (code: ${event.code})\x1b[0m`);
-                } else {
+                } else if (event.code === 1000) {
                     term.writeln('\r\n\x1b[1;33mSession ended\x1b[0m');
                 }
             };
@@ -143,6 +159,9 @@ export const TerminalOverlay: React.FC<TerminalOverlayProps> = ({ agentId, onClo
                             <div className="w-3 h-3 rounded-full bg-green-500/20" />
                         </div>
                         <span className="text-sm font-medium text-neutral-400 ml-2">Terminal: {agentId}</span>
+                        {connectionStatus === 'connecting' && <span className="text-xs text-amber-400 ml-2">Connecting...</span>}
+                        {connectionStatus === 'connected' && <span className="text-xs text-green-500 ml-2">Connected</span>}
+                        {connectionStatus === 'error' && errorMessage && <span className="text-xs text-red-400 ml-2 max-w-md truncate" title={errorMessage}>{errorMessage}</span>}
                     </div>
                     <button
                         onClick={onClose}

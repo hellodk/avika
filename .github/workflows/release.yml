@@ -34,7 +34,7 @@ permissions:
   packages: write
 
 env:
-  GO_VERSION: '1.23'
+  GO_VERSION: '1.24'
   NODE_VERSION: '20'
   DOCKERHUB_USERNAME: hellodk
 

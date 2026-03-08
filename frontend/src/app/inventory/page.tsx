@@ -10,6 +10,7 @@ import {
     XCircle, RefreshCw, Terminal, Check, Copy, Trash2, FolderKanban
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
 } from "@/components/ui/dialog";
@@ -95,7 +96,7 @@ function InventoryPageContent() {
 
     const deleteAgent = async (agentId: string) => {
         try {
-            const res = await apiFetch(`/api/servers/${agentId}`, { method: 'DELETE' });
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(agentId)}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Failed to delete');
             setInstances(prev => prev.filter(i => i.agent_id !== agentId));
             toast.success("Agent removed successfully");
@@ -109,7 +110,7 @@ function InventoryPageContent() {
 
     const updateAgent = async (agentId: string) => {
         try {
-            const res = await apiFetch(`/api/servers/${agentId}/update`, { method: 'POST' });
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(agentId)}/update`, { method: 'POST' });
             if (!res.ok) {
                 const err = await res.json();
                 throw new Error(err.error || 'Failed to trigger update');
@@ -132,7 +133,7 @@ function InventoryPageContent() {
 
         for (const agentId of Array.from(selectedAgents)) {
             try {
-                const res = await apiFetch(`/api/servers/${agentId}`, { method: 'DELETE' });
+                const res = await apiFetch(`/api/servers/${encodeURIComponent(agentId)}`, { method: 'DELETE' });
                 if (res.ok) successCount++;
                 else failCount++;
             } catch (error) {
@@ -157,7 +158,7 @@ function InventoryPageContent() {
 
         for (const agentId of Array.from(selectedAgents)) {
             try {
-                const res = await apiFetch(`/api/servers/${agentId}/update`, { method: 'POST' });
+                const res = await apiFetch(`/api/servers/${encodeURIComponent(agentId)}/update`, { method: 'POST' });
                 if (res.ok) successCount++;
                 else failCount++;
             } catch (error) {
@@ -277,10 +278,14 @@ function InventoryPageContent() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={fetchAgents} disabled={loading}>
-                        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                        Refresh
-                    </Button>
+                    <RefreshButton
+                        loading={loading}
+                        onRefresh={async () => {
+                            setLoading(true);
+                            await fetchAgents();
+                        }}
+                        aria-label="Refresh inventory"
+                    />
                 </div>
             </div>
 

@@ -13,6 +13,8 @@ interface IntegrationSettingsProps {
     setClickhouseUrl: (val: string) => void;
     prometheusUrl: string;
     setPrometheusUrl: (val: string) => void;
+    /** Read-only: backend PostgreSQL connection (from server) */
+    postgresUrl?: string;
     integrationsChanged: boolean;
 }
 
@@ -23,6 +25,7 @@ export function IntegrationSettings({
     setClickhouseUrl,
     prometheusUrl,
     setPrometheusUrl,
+    postgresUrl = "",
     integrationsChanged,
 }: IntegrationSettingsProps) {
     return (
@@ -74,33 +77,64 @@ export function IntegrationSettings({
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="clickhouse-url" style={{ color: 'rgb(var(--theme-text))' }}>ClickHouse URL (optional)</Label>
+                    <Label htmlFor="prometheus-url" style={{ color: 'rgb(var(--theme-text))' }}>Prometheus URL</Label>
                     <Input
-                        id="clickhouse-url"
+                        id="prometheus-url"
                         type="url"
-                        value={clickhouseUrl}
-                        onChange={(e) => setClickhouseUrl(e.target.value)}
-                        placeholder="http://clickhouse:8123"
+                        value={prometheusUrl}
+                        onChange={(e) => setPrometheusUrl(e.target.value)}
+                        placeholder={DEFAULT_USER_SETTINGS.integrations.prometheusUrl}
                         style={{
                             backgroundColor: 'rgb(var(--theme-surface-light))',
                             color: 'rgb(var(--theme-text))',
                             borderColor: 'rgb(var(--theme-border))'
                         }}
                     />
+                    <p className="text-xs" style={{ color: 'rgb(var(--theme-text-muted))' }}>
+                        Default: <code className="px-1 py-0.5 rounded text-xs" style={{ backgroundColor: 'rgb(var(--theme-surface-light))' }}>
+                            {DEFAULT_USER_SETTINGS.integrations.prometheusUrl}
+                        </code>
+                    </p>
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="prometheus-url" style={{ color: 'rgb(var(--theme-text))' }}>Prometheus URL (optional)</Label>
+                    <Label htmlFor="clickhouse-url" style={{ color: 'rgb(var(--theme-text))' }}>ClickHouse URL</Label>
                     <Input
-                        id="prometheus-url"
+                        id="clickhouse-url"
                         type="url"
-                        value={prometheusUrl}
-                        onChange={(e) => setPrometheusUrl(e.target.value)}
-                        placeholder="http://prometheus:9090"
+                        value={clickhouseUrl}
+                        onChange={(e) => setClickhouseUrl(e.target.value)}
+                        placeholder={DEFAULT_USER_SETTINGS.integrations.clickhouseUrl}
                         style={{
                             backgroundColor: 'rgb(var(--theme-surface-light))',
                             color: 'rgb(var(--theme-text))',
                             borderColor: 'rgb(var(--theme-border))'
+                        }}
+                    />
+                    <p className="text-xs" style={{ color: 'rgb(var(--theme-text-muted))' }}>
+                        Default: <code className="px-1 py-0.5 rounded text-xs" style={{ backgroundColor: 'rgb(var(--theme-surface-light))' }}>
+                            {DEFAULT_USER_SETTINGS.integrations.clickhouseUrl}
+                        </code>
+                    </p>
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="postgres-url" style={{ color: 'rgb(var(--theme-text))' }}>Backend PostgreSQL</Label>
+                    <p className="text-xs mb-2" style={{ color: 'rgb(var(--theme-text-muted))' }}>
+                        Where the app&apos;s metadata database is (read-only)
+                    </p>
+                    <Input
+                        id="postgres-url"
+                        type="text"
+                        value={postgresUrl}
+                        readOnly
+                        disabled
+                        className="font-mono text-sm"
+                        style={{
+                            backgroundColor: 'rgb(var(--theme-surface-light))',
+                            color: 'rgb(var(--theme-text-muted))',
+                            borderColor: 'rgb(var(--theme-border))',
+                            cursor: 'not-allowed'
                         }}
                     />
                 </div>

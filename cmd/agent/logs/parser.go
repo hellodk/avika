@@ -193,6 +193,47 @@ func (t *Tailer) Stop() error {
 	return nil
 }
 
+// FollowFromEnd starts tailing the file from the end and sends new lines as LogEntry on the returned channel.
+// logType is "access" or "error"; for error, lines are parsed with ParseErrorLog.
+// The caller must call the returned stop func when done.
+func FollowFromEnd(logPath, logType, format string) (<-chan *pb.LogEntry, func() error, error) {
+	config := tail.Config{
+		Follow:   true,
+		ReOpen:   true,
+		Location: &tail.SeekInfo{Offset: 0, Whence: 2},
+		Poll:     true,
+	}
+	tailFile, err := tail.TailFile(logPath, config)
+	if err != nil {
+		return nil, nil, err
+	}
+	ch := make(chan *pb.LogEntry, 50)
+	stop := func() error {
+		return tailFile.Stop()
+	}
+	parser := NewParser(format)
+	go func() {
+		defer close(ch)
+		for line := range tailFile.Lines {
+			if line.Err != nil {
+				continue
+			}
+			var entry *pb.LogEntry
+			if logType == "error" {
+				entry = ParseErrorLog(line.Text)
+			} else {
+				var err error
+				entry, err = parser.ParseLine(line.Text)
+				if err != nil {
+					entry = &pb.LogEntry{Timestamp: time.Now().Unix(), LogType: logType, Content: line.Text}
+				}
+			}
+			ch <- entry
+		}
+	}()
+	return ch, stop, nil
+}
+
 // GetLastN reads the last N lines from the log file
 func GetLastN(logPath string, n int) ([]*pb.LogEntry, error) {
 	// Simple implementation - read file and get last N lines

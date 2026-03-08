@@ -34,7 +34,7 @@ const (
 // Separate service for agent self-configuration.
 // This service focuses on configuring the agent process itself (not NGINX config).
 type AgentConfigServiceClient interface {
-	GetAgentConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AgentConfigResponse, error)
+	GetAgentConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetAgentConfigResponse, error)
 	UpdateAgentConfig(ctx context.Context, in *AgentConfigUpdate, opts ...grpc.CallOption) (*AgentConfigUpdateResponse, error)
 	TestConnection(ctx context.Context, in *ConnectionTestRequest, opts ...grpc.CallOption) (*ConnectionTestResponse, error)
 	ListConfigBackups(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListConfigBackupsResponse, error)
@@ -49,9 +49,9 @@ func NewAgentConfigServiceClient(cc grpc.ClientConnInterface) AgentConfigService
 	return &agentConfigServiceClient{cc}
 }
 
-func (c *agentConfigServiceClient) GetAgentConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AgentConfigResponse, error) {
+func (c *agentConfigServiceClient) GetAgentConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetAgentConfigResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AgentConfigResponse)
+	out := new(GetAgentConfigResponse)
 	err := c.cc.Invoke(ctx, AgentConfigService_GetAgentConfig_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func (c *agentConfigServiceClient) RestoreConfigBackup(ctx context.Context, in *
 // Separate service for agent self-configuration.
 // This service focuses on configuring the agent process itself (not NGINX config).
 type AgentConfigServiceServer interface {
-	GetAgentConfig(context.Context, *emptypb.Empty) (*AgentConfigResponse, error)
+	GetAgentConfig(context.Context, *emptypb.Empty) (*GetAgentConfigResponse, error)
 	UpdateAgentConfig(context.Context, *AgentConfigUpdate) (*AgentConfigUpdateResponse, error)
 	TestConnection(context.Context, *ConnectionTestRequest) (*ConnectionTestResponse, error)
 	ListConfigBackups(context.Context, *emptypb.Empty) (*ListConfigBackupsResponse, error)
@@ -121,7 +121,7 @@ type AgentConfigServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAgentConfigServiceServer struct{}
 
-func (UnimplementedAgentConfigServiceServer) GetAgentConfig(context.Context, *emptypb.Empty) (*AgentConfigResponse, error) {
+func (UnimplementedAgentConfigServiceServer) GetAgentConfig(context.Context, *emptypb.Empty) (*GetAgentConfigResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAgentConfig not implemented")
 }
 func (UnimplementedAgentConfigServiceServer) UpdateAgentConfig(context.Context, *AgentConfigUpdate) (*AgentConfigUpdateResponse, error) {

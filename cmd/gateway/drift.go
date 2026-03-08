@@ -802,6 +802,148 @@ func (s *server) getDriftForAgent(ctx context.Context, agentID string) ([]DriftF
 	return result, nil
 }
 
+// getProjectIDForGroup returns the project_id for the group's environment.
+func (s *server) getProjectIDForGroup(ctx context.Context, groupID string) (string, error) {
+	var projectID string
+	err := s.db.conn.QueryRowContext(ctx,
+		`SELECT e.project_id FROM agent_groups g JOIN environments e ON e.id = g.environment_id WHERE g.id = $1`,
+		groupID,
+	).Scan(&projectID)
+	if err != nil {
+		return "", err
+	}
+	return projectID, nil
+}
+
+// CompareGroupsDriftResult is the response for inter-group drift comparison (group A baseline vs group B).
+type CompareGroupsDriftResult struct {
+	GroupAID     string       `json:"group_a_id"`
+	GroupAName   string       `json:"group_a_name"`
+	GroupBID     string       `json:"group_b_id"`
+	GroupBName   string       `json:"group_b_name"`
+	BaselineType string       `json:"baseline_type"`
+	BaselineHash string       `json:"baseline_hash,omitempty"`
+	Items        []DriftItem  `json:"items"` // B agents vs A baseline
+	ComparedAt   int64        `json:"compared_at"`
+}
+
+// compareGroupsDrift uses group A as baseline and compares each agent in group B to it (same project).
+func (s *server) compareGroupsDrift(ctx context.Context, groupAID, groupBID, projectID string) (*CompareGroupsDriftResult, error) {
+	groupA, err := s.getGroupByID(ctx, groupAID)
+	if err != nil {
+		return nil, err
+	}
+	groupB, err := s.getGroupByID(ctx, groupBID)
+	if err != nil {
+		return nil, err
+	}
+	projA, err := s.getProjectIDForGroup(ctx, groupAID)
+	if err != nil {
+		return nil, fmt.Errorf("group A: %w", err)
+	}
+	projB, err := s.getProjectIDForGroup(ctx, groupBID)
+	if err != nil {
+		return nil, fmt.Errorf("group B: %w", err)
+	}
+	if projectID != "" && (projA != projectID || projB != projectID) {
+		return nil, fmt.Errorf("groups must belong to the same project")
+	}
+	if projA != projB {
+		return nil, fmt.Errorf("groups must belong to the same project")
+	}
+
+	checkType := "nginx_main_conf"
+	agentsA, err := s.getAgentsInGroup(ctx, groupAID)
+	if err != nil {
+		return nil, err
+	}
+	agentsB, err := s.getAgentsInGroup(ctx, groupBID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build baseline from group A (same logic as checkGroupDrift)
+	agentHashesA := make(map[string]string)
+	agentConfigsA := make(map[string]string)
+	hashCounts := make(map[string]int)
+	for _, agent := range agentsA {
+		hash, config, err := s.getAgentConfigHash(ctx, agent.agentID, checkType)
+		if err != nil {
+			continue
+		}
+		agentHashesA[agent.agentID] = hash
+		agentConfigsA[agent.agentID] = config
+		hashCounts[hash]++
+	}
+
+	var baselineHash, baselineConfig string
+	if groupA.GoldenAgentID != nil && *groupA.GoldenAgentID != "" {
+		if h, ok := agentHashesA[*groupA.GoldenAgentID]; ok && h != "" {
+			baselineHash = h
+			baselineConfig = agentConfigsA[*groupA.GoldenAgentID]
+		}
+	}
+	if baselineHash == "" {
+		var maxCount int
+		for hash, count := range hashCounts {
+			if count > maxCount && hash != "" {
+				maxCount = count
+				baselineHash = hash
+			}
+		}
+		for aid, h := range agentHashesA {
+			if h == baselineHash {
+				baselineConfig = agentConfigsA[aid]
+				break
+			}
+		}
+	}
+
+	baselineType := "majority"
+	if groupA.GoldenAgentID != nil && *groupA.GoldenAgentID != "" && agentHashesA[*groupA.GoldenAgentID] == baselineHash {
+		baselineType = "golden_agent"
+	}
+
+	// Compare each B agent to baseline
+	var items []DriftItem
+	for _, agent := range agentsB {
+		hash, config, err := s.getAgentConfigHash(ctx, agent.agentID, checkType)
+		item := DriftItem{AgentID: agent.agentID, Hostname: agent.hostname}
+		if err != nil {
+			item.Status = "error"
+			item.ErrorMessage = err.Error()
+			item.Severity = "critical"
+			items = append(items, item)
+			continue
+		}
+		if hash == baselineHash {
+			item.Status = "in_sync"
+			item.CurrentHash = hash
+			items = append(items, item)
+			continue
+		}
+		item.Status = "drifted"
+		item.CurrentHash = hash
+		item.Severity = "warning"
+		if baselineConfig != "" && config != "" {
+			item.DiffContent = generateUnifiedDiff(baselineConfig, config)
+			item.DiffSummary = summarizeDiff(item.DiffContent)
+		}
+		items = append(items, item)
+	}
+
+	return &CompareGroupsDriftResult{
+		GroupAID:     groupAID,
+		GroupAName:   groupA.Name,
+		GroupBID:     groupBID,
+		GroupBName:   groupB.Name,
+		BaselineType: baselineType,
+		BaselineHash: baselineHash,
+		Items:        items,
+		ComparedAt:   time.Now().Unix(),
+	}, nil
+}
+
 // handleGetServerDrift handles GET /api/servers/{agentId}/drift
 func (s *server) handleGetServerDrift(w http.ResponseWriter, r *http.Request) {
 	agentID := r.PathValue("agentId")
@@ -816,4 +958,26 @@ func (s *server) handleGetServerDrift(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"groups": items})
+}
+
+// handleCompareDrift handles GET /api/projects/{id}/drift/compare?groupA=uuid&groupB=uuid
+func (s *server) handleCompareDrift(w http.ResponseWriter, r *http.Request) {
+	projectID := r.PathValue("id")
+	if projectID == "" {
+		http.Error(w, `{"error":"project ID required"}`, http.StatusBadRequest)
+		return
+	}
+	groupA := r.URL.Query().Get("groupA")
+	groupB := r.URL.Query().Get("groupB")
+	if groupA == "" || groupB == "" {
+		http.Error(w, `{"error":"groupA and groupB query params required"}`, http.StatusBadRequest)
+		return
+	}
+	result, err := s.compareGroupsDrift(r.Context(), groupA, groupB, projectID)
+	if err != nil {
+		http.Error(w, `{"error":"`+strings.ReplaceAll(err.Error(), `"`, `\"`)+`"}`, http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
 }

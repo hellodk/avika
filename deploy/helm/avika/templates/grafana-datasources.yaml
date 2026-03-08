@@ -2,9 +2,20 @@
 Grafana Datasource ConfigMap for kube-prometheus-stack integration.
 Creates a ConfigMap with label grafana_datasource: "1" that the Grafana
 sidecar will pick up and provision as a datasource.
+Password: if grafana.datasources.clickhouse.password is set, use it; otherwise
+look up the existing Secret avika-db-secrets (key clickhouse-password) so that
+helm upgrade -f values.yaml works without --set.
 */ -}}
 {{- if .Values.grafana.datasources.enabled }}
-{{- $clickhouseHost := printf "%s-clickhouse.%s.svc.cluster.local" (include "avika.fullname" .) .Release.Namespace }}
+{{- /* Default: StatefulSet pod DNS so Grafana (e.g. in monitoring ns) can reach ClickHouse HTTP (8123) */ -}}
+{{- $clickhouseHost := .Values.grafana.datasources.clickhouse.host | default (printf "%s-clickhouse-0.%s-clickhouse.%s.svc.cluster.local" (include "avika.fullname" .) (include "avika.fullname" .) .Release.Namespace) }}
+{{- /* Password: explicit value, or from existing db-secrets (lookup runs at template time) */ -}}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace (printf "%s-db-secrets" (include "avika.fullname" .)) }}
+{{- $passwordFromSecret := "" }}
+{{- if and $secret (index $secret.data "clickhouse-password") }}
+{{- $passwordFromSecret = index $secret.data "clickhouse-password" | b64dec }}
+{{- end }}
+{{- $clickhousePassword := .Values.grafana.datasources.clickhouse.password | default $passwordFromSecret }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -21,12 +32,19 @@ data:
         type: grafana-clickhouse-datasource
         uid: {{ .Values.grafana.datasources.clickhouse.uid }}
         access: proxy
+        editable: false
+        isDefault: false
         jsonData:
-          host: {{ $clickhouseHost }}
+          host: {{ $clickhouseHost | quote }}
           port: {{ .Values.grafana.datasources.clickhouse.port }}
           protocol: http
-          defaultDatabase: {{ .Values.grafana.datasources.clickhouse.database }}
-          username: {{ .Values.grafana.datasources.clickhouse.username }}
+          secure: false
+          username: {{ .Values.grafana.datasources.clickhouse.username | default "default" | quote }}
+          defaultDatabase: {{ .Values.grafana.datasources.clickhouse.database | default "nginx_analytics" }}
+          dialTimeout: {{ .Values.grafana.datasources.clickhouse.dialTimeout | default 10 }}
+          queryTimeout: {{ .Values.grafana.datasources.clickhouse.queryTimeout | default 60 }}
+        {{- if $clickhousePassword }}
         secureJsonData:
-          password: {{ .Values.grafana.datasources.clickhouse.password | quote }}
+          password: {{ $clickhousePassword | quote }}
+        {{- end }}
 {{- end }}

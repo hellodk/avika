@@ -1,0 +1,101 @@
+{
+  "annotations": { "list": [{ "builtIn": 1, "datasource": { "type": "grafana", "uid": "-- Grafana --" }, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard" }] },
+  "description": "Request distribution by country and city from access_logs geo columns. Same data as Avika frontend Geo Analytics.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [
+    { "asDropdown": false, "icon": "arrow-left", "includeVars": true, "keepTime": true, "tags": [], "targetBlank": false, "title": "← Back to Overview", "type": "link", "url": "/d/avika-nginx-overview" },
+    { "asDropdown": true, "icon": "external-link-alt", "includeVars": true, "keepTime": true, "tags": ["avika"], "targetBlank": false, "title": "Related Dashboards", "type": "dashboards" }
+  ],
+  "panels": [
+    { "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 }, "id": 99, "options": { "content": "# 🌍 Geo Analytics\nRequest distribution by country and city (from ClickHouse `access_logs` geo columns). Use the time range picker to change the window.", "mode": "markdown" }, "type": "text" },
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 2 }, "id": 100, "panels": [], "title": "📊 Geo Overview", "type": "row" },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 3 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" }, "format": 1, "queryType": "sql", "rawSql": "SELECT count(*) as total_requests\nFROM nginx_analytics.access_logs\nWHERE timestamp >= toDateTime64($__fromTime, 3) AND timestamp <= toDateTime64($__toTime, 3)\n  AND country != ''\n  AND ('$agent' = 'all' OR instance_id = '$agent')", "refId": "A" }],
+      "title": "Total Geo Requests",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 3 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" }, "format": 1, "queryType": "sql", "rawSql": "SELECT uniqExact(country_code) as countries\nFROM nginx_analytics.access_logs\nWHERE timestamp >= toDateTime64($__fromTime, 3) AND timestamp <= toDateTime64($__toTime, 3)\n  AND country != ''\n  AND ('$agent' = 'all' OR instance_id = '$agent')", "refId": "A" }],
+      "title": "Countries",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 3 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" }, "format": 1, "queryType": "sql", "rawSql": "SELECT uniqExact(city) as cities\nFROM nginx_analytics.access_logs\nWHERE timestamp >= toDateTime64($__fromTime, 3) AND timestamp <= toDateTime64($__toTime, 3)\n  AND city != '' AND city != 'Unknown'\n  AND ('$agent' = 'all' OR instance_id = '$agent')", "refId": "A" }],
+      "title": "Cities",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 3 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" }, "format": 1, "queryType": "sql", "rawSql": "SELECT country as top_country\nFROM (\n  SELECT country, count(*) as c\n  FROM nginx_analytics.access_logs\n  WHERE timestamp >= toDateTime64($__fromTime, 3) AND timestamp <= toDateTime64($__toTime, 3)\n    AND country != ''\n  AND ('$agent' = 'all' OR instance_id = '$agent')\n  GROUP BY country\n  ORDER BY c DESC\n  LIMIT 1\n)", "refId": "A" }],
+      "title": "Top Country",
+      "type": "stat"
+    },
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 }, "id": 101, "panels": [], "title": "📋 By Country & City", "type": "row" },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 8 },
+      "id": 10,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "requests" }] },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" }, "format": 1, "queryType": "sql", "rawSql": "SELECT\n  country,\n  country_code,\n  count(*) as requests,\n  countIf(status >= 400) as errors,\n  round(countIf(status >= 400) * 100.0 / count(*), 2) as error_pct,\n  round(avg(request_time) * 1000, 2) as avg_latency_ms\nFROM nginx_analytics.access_logs\nWHERE timestamp >= toDateTime64($__fromTime, 3) AND timestamp <= toDateTime64($__toTime, 3)\n  AND country != ''\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY country, country_code\nORDER BY requests DESC\nLIMIT 50", "refId": "A" }],
+      "title": "By Country",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 8 },
+      "id": 11,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "requests" }] },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" }, "format": 1, "queryType": "sql", "rawSql": "SELECT\n  city,\n  country,\n  country_code,\n  count(*) as requests\nFROM nginx_analytics.access_logs\nWHERE timestamp >= toDateTime64($__fromTime, 3) AND timestamp <= toDateTime64($__toTime, 3)\n  AND city != '' AND city != 'Unknown'\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nGROUP BY city, country, country_code\nORDER BY requests DESC\nLIMIT 100", "refId": "A" }],
+      "title": "By City",
+      "type": "table"
+    },
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 }, "id": 102, "panels": [], "title": "📍 Recent Geo-Located Requests", "type": "row" },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 19 },
+      "id": 12,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "time_ist" }] },
+      "targets": [{ "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" }, "format": 1, "queryType": "sql", "rawSql": "SELECT\n  formatDateTime(timestamp, '%Y-%m-%d %H:%M:%S', 'Asia/Kolkata') as time_ist,\n  country,\n  country_code,\n  city,\n  latitude,\n  longitude,\n  coalesce(client_ip, remote_addr) as client_ip,\n  request_method as method,\n  request_uri as uri,\n  status\nFROM nginx_analytics.access_logs\nWHERE timestamp >= toDateTime64($__fromTime, 3) AND timestamp <= toDateTime64($__toTime, 3)\n  AND country != '' AND latitude != 0\n  AND ('$agent' = 'all' OR instance_id = '$agent')\nORDER BY timestamp DESC\nLIMIT 100", "refId": "A" }],
+      "title": "Recent Geo Requests",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["avika", "geo", "analytics"],
+  "templating": {
+    "list": [
+      { "current": { "selected": false, "text": "ClickHouse", "value": "clickhouse" }, "hide": 0, "label": "Data Source", "multi": false, "name": "DS_CLICKHOUSE", "options": [], "query": "grafana-clickhouse-datasource", "refresh": 1, "type": "datasource" },
+      { "allValue": "all", "current": { "selected": true, "text": "all", "value": "all" }, "datasource": { "type": "grafana-clickhouse-datasource", "uid": "DS_CLICKHOUSE" }, "definition": "SELECT DISTINCT instance_id FROM nginx_analytics.nginx_metrics WHERE timestamp > now() - INTERVAL 1 HOUR", "hide": 0, "includeAll": true, "label": "Agent", "multi": false, "name": "agent", "options": [], "query": "SELECT DISTINCT instance_id FROM nginx_analytics.nginx_metrics WHERE timestamp > now() - INTERVAL 1 HOUR", "refresh": 2, "sort": 1, "type": "query" }
+    ]
+  },
+  "time": { "from": "now-24h", "to": "now" },
+  "timezone": "Asia/Kolkata",
+  "title": "Avika Geo Analytics",
+  "uid": "avika-geo-analytics",
+  "version": 1
+}

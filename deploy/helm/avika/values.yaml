@@ -229,6 +229,7 @@ components:
     # Init containers are handled specially in deployment.yaml template
     
     # Environment variables (static values only - dynamic values handled in template)
+    # LOG_LEVEL: debug|info|warn|error (default: info). LOG_FORMAT: json|console.
     env:
       GATEWAY_GRPC_PORT: "5020"
       GATEWAY_HTTP_PORT: "5021"
@@ -244,6 +245,8 @@ components:
       CH_LOG_BATCH_SIZE: "10000"
       CH_SPAN_BATCH_SIZE: "20000"
       CH_FLUSH_INTERVAL_MS: "100"
+      # LOG_LEVEL: "info"
+      # LOG_FORMAT: "json"
     
     livenessProbe:
       httpGet:
@@ -574,6 +577,26 @@ grafana:
   # URL for Grafana (used for embedded dashboards in frontend)
   # Should be browser-accessible URL to Grafana
   url: ""  # e.g., http://grafana.monitoring.svc.cluster.local:3000 or external URL
+
+  # Temporary Grafana in avika namespace for testing dashboards and ClickHouse.
+  # helm upgrade ... --set grafana.temporary.enabled=true [--set grafana.temporary.adminPass=yourpass]
+  # Then: kubectl port-forward -n avika svc/<release>-grafana-temporary 3000:3000
+  # Open http://localhost:3000 (admin / value of adminPass).
+  temporary:
+    enabled: false
+    # Set when enabling (e.g. --set grafana.temporary.adminPass=yourpass). Do not commit real secrets.
+    adminPass: "REPLACE_ME"
+    image:
+      repository: grafana/grafana
+      tag: "11.5.0"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
   
   dashboards:
     enabled: true
@@ -584,7 +607,14 @@ grafana:
     clickhouse:
       name: "ClickHouse"
       uid: "DS_CLICKHOUSE"
+      # Host: leave empty to use in-cluster FQDN. Override if Grafana runs in another namespace or needs a different address.
+      host: ""  # e.g. "avika-clickhouse-0.avika-clickhouse.avika.svc.cluster.local" for direct pod DNS
       port: 8123
       database: "nginx_analytics"
       username: "default"
-      password: ""  # Set via --set grafana.datasources.clickhouse.password
+      # ClickHouse password for Grafana. If empty, the chart looks up the existing Secret
+      # <release>-db-secrets (key clickhouse-password) at template time and uses it, so
+      # "helm upgrade -f values.yaml --install" works without --set. Override here to use a different value.
+      password: ""
+      dialTimeout: 10  # Connection timeout in seconds; increase if Grafana cannot reach ClickHouse in time
+      queryTimeout: 60  # Query timeout in seconds (plugin default 60)

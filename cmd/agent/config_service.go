@@ -31,7 +31,7 @@ var (
 	updaterParentCtx  context.Context
 )
 
-func (s *agentConfigServer) GetAgentConfig(ctx context.Context, _ *emptypb.Empty) (*pb.AgentConfigResponse, error) {
+func (s *agentConfigServer) GetAgentConfig(ctx context.Context, _ *emptypb.Empty) (*pb.GetAgentConfigResponse, error) {
 	return currentAgentConfigResponse(), nil
 }
 
@@ -149,7 +149,7 @@ func (s *agentConfigServer) RestoreConfigBackup(ctx context.Context, req *pb.Res
 	}, nil
 }
 
-func currentAgentConfigResponse() *pb.AgentConfigResponse {
+func currentAgentConfigResponse() *pb.GetAgentConfigResponse {
 	labels := make(map[string]string)
 	agentLabelsMu.RLock()
 	for k, v := range agentLabels {
@@ -157,7 +157,7 @@ func currentAgentConfigResponse() *pb.AgentConfigResponse {
 	}
 	agentLabelsMu.RUnlock()
 
-	return &pb.AgentConfigResponse{
+	return &pb.GetAgentConfigResponse{
 		GatewayAddress:  getGatewayAddressString(),
 		AgentId:         *agentID,
 		Labels:          labels,

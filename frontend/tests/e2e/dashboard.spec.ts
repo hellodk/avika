@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { installBasePath, withBase } from './helpers';
+import { installBasePath, withBase, loginIfNeeded } from './helpers';
 
 const ROOT = withBase('/');
 
@@ -7,11 +7,14 @@ test.describe('Dashboard Page', () => {
     test.beforeEach(async ({ page }) => {
         installBasePath(page);
         await page.goto('/');
+        await page.waitForLoadState('domcontentloaded');
+        await loginIfNeeded(page);
     });
 
     test('should display the dashboard', async ({ page }) => {
-        // Dashboard should load without errors
-        await expect(page).toHaveURL(ROOT);
+        // After loginIfNeeded we should be on dashboard (root path, not login)
+        await expect(page).not.toHaveURL(/\/login/);
+        await expect(page.getByRole('heading', { name: /Dashboard/i })).toBeVisible({ timeout: 5000 });
     });
 
     test('should have a dark theme by default', async ({ page }) => {
@@ -43,6 +46,8 @@ test.describe('Dashboard - KPI Cards', () => {
     test.beforeEach(async ({ page }) => {
         installBasePath(page);
         await page.goto('/');
+        await page.waitForLoadState('domcontentloaded');
+        await loginIfNeeded(page);
         await page.waitForLoadState('networkidle');
     });
 
@@ -69,6 +74,8 @@ test.describe('Dashboard - Time Range Picker', () => {
     test.beforeEach(async ({ page }) => {
         installBasePath(page);
         await page.goto('/');
+        await page.waitForLoadState('domcontentloaded');
+        await loginIfNeeded(page);
         await page.waitForLoadState('networkidle');
     });
 
@@ -127,6 +134,8 @@ test.describe('Dashboard - Traffic Chart', () => {
     test.beforeEach(async ({ page }) => {
         installBasePath(page);
         await page.goto('/');
+        await page.waitForLoadState('domcontentloaded');
+        await loginIfNeeded(page);
         await page.waitForLoadState('networkidle');
     });
 
@@ -158,6 +167,8 @@ test.describe('Dashboard - Response Codes', () => {
     test.beforeEach(async ({ page }) => {
         installBasePath(page);
         await page.goto('/');
+        await page.waitForLoadState('domcontentloaded');
+        await loginIfNeeded(page);
         await page.waitForLoadState('networkidle');
     });
 
@@ -178,6 +189,8 @@ test.describe('Dashboard - System Insights', () => {
     test.beforeEach(async ({ page }) => {
         installBasePath(page);
         await page.goto('/');
+        await page.waitForLoadState('domcontentloaded');
+        await loginIfNeeded(page);
         await page.waitForLoadState('networkidle');
     });
 
@@ -196,6 +209,8 @@ test.describe('Dashboard - Refresh Functionality', () => {
     test.beforeEach(async ({ page }) => {
         installBasePath(page);
         await page.goto('/');
+        await page.waitForLoadState('domcontentloaded');
+        await loginIfNeeded(page);
         await page.waitForLoadState('networkidle');
     });
 
@@ -206,13 +221,9 @@ test.describe('Dashboard - Refresh Functionality', () => {
 
     test('should refresh data when clicked', async ({ page }) => {
         const refreshButton = page.getByRole('button', { name: /Refresh/i });
-        
-        // Click refresh
         await refreshButton.click();
-        
-        // Button should show spinning indicator (class contains 'animate-spin')
-        // and page should remain functional
-        await expect(page).toHaveURL(ROOT);
+        // Page should remain on dashboard (heading visible); spinner may be brief
+        await expect(page.getByRole('heading', { name: /Dashboard/i })).toBeVisible({ timeout: 5000 });
     });
 });
 
@@ -220,6 +231,8 @@ test.describe('Dashboard - Accessibility', () => {
     test.beforeEach(async ({ page }) => {
         installBasePath(page);
         await page.goto('/');
+        await page.waitForLoadState('domcontentloaded');
+        await loginIfNeeded(page);
         await page.waitForLoadState('networkidle');
     });
 

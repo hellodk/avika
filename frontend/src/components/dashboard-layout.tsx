@@ -1,12 +1,12 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
     Activity, BarChart2, Server, Settings, ShieldAlert, Zap,
     FileText, Heart, Cpu, ChevronDown, ChevronRight,
-    Search, Bell, User, Menu, X, HelpCircle, LogOut,
+    Bell, User, Menu, X, HelpCircle, LogOut,
     LayoutDashboard, Layers, GitBranch, Terminal, BookOpen, KeyRound, Globe,
     LineChart, Users, FolderKanban, Lock, Info, Key, ShieldCheck
 } from "lucide-react";
@@ -26,6 +26,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { GlobalSearch } from "@/components/global-search";
 
 interface NavSection {
     title: string;
@@ -48,6 +49,7 @@ const NAV_SECTIONS: NavSection[] = [
             { href: "/system", icon: <Heart />, label: "System Health" },
             { href: "/monitoring", icon: <Cpu />, label: "Monitoring" },
             { href: "/analytics", icon: <BarChart2 />, label: "Analytics" },
+            { href: "/analytics/visitors", icon: <Users />, label: "Visitor Analytics" },
             { href: "/alerts", icon: <ShieldAlert />, label: "Alerts" },
             { href: "/reports", icon: <FileText />, label: "Reports" },
         ]
@@ -80,7 +82,7 @@ function EnvironmentTabsBar() {
 
     return (
         <div
-            className="px-6 py-2 border-b flex-shrink-0"
+            className="dashboard-layout-env-tabs px-6 py-2 border-b flex-shrink-0"
             style={{
                 background: "rgb(var(--theme-surface))",
                 borderColor: "rgb(var(--theme-border))"
@@ -93,6 +95,7 @@ function EnvironmentTabsBar() {
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
+    const router = useRouter();
     const { user, logout } = useAuth();
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [expandedSections, setExpandedSections] = useState<string[]>(
@@ -136,7 +139,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <div className="flex h-screen overflow-hidden" style={{ background: "rgb(var(--theme-background))" }}>
             {/* Sidebar */}
             <aside
-                className={`${sidebarCollapsed ? 'w-16' : 'w-64'} flex-shrink-0 border-r flex flex-col transition-all duration-300`}
+                className={`dashboard-layout-sidebar ${sidebarCollapsed ? 'w-16' : 'w-64'} flex-shrink-0 border-r flex flex-col transition-all duration-300`}
                 style={{
                     background: "rgb(var(--theme-surface))",
                     borderColor: "rgb(var(--theme-border))"
@@ -175,7 +178,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                             {!sidebarCollapsed && (
                                 <button
                                     onClick={() => toggleSection(section.title)}
-                                    className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium uppercase tracking-wider rounded hover-surface"
+                                    className="nav-section-header w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium uppercase tracking-wider rounded hover-surface"
                                     style={{ color: "rgb(var(--theme-text-muted))" }}
                                 >
                                     <span>{section.title}</span>
@@ -227,10 +230,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </aside>
 
             {/* Main Area */}
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden dashboard-layout-main-wrap">
                 {/* Header */}
                 <header
-                    className="h-16 flex items-center justify-between px-6 border-b flex-shrink-0"
+                    className="dashboard-layout-header h-16 flex items-center justify-between px-6 border-b flex-shrink-0"
                     style={{
                         background: "rgb(var(--theme-surface))",
                         borderColor: "rgb(var(--theme-border))"
@@ -247,29 +250,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
                     {/* Right: Actions */}
                     <div className="flex items-center gap-2">
-                        {/* Search */}
-                        <div className="relative hidden md:block">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: "rgb(var(--theme-text-muted))" }} />
-                            <input
-                                type="text"
-                                placeholder="Search..."
-                                className="w-64 pl-10 pr-4 py-2 text-sm rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                                style={{
-                                    background: "rgb(var(--theme-background))",
-                                    borderColor: "rgb(var(--theme-border))",
-                                    color: "rgb(var(--theme-text))"
-                                }}
-                            />
-                            <kbd
-                                className="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-xs rounded border"
-                                style={{
-                                    background: "rgb(var(--theme-surface))",
-                                    borderColor: "rgb(var(--theme-border))",
-                                    color: "rgb(var(--theme-text-muted))"
-                                }}
-                            >
-                                ⌘K
-                            </kbd>
+                        {/* Global search: fuzzy autocomplete (instances, pages, settings). ⌘K to focus. */}
+                        <div className="hidden md:block">
+                            <GlobalSearch aria-label="Search instances, pages, settings" />
                         </div>
 
                         {/* Help */}
@@ -365,7 +348,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
                 {/* Main Content */}
                 <main
-                    className="flex-1 overflow-auto p-6"
+                    className="dashboard-layout-main flex-1 overflow-auto p-6"
                     style={{ background: "rgb(var(--theme-background))" }}
                     role="main"
                     aria-label="Main content"
@@ -403,7 +386,7 @@ function NavLink({ href, icon, label, pathname, collapsed, badge, badgeColor = "
     return (
         <Link
             href={href}
-            className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all ${collapsed ? 'justify-center' : ''}`}
+            className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all nav-link ${collapsed ? 'justify-center' : ''} ${isActive ? 'nav-link-active' : ''}`}
             style={isActive ? {
                 background: "rgba(var(--theme-primary), 0.1)",
                 color: "rgb(var(--theme-primary))",
@@ -411,6 +394,7 @@ function NavLink({ href, icon, label, pathname, collapsed, badge, badgeColor = "
                 color: "rgb(var(--theme-text-muted))",
             }}
             title={collapsed ? label : undefined}
+            data-active={isActive ? "true" : undefined}
         >
             <span className="[&>svg]:h-4 [&>svg]:w-4 flex-shrink-0">{icon}</span>
             {!collapsed && (

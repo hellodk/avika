@@ -406,8 +406,11 @@ type NginxMetrics struct {
 	// High-performance observability extensions
 	Labels              map[string]string  `protobuf:"bytes,11,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // prometheus-style labels: server, upstream, route, etc.
 	LatencyDistribution []*HistogramBucket `protobuf:"bytes,12,rep,name=latency_distribution,json=latencyDistribution,proto3" json:"latency_distribution,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// VTS (nginx-module-vts): total bytes in/out aggregated from ServerZones
+	BytesInTotal  int64 `protobuf:"varint,13,opt,name=bytes_in_total,json=bytesInTotal,proto3" json:"bytes_in_total,omitempty"`
+	BytesOutTotal int64 `protobuf:"varint,14,opt,name=bytes_out_total,json=bytesOutTotal,proto3" json:"bytes_out_total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *NginxMetrics) Reset() {
@@ -522,6 +525,20 @@ func (x *NginxMetrics) GetLatencyDistribution() []*HistogramBucket {
 		return x.LatencyDistribution
 	}
 	return nil
+}
+
+func (x *NginxMetrics) GetBytesInTotal() int64 {
+	if x != nil {
+		return x.BytesInTotal
+	}
+	return 0
+}
+
+func (x *NginxMetrics) GetBytesOutTotal() int64 {
+	if x != nil {
+		return x.BytesOutTotal
+	}
+	return 0
 }
 
 type HistogramBucket struct {
@@ -763,6 +780,7 @@ type Heartbeat struct {
 	GitCommit     string                 `protobuf:"bytes,9,opt,name=git_commit,json=gitCommit,proto3" json:"git_commit,omitempty"`                                                     // Git commit hash
 	GitBranch     string                 `protobuf:"bytes,10,opt,name=git_branch,json=gitBranch,proto3" json:"git_branch,omitempty"`                                                    // Git branch name
 	Labels        map[string]string      `protobuf:"bytes,11,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Agent labels for auto-assignment (project, environment, etc.)
+	MgmtAddress   string                 `protobuf:"bytes,12,opt,name=mgmt_address,json=mgmtAddress,proto3" json:"mgmt_address,omitempty"`                                              // Optional host:port the gateway should use to dial this agent (e.g. 10.0.2.15:5025)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -872,6 +890,13 @@ func (x *Heartbeat) GetLabels() map[string]string {
 		return x.Labels
 	}
 	return nil
+}
+
+func (x *Heartbeat) GetMgmtAddress() string {
+	if x != nil {
+		return x.MgmtAddress
+	}
+	return ""
 }
 
 type NginxInstance struct {
@@ -12344,7 +12369,7 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\x10status_4xx_count\x18\x04 \x01(\x03R\x0estatus4xxCount\x12(\n" +
 	"\x10status_404_count\x18\x05 \x01(\x03R\x0estatus404Count\x12(\n" +
 	"\x10status_5xx_count\x18\x06 \x01(\x03R\x0estatus5xxCount\x12(\n" +
-	"\x10status_503_count\x18\a \x01(\x03R\x0estatus503Count\"\x92\x05\n" +
+	"\x10status_503_count\x18\a \x01(\x03R\x0estatus503Count\"\xe0\x05\n" +
 	"\fNginxMetrics\x12-\n" +
 	"\x12active_connections\x18\x01 \x01(\x03R\x11activeConnections\x121\n" +
 	"\x14accepted_connections\x18\x02 \x01(\x03R\x13acceptedConnections\x12/\n" +
@@ -12359,7 +12384,9 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	" \x01(\v2!.nginx.agent.v1.HttpStatusMetricsR\n" +
 	"httpStatus\x12@\n" +
 	"\x06labels\x18\v \x03(\v2(.nginx.agent.v1.NginxMetrics.LabelsEntryR\x06labels\x12R\n" +
-	"\x14latency_distribution\x18\f \x03(\v2\x1f.nginx.agent.v1.HistogramBucketR\x13latencyDistribution\x1a9\n" +
+	"\x14latency_distribution\x18\f \x03(\v2\x1f.nginx.agent.v1.HistogramBucketR\x13latencyDistribution\x12$\n" +
+	"\x0ebytes_in_total\x18\r \x01(\x03R\fbytesInTotal\x12&\n" +
+	"\x0fbytes_out_total\x18\x0e \x01(\x03R\rbytesOutTotal\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"7\n" +
@@ -12379,7 +12406,7 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\x06Update\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x1d\n" +
 	"\n" +
-	"update_url\x18\x02 \x01(\tR\tupdateUrl\"\xc0\x03\n" +
+	"update_url\x18\x02 \x01(\tR\tupdateUrl\"\xe3\x03\n" +
 	"\tHeartbeat\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x16\n" +
@@ -12395,7 +12422,8 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\n" +
 	"git_branch\x18\n" +
 	" \x01(\tR\tgitBranch\x12=\n" +
-	"\x06labels\x18\v \x03(\v2%.nginx.agent.v1.Heartbeat.LabelsEntryR\x06labels\x1a9\n" +
+	"\x06labels\x18\v \x03(\v2%.nginx.agent.v1.Heartbeat.LabelsEntryR\x06labels\x12!\n" +
+	"\fmgmt_address\x18\f \x01(\tR\vmgmtAddress\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"p\n" +

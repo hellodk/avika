@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { themes, getThemeColors, ThemeName } from '@/lib/themes';
+import { themes, getThemeColors, ThemeName, THEME_IDS } from '@/lib/themes';
 
 describe('themes', () => {
     describe('theme definitions', () => {
@@ -13,14 +13,11 @@ describe('themes', () => {
             expect(themes.light.name).toBe('Light');
         });
 
-        it('should have solarized theme defined', () => {
-            expect(themes.solarized).toBeDefined();
-            expect(themes.solarized.name).toBe('Solarized Dark');
-        });
-
-        it('should have nord theme defined', () => {
-            expect(themes.nord).toBeDefined();
-            expect(themes.nord.name).toBe('Nord');
+        it('THEME_IDS should include dark and light only', () => {
+            expect(THEME_IDS).toEqual(['dark', 'light']);
+            THEME_IDS.forEach((id) => {
+                expect(themes[id as ThemeName]).toBeDefined();
+            });
         });
     });
 
@@ -62,15 +59,6 @@ describe('themes', () => {
             expect(colors).toEqual(themes.light);
         });
 
-        it('should return solarized theme colors', () => {
-            const colors = getThemeColors('solarized');
-            expect(colors).toEqual(themes.solarized);
-        });
-
-        it('should return nord theme colors', () => {
-            const colors = getThemeColors('nord');
-            expect(colors).toEqual(themes.nord);
-        });
     });
 
     describe('color format validation', () => {
