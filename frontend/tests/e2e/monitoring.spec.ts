@@ -1,8 +1,12 @@
 import { test, expect } from '@playwright/test';
+import { installBasePath, withBase, loginIfNeeded } from './helpers';
 
 test.describe('Monitoring Page', () => {
     test.beforeEach(async ({ page }) => {
-        await page.goto('/avika/monitoring');
+        installBasePath(page);
+        await page.goto(withBase('/monitoring'));
+        await page.waitForLoadState('domcontentloaded');
+        await loginIfNeeded(page);
         await page.waitForLoadState('networkidle');
     });
 

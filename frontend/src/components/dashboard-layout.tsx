@@ -49,6 +49,7 @@ const NAV_SECTIONS: NavSection[] = [
             { href: "/system", icon: <Heart />, label: "System Health" },
             { href: "/monitoring", icon: <Cpu />, label: "Monitoring" },
             { href: "/analytics", icon: <BarChart2 />, label: "Analytics" },
+            { href: "/analytics/visitors", icon: <Users />, label: "Visitor Analytics" },
             { href: "/alerts", icon: <ShieldAlert />, label: "Alerts" },
             { href: "/reports", icon: <FileText />, label: "Reports" },
         ]

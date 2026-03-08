@@ -21,14 +21,22 @@ export function installBasePath(page: any) {
   return page;
 }
 
-/** Log in via UI if the page is on /login; uses E2E_LOGIN_* credentials. */
-export async function loginIfNeeded(page: { url: () => Promise<string>; goto: (url: string) => Promise<unknown>; fill: (selector: string, value: string) => Promise<void>; click: (selector: string) => Promise<void>; waitForURL: (urlOrPredicate: string | ((u: URL) => boolean), opts?: { timeout?: number }) => Promise<void> }): Promise<void> {
-  const url = await page.url();
-  if (!url.includes("/login")) return;
-  await page.goto("/login");
-  await page.fill('input[id="username"]', E2E_LOGIN_USERNAME);
-  await page.fill('input[id="password"]', E2E_LOGIN_PASSWORD);
-  await page.click('button[type="submit"]');
-  await page.waitForURL((u) => !u.pathname.includes("/login"), { timeout: 15000 });
+/**
+ * If the current page shows the login form, fill credentials and submit.
+ * Uses E2E_LOGIN_USERNAME / E2E_LOGIN_PASSWORD (default admin/admin).
+ * Waits for navigation away from login. No-op if already on app (no login form).
+ */
+export async function loginIfNeeded(page: any) {
+  const signInHeading = page.getByRole("heading", { name: /Sign In/i });
+  const usernameInput = page.locator('input[id="username"]');
+  const visible = await signInHeading.waitFor({ state: "visible", timeout: 5000 }).then(() => true).catch(() => false);
+  if (!visible) return;
+
+  await usernameInput.waitFor({ state: "visible", timeout: 2000 });
+  await usernameInput.fill(E2E_LOGIN_USERNAME);
+  await page.locator('input[id="password"]').fill(E2E_LOGIN_PASSWORD);
+  await page.locator('button[type="submit"]').click();
+  await page.waitForURL((u: URL) => !u.pathname.includes("/login"), { timeout: 15000 });
+  await page.waitForLoadState("domcontentloaded");
 }
 

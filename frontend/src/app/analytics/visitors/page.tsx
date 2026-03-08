@@ -87,6 +87,17 @@ interface VisitorAnalytics {
     hits: string;
     bandwidth: string;
   }>;
+  requested_urls?: Array<{
+    uri: string;
+    hits: string;
+    bandwidth: string;
+    status: number;
+  }>;
+  status_codes?: Array<{
+    code: number;
+    hits: string;
+    percentage: number;
+  }>;
 }
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
@@ -248,6 +259,8 @@ export default function VisitorsPage() {
           <TabsTrigger value="referrers">Referrers</TabsTrigger>
           <TabsTrigger value="404">404 Errors</TabsTrigger>
           <TabsTrigger value="static">Static Files</TabsTrigger>
+          <TabsTrigger value="urls">Requested URLs</TabsTrigger>
+          <TabsTrigger value="status">Status Codes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -577,6 +590,86 @@ export default function VisitorsPage() {
                         <TableCell className="text-right">
                           {formatBytes(sf.bandwidth)}
                         </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="urls" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Top Requested URLs</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Most requested paths (GoAccess-style &quot;Requested Files&quot;)
+              </p>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>URL / Path</TableHead>
+                    <TableHead className="text-right">Hits</TableHead>
+                    <TableHead className="text-right">Bandwidth</TableHead>
+                    <TableHead className="text-right">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(data?.requested_urls || []).length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        No requested URL data available
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    (data?.requested_urls || []).map((u, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-mono text-sm max-w-[300px] truncate" title={u.uri}>{u.uri}</TableCell>
+                        <TableCell className="text-right">{formatNumber(u.hits)}</TableCell>
+                        <TableCell className="text-right">{formatBytes(u.bandwidth)}</TableCell>
+                        <TableCell className="text-right">{u.status}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="status" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>HTTP Status Code Distribution</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Request count by status code (GoAccess-style)
+              </p>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Hits</TableHead>
+                    <TableHead className="text-right">%</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(data?.status_codes || []).length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center text-muted-foreground">
+                        No status code data available
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    (data?.status_codes || []).map((c, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">{c.code}</TableCell>
+                        <TableCell className="text-right">{formatNumber(c.hits)}</TableCell>
+                        <TableCell className="text-right">{c.percentage?.toFixed(1)}%</TableCell>
                       </TableRow>
                     ))
                   )}

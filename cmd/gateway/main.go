@@ -2332,6 +2332,8 @@ type visitorAnalyticsFrontendShape struct {
 	Hourly           []map[string]interface{} `json:"hourly"`
 	Devices          map[string]string        `json:"devices"`
 	StaticFiles      []map[string]interface{} `json:"static_files"`
+	RequestedURLs    []map[string]interface{} `json:"requested_urls"`
+	StatusCodes      []map[string]interface{} `json:"status_codes"`
 }
 
 func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request) {
@@ -2387,6 +2389,8 @@ func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request
 		Hourly:           make([]map[string]interface{}, 0, len(resp.HourlyStats)),
 		Devices:          map[string]string{"desktop": "0", "mobile": "0", "tablet": "0", "other": "0"},
 		StaticFiles:      make([]map[string]interface{}, 0, len(resp.StaticFiles)),
+		RequestedURLs:    make([]map[string]interface{}, 0, len(resp.RequestedURLs)),
+		StatusCodes:      make([]map[string]interface{}, 0, len(resp.StatusCodes)),
 	}
 
 	for _, b := range resp.Browsers {
@@ -2445,6 +2449,21 @@ func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request
 			"path":      s.URI,
 			"hits":      strconv.FormatUint(s.Hits, 10),
 			"bandwidth": strconv.FormatUint(s.Bandwidth, 10),
+		})
+	}
+	for _, u := range resp.RequestedURLs {
+		out.RequestedURLs = append(out.RequestedURLs, map[string]interface{}{
+			"uri":       u.URI,
+			"hits":      strconv.FormatUint(u.Hits, 10),
+			"bandwidth": strconv.FormatUint(u.Bandwidth, 10),
+			"status":   u.Status,
+		})
+	}
+	for _, c := range resp.StatusCodes {
+		out.StatusCodes = append(out.StatusCodes, map[string]interface{}{
+			"code":       c.Code,
+			"hits":       strconv.FormatUint(c.Hits, 10),
+			"percentage": c.Percentage,
 		})
 	}
 
