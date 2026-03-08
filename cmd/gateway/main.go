@@ -27,8 +27,10 @@ import (
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/segmentio/kafka-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/expfmt"
 	"github.com/rs/zerolog"
+	"github.com/segmentio/kafka-go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -1786,9 +1788,10 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		mux.Handle("POST /api/v1/admin/llm/test", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.errorAnalysisAPI.HandleTestLLMConnection)))
 		log.Printf("AI Error Analysis API routes registered")
 	}
+	handler := metricsAndLogMiddleware(gatewayLog, false)(mux)
 	return &http.Server{
 		Addr:         cfg.GetHTTPAddress(),
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  120 * time.Second,
@@ -2214,6 +2217,16 @@ func (srv *server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "# HELP nginx_gateway_recommendations_count Number of pending recommendations\n")
 	fmt.Fprintf(w, "# TYPE nginx_gateway_recommendations_count gauge\n")
 	fmt.Fprintf(w, "nginx_gateway_recommendations_count %d\n", recCount)
+
+	// Append Prometheus-registered HTTP metrics (avika_http_requests_total, avika_http_request_duration_seconds)
+	if mfs, err := prometheus.DefaultGatherer.Gather(); err == nil {
+		for _, mf := range mfs {
+			if _, err := expfmt.MetricFamilyToText(w, mf); err != nil {
+				log.Printf("metrics: write avika_http metrics: %v", err)
+				break
+			}
+		}
+	}
 }
 
 // startWebSocketServer is deprecated - use createHTTPServer instead

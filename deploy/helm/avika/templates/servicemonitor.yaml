@@ -1,0 +1,52 @@
+{{- /*
+Optional ServiceMonitor resources for Prometheus Operator.
+Enable with: monitoring.serviceMonitor.enabled: true
+*/ -}}
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "avika.fullname" . }}-gateway
+  {{- with .Values.monitoring.serviceMonitor.namespace }}
+  namespace: {{ . }}
+  {{- else }}
+  namespace: {{ .Release.Namespace }}
+  {{- end }}
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+    component: gateway
+spec:
+  selector:
+    matchLabels:
+      {{- include "avika.selectorLabels" . | nindent 6 }}
+      component: gateway
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+{{- if and (index .Values.components "frontend") ((index .Values.components "frontend").enabled) }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "avika.fullname" . }}-frontend
+  {{- with .Values.monitoring.serviceMonitor.namespace }}
+  namespace: {{ . }}
+  {{- else }}
+  namespace: {{ .Release.Namespace }}
+  {{- end }}
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+    component: frontend
+spec:
+  selector:
+    matchLabels:
+      {{- include "avika.selectorLabels" . | nindent 6 }}
+      component: frontend
+  endpoints:
+    - port: http
+      path: {{ (.Values.components.frontend.basePath | default "/avika") }}/api/metrics
+      interval: 30s
+{{- end }}
+{{- end }}
