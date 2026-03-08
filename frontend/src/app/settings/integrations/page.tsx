@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { RefreshCw, Save, PlugZap } from "lucide-react";
+import { RefreshButton } from "@/components/ui/refresh-button";
 
 type IntegrationRow = {
   type: string;
@@ -130,8 +131,13 @@ export default function IntegrationsSettingsPage() {
       const res = await apiFetch("/api/integrations");
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load integrations");
+      const list: IntegrationRow[] = Array.isArray(data)
+        ? data
+        : Array.isArray((data as { integrations?: IntegrationRow[] })?.integrations)
+          ? (data as { integrations: IntegrationRow[] }).integrations
+          : [];
       const next = { ...rows };
-      for (const row of data as IntegrationRow[]) {
+      for (const row of list) {
         next[row.type] = row;
       }
       setRows(next);
@@ -194,10 +200,12 @@ export default function IntegrationsSettingsPage() {
             Configure external integrations persisted in the gateway database.
           </p>
         </div>
-        <Button variant="outline" onClick={load} disabled={loading} className="border-neutral-700">
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <RefreshButton
+          loading={loading}
+          onRefresh={load}
+          aria-label="Refresh integrations"
+          size="default"
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

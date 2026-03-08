@@ -6,6 +6,8 @@ export type IntegrationsSettings = {
   grafanaUrl: string;
   clickhouseUrl: string;
   prometheusUrl: string;
+  /** Read-only: where the app's backend DB is (from server); not editable */
+  postgresUrl?: string;
 };
 
 export type DisplaySettings = {
@@ -33,10 +35,9 @@ export type UserSettings = {
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   integrations: {
-    // Default Grafana in-cluster FQDN (typical install). Can be overridden in Settings at runtime.
     grafanaUrl: "http://monitoring-grafana.monitoring.svc.cluster.local",
-    clickhouseUrl: "",
-    prometheusUrl: "",
+    prometheusUrl: "http://monitoring-prometheus.monitoring.svc.cluster.local:9090",
+    clickhouseUrl: "http://avika-clickhouse-0.avika-clickhouse.avika.svc.cluster.local:8123",
   },
   display: {
     defaultTimeRange: "now-1h",

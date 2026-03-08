@@ -79,19 +79,23 @@ func (s *server) getAgentConfigClient(agentID string) (pb.AgentConfigServiceClie
 	}
 	session := val.(*AgentSession)
 
-	targetIP := session.ip
-	if session.isPod && session.podIP != "" {
-		targetIP = session.podIP
+	var target string
+	if session.mgmtAddress != "" {
+		target = session.mgmtAddress
+	} else {
+		targetIP := session.ip
+		if session.isPod && session.podIP != "" {
+			targetIP = session.podIP
+		}
+		if targetIP == "" {
+			return nil, nil, fmt.Errorf("agent %s has no IP", agentID)
+		}
+		agentPort := s.config.Agent.MgmtPort
+		if agentPort == 0 {
+			agentPort = config.DefaultAgentPort
+		}
+		target = fmt.Sprintf("%s:%d", targetIP, agentPort)
 	}
-	if targetIP == "" {
-		return nil, nil, fmt.Errorf("agent %s has no IP", agentID)
-	}
-
-	agentPort := s.config.Agent.MgmtPort
-	if agentPort == 0 {
-		agentPort = config.DefaultAgentPort
-	}
-	target := fmt.Sprintf("%s:%d", targetIP, agentPort)
 
 	var dialOpts []grpc.DialOption
 	if s.config.Security.EnableTLS && s.config.Security.TLSCertFile != "" {
@@ -390,7 +394,7 @@ func escapeJSON(s string) string {
 	return s
 }
 
-func agentConfigResponseToAgentConfig(resp *pb.AgentConfigResponse) *pb.AgentConfig {
+func agentConfigResponseToAgentConfig(resp *pb.GetAgentConfigResponse) *pb.AgentConfig {
 	if resp == nil {
 		return &pb.AgentConfig{}
 	}

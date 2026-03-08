@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { ThemeName, themes, getThemeColors } from "./themes";
 
+const LIGHT_THEMES: ThemeName[] = ["light"];
+
 interface ThemeContextType {
     theme: ThemeName;
     setTheme: (theme: ThemeName) => void;
@@ -46,6 +48,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
         // Set data-theme attribute for CSS selectors
         root.setAttribute("data-theme", theme);
+        // Sync html class for shadcn .dark / light so components match theme
+        root.classList.remove("dark", "light");
+        root.classList.add(LIGHT_THEMES.includes(theme) ? "light" : "dark");
 
         localStorage.setItem("theme", theme);
     }, [theme, mounted]);

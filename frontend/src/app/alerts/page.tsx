@@ -4,9 +4,12 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Bell, CheckCircle2, XCircle, RefreshCw, ShieldOff } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AlertTriangle, Bell, CheckCircle2, XCircle, RefreshCw, ShieldOff, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { toast } from "sonner";
+import { AlertConfiguration } from "@/components/alerts/AlertConfiguration";
 
 interface Alert {
     id: number | string;
@@ -64,6 +67,7 @@ function EmptyState() {
 export default function AlertsPage() {
     const [alerts, setAlerts] = useState<Alert[]>([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const fetchAlerts = async () => {
@@ -188,18 +192,31 @@ export default function AlertsPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={fetchAlerts}
+                    <RefreshButton
+                        loading={loading}
+                        refreshing={refreshing}
+                        onRefresh={() => {
+                            setRefreshing(true);
+                            fetchAlerts().finally(() => setRefreshing(false));
+                        }}
                         disabled={loading}
-                    >
-                        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-                        Refresh
-                    </Button>
+                        aria-label="Refresh alerts"
+                    />
                 </div>
             </div>
 
+            <Tabs defaultValue="inbox" className="space-y-4">
+                <TabsList style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                    <TabsTrigger value="inbox" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                        <Bell className="h-4 w-4 mr-2" />
+                        Inbox
+                    </TabsTrigger>
+                    <TabsTrigger value="rules" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                        <Settings className="h-4 w-4 mr-2" />
+                        Configure rules
+                    </TabsTrigger>
+                </TabsList>
+                <TabsContent value="inbox" className="space-y-6">
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
@@ -327,6 +344,11 @@ export default function AlertsPage() {
                     })
                 )}
             </div>
+                </TabsContent>
+                <TabsContent value="rules" className="space-y-6">
+                    <AlertConfiguration />
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }

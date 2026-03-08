@@ -266,6 +266,39 @@ func (srv *server) handleListEnvironments(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(envs)
 }
 
+// handleListProjectGroups handles GET /api/projects/:id/groups (all groups in project, for drift compare etc.)
+func (srv *server) handleListProjectGroups(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	projectID := r.PathValue("id")
+	if projectID == "" {
+		http.Error(w, `{"error":"project ID required"}`, http.StatusBadRequest)
+		return
+	}
+
+	hasAccess, _ := srv.db.HasProjectAccess(user.Username, projectID, PermissionRead)
+	if !hasAccess {
+		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		return
+	}
+
+	groups, err := srv.getGroupsForProject(r.Context(), projectID)
+	if err != nil {
+		http.Error(w, `{"error":"failed to list groups"}`, http.StatusInternalServerError)
+		return
+	}
+	if groups == nil {
+		groups = []ProjectGroupItem{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(groups)
+}
+
 // handleCreateEnvironment handles POST /api/projects/:id/environments
 func (srv *server) handleCreateEnvironment(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUserFromContext(r.Context())

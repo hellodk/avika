@@ -33,37 +33,12 @@ export const themes = {
         error: "220 38 38",
         border: "209 213 219",
     },
-    solarized: {
-        name: "Solarized Dark",
-        background: "0 43 54",
-        surface: "7 54 66",
-        surfaceLight: "88 110 117",
-        text: "238 232 213",
-        textMuted: "147 161 161",
-        textDim: "165 178 178",
-        primary: "38 139 210",
-        success: "133 153 0",
-        warning: "203 75 22",
-        error: "220 50 47",
-        border: "88 110 117",
-    },
-    nord: {
-        name: "Nord",
-        background: "46 52 64",
-        surface: "59 66 82",
-        surfaceLight: "67 76 94",
-        text: "236 239 244",
-        textMuted: "229 233 240",
-        textDim: "216 222 233",
-        primary: "136 192 208",
-        success: "163 190 140",
-        warning: "235 203 139",
-        error: "191 97 106",
-        border: "76 86 106",
-    },
 } as const;
 
 export type ThemeName = keyof typeof themes;
+
+/** Ordered list of theme ids for the UI dropdown. */
+export const THEME_IDS: ThemeName[] = ["dark", "light"];
 
 export function getThemeColors(themeName: ThemeName) {
     return themes[themeName];

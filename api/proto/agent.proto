@@ -63,6 +63,9 @@ message NginxMetrics {
   // High-performance observability extensions
   map<string, string> labels = 11; // prometheus-style labels: server, upstream, route, etc.
   repeated HistogramBucket latency_distribution = 12;
+  // VTS (nginx-module-vts): total bytes in/out aggregated from ServerZones
+  int64 bytes_in_total = 13;
+  int64 bytes_out_total = 14;
 }
 
 message HistogramBucket {
@@ -97,6 +100,7 @@ message Heartbeat {
   string git_commit = 9;       // Git commit hash
   string git_branch = 10;      // Git branch name
   map<string, string> labels = 11;  // Agent labels for auto-assignment (project, environment, etc.)
+  string mgmt_address = 12;   // Optional host:port the gateway should use to dial this agent (e.g. 10.0.2.15:5025)
 }
 
 message NginxInstance {

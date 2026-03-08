@@ -10,6 +10,7 @@ import {
     Server, HardDrive, Zap, TrendingUp,
     AlertTriangle, XCircle, Info
 } from "lucide-react";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
 import Link from "next/link";
 
@@ -201,15 +202,14 @@ function SystemHealthPageContent() {
                         />
                         {stats.active}/{stats.total} Agents Online
                     </Badge>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={fetchAll}
-                        style={{ borderColor: "rgb(var(--theme-border))" }}
-                    >
-                        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                        Refresh
-                    </Button>
+                    <RefreshButton
+                        loading={loading}
+                        onRefresh={() => {
+                            setLoading(true);
+                            fetchAll().finally(() => setLoading(false));
+                        }}
+                        aria-label="Refresh system health"
+                    />
                 </div>
             </div>
 
@@ -304,12 +304,30 @@ function SystemHealthPageContent() {
             {/* Infrastructure Health */}
             <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
                 <CardHeader className="pb-4">
-                    <CardTitle className="text-lg" style={{ color: "rgb(var(--theme-text))" }}>
-                        Infrastructure Components
-                    </CardTitle>
-                    <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>
-                        Core system services and their current status
-                    </CardDescription>
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                            <CardTitle className="text-lg" style={{ color: "rgb(var(--theme-text))" }}>
+                                Infrastructure Health
+                            </CardTitle>
+                            <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                Core system services and their current status
+                            </CardDescription>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs" style={{ color: "rgb(var(--theme-text-muted))" }} role="img" aria-label="Status legend">
+                            <span className="inline-flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" aria-hidden />
+                                Healthy
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" aria-hidden />
+                                Warning
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-red-500" aria-hidden />
+                                Down
+                            </span>
+                        </div>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -353,32 +371,122 @@ function SystemHealthPageContent() {
                 </CardContent>
             </Card>
 
-            {/* Agent Fleet Summary — full table at /inventory */}
-            <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
-                <CardContent className="py-6">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 rounded-lg bg-blue-500/10">
-                                <Server className="h-6 w-6 text-blue-500" />
+            {/* Lower two-column: Service Uptime + Agent Fleet | Recent Events */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left: Service Uptime + Agent Fleet */}
+                <div className="lg:col-span-2 space-y-6">
+                    {/* Service Uptime (Past 24 Hours) — placeholder until we have time-series */}
+                    <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                        <CardHeader className="pb-2">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle className="text-base" style={{ color: "rgb(var(--theme-text))" }}>
+                                        Service Uptime (Past 24 Hours)
+                                    </CardTitle>
+                                </div>
+                                <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>All time</span>
                             </div>
-                            <div>
-                                <h3 className="font-medium" style={{ color: "rgb(var(--theme-text))" }}>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {infrastructure.slice(0, 3).map((item) => (
+                                <div key={item.name} className="space-y-1.5">
+                                    <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text))" }}>{item.name}</p>
+                                    <div className="h-2 rounded-full overflow-hidden flex" style={{ background: "rgb(var(--theme-border))" }} role="img" aria-label={`${item.name} uptime`}>
+                                        <div
+                                            className="h-full rounded-l-full transition-colors"
+                                            style={{
+                                                width: item.status === "healthy" ? "100%" : item.status === "degraded" ? "85%" : "60%",
+                                                background: item.status === "healthy" ? "rgb(16 185 129)" : item.status === "degraded" ? "rgb(245 158 11)" : "rgb(239 68 68)"
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
+
+                    {/* Agent Fleet — status grid */}
+                    <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                        <CardHeader className="pb-2">
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="text-base" style={{ color: "rgb(var(--theme-text))" }}>
                                     Agent Fleet
-                                </h3>
-                                <p className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                    {stats.active} of {stats.total} agents online — manage, update, and configure agents in the Inventory.
-                                </p>
+                                </CardTitle>
+                                <Button variant="ghost" size="sm" asChild>
+                                    <Link href="/inventory" className="text-sm">
+                                        View Inventory
+                                        <ArrowUpRight className="h-4 w-4 ml-1 inline" />
+                                    </Link>
+                                </Button>
                             </div>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex flex-wrap gap-1.5 mb-3" role="img" aria-label={`${stats.active} of ${stats.total} agents online`}>
+                                {agents.length === 0 ? (
+                                    <span className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>No agents</span>
+                                ) : agents.map((a, i) => (
+                                    <Link
+                                        key={a.id ?? i}
+                                        href={`/servers/${encodeURIComponent(a.agent_id || a.id)}`}
+                                        className="w-8 h-8 rounded border flex-shrink-0 transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent"
+                                        style={{
+                                            background: isOnline(a.last_seen) ? "rgb(16 185 129 / 0.25)" : "rgb(var(--theme-border))",
+                                            borderColor: isOnline(a.last_seen) ? "rgb(16 185 129)" : "rgb(var(--theme-border))"
+                                        }}
+                                        title={a.hostname || a.agent_id || `Agent ${i + 1}`}
+                                    />
+                                ))}
+                            </div>
+                            <p className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                {stats.active} of {stats.total} agents online
+                            </p>
+                            <p className="text-xs mt-1" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                Manage, update, and configure agents in the inventory.
+                            </p>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Right: Recent Events */}
+                <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                    <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                            <CardTitle className="text-base" style={{ color: "rgb(var(--theme-text))" }}>
+                                Recent Events
+                            </CardTitle>
+                            <Button variant="ghost" size="sm" asChild>
+                                <Link href="/inventory" className="text-sm">View Inventory</Link>
+                            </Button>
                         </div>
-                        <Button variant="outline" size="sm" asChild>
-                            <Link href="/inventory">
-                                View Inventory
-                                <ArrowUpRight className="h-4 w-4 ml-1" />
-                            </Link>
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
+                    </CardHeader>
+                    <CardContent>
+                        <ul className="space-y-3 text-sm">
+                            {agents.length === 0 && !loading ? (
+                                <li style={{ color: "rgb(var(--theme-text-muted))" }}>No agents yet</li>
+                            ) : (
+                                agents.slice(0, 6).map((a, i) => {
+                                    const online = isOnline(a.last_seen);
+                                    return (
+                                        <li key={a.id ?? i} className="flex items-center gap-3">
+                                            <span
+                                                className="w-2 h-2 rounded-full flex-shrink-0"
+                                                style={{ background: online ? "rgb(16 185 129)" : "rgb(239 68 68)" }}
+                                                aria-hidden
+                                            />
+                                            <span style={{ color: "rgb(var(--theme-text))" }}>
+                                                {a.hostname || a.agent_id || `Agent ${i + 1}`} {online ? "online" : "offline"}
+                                            </span>
+                                            <span className="tabular-nums text-xs ml-auto" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                                {a.last_seen != null ? formatLastSeen(a.last_seen) : "—"}
+                                            </span>
+                                        </li>
+                                    );
+                                })
+                            )}
+                        </ul>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
 }
