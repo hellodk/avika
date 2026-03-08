@@ -4,7 +4,12 @@ on:
   pull_request:
     branches: [master, main, develop, intermediate]
   push:
-    branches: [master, main, develop, intermediate, 'feat/*']
+    # Skip push for default branch: same commit already validated via PR. Reduces 5→4 runs per merge.
+    branches: [develop, intermediate, 'feat/*']
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   GO_VERSION: '1.23'
