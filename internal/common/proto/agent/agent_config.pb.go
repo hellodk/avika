@@ -40,6 +40,8 @@ type GetAgentConfigResponse struct {
 	LogLevel        string                 `protobuf:"bytes,14,opt,name=log_level,json=logLevel,proto3" json:"log_level,omitempty"`
 	LogFile         string                 `protobuf:"bytes,15,opt,name=log_file,json=logFile,proto3" json:"log_file,omitempty"`
 	ConfigFilePath  string                 `protobuf:"bytes,16,opt,name=config_file_path,json=configFilePath,proto3" json:"config_file_path,omitempty"` // Path to avika-agent.conf
+	MgmtAdvertise   string                 `protobuf:"bytes,17,opt,name=mgmt_advertise,json=mgmtAdvertise,proto3" json:"mgmt_advertise,omitempty"`      // AVIKA_MGMT_ADVERTISE: IP or host:port for gateway dial-back
+	MgmtNatCidr     string                 `protobuf:"bytes,18,opt,name=mgmt_nat_cidr,json=mgmtNatCidr,proto3" json:"mgmt_nat_cidr,omitempty"`          // AVIKA_MGMT_NAT_CIDR: CIDR to avoid when choosing mgmt IP (e.g. 10.0.2.0/24)
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -182,6 +184,20 @@ func (x *GetAgentConfigResponse) GetLogFile() string {
 func (x *GetAgentConfigResponse) GetConfigFilePath() string {
 	if x != nil {
 		return x.ConfigFilePath
+	}
+	return ""
+}
+
+func (x *GetAgentConfigResponse) GetMgmtAdvertise() string {
+	if x != nil {
+		return x.MgmtAdvertise
+	}
+	return ""
+}
+
+func (x *GetAgentConfigResponse) GetMgmtNatCidr() string {
+	if x != nil {
+		return x.MgmtNatCidr
 	}
 	return ""
 }
@@ -580,7 +596,7 @@ var File_agent_config_proto protoreflect.FileDescriptor
 
 const file_agent_config_proto_rawDesc = "" +
 	"\n" +
-	"\x12agent_config.proto\x12\x0enginx.agent.v1\x1a\x1bgoogle/protobuf/empty.proto\"\xb3\x05\n" +
+	"\x12agent_config.proto\x12\x0enginx.agent.v1\x1a\x1bgoogle/protobuf/empty.proto\"\xfe\x05\n" +
 	"\x16GetAgentConfigResponse\x12'\n" +
 	"\x0fgateway_address\x18\x01 \x01(\tR\x0egatewayAddress\x12\x19\n" +
 	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12J\n" +
@@ -601,7 +617,9 @@ const file_agent_config_proto_rawDesc = "" +
 	"\x0fupdate_interval\x18\r \x01(\tR\x0eupdateInterval\x12\x1b\n" +
 	"\tlog_level\x18\x0e \x01(\tR\blogLevel\x12\x19\n" +
 	"\blog_file\x18\x0f \x01(\tR\alogFile\x12(\n" +
-	"\x10config_file_path\x18\x10 \x01(\tR\x0econfigFilePath\x1a9\n" +
+	"\x10config_file_path\x18\x10 \x01(\tR\x0econfigFilePath\x12%\n" +
+	"\x0emgmt_advertise\x18\x11 \x01(\tR\rmgmtAdvertise\x12\"\n" +
+	"\rmgmt_nat_cidr\x18\x12 \x01(\tR\vmgmtNatCidr\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd2\x01\n" +

@@ -174,6 +174,8 @@ func currentAgentConfigResponse() *pb.GetAgentConfigResponse {
 		LogLevel:        *logLevel,
 		LogFile:         *logFile,
 		ConfigFilePath:  *configFile,
+		MgmtAdvertise:   *mgmtAdvertise,
+		MgmtNatCidr:     *mgmtNatCIDR,
 	}
 }
 
@@ -283,6 +285,14 @@ func applyAgentUpdates(updates map[string]string, hotReload bool) (changed []str
 		case "LOG_FILE":
 			*logFile = val
 			addChanged("LOG_FILE")
+			requiresRestart = true
+		case "AVIKA_MGMT_ADVERTISE", "MGMT_ADVERTISE":
+			*mgmtAdvertise = val
+			addChanged("AVIKA_MGMT_ADVERTISE")
+			requiresRestart = true
+		case "AVIKA_MGMT_NAT_CIDR", "MGMT_NAT_CIDR":
+			*mgmtNatCIDR = val
+			addChanged("AVIKA_MGMT_NAT_CIDR")
 			requiresRestart = true
 		default:
 			return nil, false, fmt.Errorf("unsupported config key: %s", key)

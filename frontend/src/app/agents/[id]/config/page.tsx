@@ -28,6 +28,8 @@ type AgentConfigResponse = {
   log_level: string;
   log_file: string;
   config_file_path: string;
+  mgmt_advertise: string;
+  mgmt_nat_cidr: string;
 };
 
 export default function AgentConfigPage({ params }: { params: Promise<{ id: string }> }) {
@@ -97,6 +99,8 @@ export default function AgentConfigPage({ params }: { params: Promise<{ id: stri
         UPDATE_INTERVAL: cfg.update_interval || "",
         LOG_LEVEL: cfg.log_level || "",
         LOG_FILE: cfg.log_file || "",
+        AVIKA_MGMT_ADVERTISE: cfg.mgmt_advertise ?? "",
+        AVIKA_MGMT_NAT_CIDR: cfg.mgmt_nat_cidr ?? "",
       };
 
       for (const [k, v] of Object.entries(labelsMap)) {
@@ -420,6 +424,39 @@ export default function AgentConfigPage({ params }: { params: Promise<{ id: stri
               style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
               disabled={!cfg}
             />
+          </div>
+
+          <div className="md:col-span-2 mt-2 pt-4 border-t" style={{ borderColor: 'rgb(var(--theme-border))' }}>
+            <div className="text-sm font-medium mb-3" style={{ color: 'rgb(var(--theme-text))' }}>Management IP (gateway dial-back)</div>
+            <p className="text-xs mb-3" style={{ color: 'rgb(var(--theme-text-muted))' }}>
+              Control which IP/interface the gateway uses to reach this agent. Saved to avika-agent.conf.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Mgmt Advertise (AVIKA_MGMT_ADVERTISE)</Label>
+            <Input
+              value={cfg?.mgmt_advertise ?? ""}
+              onChange={(e) => cfg && setCfg({ ...cfg, mgmt_advertise: e.target.value })}
+              placeholder="e.g. 192.168.1.71 or 192.168.1.71:5025"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
+              disabled={!cfg}
+            />
+            <p className="text-xs" style={{ color: 'rgb(var(--theme-text-muted))' }}>
+              IP or host:port for gateway to dial. Leave empty for auto (default-route / 192.168.x preference).
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label style={{ color: 'rgb(var(--theme-text-muted))' }}>Mgmt NAT CIDR (AVIKA_MGMT_NAT_CIDR)</Label>
+            <Input
+              value={cfg?.mgmt_nat_cidr ?? ""}
+              onChange={(e) => cfg && setCfg({ ...cfg, mgmt_nat_cidr: e.target.value })}
+              placeholder="e.g. 10.0.2.0/24"
+              style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
+              disabled={!cfg}
+            />
+            <p className="text-xs" style={{ color: 'rgb(var(--theme-text-muted))' }}>
+              CIDR to avoid when choosing mgmt IP. Optional; leave empty in Class A–only networks.
+            </p>
           </div>
         </CardContent>
       </Card>

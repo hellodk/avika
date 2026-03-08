@@ -2,7 +2,8 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Save, Check, Loader2 } from "lucide-react";
@@ -19,7 +20,9 @@ import { AgentManagement } from "@/components/settings/agent-management";
 import { Zap, Lock, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-export default function SettingsPage() {
+function SettingsContent() {
+    const searchParams = useSearchParams();
+    const integrationsRef = useRef<HTMLDivElement>(null);
     const { settings: userSettings, updateSettings, resetSettings } = useUserSettings();
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
@@ -178,6 +181,16 @@ export default function SettingsPage() {
         toast.success("Defaults restored", { description: "Integrations and display preferences reset to defaults." });
     };
 
+    // When navigated from header search with ?q=, scroll to relevant section
+    const qParam = searchParams.get("q")?.trim().toLowerCase() || "";
+    useEffect(() => {
+        if (!qParam || !integrationsRef.current) return;
+        const integrationKeywords = ["integration", "integrations", "prometheus", "grafana", "clickhouse", "postgres", "monitoring", "endpoint"];
+        if (integrationKeywords.some((k) => qParam.includes(k))) {
+            integrationsRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+    }, [qParam]);
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -224,16 +237,18 @@ export default function SettingsPage() {
                 </Link>
             </div>
 
-            <IntegrationSettings
-                grafanaUrl={grafanaUrl}
-                setGrafanaUrl={setGrafanaUrl}
-                clickhouseUrl={clickhouseUrl}
-                setClickhouseUrl={setClickhouseUrl}
-                prometheusUrl={prometheusUrl}
-                setPrometheusUrl={setPrometheusUrl}
-                postgresUrl={postgresUrl}
-                integrationsChanged={integrationsChanged}
-            />
+            <div ref={integrationsRef} id="settings-integrations">
+                <IntegrationSettings
+                    grafanaUrl={grafanaUrl}
+                    setGrafanaUrl={setGrafanaUrl}
+                    clickhouseUrl={clickhouseUrl}
+                    setClickhouseUrl={setClickhouseUrl}
+                    prometheusUrl={prometheusUrl}
+                    setPrometheusUrl={setPrometheusUrl}
+                    postgresUrl={postgresUrl}
+                    integrationsChanged={integrationsChanged}
+                />
+            </div>
 
             <DisplaySettings
                 defaultTimeRange={defaultTimeRange}
@@ -300,5 +315,13 @@ export default function SettingsPage() {
                 </Button>
             </div>
         </div>
+    );
+}
+
+export default function SettingsPage() {
+    return (
+        <Suspense fallback={<div className="space-y-6 p-4" style={{ color: "rgb(var(--theme-text-muted))" }}>Loading settings...</div>}>
+            <SettingsContent />
+        </Suspense>
     );
 }

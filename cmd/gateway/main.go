@@ -806,11 +806,39 @@ func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.Cl
 	}
 	session := val.(*AgentSession)
 
-	// Prefer agent-reported mgmt_address (correct-IP); else pods use podIP; else connection IP
+	// Prefer agent-reported mgmt_address when it matches the connection peer (so we trust it).
+	// If the agent reported a different host (e.g. VirtualBox NAT 10.0.2.15) but connected from
+	// session.ip (e.g. 192.168.1.10), prefer connection peer for dialing - that's reachable.
 	var target string
 	if session.mgmtAddress != "" {
-		target = session.mgmtAddress
-		log.Printf("Using mgmt_address %s for agent %s", target, agentID)
+		mgmtHost, mgmtPortStr, err := net.SplitHostPort(session.mgmtAddress)
+		if err != nil {
+			mgmtHost = strings.TrimSpace(session.mgmtAddress)
+			mgmtPortStr = ""
+		}
+		useConnectionIP := session.ip != "" && mgmtHost != "" && mgmtHost != session.ip
+		if useConnectionIP {
+			port := mgmtPortStr
+			if port == "" {
+				port = strconv.Itoa(s.config.Agent.MgmtPort)
+				if port == "0" {
+					port = strconv.Itoa(config.DefaultAgentPort)
+				}
+			}
+			target = net.JoinHostPort(session.ip, port)
+			log.Printf("Using connection peer %s for agent %s (mgmt_address %s differs, peer is reachable)", target, agentID, session.mgmtAddress)
+		} else {
+			if mgmtPortStr != "" {
+				target = session.mgmtAddress
+			} else {
+				port := s.config.Agent.MgmtPort
+				if port == 0 {
+					port = config.DefaultAgentPort
+				}
+				target = net.JoinHostPort(mgmtHost, strconv.Itoa(port))
+			}
+			log.Printf("Using mgmt_address %s for agent %s", target, agentID)
+		}
 	} else {
 		targetIP := session.ip
 		if session.isPod && session.podIP != "" {
@@ -2332,6 +2360,8 @@ type visitorAnalyticsFrontendShape struct {
 	Hourly           []map[string]interface{} `json:"hourly"`
 	Devices          map[string]string        `json:"devices"`
 	StaticFiles      []map[string]interface{} `json:"static_files"`
+	RequestedURLs    []map[string]interface{} `json:"requested_urls"`
+	StatusCodes      []map[string]interface{} `json:"status_codes"`
 }
 
 func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request) {
@@ -2387,6 +2417,8 @@ func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request
 		Hourly:           make([]map[string]interface{}, 0, len(resp.HourlyStats)),
 		Devices:          map[string]string{"desktop": "0", "mobile": "0", "tablet": "0", "other": "0"},
 		StaticFiles:      make([]map[string]interface{}, 0, len(resp.StaticFiles)),
+		RequestedURLs:    make([]map[string]interface{}, 0, len(resp.RequestedURLs)),
+		StatusCodes:      make([]map[string]interface{}, 0, len(resp.StatusCodes)),
 	}
 
 	for _, b := range resp.Browsers {
@@ -2445,6 +2477,21 @@ func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request
 			"path":      s.URI,
 			"hits":      strconv.FormatUint(s.Hits, 10),
 			"bandwidth": strconv.FormatUint(s.Bandwidth, 10),
+		})
+	}
+	for _, u := range resp.RequestedURLs {
+		out.RequestedURLs = append(out.RequestedURLs, map[string]interface{}{
+			"uri":       u.URI,
+			"hits":      strconv.FormatUint(u.Hits, 10),
+			"bandwidth": strconv.FormatUint(u.Bandwidth, 10),
+			"status":   u.Status,
+		})
+	}
+	for _, c := range resp.StatusCodes {
+		out.StatusCodes = append(out.StatusCodes, map[string]interface{}{
+			"code":       c.Code,
+			"hits":       strconv.FormatUint(c.Hits, 10),
+			"percentage": c.Percentage,
 		})
 	}
 

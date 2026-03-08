@@ -73,6 +73,21 @@ type StaticFileStat struct {
 	Bandwidth uint64 `json:"bandwidth"`
 }
 
+// RequestedURLStat represents top requested URL (GoAccess "Requested Files")
+type RequestedURLStat struct {
+	URI       string `json:"uri"`
+	Hits      uint64 `json:"hits"`
+	Bandwidth uint64 `json:"bandwidth"`
+	Status   uint16 `json:"status"`
+}
+
+// StatusCodeStat represents HTTP status code distribution (GoAccess "Status Codes")
+type StatusCodeStat struct {
+	Code       uint16  `json:"code"`
+	Hits       uint64  `json:"hits"`
+	Percentage float64 `json:"percentage"`
+}
+
 // VisitorAnalyticsResponse contains the full visitor analytics data
 type VisitorAnalyticsResponse struct {
 	Summary        VisitorStats         `json:"summary"`
@@ -83,6 +98,8 @@ type VisitorAnalyticsResponse struct {
 	HourlyStats    []HourlyDistribution `json:"hourly_stats"`
 	DeviceTypes    []DeviceStats        `json:"device_types"`
 	StaticFiles    []StaticFileStat     `json:"static_files"`
+	RequestedURLs  []RequestedURLStat   `json:"requested_urls"`
+	StatusCodes    []StatusCodeStat     `json:"status_codes"`
 }
 
 // GetVisitorAnalytics returns comprehensive visitor analytics
@@ -154,7 +171,23 @@ func (db *ClickHouseDB) GetVisitorAnalytics(ctx context.Context, timeWindow stri
 	} else {
 		resp.StaticFiles = staticFiles
 	}
-	
+
+	// Top requested URLs (GoAccess "Requested Files")
+	requestedURLs, err := db.getTopRequestedURLs(ctx, startTime, agentID)
+	if err != nil {
+		log.Printf("GetVisitorAnalytics: requested URLs failed: %v", err)
+	} else {
+		resp.RequestedURLs = requestedURLs
+	}
+
+	// HTTP status code distribution (GoAccess "Status Codes")
+	statusCodes, err := db.getStatusCodeStats(ctx, startTime, agentID)
+	if err != nil {
+		log.Printf("GetVisitorAnalytics: status codes failed: %v", err)
+	} else {
+		resp.StatusCodes = statusCodes
+	}
+
 	return resp, nil
 }
 
@@ -510,6 +543,76 @@ func (db *ClickHouseDB) getStaticFileStats(ctx context.Context, startTime time.T
 		stats = append(stats, s)
 	}
 	
+	return stats, nil
+}
+
+func (db *ClickHouseDB) getTopRequestedURLs(ctx context.Context, startTime time.Time, agentID string) ([]RequestedURLStat, error) {
+	whereClause := "WHERE timestamp >= ?"
+	args := []interface{}{startTime}
+	if agentID != "" && agentID != "all" {
+		whereClause += " AND instance_id = ?"
+		args = append(args, agentID)
+	}
+	query := `SELECT 
+		request_uri AS uri,
+		count(*) AS hits,
+		sum(body_bytes_sent) AS bandwidth,
+		argMax(status, timestamp) AS status
+	FROM nginx_analytics.access_logs 
+	` + whereClause + `
+	GROUP BY request_uri
+	ORDER BY hits DESC
+	LIMIT 100`
+	rows, err := db.conn.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var stats []RequestedURLStat
+	for rows.Next() {
+		var s RequestedURLStat
+		if err := rows.Scan(&s.URI, &s.Hits, &s.Bandwidth, &s.Status); err != nil {
+			continue
+		}
+		stats = append(stats, s)
+	}
+	return stats, nil
+}
+
+func (db *ClickHouseDB) getStatusCodeStats(ctx context.Context, startTime time.Time, agentID string) ([]StatusCodeStat, error) {
+	whereClause := "WHERE timestamp >= ?"
+	args := []interface{}{startTime}
+	if agentID != "" && agentID != "all" {
+		whereClause += " AND instance_id = ?"
+		args = append(args, agentID)
+	}
+	query := `SELECT 
+		status AS code,
+		count(*) AS hits
+	FROM nginx_analytics.access_logs 
+	` + whereClause + `
+	GROUP BY status
+	ORDER BY hits DESC`
+	rows, err := db.conn.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var stats []StatusCodeStat
+	var totalHits uint64
+	for rows.Next() {
+		var s StatusCodeStat
+		if err := rows.Scan(&s.Code, &s.Hits); err != nil {
+			continue
+		}
+		totalHits += s.Hits
+		stats = append(stats, s)
+	}
+	for i := range stats {
+		if totalHits > 0 {
+			stats[i].Percentage = float64(stats[i].Hits) / float64(totalHits) * 100
+		}
+	}
 	return stats, nil
 }
 

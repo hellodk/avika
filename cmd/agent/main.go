@@ -78,6 +78,10 @@ var (
 
 	// Management address advertisement: host or host:port the gateway should use to dial this agent (Option A - correct IP)
 	mgmtAdvertise = flag.String("mgmt-advertise", "", "Address to advertise for gateway dial-back (e.g. 10.0.2.15 or 10.0.2.15:5025). Also set via AVIKA_MGMT_ADVERTISE.")
+
+	// Optional CIDR to avoid for mgmt (e.g. VirtualBox NAT 10.0.2.0/24). When set, prefer an interface outside this CIDR.
+	// Leave unset in Class A–only enterprise; only the default-route vs 192.168.x heuristic runs when unset.
+	mgmtNatCIDR = flag.String("mgmt-nat-cidr", "", "CIDR to avoid when choosing mgmt IP (e.g. 10.0.2.0/24). Env: AVIKA_MGMT_NAT_CIDR.")
 )
 
 // Version information - set at build time via -ldflags
@@ -210,6 +214,10 @@ func loadConfig(path string) error {
 			if *mgmtAdvertise == "" {
 				*mgmtAdvertise = val
 			}
+		case "AVIKA_MGMT_NAT_CIDR", "MGMT_NAT_CIDR":
+			if !setFlags["mgmt-nat-cidr"] {
+				*mgmtNatCIDR = val
+			}
 		default:
 			// Parse labels with LABEL_ prefix: LABEL_project=myproject
 			if strings.HasPrefix(key, "LABEL_") {
@@ -268,6 +276,8 @@ func loadEnv() {
 		{"PSK_KEY", "psk", func(val string) { *pskKey = val }},
 		{"AVIKA_MGMT_ADVERTISE", "mgmt-advertise", func(val string) { *mgmtAdvertise = val }},
 		{"MGMT_ADVERTISE", "mgmt-advertise", func(val string) { *mgmtAdvertise = val }},
+		{"AVIKA_MGMT_NAT_CIDR", "mgmt-nat-cidr", func(val string) { *mgmtNatCIDR = val }},
+		{"MGMT_NAT_CIDR", "mgmt-nat-cidr", func(val string) { *mgmtNatCIDR = val }},
 	}
 
 	for _, m := range envMappings {
@@ -734,6 +744,82 @@ func getPreferredIPv4() string {
 	return ""
 }
 
+// ipInCIDR returns true if ip is inside the given CIDR (e.g. "10.0.2.0/24").
+func ipInCIDR(ipStr, cidrStr string) bool {
+	if cidrStr == "" {
+		return false
+	}
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return false
+	}
+	_, network, err := net.ParseCIDR(cidrStr)
+	if err != nil {
+		return false
+	}
+	return network.Contains(ip)
+}
+
+// isVirtualBoxNAT returns true if ip is in 10.0.2.0/24 (VirtualBox NAT). Used only when
+// we also have a 192.168.x interface (lab/VM pattern); not used in Class A–only enterprise.
+func isVirtualBoxNAT(ip string) bool {
+	return ipInCIDR(ip, "10.0.2.0/24")
+}
+
+// has192168 returns true if the host has at least one 192.168.0.0/16 address.
+func has192168() bool {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return false
+	}
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipv4 := ipnet.IP.To4(); ipv4 != nil && ipv4[0] == 192 && ipv4[1] == 168 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// getPreferredMgmtIPv4 returns an IP preferred for management. avoidCIDR is optional (e.g. "10.0.2.0/24").
+// When avoidCIDR is set: return first candidate not in that CIDR (for enterprise AVIKA_MGMT_NAT_CIDR).
+// When avoidCIDR is empty and we have 192.168.x: return first 192.168.x (VirtualBox host-only/bridged).
+// Otherwise return first candidate.
+func getPreferredMgmtIPv4(avoidCIDR string) string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	var candidates []string
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipv4 := ipnet.IP.To4(); ipv4 != nil {
+				candidates = append(candidates, ipv4.String())
+			}
+		}
+	}
+	if len(candidates) == 0 {
+		return ""
+	}
+	if avoidCIDR != "" {
+		for _, ip := range candidates {
+			if !ipInCIDR(ip, avoidCIDR) {
+				return ip
+			}
+		}
+		return candidates[0]
+	}
+	// VirtualBox heuristic: prefer 192.168.0.0/16 when present
+	for _, ip := range candidates {
+		p := net.ParseIP(ip)
+		if p != nil && p.To4() != nil && p[0] == 192 && p[1] == 168 {
+			return ip
+		}
+	}
+	return candidates[0]
+}
+
 // getDefaultRouteIPv4 returns the IPv4 of the interface that has the default route (Linux only).
 // Parses /proc/net/route and finds the interface for destination 00000000, then returns its first IPv4.
 func getDefaultRouteIPv4() string {
@@ -779,7 +865,8 @@ func getDefaultRouteIPv4() string {
 }
 
 // getChosenIP returns the IP to use for agent_id suffix and for building mgmt_address.
-// Order: AVIKA_MGMT_ADVERTISE (host part) > default-route interface IP (Linux) > first non-loopback IPv4.
+// Order: AVIKA_MGMT_ADVERTISE > (if AVIKA_MGMT_NAT_CIDR set and default-route in that CIDR: prefer other) > (VirtualBox: default 10.0.2.x and has 192.168.x: prefer 192.168.x) > default-route > first non-loopback.
+// In Class A–only enterprise (no 192.168.x), the VirtualBox heuristic never runs; use AVIKA_MGMT_ADVERTISE or default-route.
 func getChosenIP() string {
 	if *mgmtAdvertise != "" {
 		host, _, err := net.SplitHostPort(*mgmtAdvertise)
@@ -788,8 +875,29 @@ func getChosenIP() string {
 		}
 		return host
 	}
-	if ip := getDefaultRouteIPv4(); ip != "" {
-		return ip
+	defaultRouteIP := getDefaultRouteIPv4()
+
+	if *mgmtNatCIDR != "" {
+		if defaultRouteIP != "" && ipInCIDR(defaultRouteIP, *mgmtNatCIDR) {
+			if preferred := getPreferredMgmtIPv4(*mgmtNatCIDR); preferred != "" {
+				return preferred
+			}
+		}
+		if defaultRouteIP != "" {
+			return defaultRouteIP
+		}
+		return getPreferredMgmtIPv4(*mgmtNatCIDR)
+	}
+
+	// VirtualBox-only heuristic: only when default route is 10.0.2.x and host has 192.168.x (lab/VM).
+	// In enterprise with only 10.0.0.0/8, has192168() is false → we use default-route.
+	if defaultRouteIP != "" && isVirtualBoxNAT(defaultRouteIP) && has192168() {
+		if preferred := getPreferredMgmtIPv4(""); preferred != "" {
+			return preferred
+		}
+	}
+	if defaultRouteIP != "" {
+		return defaultRouteIP
 	}
 	return getPreferredIPv4()
 }

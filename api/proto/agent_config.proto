@@ -33,6 +33,8 @@ message GetAgentConfigResponse {
   string log_level = 14;
   string log_file = 15;
   string config_file_path = 16; // Path to avika-agent.conf
+  string mgmt_advertise = 17;   // AVIKA_MGMT_ADVERTISE: IP or host:port for gateway dial-back
+  string mgmt_nat_cidr = 18;    // AVIKA_MGMT_NAT_CIDR: CIDR to avoid when choosing mgmt IP (e.g. 10.0.2.0/24)
 }
 
 message AgentConfigUpdate {
