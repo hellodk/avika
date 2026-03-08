@@ -229,6 +229,7 @@ components:
     # Init containers are handled specially in deployment.yaml template
     
     # Environment variables (static values only - dynamic values handled in template)
+    # LOG_LEVEL: debug|info|warn|error (default: info). LOG_FORMAT: json|console.
     env:
       GATEWAY_GRPC_PORT: "5020"
       GATEWAY_HTTP_PORT: "5021"
@@ -244,6 +245,8 @@ components:
       CH_LOG_BATCH_SIZE: "10000"
       CH_SPAN_BATCH_SIZE: "20000"
       CH_FLUSH_INTERVAL_MS: "100"
+      # LOG_LEVEL: "info"
+      # LOG_FORMAT: "json"
     
     livenessProbe:
       httpGet:
@@ -587,6 +590,13 @@ grafana:
       repository: grafana/grafana
       tag: "11.5.0"
       pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
   
   dashboards:
     enabled: true

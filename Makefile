@@ -274,6 +274,16 @@ docker-gateway: check-version
 		-f cmd/gateway/Dockerfile .
 	@echo "$(GREEN)Gateway image built: $(DOCKER_REPO)/avika-gateway:$(VERSION)$(NC)"
 
+# Build gateway with tag "log" for testing logging changes (then: docker push hellodk/avika-gateway:log)
+docker-gateway-log: check-version
+	@echo "$(GREEN)Building gateway Docker image with tag 'log'...$(NC)"
+	docker build -t $(DOCKER_REPO)/avika-gateway:log \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg BUILD_DATE=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+		--build-arg GIT_COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown") \
+		-f cmd/gateway/Dockerfile .
+	@echo "$(GREEN)Gateway image built: $(DOCKER_REPO)/avika-gateway:log$(NC)"
+
 docker-frontend: check-version
 	@echo "$(GREEN)Building frontend Docker image v$(VERSION)...$(NC)"
 	@# Copy VERSION file to frontend for build context

@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { ThemeName, themes, getThemeColors } from "./themes";
 
-const LIGHT_THEMES: ThemeName[] = ["light", "dashboard", "rocker"];
+const LIGHT_THEMES: ThemeName[] = ["light"];
 
 interface ThemeContextType {
     theme: ThemeName;

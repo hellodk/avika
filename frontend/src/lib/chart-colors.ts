@@ -174,7 +174,7 @@ export function getChartColors(theme: ThemeMode = 'dark'): ChartColorPalette {
 export function getChartColorsForTheme(themeName: string): ChartColorPalette {
     const normalizedTheme = themeName?.toLowerCase() || 'dark';
     
-    if (normalizedTheme.includes('light') || normalizedTheme.includes('dashboard') || normalizedTheme.includes('rocker')) return getChartColors('light');
+    if (normalizedTheme.includes('light')) return getChartColors('light');
     return getChartColors('dark');
 }
 

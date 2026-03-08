@@ -207,6 +207,10 @@ type Config struct {
 	LDAP            LDAPConfig            `yaml:"ldap"`
 	SAML            SAMLConfig            `yaml:"saml"`
 	LLM             LLMConfig             `yaml:"llm"`
+	// LogLevel is the minimum log level: debug, info, warn, error (default: info). Set via LOG_LEVEL env.
+	LogLevel string `yaml:"log_level"`
+	// LogFormat is output format: json or console. Set via LOG_FORMAT env.
+	LogFormat string `yaml:"log_format"`
 }
 
 // GetGRPCAddress returns the formatted gRPC listen address
@@ -479,11 +483,20 @@ func defaultConfig() *Config {
 			CacheTTLMinutes:  30,
 			FallbackProvider: "",
 		},
+		LogLevel:  "info",
+		LogFormat: "json",
 	}
 }
 
 // loadEnvOverrides applies environment variable overrides
 func loadEnvOverrides(cfg *Config) {
+	// Logging (dynamic level via LOG_LEVEL, format via LOG_FORMAT)
+	if v := os.Getenv("LOG_LEVEL"); v != "" {
+		cfg.LogLevel = v
+	}
+	if v := os.Getenv("LOG_FORMAT"); v != "" {
+		cfg.LogFormat = v
+	}
 	// Server
 	if v := os.Getenv("GATEWAY_GRPC_PORT"); v != "" {
 		if port, err := strconv.Atoi(v); err == nil {

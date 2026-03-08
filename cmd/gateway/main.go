@@ -23,10 +23,12 @@ import (
 
 	"github.com/avika-ai/avika/cmd/gateway/config"
 	"github.com/avika-ai/avika/cmd/gateway/middleware"
+	"github.com/avika-ai/avika/internal/common/logging"
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/segmentio/kafka-go"
+	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -81,6 +83,9 @@ type server struct {
 	dbOpCount    int64 // total DB operations since last tick
 }
 
+// gatewayLog is the structured logger for the gateway (agent_id, hostname, ip added per event where available).
+var gatewayLog zerolog.Logger
+
 type AgentSession struct {
 	id               string
 	hostname         string
@@ -92,6 +97,7 @@ type AgentSession struct {
 	instancesCount   int
 	uptime           string
 	ip               string
+	mgmtAddress      string // Optional host:port from agent heartbeat for dial-back (correct-IP)
 	stream           pb.Commander_ConnectServer
 	logChans         map[string]chan *pb.LogEntry // subscription_id -> channel
 	mu               sync.Mutex
@@ -115,13 +121,14 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 			currentSession.lastActive = time.Now()
 			currentSession.stream = nil // Clear stream
 
+			agentLog := logging.WithAgent(gatewayLog, currentSession.id, currentSession.hostname, currentSession.ip)
 			// Persist offline status
 			if err := s.db.UpsertAgent(currentSession); err != nil {
-				log.Printf("Failed to update agent status db: %v", err)
+				agentLog.Warn().Err(err).Msg("Failed to update agent status in DB")
 			}
 
 			currentSession.mu.Unlock()
-			log.Printf("Agent %s disconnected (marked offline)", currentSession.id)
+			agentLog.Info().Msg("Agent disconnected (marked offline)")
 		}
 	}()
 
@@ -131,7 +138,12 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 			return nil
 		}
 		if err != nil {
-			log.Printf("Stream error: %v", err)
+			if currentSession != nil {
+				agentLog := logging.WithAgent(gatewayLog, currentSession.id, currentSession.hostname, currentSession.ip)
+				agentLog.Error().Err(err).Msg("Stream error")
+			} else {
+				gatewayLog.Error().Err(err).Msg("Stream error (no agent session yet)")
+			}
 			return err
 		}
 
@@ -202,13 +214,20 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 					status:           "online",
 					lastActive:       time.Now(),
 					ip:               ip,
+					mgmtAddress:      hb.GetMgmtAddress(),
 					isPod:            isPod,
 					podIP:            hb.PodIp,
 					pskAuthenticated: pskAuthenticated,
 					labels:           hb.Labels,
 				}
 				s.sessions.Store(agentID, currentSession)
-				log.Printf("Registered agent %s (%s) at %s (Pod: %v, PSK: %v)", agentID, hb.Hostname, ip, isPod, pskAuthenticated)
+				agentLog := logging.WithAgent(gatewayLog, agentID, hb.Hostname, ip)
+				mgmt := hb.GetMgmtAddress()
+				if mgmt != "" {
+					agentLog.Info().Bool("pod", isPod).Bool("psk", pskAuthenticated).Str("mgmt_address", mgmt).Msg("Agent registered (dial will use mgmt_address)")
+				} else {
+					agentLog.Info().Bool("pod", isPod).Bool("psk", pskAuthenticated).Msg("Agent registered (dial will use peer IP)")
+				}
 
 				// 4a. Auto-assign to environment based on labels
 				if len(hb.Labels) > 0 {
@@ -222,6 +241,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				currentSession.status = "online"
 				currentSession.hostname = hb.Hostname
 				currentSession.ip = ip
+				currentSession.mgmtAddress = hb.GetMgmtAddress()
 				currentSession.version = nginxVersion
 				currentSession.agentVersion = agentVer
 				currentSession.buildDate = hb.BuildDate
@@ -240,7 +260,8 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				if len(hb.Labels) > 0 {
 					existing, err := s.db.GetServerAssignment(agentID)
 					if err != nil || existing == nil {
-						log.Printf("Attempting auto-assign for reconnected agent %s with labels: %v", agentID, hb.Labels)
+						agentLog := logging.WithAgent(gatewayLog, agentID, hb.Hostname, ip)
+						agentLog.Info().Interface("labels", hb.Labels).Msg("Attempting auto-assign for reconnected agent")
 						s.autoAssignAgentToEnvironment(agentID, hb.Labels)
 					}
 				}
@@ -248,12 +269,13 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 
 			// Persist to DB
 			if err := s.db.UpsertAgent(currentSession); err != nil {
-				log.Printf("Failed to persist agent heartbeat: %v", err)
+				agentLog := logging.WithAgent(gatewayLog, currentSession.id, currentSession.hostname, currentSession.ip)
+				agentLog.Warn().Err(err).Msg("Failed to persist agent heartbeat")
 			}
 
-			// Log heartbeat
-			log.Printf("Heartbeat from %s (v%s) | NGINX Instances: %d",
-				hb.Hostname, hb.Version, len(hb.Instances))
+			// Log heartbeat at debug to avoid flooding (info shows register/disconnect only)
+			agentLog := logging.WithAgent(gatewayLog, currentSession.id, currentSession.hostname, currentSession.ip)
+			agentLog.Debug().Str("version", hb.Version).Int("nginx_instances", len(hb.Instances)).Msg("Heartbeat received")
 
 		case *pb.AgentMessage_LogEntry:
 			if currentSession != nil {
@@ -554,11 +576,11 @@ func (s *server) RemoveAgent(ctx context.Context, req *pb.RemoveAgentRequest) (*
 
 		// Remove from DB
 		if err := s.db.RemoveAgent(req.AgentId); err != nil {
-			log.Printf("Failed to remove agent from DB: %v", err)
+			gatewayLog.Warn().Err(err).Str("agent_id", req.AgentId).Msg("Failed to remove agent from DB")
 			return &pb.RemoveAgentResponse{Success: false}, nil
 		}
 
-		log.Printf("Agent %s manually removed from inventory", req.AgentId)
+		gatewayLog.Info().Str("agent_id", req.AgentId).Msg("Agent manually removed from inventory")
 		return &pb.RemoveAgentResponse{Success: true}, nil
 	}
 	return &pb.RemoveAgentResponse{Success: false}, nil
@@ -784,26 +806,28 @@ func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.Cl
 	}
 	session := val.(*AgentSession)
 
-	// For pods, prefer podIP (the actual pod IP) over connection IP
-	// For VMs, use the connection IP
-	targetIP := session.ip
-	if session.isPod && session.podIP != "" {
-		targetIP = session.podIP
-		log.Printf("Using podIP %s for pod agent %s (connection IP was %s)", targetIP, agentID, session.ip)
+	// Prefer agent-reported mgmt_address (correct-IP); else pods use podIP; else connection IP
+	var target string
+	if session.mgmtAddress != "" {
+		target = session.mgmtAddress
+		log.Printf("Using mgmt_address %s for agent %s", target, agentID)
+	} else {
+		targetIP := session.ip
+		if session.isPod && session.podIP != "" {
+			targetIP = session.podIP
+			log.Printf("Using podIP %s for pod agent %s (connection IP was %s)", targetIP, agentID, session.ip)
+		}
+		if targetIP == "" {
+			log.Printf("Agent %s has no IP (isPod: %v, podIP: %s, ip: %s)", agentID, session.isPod, session.podIP, session.ip)
+			return nil, nil, fmt.Errorf("agent %s has no IP", agentID)
+		}
+		agentPort := s.config.Agent.MgmtPort
+		if agentPort == 0 {
+			agentPort = config.DefaultAgentPort
+		}
+		target = fmt.Sprintf("%s:%d", targetIP, agentPort)
 	}
-
-	if targetIP == "" {
-		log.Printf("Agent %s has no IP (isPod: %v, podIP: %s, ip: %s)", agentID, session.isPod, session.podIP, session.ip)
-		return nil, nil, fmt.Errorf("agent %s has no IP", agentID)
-	}
-
-	// Get agent management port from config
-	agentPort := s.config.Agent.MgmtPort
-	if agentPort == 0 {
-		agentPort = config.DefaultAgentPort // fallback to constant
-	}
-	target := fmt.Sprintf("%s:%d", targetIP, agentPort)
-	log.Printf("Found session for %s, dialing %s (isPod: %v)", agentID, target, session.isPod)
+	log.Printf("Found session for %s, dialing %s", agentID, target)
 
 	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -1094,9 +1118,28 @@ func main() {
 		log.Printf("Failed to load config: %v", err)
 	}
 
+	// Structured logging: default info, level/format configurable via LOG_LEVEL and LOG_FORMAT
+	level, format := cfg.LogLevel, cfg.LogFormat
+	if level == "" {
+		level = "info"
+	}
+	if format == "" {
+		format = "json"
+	}
+	logging.Setup(&logging.Config{
+		Level:   level,
+		Format:  format,
+		Service: "gateway",
+		Version: Version,
+	})
+	gatewayLog = logging.NewLogger("gateway")
+
 	// Log startup configuration
-	log.Printf("Starting NGINX Gateway v%s", Version)
-	log.Printf("Configuration: gRPC=%s HTTP=%s", cfg.GetGRPCAddress(), cfg.GetHTTPAddress())
+	gatewayLog.Info().
+		Str("version", Version).
+		Str("grpc", cfg.GetGRPCAddress()).
+		Str("http", cfg.GetHTTPAddress()).
+		Msg("Starting NGINX Gateway")
 
 	// Setup graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1110,14 +1153,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	log.Println("Connected to PostgreSQL database")
+	gatewayLog.Info().Msg("Connected to PostgreSQL database")
 
 	// Connect to ClickHouse
 	chDB, err := connectToClickHouse(cfg)
 	if err != nil {
-		log.Printf("Warning: ClickHouse not available: %v. Analytics will be in-memory only.", err)
+		gatewayLog.Warn().Err(err).Msg("ClickHouse not available; analytics will be in-memory only")
 	} else {
-		log.Println("Connected to ClickHouse database")
+		gatewayLog.Info().Msg("Connected to ClickHouse database")
 	}
 
 	// Kafka configuration
@@ -1549,6 +1592,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 
 	// Environments API
 	mux.Handle("GET /api/projects/{id}/environments", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListEnvironments)))
+	mux.Handle("GET /api/projects/{id}/groups", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListProjectGroups)))
 	mux.Handle("POST /api/projects/{id}/environments", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateEnvironment)))
 	mux.Handle("PUT /api/environments/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateEnvironment)))
 	mux.Handle("DELETE /api/environments/{id}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeleteEnvironment)))
@@ -1560,6 +1604,8 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.Handle("DELETE /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUnassignServer)))
 	mux.Handle("PUT /api/servers/{agentId}/tags", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateServerTags)))
 	mux.Handle("GET /api/servers/{agentId}/drift", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetServerDrift)))
+	mux.Handle("GET /api/projects/{id}/drift/compare", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCompareDrift)))
+	mux.Handle("GET /api/groups/{id}/logs/stream", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGroupLogsStream)))
 
 	// Agent Runtime Configuration API (agent self-config, persisted on agent)
 	mux.Handle("GET /api/agents/{id}/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetAgentRuntimeConfig)))
@@ -1721,6 +1767,155 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	}
 }
 
+// groupLogEntry pairs a log entry with its source agent_id for merged group log stream
+type groupLogEntry struct {
+	agentID string
+	entry   *pb.LogEntry
+}
+
+// handleGroupLogsStream streams merged logs from all agents in a group as SSE (Radar-style).
+func (srv *server) handleGroupLogsStream(w http.ResponseWriter, r *http.Request) {
+	groupID := r.PathValue("id")
+	if groupID == "" {
+		http.Error(w, `{"error":"group id required"}`, http.StatusBadRequest)
+		return
+	}
+
+	resp, err := srv.GetGroupAgents(r.Context(), &pb.GetGroupAgentsRequest{GroupId: groupID})
+	if err != nil || resp == nil || len(resp.Agents) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"no agents in group or group not found"}`))
+		return
+	}
+
+	tailStr := r.URL.Query().Get("tail")
+	if tailStr == "" {
+		tailStr = "200"
+	}
+	tail, _ := strconv.Atoi(tailStr)
+	if tail <= 0 || tail > 1000 {
+		tail = 200
+	}
+	logType := r.URL.Query().Get("log_type")
+	if logType == "" {
+		logType = "access"
+	}
+	follow := r.URL.Query().Get("follow") != "0"
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache, no-transform")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+
+	sseEvent := func(ev string, data interface{}) {
+		payload, _ := json.Marshal(data)
+		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", ev, payload)
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+	}
+
+	agentIDs := make([]string, 0, len(resp.Agents))
+	for _, a := range resp.Agents {
+		agentIDs = append(agentIDs, a.AgentId)
+	}
+	sseEvent("connected", map[string]interface{}{"group_id": groupID, "agent_ids": agentIDs, "log_type": logType, "tail": tail, "follow": follow})
+
+	mergeCh := make(chan groupLogEntry, 100)
+	var cleanup []func()
+
+	for _, agent := range resp.Agents {
+		agentID := agent.AgentId
+		val, ok := srv.sessions.Load(agentID)
+		if !ok {
+			continue
+		}
+		session := val.(*AgentSession)
+		session.mu.Lock()
+		if session.stream == nil || session.status != "online" {
+			session.mu.Unlock()
+			continue
+		}
+		subID := fmt.Sprintf("group-%s-%s-%d", groupID, agentID, time.Now().UnixNano())
+		logChan := make(chan *pb.LogEntry, 50)
+		session.logChans[subID] = logChan
+		stream := session.stream
+		session.mu.Unlock()
+
+		cleanup = append(cleanup, func() {
+			session.mu.Lock()
+			delete(session.logChans, subID)
+			session.mu.Unlock()
+			close(logChan)
+		})
+
+		req := &pb.LogRequest{
+			InstanceId: agentID,
+			LogType:    logType,
+			TailLines:  int32(tail),
+			Follow:     follow,
+		}
+		if err := stream.Send(&pb.ServerCommand{
+			CommandId: fmt.Sprintf("log-%s", subID),
+			Payload:   &pb.ServerCommand_LogRequest{LogRequest: req},
+		}); err != nil {
+			continue
+		}
+
+		go func(aid string, ch <-chan *pb.LogEntry) {
+			for e := range ch {
+				select {
+				case mergeCh <- groupLogEntry{agentID: aid, entry: e}:
+				default:
+					// drop if full
+				}
+			}
+		}(agentID, logChan)
+	}
+
+	defer func() {
+		for _, c := range cleanup {
+			c()
+		}
+	}()
+
+	ctx := r.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			sseEvent("end", map[string]string{"reason": "client_disconnect"})
+			return
+		case t, ok := <-mergeCh:
+			if !ok {
+				sseEvent("end", map[string]string{"reason": "stream_end"})
+				return
+			}
+			payload := map[string]interface{}{
+				"agent_id":        t.agentID,
+				"timestamp":       t.entry.Timestamp,
+				"content":         t.entry.Content,
+				"status":          t.entry.Status,
+				"log_type":        t.entry.LogType,
+				"remote_addr":     t.entry.RemoteAddr,
+				"request_method":  t.entry.RequestMethod,
+				"request_uri":     t.entry.RequestUri,
+				"body_bytes_sent": t.entry.BodyBytesSent,
+				"request_time":    t.entry.RequestTime,
+				"request_id":      t.entry.RequestId,
+				"upstream_addr":   t.entry.UpstreamAddr,
+				"upstream_status": t.entry.UpstreamStatus,
+				"referer":         t.entry.Referer,
+				"user_agent":      t.entry.UserAgent,
+			}
+			sseEvent("log", payload)
+		}
+	}
+}
+
 // handleTerminal handles WebSocket terminal connections
 func (srv *server) handleTerminal(w http.ResponseWriter, r *http.Request, upgrader websocket.Upgrader) {
 	agentID := r.URL.Query().Get("agent_id")
@@ -1762,10 +1957,16 @@ func (srv *server) handleTerminal(w http.ResponseWriter, r *http.Request, upgrad
 	log.Printf("WS upgraded for agent %s", agentID)
 	defer ws.Close()
 
+	// Radar-style structured errors: send JSON { type: "error", error: "...", code: "..." } so frontend can show clear message
+	writeExecError := func(code, msg string) {
+		payload := fmt.Sprintf(`{"type":"error","error":%q,"code":%q}`, msg, code)
+		ws.WriteMessage(websocket.TextMessage, []byte(payload))
+	}
+
 	client, conn, err := srv.getAgentClient(agentID)
 	if err != nil {
 		log.Printf("Terminal error: agent %s client failed: %v", agentID, err)
-		ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nError connecting to agent: %v\r\n", err)))
+		writeExecError("agent_not_found", fmt.Sprintf("Agent unavailable: %v", err))
 		return
 	}
 	defer func() {
@@ -1779,19 +1980,18 @@ func (srv *server) handleTerminal(w http.ResponseWriter, r *http.Request, upgrad
 	stream, err := client.Execute(sessionCtx)
 	if err != nil {
 		log.Printf("Terminal error: exec stream failed for %s: %v", agentID, err)
-		ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nError starting exec: %v\r\n", err)))
+		writeExecError("stream_failed", fmt.Sprintf("Exec stream failed: %v", err))
 		return
 	}
 	log.Printf("Exec stream established for agent %s", agentID)
 
 	cmd := r.URL.Query().Get("command")
-	// If no command specified, agent will use Lens-style shell fallback
 	if err := stream.Send(&pb.ExecRequest{
 		InstanceId: agentID,
 		Command:    cmd,
 	}); err != nil {
 		log.Printf("Terminal error: failed to send initial request to %s: %v", agentID, err)
-		ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nError initializing: %v\r\n", err)))
+		writeExecError("init_failed", fmt.Sprintf("Failed to start shell: %v", err))
 		return
 	}
 	log.Printf("Initial exec request sent for agent %s (cmd: %s)", agentID, cmd)
@@ -1822,7 +2022,7 @@ func (srv *server) handleTerminal(w http.ResponseWriter, r *http.Request, upgrad
 		}
 		if err != nil {
 			log.Printf("gRPC recv error for agent %s: %v", agentID, err)
-			ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nTerminal stream error: %v\r\n", err)))
+			writeExecError("stream_error", err.Error())
 			break
 		}
 		if len(resp.Output) > 0 {
@@ -1833,7 +2033,11 @@ func (srv *server) handleTerminal(w http.ResponseWriter, r *http.Request, upgrad
 		}
 		if resp.Error != "" {
 			log.Printf("Exec error reported by agent %s: %s", agentID, resp.Error)
-			ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nError from agent: %s\r\n", resp.Error)))
+			code := "agent_error"
+			if strings.Contains(strings.ToLower(resp.Error), "shell") || strings.Contains(strings.ToLower(resp.Error), "not found") {
+				code = "shell_not_found"
+			}
+			writeExecError(code, resp.Error)
 			break
 		}
 	}
@@ -2271,10 +2475,10 @@ func (s *server) autoAssignAgentToEnvironment(agentID string, labels map[string]
 		return
 	}
 
-	// Check for environment label
+	// Environments are agent-only: only assign when agent sends AVIKA_LABEL_ENVIRONMENT (no default)
 	envSlug, hasEnv := labels["environment"]
-	if !hasEnv {
-		envSlug = "production" // Default to production if not specified
+	if !hasEnv || envSlug == "" {
+		return
 	}
 
 	// Find project by slug

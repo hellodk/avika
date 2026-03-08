@@ -148,6 +148,13 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 5
+          resources:
+            {{- if .Values.grafana.temporary.resources }}
+            {{- toYaml .Values.grafana.temporary.resources | nindent 12 }}
+            {{- else }}
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+            {{- end }}
       volumes:
         - name: datasources
           configMap:

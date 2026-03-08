@@ -96,7 +96,7 @@ function InventoryPageContent() {
 
     const deleteAgent = async (agentId: string) => {
         try {
-            const res = await apiFetch(`/api/servers/${agentId}`, { method: 'DELETE' });
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(agentId)}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Failed to delete');
             setInstances(prev => prev.filter(i => i.agent_id !== agentId));
             toast.success("Agent removed successfully");
@@ -110,7 +110,7 @@ function InventoryPageContent() {
 
     const updateAgent = async (agentId: string) => {
         try {
-            const res = await apiFetch(`/api/servers/${agentId}/update`, { method: 'POST' });
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(agentId)}/update`, { method: 'POST' });
             if (!res.ok) {
                 const err = await res.json();
                 throw new Error(err.error || 'Failed to trigger update');
@@ -133,7 +133,7 @@ function InventoryPageContent() {
 
         for (const agentId of Array.from(selectedAgents)) {
             try {
-                const res = await apiFetch(`/api/servers/${agentId}`, { method: 'DELETE' });
+                const res = await apiFetch(`/api/servers/${encodeURIComponent(agentId)}`, { method: 'DELETE' });
                 if (res.ok) successCount++;
                 else failCount++;
             } catch (error) {
@@ -158,7 +158,7 @@ function InventoryPageContent() {
 
         for (const agentId of Array.from(selectedAgents)) {
             try {
-                const res = await apiFetch(`/api/servers/${agentId}/update`, { method: 'POST' });
+                const res = await apiFetch(`/api/servers/${encodeURIComponent(agentId)}/update`, { method: 'POST' });
                 if (res.ok) successCount++;
                 else failCount++;
             } catch (error) {

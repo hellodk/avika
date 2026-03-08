@@ -18,6 +18,7 @@ import (
 
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -49,7 +50,7 @@ const (
 var (
 	gatewayAddr   = flag.String("gateway", "", "Gateway address(es) - comma-separated for multi-gateway (e.g., 'gw1:5020,gw2:5020')")
 	agentID       = flag.String("id", "", "The agent ID (default: hostname)")
-	logLevel      = flag.String("log-level", "info", "Log level (debug, info, error)")
+	logLevel      = flag.String("log-level", "info", "Log level (debug, info, warn, error). Set via LOG_LEVEL env for dynamic override.")
 	logFile       = flag.String("log-file", "", "Path to log file. If empty, logs to stdout")
 	bufferDir     = flag.String("buffer-dir", "./", "Directory to store the persistent buffer")
 	version       = flag.Bool("version", false, "Display version and exit")
@@ -74,6 +75,9 @@ var (
 
 	// Config File
 	configFile = flag.String("config", "/etc/avika/avika-agent.conf", "Path to configuration file")
+
+	// Management address advertisement: host or host:port the gateway should use to dial this agent (Option A - correct IP)
+	mgmtAdvertise = flag.String("mgmt-advertise", "", "Address to advertise for gateway dial-back (e.g. 10.0.2.15 or 10.0.2.15:5025). Also set via AVIKA_MGMT_ADVERTISE.")
 )
 
 // Version information - set at build time via -ldflags
@@ -202,6 +206,10 @@ func loadConfig(path string) error {
 			if !setFlags["psk"] {
 				*pskKey = val
 			}
+		case "AVIKA_MGMT_ADVERTISE", "MGMT_ADVERTISE":
+			if *mgmtAdvertise == "" {
+				*mgmtAdvertise = val
+			}
 		default:
 			// Parse labels with LABEL_ prefix: LABEL_project=myproject
 			if strings.HasPrefix(key, "LABEL_") {
@@ -258,6 +266,8 @@ func loadEnv() {
 		{"LOG_LEVEL", "log-level", func(val string) { *logLevel = val }},
 		{"LOG_FILE", "log-file", func(val string) { *logFile = val }},
 		{"PSK_KEY", "psk", func(val string) { *pskKey = val }},
+		{"AVIKA_MGMT_ADVERTISE", "mgmt-advertise", func(val string) { *mgmtAdvertise = val }},
+		{"MGMT_ADVERTISE", "mgmt-advertise", func(val string) { *mgmtAdvertise = val }},
 	}
 
 	for _, m := range envMappings {
@@ -405,14 +415,14 @@ func main() {
 		*agentID = getOrGenerateAgentID()
 	}
 
-	log.Printf("Starting agent %s (version %s) connecting to gateway(s): %s", *agentID, Version, *gatewayAddr)
+	agentInfo("Starting agent id=%s version=%s gateways=%s", *agentID, Version, *gatewayAddr)
 	agentLabelsMu.RLock()
 	if len(agentLabels) > 0 {
 		labelsCopy := make(map[string]string, len(agentLabels))
 		for k, v := range agentLabels {
 			labelsCopy[k] = v
 		}
-		log.Printf("Agent labels configured: %v", labelsCopy)
+		agentInfo("Agent labels: %v", labelsCopy)
 	}
 	agentLabelsMu.RUnlock()
 
@@ -422,7 +432,7 @@ func main() {
 	go func() {
 		defer wg.Done()
 		if err := healthServer.Start(); err != nil {
-			log.Printf("Health server error: %v", err)
+			agentWarn("Health server error: %v", err)
 		}
 	}()
 
@@ -433,11 +443,11 @@ func main() {
 		// Gateway gRPC is on port 5020, HTTP (with updates) is on port 5021
 		effectiveUpdateServer = deriveUpdateServerFromGateway(*gatewayAddr)
 		if effectiveUpdateServer != "" {
-			log.Printf("Auto-derived update server from gateway: %s", effectiveUpdateServer)
+			agentInfo("Auto-derived update server from gateway: %s", effectiveUpdateServer)
 		}
 	} else if strings.ToLower(effectiveUpdateServer) == "disabled" {
 		effectiveUpdateServer = ""
-		log.Printf("Self-update disabled via configuration")
+		agentInfo("Self-update disabled via configuration")
 	}
 
 	if effectiveUpdateServer != "" {
@@ -453,13 +463,13 @@ func main() {
 	// 3. Initialize Persistent Buffer
 	wal, err := buffer.NewFileBuffer(*bufferDir + "agent")
 	if err != nil {
-		log.Printf("FATAL: Failed to initialize buffer: %v", err)
+			agentError("Failed to initialize buffer: %v", err)
 		os.Exit(1)
 	}
 
 	// Initial backup on node add/start
 	if err := config.BackupNginxConfig("startup"); err != nil {
-		log.Printf("Warning: startup backup failed: %v", err)
+		agentWarn("Startup backup failed: %v", err)
 	}
 
 	// -------------------------------------------------------------------------
@@ -495,7 +505,7 @@ func main() {
 		for {
 			select {
 			case <-ctx.Done():
-				log.Println("Log collection goroutine shutting down...")
+				agentInfo("Log collection goroutine shutting down...")
 				return
 			case entry, ok := <-logChan:
 				if !ok {
@@ -523,7 +533,7 @@ func main() {
 		for {
 			select {
 			case <-ctx.Done():
-				log.Println("Metrics collection goroutine shutting down...")
+				agentInfo("Metrics collection goroutine shutting down...")
 				return
 			case <-ticker.C:
 				// Dynamic Hostname Detection
@@ -592,6 +602,7 @@ func main() {
 								}
 								return m
 							}(), // Labels for auto-assignment
+							MgmtAddress: getChosenMgmtAddress(), // host:port for gateway dial-back
 						},
 					},
 				}
@@ -600,7 +611,7 @@ func main() {
 				// Metrics - always try to send even if NGINX metrics fail
 				nginxMetrics, err := metricsCollector.Collect()
 				if err != nil {
-					log.Printf("NGINX metrics collection failed: %v", err)
+					agentWarn("NGINX metrics collection failed: %v", err)
 					// Still send system metrics even if NGINX metrics fail
 					systemMetrics, sysErr := metricsCollector.CollectSystemOnly()
 					if sysErr == nil && systemMetrics != nil {
@@ -641,23 +652,23 @@ func main() {
 			if err == nil {
 				serverTLSCreds = creds
 			} else {
-				log.Printf("Warning: Failed to load TLS credentials for management service: %v", err)
+				agentWarn("Failed to load TLS credentials for management service: %v", err)
 			}
 		}
 
-		log.Printf("Starting Management Service with NGINX config: %s", *nginxConfigPath)
+		agentInfo("Starting Management Service with NGINX config: %s", *nginxConfigPath)
 		startMgmtService(ctx, *nginxConfigPath, *mgmtPort, serverTLSCreds)
 	}()
 
 	// Mark service as ready
 	healthServer.SetReady(true)
-	log.Println("Agent is ready")
+	agentInfo("Agent is ready")
 
 	// -------------------------------------------------------------------------
 	// Sender (Consumer) -> Gateway(s)
 	// -------------------------------------------------------------------------
 	gateways := getGatewayAddresses()
-	log.Printf("Connecting to %d gateway(s): %v", len(gateways), gateways)
+	agentInfo("Connecting to %d gateway(s): %v", len(gateways), gateways)
 
 	for _, gwAddr := range gateways {
 		wg.Add(1)
@@ -669,7 +680,7 @@ func main() {
 
 	// Wait for shutdown signal
 	sig := <-sigChan
-	log.Printf("Received signal %v, initiating graceful shutdown...", sig)
+		agentInfo("Received signal %v, initiating graceful shutdown...", sig)
 
 	// Mark as not ready
 	healthServer.SetReady(false)
@@ -686,31 +697,122 @@ func main() {
 
 	select {
 	case <-done:
-		log.Println("All goroutines stopped gracefully")
+		agentInfo("All goroutines stopped gracefully")
 	case <-time.After(10 * time.Second):
-		log.Println("Shutdown timeout exceeded (10s), forcing exit")
+		agentWarn("Shutdown timeout exceeded (10s), forcing exit")
 	}
 
 	// Cleanup buffer before final exit
-	log.Println("Closing buffer...")
+	agentInfo("Closing buffer...")
 	if err := wal.Close(); err != nil {
-		log.Printf("Error closing buffer: %v", err)
+		agentWarn("Error closing buffer: %v", err)
 	}
 
 	// Shutdown health server
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 3*time.Second)
 	if err := healthServer.Shutdown(shutdownCtx); err != nil {
-		log.Printf("Health server shutdown error: %v", err)
+		agentWarn("Health server shutdown error: %v", err)
 	}
 	shutdownCancel()
 
-	log.Println("Agent shutdown complete")
+	agentInfo("Agent shutdown complete")
+}
+
+// getPreferredIPv4 returns the first non-loopback IPv4 address from system interfaces.
+func getPreferredIPv4() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipv4 := ipnet.IP.To4(); ipv4 != nil {
+				return ipv4.String()
+			}
+		}
+	}
+	return ""
+}
+
+// getDefaultRouteIPv4 returns the IPv4 of the interface that has the default route (Linux only).
+// Parses /proc/net/route and finds the interface for destination 00000000, then returns its first IPv4.
+func getDefaultRouteIPv4() string {
+	if runtime.GOOS != "linux" {
+		return ""
+	}
+	data, err := os.ReadFile("/proc/net/route")
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(string(data), "\n")
+	for i, line := range lines {
+		if i == 0 || strings.TrimSpace(line) == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		iface := fields[0]
+		dest := fields[1]
+		if dest != "00000000" {
+			continue
+		}
+		ifc, err := net.InterfaceByName(iface)
+		if err != nil {
+			continue
+		}
+		addrs, err := ifc.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+				if ipv4 := ipnet.IP.To4(); ipv4 != nil {
+					return ipv4.String()
+				}
+			}
+		}
+		return ""
+	}
+	return ""
+}
+
+// getChosenIP returns the IP to use for agent_id suffix and for building mgmt_address.
+// Order: AVIKA_MGMT_ADVERTISE (host part) > default-route interface IP (Linux) > first non-loopback IPv4.
+func getChosenIP() string {
+	if *mgmtAdvertise != "" {
+		host, _, err := net.SplitHostPort(*mgmtAdvertise)
+		if err != nil {
+			return strings.TrimSpace(*mgmtAdvertise)
+		}
+		return host
+	}
+	if ip := getDefaultRouteIPv4(); ip != "" {
+		return ip
+	}
+	return getPreferredIPv4()
+}
+
+// getChosenMgmtAddress returns the host:port the gateway should use to dial this agent (for Heartbeat.mgmt_address).
+func getChosenMgmtAddress() string {
+	if *mgmtAdvertise != "" {
+		if _, _, err := net.SplitHostPort(*mgmtAdvertise); err == nil {
+			return *mgmtAdvertise
+		}
+		return net.JoinHostPort(strings.TrimSpace(*mgmtAdvertise), strconv.Itoa(*mgmtPort))
+	}
+	ip := getChosenIP()
+	if ip == "" {
+		return ""
+	}
+	return net.JoinHostPort(ip, strconv.Itoa(*mgmtPort))
 }
 
 func getOrGenerateAgentID() string {
 	const idFile = ".agent_id"
 
-	// 1. Try reading from file
+	// 1. Try reading from file (stable across restarts)
 	data, err := os.ReadFile(idFile)
 	if err == nil {
 		id := strings.TrimSpace(string(data))
@@ -719,33 +821,38 @@ func getOrGenerateAgentID() string {
 		}
 	}
 
-	// 2. Generate from hostname
-	// In Kubernetes, pod names are unique (e.g., mock-nginx-bfdf44bf5-v8fbj)
-	// On VMs, hostnames should be set uniquely
-	// If disambiguation is needed, set AGENT_ID explicitly
+	// 2. Generate agent_id = hostname + "+" + chosen_ip (plan: standardize on hostname+ip everywhere)
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "unknown"
 	}
 	hostname = strings.ReplaceAll(hostname, " ", "-")
 
-	// 3. Persist for next restart
-	if err := os.WriteFile(idFile, []byte(hostname), 0644); err != nil {
-		log.Printf("Warning: failed to persist agent ID: %v", err)
+	chosenIP := getChosenIP()
+	var agentID string
+	if chosenIP != "" {
+		agentID = hostname + "+" + chosenIP
+	} else {
+		agentID = hostname
 	}
 
-	return hostname
+	// 3. Persist for next restart
+	if err := os.WriteFile(idFile, []byte(agentID), 0644); err != nil {
+		agentWarn("Failed to persist agent ID: %v", err)
+	}
+
+	return agentID
 }
 
 func writeToBuffer(wal *buffer.FileBuffer, msg *pb.AgentMessage) {
-	log.Printf("Writing message to buffer: type %T", msg.Payload)
+	agentDebug("Writing message to buffer: type %T", msg.Payload)
 	data, err := proto.Marshal(msg)
 	if err != nil {
-		log.Printf("Failed to marshal message: %v", err)
+		agentWarn("Failed to marshal message: %v", err)
 		return
 	}
 	if err := wal.Write(data); err != nil {
-		log.Printf("Failed to write to buffer: %v", err)
+		agentWarn("Failed to write to buffer: %v", err)
 	}
 }
 
@@ -840,22 +947,21 @@ func handleCommand(cmd *pb.ServerCommand, ss *StreamSync, agentID string) {
 func handleLogRequest(cmdID string, req *pb.LogRequest, ss *StreamSync, agentID string) {
 	log.Printf("Handling LogRequest: %s (tail: %d, follow: %v)", req.LogType, req.TailLines, req.Follow)
 
-	// Determine log path based on type
 	logPath := *accessLogPath
 	if req.LogType == "error" {
 		logPath = *errorLogPath
 	}
 
-	// 1. Get Tail (Last N lines)
-	logEntries, err := logs.GetLastN(logPath, int(req.TailLines))
+	// 1. Send tail (last N lines)
+	tailN := int(req.TailLines)
+	if tailN <= 0 {
+		tailN = 200
+	}
+	logEntries, err := logs.GetLastN(logPath, tailN)
 	if err != nil {
 		log.Printf("Failed to get last N logs: %v", err)
 		return
 	}
-
-	log.Printf("Sending %d historical log entries for %s", len(logEntries), cmdID)
-
-	// 2. Send entries back via stream
 	for _, entry := range logEntries {
 		msg := &pb.AgentMessage{
 			AgentId:   agentID,
@@ -869,10 +975,39 @@ func handleLogRequest(cmdID string, req *pb.LogRequest, ss *StreamSync, agentID 
 			return
 		}
 	}
+
+	// 2. If follow, tail from end and stream new lines until send fails (e.g. client disconnected)
+	if !req.Follow {
+		return
+	}
+	format := *logFormat
+	if req.LogType == "error" {
+		format = "combined"
+	}
+	followChan, stop, err := logs.FollowFromEnd(logPath, req.LogType, format)
+	if err != nil {
+		log.Printf("Failed to start log follow: %v", err)
+		return
+	}
+	defer stop()
+
+	for entry := range followChan {
+		msg := &pb.AgentMessage{
+			AgentId:   agentID,
+			Timestamp: time.Now().Unix(),
+			Payload: &pb.AgentMessage_LogEntry{
+				LogEntry: entry,
+			},
+		}
+		if err := ss.Send(msg); err != nil {
+			log.Printf("Log follow send failed (client likely disconnected): %v", err)
+			return
+		}
+	}
 }
 
 func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gatewayAddr string) {
-	defer log.Printf("Sender loop for %s exited", gatewayAddr)
+	defer agentInfo("Sender loop for %s exited", gatewayAddr)
 	var conn *grpc.ClientConn
 	var client pb.CommanderClient
 	ss := &StreamSync{}
@@ -880,7 +1015,7 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("Sender loop for %s shutting down...", gatewayAddr)
+			agentInfo("Sender loop for %s shutting down...", gatewayAddr)
 			if conn != nil {
 				conn.Close()
 			}
@@ -894,25 +1029,25 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 			// Gateway address already has protocol stripped
 			targetAddr := gatewayAddr
 
-			log.Printf("Connecting to gateway %s...", targetAddr)
+					agentInfo("Connecting to gateway %s...", targetAddr)
 
 			dialOpts := []grpc.DialOption{}
 
 			if *enableTLS {
 				tlsCreds, err := loadAgentTLSCredentials()
 				if err != nil {
-					log.Printf("Failed to load TLS credentials: %v using insecure as fallback", err)
+					agentWarn("Failed to load TLS credentials: %v using insecure as fallback", err)
 					dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 				} else {
 					dialOpts = append(dialOpts, grpc.WithTransportCredentials(tlsCreds))
-					log.Printf("Using TLS for gateway connection")
+					agentInfo("Using TLS for gateway connection")
 				}
 			} else {
 				dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			}
 
 			if *pskKey != "" {
-				log.Printf("Using PSK authentication")
+				agentInfo("Using PSK authentication")
 				h, _ := os.Hostname()
 				if h == "" {
 					h = "unknown"
@@ -927,7 +1062,7 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 			// Dial with backoff? Simple wait for now
 			conn, err = grpc.Dial(targetAddr, dialOpts...)
 			if err != nil {
-				log.Printf("Connection failed: %v. Retrying in 5s...", err)
+				agentWarn("Connection failed: %v. Retrying in 5s...", err)
 				select {
 				case <-ctx.Done():
 					return
@@ -940,7 +1075,7 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 			// Use the main context so connection attempt is cancelled on shutdown
 			stream, err := client.Connect(ctx)
 			if err != nil {
-				log.Printf("Stream creation failed: %v. Retrying in 5s...", err)
+				agentWarn("Stream creation failed: %v. Retrying in 5s...", err)
 				conn.Close()
 				select {
 				case <-ctx.Done():
@@ -950,13 +1085,13 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 				}
 			}
 			ss.SetStream(stream)
-			log.Println("Connected to Gateway")
+			agentInfo("Connected to Gateway")
 
 			// Start Receiver routine (for commands)
 			go func() {
 				// Ensure receiver exits when context is done
 				defer func() {
-					log.Println("Receiver routine exiting")
+					agentInfo("Receiver routine exiting")
 				}()
 
 				for {
@@ -972,7 +1107,7 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 					}
 					cmd, err := currentStream.Recv()
 					if err != nil {
-						log.Printf("Stream disconnected (Recv): %v", err)
+						agentWarn("Stream disconnected (Recv): %v", err)
 						ss.SetStream(nil)
 						return
 					}
@@ -1063,7 +1198,51 @@ func isRunningInContainer() bool {
 	return false
 }
 
+// log level order for filtering (higher = more severe)
+const (
+	agentLevelDebug = iota
+	agentLevelInfo
+	agentLevelWarn
+	agentLevelError
+)
+
+var currentLogLevel int = agentLevelInfo
+
+func parseLogLevel(s string) int {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "debug":
+		return agentLevelDebug
+	case "info":
+		return agentLevelInfo
+	case "warn", "warning":
+		return agentLevelWarn
+	case "error":
+		return agentLevelError
+	default:
+		return agentLevelInfo
+	}
+}
+
+// agentLog writes a formatted log line with timestamp and level if level is enabled. Use agentDebug/agentInfo/agentWarn/agentError.
+func agentLog(level string, levelNum int, format string, args ...interface{}) {
+	if levelNum < currentLogLevel {
+		return
+	}
+	msg := fmt.Sprintf(format, args...)
+	ts := time.Now().UTC().Format(time.RFC3339)
+	line := fmt.Sprintf("%s [%s] %s", ts, strings.ToUpper(level), msg)
+	_ = log.Output(2, line)
+}
+
+func agentDebug(format string, args ...interface{}) { agentLog("debug", agentLevelDebug, format, args...) }
+func agentInfo(format string, args ...interface{})  { agentLog("info", agentLevelInfo, format, args...) }
+func agentWarn(format string, args ...interface{}) { agentLog("warn", agentLevelWarn, format, args...) }
+func agentError(format string, args ...interface{}) { agentLog("error", agentLevelError, format, args...) }
+
 func setupLogging() error {
+	// Apply dynamic log level from flag/env (default: info)
+	currentLogLevel = parseLogLevel(*logLevel)
+
 	if *logFile != "" {
 		// Create log directory if it doesn't exist
 		logDir := filepath.Dir(*logFile)
@@ -1078,23 +1257,21 @@ func setupLogging() error {
 			return fmt.Errorf("error opening log file: %w", err)
 		}
 		log.SetOutput(f)
-		log.Printf("Logging to file: %s", *logFile)
+		agentInfo("Logging to file: %s", *logFile)
 	} else {
 		// Log to stdout - provide context about where logs will go
 		if isRunningInContainer() {
-			// In container - stdout is correct, logs captured by runtime
-			log.Println("Logging to stdout (container mode - use 'kubectl logs' or container runtime to view)")
+			agentInfo("Logging to stdout (container mode - use 'kubectl logs' or container runtime to view)")
 		} else {
-			// On VM/bare-metal - warn if not running under systemd
 			if os.Getenv("INVOCATION_ID") == "" && os.Getppid() != 1 {
-				// Not running under systemd - logs may be lost
-				log.Println("Warning: Logging to stdout but not running under systemd. Consider setting LOG_FILE for persistent logs.")
+				agentWarn("Logging to stdout but not running under systemd. Consider setting LOG_FILE for persistent logs.")
 			} else {
-				log.Println("Logging to stdout (systemd mode - use 'journalctl -u avika-agent' to view)")
+				agentInfo("Logging to stdout (systemd mode - use 'journalctl -u avika-agent' to view)")
 			}
 		}
 	}
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	// Single-line format: timestamp [LEVEL] message (no extra prefix from log package)
+	log.SetFlags(0)
 	return nil
 }
 

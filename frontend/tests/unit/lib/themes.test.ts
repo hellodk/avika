@@ -13,20 +13,8 @@ describe('themes', () => {
             expect(themes.light.name).toBe('Light');
         });
 
-        it('should have dashboard (UI Kit) theme defined', () => {
-            expect(themes.dashboard).toBeDefined();
-            expect(themes.dashboard.name).toBe('UI Kit');
-        });
-
-        it('should have rocker theme defined', () => {
-            expect(themes.rocker).toBeDefined();
-            expect(themes.rocker.name).toBe('Rocker');
-        });
-
-        it('THEME_IDS should include all theme keys including dashboard and rocker', () => {
-            expect(THEME_IDS).toContain('dashboard');
-            expect(THEME_IDS).toContain('rocker');
-            expect(THEME_IDS).toEqual(expect.arrayContaining(['dark', 'light', 'dashboard', 'rocker']));
+        it('THEME_IDS should include dark and light only', () => {
+            expect(THEME_IDS).toEqual(['dark', 'light']);
             THEME_IDS.forEach((id) => {
                 expect(themes[id as ThemeName]).toBeDefined();
             });
@@ -71,15 +59,6 @@ describe('themes', () => {
             expect(colors).toEqual(themes.light);
         });
 
-        it('should return dashboard theme colors', () => {
-            const colors = getThemeColors('dashboard');
-            expect(colors).toEqual(themes.dashboard);
-        });
-
-        it('should return rocker theme colors', () => {
-            const colors = getThemeColors('rocker');
-            expect(colors).toEqual(themes.rocker);
-        });
     });
 
     describe('color format validation', () => {
