@@ -35,6 +35,7 @@ concurrency:
 permissions:
   contents: write
   packages: write
+  pull-requests: write
 
 env:
   GO_VERSION: '1.24'
@@ -125,6 +126,7 @@ jobs:
           
           echo "Final decision: should_release=$([ "$BUMP_TYPE" != "none" ] && echo true || echo false), bump_type=$BUMP_TYPE"
 
+  # Version bump via release branch + PR + merge so we comply with "changes via PR" without needing a bypass.
   version-bump:
     name: Bump Version
     runs-on: ubuntu-latest
@@ -147,22 +149,23 @@ jobs:
 
       - name: Bump version
         id: bump
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
+          set -e
+          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+          echo "Default branch: $DEFAULT_BRANCH"
+          
           # Read current version
           CURRENT_VERSION=$(cat VERSION | tr -d '[:space:]')
           echo "Current version: $CURRENT_VERSION"
           
-          # Remove any pre-release suffix for parsing
           BASE_VERSION=$(echo "$CURRENT_VERSION" | cut -d'-' -f1)
-          
-          # Parse version components
           IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
           
-          # Get bump type from analysis
           BUMP_TYPE="${{ needs.analyze-commits.outputs.bump_type }}"
           echo "Bump type: $BUMP_TYPE"
           
-          # Bump based on type
           case "$BUMP_TYPE" in
             major)
               MAJOR=$((MAJOR + 1))
@@ -178,30 +181,42 @@ jobs:
               ;;
           esac
           
-          # Construct new version
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
-          
-          # Add prerelease suffix if specified (manual trigger only)
           PRERELEASE="${{ inputs.prerelease }}"
           if [ -n "$PRERELEASE" ]; then
             NEW_VERSION="${NEW_VERSION}-${PRERELEASE}"
           fi
-          
           echo "New version: $NEW_VERSION"
           
-          # Update VERSION file
           echo "$NEW_VERSION" > VERSION
-          
-          # Commit and tag
           git add VERSION
           git commit -m "chore(release): Bump version to ${NEW_VERSION}"
           git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
           
-          # Push changes
-          git push origin HEAD
+          # Push release branch (not default branch, so branch protection usually allows it)
+          RELEASE_BRANCH="release/v${NEW_VERSION}"
+          git checkout -b "$RELEASE_BRANCH"
+          git push -u origin "$RELEASE_BRANCH"
+          
+          # Create PR and merge (satisfies "changes must be made through a pull request")
+          gh pr create --base "$DEFAULT_BRANCH" --head "$RELEASE_BRANCH" \
+            --title "chore(release): Bump version to ${NEW_VERSION}" \
+            --body "Automated version bump for release v${NEW_VERSION}."
+          sleep 2
+          PR_NUM=$(gh pr list --base "$DEFAULT_BRANCH" --head "$RELEASE_BRANCH" --state open -q '.[0].number')
+          if [ -z "$PR_NUM" ]; then
+            echo "::error::Could not get PR number. Create and merge the version-bump PR manually, then push tag v${NEW_VERSION} and re-run this workflow."
+            exit 1
+          fi
+          # Merge immediately (satisfies "changes via PR"). If rules require approval, add github-actions[bot] to bypass or merge the PR manually.
+          if ! gh pr merge "$PR_NUM" --merge; then
+            echo "::error::Could not merge PR #$PR_NUM. If branch rules require review, add github-actions[bot] to the ruleset bypass list, or merge the PR manually and push tag: git push origin v${NEW_VERSION}"
+            exit 1
+          fi
+          
+          # Push tag (tags are not subject to branch PR rules)
           git push origin "v${NEW_VERSION}"
           
-          # Set outputs
           echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
           echo "tag=v${NEW_VERSION}" >> $GITHUB_OUTPUT
 
