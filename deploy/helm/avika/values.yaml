@@ -221,9 +221,10 @@ components:
     service:
       type: ClusterIP
     
+    # Metrics are served on the main HTTP port (5021); use 5021 for Prometheus scrape
     podAnnotations:
       prometheus.io/scrape: "true"
-      prometheus.io/port: "5022"
+      prometheus.io/port: "5021"
       prometheus.io/path: "/metrics"
     
     # Init containers are handled specially in deployment.yaml template
@@ -298,6 +299,12 @@ components:
     
     service:
       type: ClusterIP
+    
+    # Prometheus scrape (path = basePath + /api/metrics)
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "5031"
+      prometheus.io/path: "/avika/api/metrics"
     
     # Base path for subpath routing (e.g., /avika)
     basePath: "/avika"
@@ -566,6 +573,13 @@ monitoring:
     scrape: true
     interval: 30s
     path: /metrics
+
+  # Optional ServiceMonitor resources for Prometheus Operator (e.g. kube-prometheus-stack).
+  # When enabled, creates ServiceMonitors for gateway and frontend so Prometheus discovers
+  # Avika metrics without relying on pod annotations. Disabled by default.
+  serviceMonitor:
+    enabled: false
+    # namespace: ""  # If set, ServiceMonitors are created in this namespace; default: release namespace
 
 # =============================================================================
 # GRAFANA INTEGRATION (kube-prometheus-stack)
