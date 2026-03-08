@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useMemo, useState, useRef } from "react";
+import { Suspense, useEffect, useMemo, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ import { AgentManagement } from "@/components/settings/agent-management";
 import { Zap, Lock, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-export default function SettingsPage() {
+function SettingsContent() {
     const searchParams = useSearchParams();
     const integrationsRef = useRef<HTMLDivElement>(null);
     const { settings: userSettings, updateSettings, resetSettings } = useUserSettings();
@@ -315,5 +315,13 @@ export default function SettingsPage() {
                 </Button>
             </div>
         </div>
+    );
+}
+
+export default function SettingsPage() {
+    return (
+        <Suspense fallback={<div className="space-y-6 p-4" style={{ color: "rgb(var(--theme-text-muted))" }}>Loading settings...</div>}>
+            <SettingsContent />
+        </Suspense>
     );
 }

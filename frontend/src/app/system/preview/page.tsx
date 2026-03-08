@@ -232,7 +232,7 @@ export default function SystemPreviewPage() {
                   >
                     <td className="py-3 px-4">
                       <Link
-                        href={`/servers/${encodeURIComponent(agent.agent_id || agent.id)}`}
+                        href={`/servers/${encodeURIComponent(agent.id)}`}
                         className="inline-flex items-center gap-2 font-medium hover:underline"
                         style={{ color: "rgb(var(--theme-text))" }}
                       >
