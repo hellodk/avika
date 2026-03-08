@@ -39,3 +39,7 @@
 
 - **DOCKERHUB_TOKEN**: For Build on PR, Build on Merge, and Release (Docker push).
 - **RELEASE_TOKEN** (optional): For Release workflow to push version bump and tags; falls back to `GITHUB_TOKEN` if unset.
+
+## Release workflow and branch protection
+
+If the **Release** workflow fails at **Bump Version** with `GH013` / "repository rule violations" (e.g. "Changes must be made through a pull request"), the default branch is protected and the workflow cannot push the version-bump commit. **Fix:** add **github-actions[bot]** to the bypass list of that branch rule. See [GITHUB_RELEASE_BYPASS.md](GITHUB_RELEASE_BYPASS.md).
