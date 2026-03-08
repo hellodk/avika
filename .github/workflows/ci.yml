@@ -1,3 +1,6 @@
+# CI: lint, test, build gateway/agent/frontend, and Docker build test.
+# - Tests run only in ./cmd/... and ./internal/... to avoid root package (multiple main() in check_*.go, test_grpc.go).
+# - Go 1.24 matches go.mod; Node 20 for frontend.
 name: CI
 
 on:
@@ -7,7 +10,7 @@ on:
     branches: [master, main, develop, intermediate, 'feat/*']
 
 env:
-  GO_VERSION: '1.23'
+  GO_VERSION: '1.24'
   NODE_VERSION: '20'
 
 jobs:
@@ -28,7 +31,7 @@ jobs:
         uses: golangci/golangci-lint-action@v4
         with:
           version: latest
-          args: --timeout=5m
+          args: --timeout=5m ./cmd/... ./internal/...
 
   test:
     name: Test
@@ -45,7 +48,7 @@ jobs:
 
       - name: Run tests
         run: |
-          go test -v -race -coverprofile=coverage.out ./...
+          go test -v -race -coverprofile=coverage.out ./cmd/... ./internal/...
         env:
           CGO_ENABLED: 1
 
