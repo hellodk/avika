@@ -1,8 +1,9 @@
+# Single CI workflow: lint, test, build, and (only for PR/push to master,uat,develop) build+push Docker images.
 name: CI
 
 on:
   pull_request:
-    branches: [master, main, develop, intermediate]
+    branches: [master, main, develop, uat]
   push:
     # Skip push for default branch: same commit already validated via PR. Reduces 5→4 runs per merge.
     branches: [develop, intermediate, 'feat/*']
@@ -12,75 +13,62 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: '1.23'
+  GO_VERSION: '1.24'
   NODE_VERSION: '20'
+  DOCKERHUB_USERNAME: hellodk
 
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v4
-        with:
-          version: latest
-          args: --timeout=5m
+      - run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+      - run: |
+          for dir in cmd/gateway cmd/agent internal/common; do
+            echo "Linting $dir..."
+            (cd "$dir" && golangci-lint run --timeout=5m ./...)
+          done
 
   test:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-
-      - name: Run tests
-        run: |
-          go test -v -race -coverprofile=coverage.out ./...
+      - run: |
+          set -e
+          for dir in cmd/gateway cmd/agent internal/common; do
+            echo "Testing $dir..."
+            (cd "$dir" && go test -v -race -coverprofile=coverage.out ./...)
+          done
         env:
           CGO_ENABLED: 1
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
+      - uses: codecov/codecov-action@v4
         with:
-          files: ./coverage.out
+          files: cmd/gateway/coverage.out,cmd/agent/coverage.out,internal/common/coverage.out
           fail_ci_if_error: false
 
   build-gateway:
     name: Build Gateway
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-
-      - name: Build Gateway
-        run: |
+      - run: |
           cd cmd/gateway
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o gateway-linux-amd64 .
-          echo "Gateway binary built successfully"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: gateway-linux-amd64
           path: cmd/gateway/gateway-linux-amd64
@@ -90,23 +78,15 @@ jobs:
     name: Build Agent
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-
-      - name: Build Agent
-        run: |
+      - run: |
           cd cmd/agent
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o agent-linux-amd64 .
-          echo "Agent binary built successfully"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: agent-linux-amd64
           path: cmd/agent/agent-linux-amd64
@@ -116,65 +96,109 @@ jobs:
     name: Build Frontend
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
+      - run: npm ci
         working-directory: frontend
-        run: npm ci
-
-      - name: Build frontend
+      - run: npm run build
         working-directory: frontend
-        run: npm run build
         env:
           NEXT_PUBLIC_BASE_PATH: /avika
 
-  docker-build-test:
-    name: Docker Build Test
+  # Build and push Docker images only for this workflow (triggered only on PR or push to master/main/develop/uat).
+  docker-build-push:
+    name: Docker Build & Push
     runs-on: ubuntu-latest
-    needs: [build-gateway, build-agent]
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set image tags
+        id: meta
+        run: |
+          VERSION=$(cat VERSION 2>/dev/null | tr -d '[:space:]' || echo "0.0.0-dev")
+          SHA=$(git rev-parse --short HEAD)
+          BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+          echo "build_date=$BUILD_DATE" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "image_tag=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          else
+            BRANCH="${{ github.ref_name }}"
+            if [ "$BRANCH" = "master" ] || [ "$BRANCH" = "main" ]; then
+              echo "image_tag=latest" >> $GITHUB_OUTPUT
+            else
+              echo "image_tag=$(echo $BRANCH | tr '/' '-')" >> $GITHUB_OUTPUT
+            fi
+          fi
+          echo "Using image_tag=${{ steps.meta.outputs.image_tag }} sha=$SHA"
 
-      - name: Build Gateway Image (test)
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Gateway
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./cmd/gateway/Dockerfile
-          push: false
-          tags: avika-gateway:test
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_USERNAME }}/avika-gateway:${{ steps.meta.outputs.image_tag }}
+            ${{ env.DOCKERHUB_USERNAME }}/avika-gateway:sha-${{ steps.meta.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            GIT_COMMIT=${{ steps.meta.outputs.sha }}
 
-      - name: Build Agent Image (test)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./cmd/agent/Dockerfile
-          push: false
-          tags: avika-agent:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build Frontend Image (test)
+      - name: Build and push Frontend
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
-          push: false
-          tags: avika-frontend:test
-          build-args: |
-            VERSION=test
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_USERNAME }}/avika-frontend:${{ steps.meta.outputs.image_tag }}
+            ${{ env.DOCKERHUB_USERNAME }}/avika-frontend:sha-${{ steps.meta.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+
+      - name: Build and push Agent
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./cmd/agent/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_USERNAME }}/avika-agent:${{ steps.meta.outputs.image_tag }}
+            ${{ env.DOCKERHUB_USERNAME }}/avika-agent:sha-${{ steps.meta.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            GIT_COMMIT=${{ steps.meta.outputs.sha }}
+
+      - name: Summary
+        run: |
+          echo "## Docker images pushed" >> $GITHUB_STEP_SUMMARY
+          echo "Tags: \`${{ steps.meta.outputs.image_tag }}\`, \`sha-${{ steps.meta.outputs.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- hellodk/avika-gateway" >> $GITHUB_STEP_SUMMARY
+          echo "- hellodk/avika-frontend" >> $GITHUB_STEP_SUMMARY
+          echo "- hellodk/avika-agent" >> $GITHUB_STEP_SUMMARY
