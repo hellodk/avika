@@ -18,7 +18,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip } from "recharts";
 import { TerminalOverlay } from "@/components/TerminalOverlay";
-import { apiFetch, apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl, normalizeServerId, serverIdForDisplay } from "@/lib/api";
 
 interface LogEntry {
     timestamp?: number | string;
@@ -35,7 +35,8 @@ interface LogEntry {
 const TAB_VALUES = ["config", "certs", "logs", "analytics", "uptime", "drift", "settings"] as const;
 
 export default function ServerDetailPage({ params }: { params: Promise<{ id: string }> }) {
-    const { id } = use(params);
+    const { id: rawId } = use(params);
+    const id = normalizeServerId(rawId);
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -570,7 +571,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
 
             <div className="flex items-start justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight" style={{ color: `rgb(var(--theme-text))` }}>{serverInfo?.hostname || id}</h1>
+                    <h1 className="text-2xl font-bold tracking-tight" style={{ color: `rgb(var(--theme-text))` }}>{serverInfo?.hostname || serverIdForDisplay(id)}</h1>
                     <p className="text-sm mt-1" style={{ color: `rgb(var(--theme-text-muted))` }}>
                         NGINX {serverInfo?.version || "..."} • Uptime: {serverInfo?.uptime || "N/A"} • IP: {serverInfo?.ip}
                     </p>
@@ -1104,7 +1105,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                 Edit labels, config file path, backups, and more in the full agent config page.
                             </p>
                             <Button variant="outline" size="sm" asChild className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10">
-                                <Link href={`/agents/${encodeURIComponent(id)}/config`}>
+                                <Link href={`/agents/${encodeURIComponent(serverIdForDisplay(id))}/config`}>
                                     <Settings className="h-4 w-4 mr-2" />
                                     Edit agent config
                                 </Link>

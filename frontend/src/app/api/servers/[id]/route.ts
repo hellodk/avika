@@ -1,6 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { getAgentServiceClient } from '@/lib/grpc-client';
+import { normalizeServerId } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +9,8 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = normalizeServerId(rawId);
     const client = getAgentServiceClient();
     console.log(`GET /api/servers/${id} - extracting details`);
 
@@ -43,7 +45,8 @@ export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = normalizeServerId(rawId);
     const { action, content, backup } = await request.json();
     const client = getAgentServiceClient();
     console.log(`POST /api/servers/${id} - action: ${action}`);
@@ -88,7 +91,8 @@ export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = normalizeServerId(rawId);
     const client = getAgentServiceClient();
     console.log(`DELETE /api/servers/${id} - removing agent`);
 

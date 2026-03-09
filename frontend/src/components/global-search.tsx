@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Search, LayoutDashboard, Heart, Cpu, BarChart2, Users, ShieldAlert, FileText, Server, Layers, Zap, ShieldCheck, Settings, Globe, Lock } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, serverIdForDisplay } from "@/lib/api";
 import { filterAndSortByFuzzy } from "@/lib/search-fuzzy";
 
 // Static pages (from nav + extras)
@@ -61,7 +61,7 @@ type Suggestion = PageSuggestion | SettingsSuggestion | InstanceSuggestion;
 function getSuggestionLabel(s: Suggestion): string {
   if (s.type === "page") return s.label;
   if (s.type === "settings") return s.label;
-  return s.hostname || s.agent_id || s.ip || s.agent_id;
+  return s.hostname || (s.agent_id ? serverIdForDisplay(s.agent_id) : "") || s.ip || s.agent_id || "";
 }
 
 function getSuggestionHref(s: Suggestion): string {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, serverIdForDisplay } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -174,7 +174,7 @@ export default function ProvisionsPage() {
                                             <Server className="h-5 w-5 text-neutral-400" />
                                             <div>
                                                 <p className="font-medium" style={{ color: `rgb(var(--theme-text))` }}>{agent.hostname}</p>
-                                                <p className="text-xs text-neutral-500">{agent.ip} | ID: {agent.agent_id}</p>
+                                                <p className="text-xs text-neutral-500">{agent.ip} | ID: {agent.agent_id ? serverIdForDisplay(agent.agent_id) : ""}</p>
                                             </div>
                                         </div>
                                         {selectedAgent === agent.agent_id && <Check className="h-5 w-5 text-primary" />}
