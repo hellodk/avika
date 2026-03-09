@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, serverIdForDisplay } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -427,13 +427,13 @@ function SystemHealthPageContent() {
                                 ) : agents.map((a, i) => (
                                     <Link
                                         key={a.id ?? i}
-                                        href={`/servers/${encodeURIComponent(a.agent_id || a.id)}`}
+                                        href={`/servers/${encodeURIComponent(serverIdForDisplay(a.agent_id || a.id))}`}
                                         className="w-8 h-8 rounded border flex-shrink-0 transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent"
                                         style={{
                                             background: isOnline(a.last_seen) ? "rgb(16 185 129 / 0.25)" : "rgb(var(--theme-border))",
                                             borderColor: isOnline(a.last_seen) ? "rgb(16 185 129)" : "rgb(var(--theme-border))"
                                         }}
-                                        title={a.hostname || a.agent_id || `Agent ${i + 1}`}
+                                        title={a.hostname || serverIdForDisplay(a.agent_id || a.id || "") || `Agent ${i + 1}`}
                                     />
                                 ))}
                             </div>
@@ -474,7 +474,7 @@ function SystemHealthPageContent() {
                                                 aria-hidden
                                             />
                                             <span style={{ color: "rgb(var(--theme-text))" }}>
-                                                {a.hostname || a.agent_id || `Agent ${i + 1}`} {online ? "online" : "offline"}
+                                                {a.hostname || serverIdForDisplay(a.agent_id || a.id || "") || `Agent ${i + 1}`} {online ? "online" : "offline"}
                                             </span>
                                             <span className="tabular-nums text-xs ml-auto" style={{ color: "rgb(var(--theme-text-muted))" }}>
                                                 {a.last_seen != null ? formatLastSeen(a.last_seen) : "—"}

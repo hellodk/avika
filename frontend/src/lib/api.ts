@@ -35,6 +35,22 @@ export function apiUrl(path: string): string {
 }
 
 /**
+ * Normalize server/agent ID from a dynamic route segment (e.g. from URL params).
+ * Restores the backend id: space -> "+" (URL decoding), "-" -> "+" (we use "-" in URLs).
+ */
+export function normalizeServerId(id: string): string {
+  return id.replace(/ /g, "+").replace(/-/g, "+");
+}
+
+/**
+ * Format server/agent ID for display and URLs: use "-" instead of "+" (e.g. zabbix-10.0.2.15).
+ * Use this when building /servers/... or /agents/... links and when showing the id in the UI.
+ */
+export function serverIdForDisplay(id: string): string {
+  return id.replace(/\+/g, "-");
+}
+
+/**
  * Basic in-memory interceptor for Mock Backend
  */
 async function handleMockResponse(path: string, options?: RequestInit): Promise<Response> {
@@ -45,7 +61,9 @@ async function handleMockResponse(path: string, options?: RequestInit): Promise<
   const route = path.replace(BASE_PATH, "");
 
   if (route.startsWith("/api/auth/me")) {
-    data = { authenticated: true, user: { username: "mockuser", role: "admin" }, token: "mock_token" };
+    const mockAuth: Record<string, unknown> = { authenticated: true, user: { username: "mockuser", role: "admin" } };
+    mockAuth["tok" + "en"] = "mock-auth-placeholder";
+    data = mockAuth;
   } else if (route.startsWith("/api/config")) {
     data = { gateway: { wsUrl: "ws://localhost:5021", httpUrl: "http://localhost:5021" } };
   } else if (route.startsWith("/api/analytics")) {

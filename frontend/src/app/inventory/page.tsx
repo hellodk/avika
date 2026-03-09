@@ -4,7 +4,7 @@ import { TerminalOverlay } from "@/components/TerminalOverlay";
 import { useState, useEffect, Suspense, useCallback } from "react";
 import { useProject } from "@/lib/project-context";
 import { AgentFleetTable } from "@/components/agent-fleet-table";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, serverIdForDisplay } from "@/lib/api";
 import { toast } from "sonner";
 import {
     XCircle, RefreshCw, Terminal, Check, Copy, Trash2, FolderKanban
@@ -247,7 +247,7 @@ function InventoryPageContent() {
                     <AlertDialogHeader>
                         <AlertDialogTitle style={{ color: 'rgb(var(--theme-text))' }}>Remove Agent</AlertDialogTitle>
                         <AlertDialogDescription style={{ color: 'rgb(var(--theme-text-muted))' }}>
-                            Are you sure you want to remove <strong>{agentToDelete?.hostname || agentToDelete?.agent_id}</strong>?
+                            Are you sure you want to remove <strong>{agentToDelete?.hostname || (agentToDelete?.agent_id && serverIdForDisplay(agentToDelete.agent_id))}</strong>?
                             This action cannot be undone.
                         </AlertDialogDescription>
                     </AlertDialogHeader>

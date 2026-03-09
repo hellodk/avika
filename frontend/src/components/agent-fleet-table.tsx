@@ -22,6 +22,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { EnvironmentBadge } from "@/components/environment-tabs";
+import { serverIdForDisplay } from "@/lib/api";
 
 // Status thresholds (in seconds)
 const STATUS_THRESHOLDS = {
@@ -475,7 +476,7 @@ export function AgentFleetTable({
                                                 </div>
                                                 <div>
                                                     <div className="flex items-center gap-2">
-                                                        <Link href={`/servers/${encodeURIComponent(instance.agent_id)}`} className="font-medium link-theme transition-colors hover:underline">
+                                                        <Link href={`/servers/${encodeURIComponent(serverIdForDisplay(instance.agent_id))}`} className="font-medium link-theme transition-colors hover:underline">
                                                             {instance.hostname || "Unknown"}
                                                         </Link>
                                                         {instance.psk_authenticated && (
@@ -492,7 +493,7 @@ export function AgentFleetTable({
                                                             onClick={() => copyAgentId(instance.agent_id)}
                                                             className="text-[10px] font-mono transition-colors hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }}
                                                         >
-                                                            {instance.agent_id?.substring(0, 12)}...
+                                                            {serverIdForDisplay(instance.agent_id || "").substring(0, 16)}...
                                                         </button>
                                                         {copiedAgentId === instance.agent_id && <Check className="h-2.5 w-2.5 text-emerald-500" />}
                                                     </div>
@@ -525,7 +526,7 @@ export function AgentFleetTable({
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-0.5">
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }} asChild>
-                                                    <Link href={`/servers/${encodeURIComponent(instance.agent_id)}`}>
+                                                    <Link href={`/servers/${encodeURIComponent(serverIdForDisplay(instance.agent_id))}`}>
                                                         <ExternalLink className="h-4 w-4" />
                                                     </Link>
                                                 </Button>
@@ -538,12 +539,12 @@ export function AgentFleetTable({
                                                     <Terminal className="h-4 w-4" />
                                                 </Button>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }} asChild>
-                                                    <Link href={`/servers/${encodeURIComponent(instance.agent_id)}?tab=drift`}>
+                                                    <Link href={`/servers/${encodeURIComponent(serverIdForDisplay(instance.agent_id))}?tab=drift`}>
                                                         <GitCompare className="h-4 w-4" />
                                                     </Link>
                                                 </Button>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }} asChild title="Edit agent config">
-                                                    <Link href={`/agents/${encodeURIComponent(instance.agent_id)}/config`}>
+                                                    <Link href={`/agents/${encodeURIComponent(serverIdForDisplay(instance.agent_id))}/config`}>
                                                         <Settings className="h-4 w-4" />
                                                     </Link>
                                                 </Button>

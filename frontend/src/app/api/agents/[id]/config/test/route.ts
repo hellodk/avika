@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGatewayUrl } from "@/lib/gateway-url";
+import { normalizeServerId } from "@/lib/api";
 
 const GATEWAY_URL = getGatewayUrl();
 
@@ -8,7 +9,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = normalizeServerId(rawId);
     const sessionCookie = request.cookies.get("avika_session")?.value;
     const body = await request.json();
     const encodedId = encodeURIComponent(id);

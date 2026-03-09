@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useProject } from "@/lib/project-context";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, serverIdForDisplay } from "@/lib/api";
 import { toast } from "sonner";
 
 interface ProjectGroupItem {
@@ -210,10 +210,10 @@ export default function DriftComparePage() {
                                                 >
                                                     <td className="py-2 px-3">
                                                         <Link
-                                                            href={`/servers/${encodeURIComponent(item.agent_id)}`}
+                                                            href={`/servers/${encodeURIComponent(serverIdForDisplay(item.agent_id))}`}
                                                             className="text-sky-400 hover:underline"
                                                         >
-                                                            {item.hostname || item.agent_id}
+                                                            {item.hostname || serverIdForDisplay(item.agent_id)}
                                                         </Link>
                                                     </td>
                                                     <td className="py-2 px-3">
