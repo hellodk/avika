@@ -75,6 +75,9 @@ dist/
 .DS_Store
 *.iml
 
+# Extracted/generated instruction or plan dumps
+agent-instructions-extract.txt
+
 # Logs
 *.log
 logs/
@@ -181,6 +184,7 @@ check_grpc.go
 
 # Generated files
 gateway.yaml
+gateway-k8s.yaml
 curl_output.txt
 home/
 scripts/et

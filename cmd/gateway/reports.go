@@ -27,8 +27,12 @@ func (s *server) GenerateReport(ctx context.Context, req *pb.ReportRequest) (*pb
 	if s.clickhouse == nil {
 		return nil, fmt.Errorf("clickhouse connection not available")
 	}
-	// delegate to ClickHouse
-	return s.clickhouse.GetReportData(ctx, start, end, req.AgentIds)
+	report, err := s.clickhouse.GetReportData(ctx, start, end, req.AgentIds)
+	if err != nil {
+		return nil, err
+	}
+	s.enrichReportInsights(ctx, report)
+	return report, nil
 }
 
 func (s *server) SendReport(ctx context.Context, req *pb.SendReportRequest) (*pb.SendReportResponse, error) {
@@ -60,14 +64,32 @@ func (s *server) DownloadReport(ctx context.Context, req *pb.ReportRequest) (*pb
 
 	start := time.Unix(req.StartTime, 0)
 	end := time.Unix(req.EndTime, 0)
-	pdfData, err := GeneratePDFReport(report, start, end)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate PDF: %w", err)
+	format := req.GetFormat()
+	if format == "" {
+		format = "pdf"
 	}
 
-	return &pb.ReportDownloadResponse{
-		Content:     pdfData,
-		FileName:    fmt.Sprintf("report-%d.pdf", time.Now().Unix()),
-		ContentType: "application/pdf",
-	}, nil
+	switch format {
+	case "excel", "xlsx":
+		excelData, err := GenerateExcelReport(report, start, end)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate Excel: %w", err)
+		}
+		return &pb.ReportDownloadResponse{
+			Content:     excelData,
+			FileName:    fmt.Sprintf("report-%d.xlsx", time.Now().Unix()),
+			ContentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		}, nil
+	default:
+		// default: pdf
+		pdfData, err := GeneratePDFReport(report, start, end)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate PDF: %w", err)
+		}
+		return &pb.ReportDownloadResponse{
+			Content:     pdfData,
+			FileName:    fmt.Sprintf("report-%d.pdf", time.Now().Unix()),
+			ContentType: "application/pdf",
+		}, nil
+	}
 }

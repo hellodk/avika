@@ -152,4 +152,31 @@ test.describe('Authenticated Page Tests', () => {
         // Screenshot
         await page.screenshot({ path: '/tmp/authenticated-screenshots/10-reports.png', fullPage: true });
     });
+
+    test('Reports page: download dropdown shows PDF, CSV, Excel, JSON and PDF download works', async ({ page }) => {
+        await page.goto('/reports');
+        await page.waitForLoadState('domcontentloaded');
+        await expect(page.locator('text=Reports').first()).toBeVisible({ timeout: 10000 });
+
+        // Download button (dropdown trigger) is visible
+        const downloadTrigger = page.getByTestId('reports-download-trigger');
+        await expect(downloadTrigger).toBeVisible();
+        await expect(downloadTrigger).toContainText('Download');
+
+        // Open dropdown and verify all four format options
+        await downloadTrigger.click();
+        const menu = page.getByTestId('reports-download-menu');
+        await expect(menu).toBeVisible({ timeout: 3000 });
+        await expect(page.getByTestId('reports-download-pdf')).toBeVisible();
+        await expect(page.getByTestId('reports-download-excel')).toBeVisible();
+        await expect(page.getByTestId('reports-download-csv')).toBeVisible();
+        await expect(page.getByTestId('reports-download-json')).toBeVisible();
+
+        // Trigger PDF download (server generates from time range; no need to generate report first)
+        const downloadPromise = page.waitForEvent('download', { timeout: 20000 });
+        await page.getByTestId('reports-download-pdf').click();
+        const download = await downloadPromise;
+        expect(download.suggestedFilename()).toMatch(/\.pdf$/i);
+        await download.path();
+    });
 });

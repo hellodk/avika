@@ -309,6 +309,50 @@ func (db *DB) ListAlertRules() ([]*pb.AlertRule, error) {
 	return rules, nil
 }
 
+// GetAgentCounts returns total agent count and count of online agents (for reports).
+func (db *DB) GetAgentCounts() (total, online int, err error) {
+	err = db.conn.QueryRow("SELECT count(*), COALESCE(sum(CASE WHEN status = 'online' THEN 1 ELSE 0 END), 0) FROM agents").Scan(&total, &online)
+	return total, online, err
+}
+
+// ListAgents returns all agents from the database as AgentInfo (for reports, insights, or callers that need a list from DB).
+func (db *DB) ListAgents() ([]*pb.AgentInfo, error) {
+	rows, err := db.conn.Query("SELECT agent_id, hostname, version, instances_count, uptime, ip, status, last_seen, is_pod, pod_ip, agent_version, psk_authenticated FROM agents")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []*pb.AgentInfo
+	for rows.Next() {
+		var id, hostname, version, uptime, ip, status, podIP, agentVersion string
+		var instancesCount int
+		var lastSeen int64
+		var isPod, pskAuthenticated bool
+
+		if err := rows.Scan(&id, &hostname, &version, &instancesCount, &uptime, &ip, &status, &lastSeen, &isPod, &podIP, &agentVersion, &pskAuthenticated); err != nil {
+			log.Printf("Failed to scan agent row: %v", err)
+			continue
+		}
+
+		list = append(list, &pb.AgentInfo{
+			AgentId:          id,
+			Hostname:         hostname,
+			Version:          version,
+			Status:           status,
+			InstancesCount:   int32(instancesCount),
+			Uptime:           uptime,
+			Ip:               ip,
+			LastSeen:         lastSeen,
+			IsPod:            isPod,
+			PodIp:            podIP,
+			AgentVersion:     agentVersion,
+			PskAuthenticated: pskAuthenticated,
+		})
+	}
+	return list, nil
+}
+
 // ============================================================================
 // OIDC Integration Methods (implements middleware.UserProvisioner and middleware.TeamMapper)
 // ============================================================================

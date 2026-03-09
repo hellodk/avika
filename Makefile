@@ -4,7 +4,8 @@
 .PHONY: all test test-unit test-integration test-e2e test-coverage test-report \
         lint lint-go lint-frontend build clean help install-tools \
         check-version docker-all docker-gateway docker-frontend docker-push docker-push-gateway docker-push-frontend \
-        docker-test setup-test-db teardown-test-db test-regression test-regression-local
+        docker-test setup-test-db teardown-test-db test-regression test-regression-local \
+        run-gateway run-frontend
 
 # Colors for output
 GREEN := \033[0;32m
@@ -56,9 +57,28 @@ help:
 	@echo "  make test-regression   - Run all regression tests (requires K8s)"
 	@echo "  make test-regression-local - Run local tests only (no K8s)"
 	@echo ""
+	@echo "$(YELLOW)Local development (quick dev, build releases later):$(NC)"
+	@echo "  make run-gateway       - Run gateway (needs PostgreSQL; use gateway-k8s.yaml or DB_DSN)"
+	@echo "  make run-frontend      - Run frontend dev server (Next.js, hot reload)"
+	@echo ""
 	@echo "$(YELLOW)Utilities:$(NC)"
 	@echo "  make install-tools     - Install required development tools"
 	@echo "  make clean             - Clean build artifacts and test results"
+
+#------------------------------------------------------------------------------
+# Local development (quick dev; use make build / Docker for releases)
+#------------------------------------------------------------------------------
+# Gateway: requires PostgreSQL. Use root gateway-k8s.yaml or set DB_DSN.
+# Frontend: point at local gateway via frontend/.env.local (see .env.local.example).
+run-gateway:
+	@echo "$(GREEN)Starting gateway (gRPC :5020, HTTP :5021)...$(NC)"
+	@echo "$(YELLOW)Requires: PostgreSQL. Set DB_DSN or use gateway-k8s.yaml. ClickHouse optional.$(NC)"
+	go run ./cmd/gateway -config gateway-k8s.yaml
+
+run-frontend:
+	@echo "$(GREEN)Starting frontend dev server (Next.js, typically :3000)...$(NC)"
+	@echo "$(YELLOW)Optional: copy frontend/.env.local.example to .env.local and set GATEWAY_HTTP_URL=http://localhost:5021$(NC)"
+	cd frontend && npm run dev
 
 #------------------------------------------------------------------------------
 # Tool Installation
