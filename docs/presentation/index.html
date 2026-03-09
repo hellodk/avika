@@ -3,409 +3,232 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Avika NGINX Manager — Executive Presentation</title>
-  <script src="https://cdn.jsdelivr.net/gh/impress/impress.js@2.0.0/js/impress.js"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <title>Avika NGINX Manager — impress.js</title>
   <style>
-    :root {
-      --bg-dark: #0a0e17;
-      --bg-card: rgba(12, 18, 32, 0.88);
-      --accent: #00d4aa;
-      --accent-dim: #00a884;
-      --accent-glow: rgba(0, 212, 170, 0.25);
-      --text: #e8ecf4;
-      --text-muted: #8b95a8;
-      --border: rgba(0, 212, 170, 0.2);
-      --gradient-hero: linear-gradient(135deg, #0a0e17 0%, #0f1729 40%, #0d1b2a 100%);
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Sharp text: avoid blur when parent is CSS-transformed (impress.js) */
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: geometricPrecision;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Outfit', sans-serif; background: var(--bg-dark); color: var(--text); overflow: hidden; }
-    .impress-supported .fallback { display: none; }
-    .fallback { padding: 2rem; text-align: center; }
-    #impress { pointer-events: none; }
-    #impress .step { pointer-events: auto; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #1a1a1a;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      color: #fff;
+    }
 
+    /* impress.js states */
+    .impress-not-supported .hint { display: none; }
+    .impress-not-supported #impress { display: none; }
+    .impress-not-supported #fallback { display: flex !important; }
+
+    .impress-enabled .step {
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      pointer-events: none;
+    }
+    .impress-enabled .step.present {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .impress-enabled .step.past,
+    .impress-enabled .step.future { opacity: 0; }
+
+    /* Steps = content on infinite canvas (no heavy cards) */
     .step {
       width: 900px;
-      min-height: 700px;
-      padding: 48px 56px;
-      border-radius: 24px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      box-shadow: 0 25px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
-      backdrop-filter: blur(20px);
+      padding: 40px 50px;
       position: relative;
-      overflow: hidden;
-    }
-
-    .step.cover {
-      width: 1000px;
-      min-height: 750px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
       text-align: center;
-      background: var(--gradient-hero) no-repeat center/cover;
-      border: 1px solid var(--border);
+      /* Crisp text when scaled/rotated: promote layer, no rasterization blur */
+      will-change: transform;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: geometricPrecision;
     }
-    .step.cover::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: url('https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200') center/cover;
-      opacity: 0.22;
-      z-index: 0;
-    }
-    .step.cover::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(ellipse 80% 60% at 50% 40%, var(--accent-glow) 0%, transparent 60%);
-      z-index: 0;
-    }
-    .step.cover.closing::before {
-      background: url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200') center/cover;
-      opacity: 0.2;
-    }
-    .step.cover .content { position: relative; z-index: 1; }
-    .step.cover h1 {
-      font-size: 3.2rem;
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      background: linear-gradient(180deg, #fff 0%, var(--accent) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      margin-bottom: 12px;
-    }
-    .step.cover .tagline { font-size: 1.35rem; color: var(--text-muted); font-weight: 400; margin-bottom: 48px; }
-    .step.cover .sub { font-size: 0.95rem; color: var(--accent); font-family: 'JetBrains Mono', monospace; letter-spacing: 0.2em; text-transform: uppercase; }
+    .step.small { width: 600px; }
+    .step.wide { width: 1100px; text-align: left; }
+    .step.left { text-align: left; }
 
-    .step.image-bg::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: var(--bg-card);
-      z-index: 0;
+    .step .line {
+      font-size: 2.2rem;
+      font-weight: 400;
+      line-height: 1.4;
+      letter-spacing: -0.01em;
+      color: #fff;
     }
-    .step .content { position: relative; z-index: 1; }
+    .step .line strong { color: #fff; font-weight: 700; }
+    .step .line.muted { font-size: 1.5rem; color: #888; font-weight: 400; }
+    .step .sub {
+      font-size: 1.1rem;
+      color: #888;
+      margin-top: 24px;
+      font-weight: 400;
+      line-height: 1.5;
+    }
+    .step .sub strong { color: #aaa; }
 
-    h2 {
-      font-size: 1.85rem;
+    /* Big title step — like "# impress.js" in the bored demo */
+    .step.hero .line {
+      font-size: 5rem;
       font-weight: 700;
-      color: var(--text);
-      margin-bottom: 24px;
-      padding-bottom: 12px;
-      border-bottom: 2px solid var(--accent);
-      display: inline-block;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      color: #fff;
+      background: none;
+      -webkit-text-fill-color: #fff;
     }
-    h3 { font-size: 1.15rem; color: var(--accent); font-weight: 600; margin: 20px 0 10px; }
-    p { font-size: 1rem; line-height: 1.65; color: var(--text-muted); margin-bottom: 12px; }
-    ul { margin: 12px 0 20px 24px; }
-    li { margin-bottom: 8px; line-height: 1.5; color: var(--text-muted); }
-    li strong { color: var(--text); }
-    .highlight { color: var(--accent); font-weight: 500; }
-    blockquote {
-      border-left: 4px solid var(--accent);
-      padding: 16px 20px;
-      margin: 20px 0;
-      background: rgba(0, 212, 170, 0.06);
-      border-radius: 0 12px 12px 0;
-      font-style: italic;
-      color: var(--text);
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 16px 0;
-      font-size: 0.9rem;
-    }
-    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
-    th { color: var(--accent); font-weight: 600; }
-    td { color: var(--text-muted); }
-    tr:hover td { color: var(--text); }
-    code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.88em; background: rgba(0,212,170,0.1); padding: 2px 8px; border-radius: 6px; color: var(--accent); }
-    pre { background: rgba(0,0,0,0.35); padding: 16px; border-radius: 12px; overflow-x: auto; margin: 12px 0; font-size: 0.8rem; line-height: 1.5; border: 1px solid var(--border); }
-    pre code { background: none; padding: 0; color: var(--text-muted); }
+    .step.hero .sub { font-size: 1.5rem; margin-top: 20px; color: #888; }
 
-    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
-    .badge { display: inline-block; background: var(--accent-glow); color: var(--accent); padding: 4px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 600; margin-right: 8px; margin-bottom: 8px; }
-    .big-number { font-size: 2.5rem; font-weight: 800; color: var(--accent); line-height: 1.2; }
-    .nav-hint { position: fixed; bottom: 24px; right: 24px; font-size: 0.8rem; color: var(--text-muted); z-index: 100; }
+    /* Small “aside” steps */
+    .step.tiny .line { font-size: 1.4rem; color: #888; }
+    .step.tiny .line strong { color: #fff; font-weight: 700; }
+
+    .step .asterisk { font-size: 0.85rem; color: #666; margin-top: 16px; font-style: italic; }
+
+    .hint {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      font-size: 0.75rem;
+      color: #666;
+      z-index: 9998;
+    }
+
+    #fallback {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      color: #888;
+      text-align: center;
+      gap: 12px;
+    }
+    #fallback .line { color: #fff; background: none; -webkit-text-fill-color: #fff; }
   </style>
 </head>
 <body>
-  <div id="impress" data-transition-duration="800">
-    <!-- 1. Title -->
-    <div id="title" class="step cover" data-x="0" data-y="0" data-z="0" data-scale="1">
-      <div class="content">
-        <p class="sub">Executive Presentation</p>
-        <h1>Avika NGINX Manager</h1>
-        <p class="tagline">Enterprise-grade fleet management & observability — open source</p>
-      </div>
-    </div>
 
-    <!-- 2. Executive Summary -->
-    <div id="summary" class="step" data-x="1200" data-y="0" data-z="-200" data-rotate-y="15">
-      <h2>Executive Summary</h2>
-      <h3>What is Avika?</h3>
-      <p>Enterprise-grade, open-source NGINX fleet management and observability platform:</p>
-      <ul>
-        <li><strong>Centralized Management</strong> — hundreds of NGINX instances from one dashboard</li>
-        <li><strong>Real-time Observability</strong> — sub-second metrics and log streaming</li>
-        <li><strong>AI-Powered Diagnostics</strong> — anomaly detection and root cause analysis</li>
-        <li><strong>Zero-Cost Licensing</strong> — vs. $10,000+/year commercial alternatives</li>
-      </ul>
-      <blockquote>Full visibility and control of your NGINX fleet without the enterprise price tag.</blockquote>
-    </div>
+<!--
+  Bored-style: one idea per step, 3D canvas, dramatic scale/rotation.
+  Ref: https://impress.js.org/#/bored
+-->
+<div id="impress"
+     data-transition-duration="1000"
+     data-width="1920"
+     data-height="1080"
+     data-max-scale="3"
+     data-min-scale="0.2"
+     data-perspective="1000">
 
-    <!-- 3. Business Benefits -->
-    <div id="benefits" class="step" data-x="2400" data-y="0" data-z="-100" data-rotate-y="-10">
-      <h2>Business Benefits</h2>
-      <div class="two-col">
-        <div>
-          <h3>Cost Savings</h3>
-          <table>
-            <tr><th>Aspect</th><th>Commercial</th><th>Avika</th></tr>
-            <tr><td>License</td><td>$10K+/year</td><td><strong class="highlight">$0</strong></td></tr>
-            <tr><td>Per-instance fee</td><td>Yes</td><td><strong class="highlight">No</strong></td></tr>
-          </table>
-          <p class="big-number">$50K–$200K</p>
-          <p>Estimated annual savings (mid-size)</p>
-        </div>
-        <div>
-          <h3>Operational Efficiency</h3>
-          <ul>
-            <li><strong>70% faster</strong> incident resolution</li>
-            <li>Single pane of glass (VMs, containers, K8s)</li>
-            <li>Automated config management & rollback</li>
-            <li>Self-updating agents</li>
-          </ul>
-          <h3>Risk Reduction</h3>
-          <ul>
-            <li>Immediate visibility into security events</li>
-            <li>Configuration validation & audit trail</li>
-            <li>No vendor lock-in</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-
-    <!-- 4. Architecture -->
-    <div id="architecture" class="step" data-x="3600" data-y="0" data-z="0" data-rotate-y="5">
-      <h2>Architecture Overview</h2>
-      <pre><code>┌─────────────────────────────────────────────────────────────────┐
-│  NGINX FLEET  (VM + Agent | VM + Agent | K8s + Agent | ...)     │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │ gRPC (Persistent Stream)
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  GATEWAY (Go) — Session • API • Data Ingestion                  │
-└──────┬──────────────────┬──────────────────┬───────────────────┘
-       ▼                  ▼                  ▼
-  PostgreSQL          ClickHouse          Redpanda → AI Engine
-  (Metadata)            (TSDB)              (Python)
-       │
-       ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  FRONTEND (Next.js) — Inventory • Monitoring • Analytics • AI   │
-└─────────────────────────────────────────────────────────────────┘</code></pre>
-    </div>
-
-    <!-- 5. Technology Stack -->
-    <div id="tech-stack" class="step" data-x="4800" data-y="0" data-z="-150">
-      <h2>Technology Stack</h2>
-      <table>
-        <tr><th>Layer</th><th>Technology</th><th>Why</th></tr>
-        <tr><td>Agent</td><td>Go</td><td>Lightweight (~10MB), cross-platform</td></tr>
-        <tr><td>Gateway</td><td>Go</td><td>High concurrency, efficient gRPC</td></tr>
-        <tr><td>Frontend</td><td>Next.js 15 + React</td><td>Modern UI, SSR</td></tr>
-        <tr><td>Time-Series</td><td>ClickHouse</td><td>100x faster for analytics</td></tr>
-        <tr><td>Relational</td><td>PostgreSQL 16</td><td>ACID, battle-tested</td></tr>
-        <tr><td>Message Queue</td><td>Redpanda</td><td>Kafka-compatible, lower footprint</td></tr>
-        <tr><td>AI/ML</td><td>Python + River</td><td>Online learning, anomaly detection</td></tr>
-        <tr><td>Communication</td><td>gRPC + Protobuf</td><td>10x more efficient than REST/JSON</td></tr>
-      </table>
-    </div>
-
-    <!-- 6. Salient Features -->
-    <div id="features" class="step" data-x="0" data-y="900" data-z="0" data-rotate-x="10">
-      <h2>Salient Features</h2>
-      <div class="two-col">
-        <div>
-          <h3>1. Real-time Fleet Visibility</h3>
-          <ul><li>Live inventory, online/offline status, version & CVE alerts</li></ul>
-          <h3>2. Advanced Analytics (ClickHouse)</h3>
-          <ul>
-            <li>Request rate trends & forecasting</li>
-            <li>P50/P95/P99 latency, status codes, top endpoints</li>
-            <li>Geographic traffic distribution</li>
-          </ul>
-          <h3>3. AI-Powered Diagnostics</h3>
-          <ul>
-            <li>HalfSpaceTrees anomaly detection</li>
-            <li>Root cause analysis; auto-recommendations (caching, worker_connections, config)</li>
-          </ul>
-        </div>
-        <div>
-          <h3>4. Remote Config Management</h3>
-          <ul><li>View/edit, validate, backup, one-click rollback</li></ul>
-          <h3>5. Self-Updating Agents</h3>
-          <ul><li>Automatic binary updates, SHA256 verification, zero downtime</li></ul>
-          <span class="badge">Real-time</span><span class="badge">AI</span><span class="badge">Secure</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- 7. Security -->
-    <div id="security" class="step" data-x="1200" data-y="900" data-z="-100" data-rotate-x="-5">
-      <h2>Security Features</h2>
-      <div class="two-col">
-        <div>
-          <h3>Authentication & Authorization</h3>
-          <ul>
-            <li>Session-based JWT, HTTP-only cookies</li>
-            <li>RBAC — configurable per user/team</li>
-            <li>PSK for agent–gateway trust</li>
-          </ul>
-          <h3>Data Security</h3>
-          <ul><li>TLS everywhere; secret management (Vault-ready); no credentials in logs</li></ul>
-        </div>
-        <div>
-          <h3>Infrastructure</h3>
-          <ul>
-            <li>Rate limiting, WebSocket origin validation</li>
-            <li>Air-gapped & private registry support</li>
-          </ul>
-          <h3>Compliance</h3>
-          <ul><li>Audit logging, certificate expiry tracking, vulnerability scanning</li></ul>
-        </div>
-      </div>
-    </div>
-
-    <!-- 8. Scalability -->
-    <div id="scalability" class="step" data-x="2400" data-y="900" data-z="0">
-      <h2>Scalability</h2>
-      <table>
-        <tr><th>Component</th><th>Strategy</th></tr>
-        <tr><td>Agents</td><td>1 per instance (linear)</td></tr>
-        <tr><td>Gateway</td><td>Stateless, scale behind LB</td></tr>
-        <tr><td>ClickHouse</td><td>Sharding for massive datasets</td></tr>
-        <tr><td>Frontend</td><td>Stateless, auto-scale</td></tr>
-      </table>
-      <h3>Proven Capacity</h3>
-      <p><strong>100+</strong> agents per gateway (tested); design target <strong>1000+</strong>. ClickHouse: millions of events/sec. Agent: &lt;1% CPU, ~50MB RAM.</p>
-    </div>
-
-    <!-- 9. Performance -->
-    <div id="performance" class="step" data-x="3600" data-y="900" data-z="-200">
-      <h2>Performance Impact</h2>
-      <table>
-        <tr><th>Metric</th><th>Impact</th></tr>
-        <tr><td>Agent CPU</td><td>&lt; 1% average</td></tr>
-        <tr><td>Agent Memory</td><td>~50MB RSS</td></tr>
-        <tr><td>Metrics latency</td><td>1s interval, &lt;100ms</td></tr>
-        <tr><td>Logs</td><td>Real-time, &lt;500ms E2E</td></tr>
-      </table>
-      <p>Avika: 1-second freshness vs 60s industry standard; lower overhead than typical SaaS agents.</p>
-    </div>
-
-    <!-- 10. Competitive Comparison -->
-    <div id="comparison" class="step" data-x="4800" data-y="900" data-z="-50">
-      <h2>Competitive Comparison</h2>
-      <table>
-        <tr><th>Feature</th><th>Avika</th><th>Commercial NGINX</th></tr>
-        <tr><td>Licensing</td><td><strong class="highlight">Open Source</strong></td><td>$10K+/year</td></tr>
-        <tr><td>Real-time metrics</td><td><strong class="highlight">1 second</strong></td><td>60 seconds</td></tr>
-        <tr><td>AI diagnostics</td><td><strong class="highlight">Built-in</strong></td><td>Add-on</td></tr>
-        <tr><td>Log streaming</td><td>Real-time</td><td>Batch</td></tr>
-        <tr><td>Air-gapped</td><td>Yes</td><td>Yes</td></tr>
-      </table>
-      <p>vs Datadog/New Relic: purpose-built for NGINX, config management & remote control, no per-host fees.</p>
-    </div>
-
-    <!-- 11. Push vs Pull -->
-    <div id="push-pull" class="step" data-x="0" data-y="1800" data-z="0" data-rotate-y="10">
-      <h2>Why Push Over Pull?</h2>
-      <div class="two-col">
-        <div>
-          <h3>Traditional (Prometheus)</h3>
-          <p>Scrape every 15–60s → firewall/NAT issues, data gaps, inbound ports required.</p>
-          <h3>Avika Push Model</h3>
-          <p>Agent ↔ Gateway: persistent gRPC stream. Outbound-only, WAL buffer, bidirectional (commands, updates), 1s latency.</p>
-        </div>
-        <div>
-          <pre><code>Agent ──(gRPC stream)──> Gateway
-      <──(commands, updates)──</code></pre>
-          <p><strong>Result:</strong> Works behind NAT/firewalls, no data loss, single long-lived connection.</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- 12. Deployment -->
-    <div id="deployment" class="step" data-x="1200" data-y="1800" data-z="-100">
-      <h2>Deployment Options</h2>
-      <h3>Kubernetes (recommended)</h3>
-      <pre><code>helm upgrade --install avika deploy/helm/avika -n avika --create-namespace \
-  --set auth.enabled=true</code></pre>
-      <h3>Docker Compose</h3>
-      <pre><code>cd deploy/docker && docker-compose up -d</code></pre>
-      <h3>VM / Air-gapped</h3>
-      <p>Deploy script from gateway; pre-download images to internal registry.</p>
-    </div>
-
-    <!-- 13. Roadmap -->
-    <div id="roadmap" class="step" data-x="2400" data-y="1800" data-z="0">
-      <h2>Roadmap</h2>
-      <p><strong>Current (0.1.x Beta):</strong> Core fleet, real-time metrics/logs, config management, basic AI.</p>
-      <h3>Q1–Q2 2026</h3>
-      <ul><li>Multi-tenancy, LDAP/SAML RBAC, Grafana integration, webhooks</li></ul>
-      <h3>Q3–Q4 2026</h3>
-      <ul><li>Distributed tracing, capacity planning, config templates, mobile alerts</li></ul>
-    </div>
-
-    <!-- 14. Implementation Timeline -->
-    <div id="timeline" class="step" data-x="3600" data-y="1800" data-z="-50">
-      <h2>Implementation Timeline</h2>
-      <table>
-        <tr><th>Phase</th><th>Duration</th><th>Focus</th></tr>
-        <tr><td>Pilot</td><td>2–4 weeks</td><td>Non-prod, 5–10 instances, validate & train</td></tr>
-        <tr><td>Production</td><td>4–8 weeks</td><td>HA gateway, gradual rollout, alerting</td></tr>
-        <tr><td>Optimization</td><td>Ongoing</td><td>AI recommendations, dashboards, tuning</td></tr>
-      </table>
-    </div>
-
-    <!-- 15. Summary -->
-    <div id="closing" class="step cover closing" data-x="4800" data-y="1800" data-z="100" data-scale="1.1">
-      <div class="content" style="text-align: center;">
-        <h2 style="border: none; margin-bottom: 24px;">Why Avika?</h2>
-        <ul style="text-align: left; max-width: 520px; margin: 0 auto 24px;">
-          <li><strong>Cost-effective</strong> — Open source, no per-instance fees</li>
-          <li><strong>Real-time</strong> — 1-second metrics</li>
-          <li><strong>Intelligent</strong> — Built-in AI anomaly & RCA</li>
-          <li><strong>Secure & flexible</strong> — VMs, containers, K8s</li>
-          <li><strong>Future-proof</strong> — No vendor lock-in</li>
-        </ul>
-        <blockquote style="max-width: 560px; margin: 0 auto;">Deploy Avika as the standard NGINX management platform for complete visibility, lower cost, and faster incident response.</blockquote>
-      </div>
-    </div>
+  <!-- 1 -->
+  <div id="bored" class="step" data-x="0" data-y="0" data-z="0" data-scale="1">
+    <p class="line">Managing <strong>hundreds</strong> of NGINX instances?</p>
   </div>
 
-  <div class="nav-hint">← → or space: navigate · Esc: overview</div>
-  <div class="fallback">
-    <p>Your browser doesn't support impress.js. Open in a modern browser.</p>
+  <!-- 2 -->
+  <div id="tired" class="step" data-x="1200" data-y="0" data-z="-200" data-rotate-y="15" data-scale="0.9">
+    <p class="line">Tired of <strong>60-second</strong> metrics...</p>
   </div>
 
-  <script>
-    if (typeof impress === 'undefined') {
-      document.querySelector('.fallback').style.display = 'block';
-    } else {
-      impress().init();
+  <!-- 3 -->
+  <div id="price" class="step" data-x="2400" data-y="0" data-z="-400" data-rotate-y="-10" data-scale="0.85">
+    <p class="line">and <strong>$10,000+</strong> per year?</p>
+  </div>
+
+  <!-- 4 -->
+  <div id="then" class="step small" data-x="3400" data-y="200" data-z="-100" data-rotate-y="5" data-scale="0.7">
+    <p class="line muted">then you should try</p>
+  </div>
+
+  <!-- 5 – hero -->
+  <div id="avika" class="step hero" data-x="4200" data-y="0" data-z="200" data-rotate-y="-15" data-scale="1.4">
+    <p class="line">Avika</p>
+    <p class="sub">NGINX Manager</p>
+  </div>
+
+  <!-- 6 -->
+  <div id="opensource" class="step" data-x="5500" data-y="0" data-z="-100" data-rotate-y="10" data-scale="0.9">
+    <p class="line">Open source. <strong>Zero</strong> cost.</p>
+    <p class="asterisk">* no per-instance fees</p>
+  </div>
+
+  <!-- 7 -->
+  <div id="onedash" class="step" data-x="0" data-y="900" data-z="-300" data-rotate-x="12" data-scale="0.95">
+    <p class="line">One <strong>dashboard</strong>.</p>
+    <p class="sub">Every instance. VMs, containers, Kubernetes.</p>
+  </div>
+
+  <!-- 8 -->
+  <div id="realtime" class="step" data-x="1300" data-y="900" data-z="0" data-rotate-x="-8" data-scale="1">
+    <p class="line">Real-time.</p>
+    <p class="sub"><strong>1 second</strong> — not 60.</p>
+  </div>
+
+  <!-- 9 -->
+  <div id="ai" class="step" data-x="2600" data-y="900" data-z="-200" data-rotate-y="12" data-scale="0.9">
+    <p class="line">AI finds the <strong>problem</strong>.</p>
+    <p class="sub">Anomaly detection · Root cause · Recommendations</p>
+  </div>
+
+  <!-- 10 -->
+  <div id="push" class="step" data-x="3800" data-y="900" data-z="100" data-rotate-y="-18" data-scale="0.85">
+    <p class="line">Push, <strong>not</strong> pull.</p>
+    <p class="sub">Agent → Gateway. Outbound only. No data loss.</p>
+  </div>
+
+  <!-- 11 -->
+  <div id="scale" class="step" data-x="5000" data-y="900" data-z="-150" data-scale="0.8">
+    <p class="line">Scale.</p>
+    <p class="sub"><strong>1000+</strong> agents per gateway. Tested.</p>
+  </div>
+
+  <!-- 12 -->
+  <div id="secure" class="step" data-x="0" data-y="1800" data-z="-100" data-rotate-x="-10" data-rotate-y="8" data-scale="0.9">
+    <p class="line">Secure. <strong>Auditable</strong>. Yours.</p>
+    <p class="sub">RBAC · TLS · Air-gapped · No vendor lock-in</p>
+  </div>
+
+  <!-- 13 -->
+  <div id="why" class="step small" data-x="1400" data-y="1800" data-z="0" data-rotate-y="-12" data-scale="0.75">
+    <p class="line muted">Why Avika?</p>
+  </div>
+
+  <!-- 14 -->
+  <div id="summary" class="step wide" data-x="2600" data-y="1800" data-z="200" data-rotate-y="5" data-scale="1">
+    <p class="line">Full <strong>visibility</strong>. No lock-in.</p>
+    <p class="sub">Deploy as the standard NGINX management platform — lower cost, faster incident response, complete control.</p>
+  </div>
+
+  <!-- 15 – outro -->
+  <div id="end" class="step hero" data-x="4000" data-y="1800" data-z="300" data-rotate-y="-10" data-scale="1.2">
+    <p class="line">Avika</p>
+    <p class="sub">use the source · impress.js.org</p>
+  </div>
+
+</div>
+
+<div class="hint">← → or Space · Esc overview</div>
+<div id="fallback">
+  <p class="line">Your browser doesn’t support impress.js.</p>
+  <p class="sub">Use Chrome, Firefox, or Safari.</p>
+</div>
+
+<script src="impress.js"></script>
+<script>
+  (function () {
+    if (typeof impress !== 'function') {
+      document.getElementById('impress').style.display = 'none';
+      document.getElementById('fallback').style.display = 'flex';
+      return;
     }
-  </script>
+    impress().init();
+  }());
+</script>
 </body>
 </html>
