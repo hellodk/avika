@@ -15,7 +15,7 @@ concurrency:
 env:
   GO_VERSION: '1.24'
   NODE_VERSION: '20'
-  DOCKERHUB_USERNAME: hellodk
+  # Image registry: single source is .github/IMAGE_REGISTRY (CI/Release set it in job steps)
 
 jobs:
   lint:
@@ -118,6 +118,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set image registry (single source .github/IMAGE_REGISTRY)
+        run: echo "IMAGE_REGISTRY=$(cat .github/IMAGE_REGISTRY | tr -d '\n')" >> $GITHUB_ENV
+
       - name: Set image tags
         id: meta
         run: |
@@ -141,10 +144,12 @@ jobs:
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          username: ${{ env.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Gateway
         uses: docker/build-push-action@v5
@@ -154,8 +159,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ env.DOCKERHUB_USERNAME }}/avika-gateway:${{ steps.meta.outputs.image_tag }}
-            ${{ env.DOCKERHUB_USERNAME }}/avika-gateway:sha-${{ steps.meta.outputs.sha }}
+            ${{ env.IMAGE_REGISTRY }}/avika-gateway:${{ steps.meta.outputs.image_tag }}
+            ${{ env.IMAGE_REGISTRY }}/avika-gateway:sha-${{ steps.meta.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -171,8 +176,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ env.DOCKERHUB_USERNAME }}/avika-frontend:${{ steps.meta.outputs.image_tag }}
-            ${{ env.DOCKERHUB_USERNAME }}/avika-frontend:sha-${{ steps.meta.outputs.sha }}
+            ${{ env.IMAGE_REGISTRY }}/avika-frontend:${{ steps.meta.outputs.image_tag }}
+            ${{ env.IMAGE_REGISTRY }}/avika-frontend:sha-${{ steps.meta.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -186,8 +191,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ env.DOCKERHUB_USERNAME }}/avika-agent:${{ steps.meta.outputs.image_tag }}
-            ${{ env.DOCKERHUB_USERNAME }}/avika-agent:sha-${{ steps.meta.outputs.sha }}
+            ${{ env.IMAGE_REGISTRY }}/avika-agent:${{ steps.meta.outputs.image_tag }}
+            ${{ env.IMAGE_REGISTRY }}/avika-agent:sha-${{ steps.meta.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -197,8 +202,8 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## Docker images pushed" >> $GITHUB_STEP_SUMMARY
+          echo "## Docker images pushed (GHCR)" >> $GITHUB_STEP_SUMMARY
           echo "Tags: \`${{ steps.meta.outputs.image_tag }}\`, \`sha-${{ steps.meta.outputs.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- hellodk/avika-gateway" >> $GITHUB_STEP_SUMMARY
-          echo "- hellodk/avika-frontend" >> $GITHUB_STEP_SUMMARY
-          echo "- hellodk/avika-agent" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ env.IMAGE_REGISTRY }}/avika-gateway" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ env.IMAGE_REGISTRY }}/avika-frontend" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ env.IMAGE_REGISTRY }}/avika-agent" >> $GITHUB_STEP_SUMMARY

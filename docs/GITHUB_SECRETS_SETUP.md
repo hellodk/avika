@@ -54,20 +54,20 @@ Keep this token safe - you'll need it in the next part.
 2. Click on **Secrets and variables**
 3. Click on **Actions**
 
-### Step 4: Add DOCKERHUB_TOKEN Secret
-1. Click the **New repository secret** button (green button, top right)
-2. Fill in the form:
-   - **Name**: `DOCKERHUB_TOKEN` (must be exactly this)
-   - **Secret**: Paste the access token you copied from Docker Hub
-3. Click **Add secret**
+### Step 4: (Optional) Add DOCKERHUB_TOKEN Secret
+Container images are pushed to **GitHub Container Registry (GHCR)** by default; the workflows use `GITHUB_TOKEN` and do not need Docker Hub secrets.
+
+If you still use Docker Hub for something else:
+1. Click **New repository secret**
+2. **Name**: `DOCKERHUB_TOKEN`
+3. **Secret**: Your Docker Hub access token
+4. Click **Add secret**
 
 ### Step 5: Verify Secrets
-You should now see the secret listed:
-- ✅ `DOCKERHUB_TOKEN`
+- For **CI/Release image push**: no extra secrets needed (GHCR uses `GITHUB_TOKEN`).
+- If you use Docker Hub: ✅ `DOCKERHUB_TOKEN`
 
-The value will be hidden (shown as `***`), which is correct for security.
-
-**Note:** Workflows use `DOCKERHUB_USERNAME` from the workflow env (default `hellodk`). To push to a different Docker Hub account, add a repository secret `DOCKERHUB_USERNAME` and reference it in the workflow files.
+**Note:** The registry is configured in `.github/IMAGE_REGISTRY` (default `ghcr.io/hellodk`). See [CONTAINER_REGISTRY.md](CONTAINER_REGISTRY.md).
 
 ---
 

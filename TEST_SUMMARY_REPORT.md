@@ -17,8 +17,8 @@ Generated at (UTC): `2026-03-03T11:35:44Z`
 - **Helm**: `avika-test` chart `avika-0.1.93` (app version `0.1.93`)
 - **Kubernetes namespace**: `avika-test`
 - **Running workloads (images)**:
-  - **Gateway**: `hellodk/avika-gateway:latest` (`Deployment/avika-test-gateway`)
-  - **Frontend**: `hellodk/avika-frontend:latest` (`Deployment/avika-test-frontend`)
+  - **Gateway**: `ghcr.io/hellodk/avika-gateway:latest` (`Deployment/avika-test-gateway`)
+  - **Frontend**: `ghcr.io/hellodk/avika-frontend:latest` (`Deployment/avika-test-frontend`)
 
 ## Access paths used for testing
 

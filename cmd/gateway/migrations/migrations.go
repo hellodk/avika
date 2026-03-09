@@ -150,7 +150,7 @@ func (r *Runner) applyMigration(m Migration) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Execute the migration SQL
 	if _, err := tx.Exec(m.SQL); err != nil {

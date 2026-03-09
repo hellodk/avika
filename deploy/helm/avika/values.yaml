@@ -12,6 +12,11 @@ nameOverride: ""
 fullnameOverride: ""
 timezone: UTC
 
+# Single source of truth for app image registry (must match .github/IMAGE_REGISTRY).
+# Only gateway and frontend use this; other components use image.repository as-is.
+global:
+  imageRegistry: ghcr.io/hellodk
+
 # Image pull secrets for private registries
 imagePullSecrets: []
 
@@ -205,7 +210,8 @@ components:
     enabled: true
     replicaCount: 1
     image:
-      repository: hellodk/avika-gateway
+      useGlobalRegistry: true
+      repository: avika-gateway
       tag: "latest"
       pullPolicy: Always
     terminationGracePeriodSeconds: 35
@@ -289,7 +295,8 @@ components:
     enabled: true
     replicaCount: 1
     image:
-      repository: hellodk/avika-frontend
+      useGlobalRegistry: true
+      repository: avika-frontend
       tag: "latest"
       pullPolicy: Always
     

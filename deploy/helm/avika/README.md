@@ -20,7 +20,7 @@ helm upgrade -n avika avika ./deploy/helm/avika \
 ```
 
 - **Namespace:** `avika` (override with `HELM_NAMESPACE=my-ns make deploy`).
-- **Images:** Gateway and frontend use the `repository` and `tag` from `values.yaml` (e.g. `hellodk/avika-gateway:latest`, `hellodk/avika-frontend:latest`) with `pullPolicy: Always`.
+- **Images:** Gateway and frontend use `global.imageRegistry` (see [CONTAINER_REGISTRY.md](../../docs/CONTAINER_REGISTRY.md)) and `repository`/`tag` from `values.yaml` (e.g. `ghcr.io/hellodk/avika-gateway:latest`) with `pullPolicy: Always`.
 
 ## Why not override image tags when deploying?
 

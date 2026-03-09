@@ -152,7 +152,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: docker.io/hellodk/avika-nginx-agent:0.1.86
+        image: ghcr.io/hellodk/avika-agent:latest
         env:
         - name: TZ
           value: Asia/Kolkata

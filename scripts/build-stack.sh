@@ -10,7 +10,7 @@ CONFIG_FILE="$PROJECT_ROOT/scripts/build.conf"
 LOCAL_CONFIG="$PROJECT_ROOT/scripts/build.conf.local"
 
 # Default values (can be overridden by config files)
-DOCKER_REGISTRY="${DOCKER_REGISTRY:-docker.io}"
+DOCKER_REGISTRY="${DOCKER_REGISTRY:-ghcr.io}"
 DOCKER_REPO="${DOCKER_REPO:-hellodk}"
 K8S_NAMESPACE="${K8S_NAMESPACE:-avika}"
 K8S_DEPLOY_ENABLED="${K8S_DEPLOY_ENABLED:-true}"
