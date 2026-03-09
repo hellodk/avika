@@ -87,7 +87,8 @@ components:
     enabled: true
     replicaCount: 1
     image:
-      repository: hellodk/avika-gateway
+      useGlobalRegistry: true
+      repository: avika-gateway
       tag: "latest"
       pullPolicy: Always
     ports:
@@ -120,7 +121,8 @@ components:
     enabled: true
     replicaCount: 1
     image:
-      repository: hellodk/avika-frontend
+      useGlobalRegistry: true
+      repository: avika-frontend
       tag: "latest"
       pullPolicy: Always
     ports:

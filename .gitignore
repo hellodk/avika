@@ -75,6 +75,9 @@ dist/
 .DS_Store
 *.iml
 
+# Extracted/generated instruction or plan dumps
+agent-instructions-extract.txt
+
 # Logs
 *.log
 logs/
