@@ -59,13 +59,21 @@ jobs:
       - name: Analyze commits for version bump
         id: analyze
         run: |
-          # Get the commit message
-          COMMIT_MSG=$(git log -1 --pretty=%B)
+          # Get the commit message (first line only for merge commits)
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -1)
           echo "Commit message: $COMMIT_MSG"
           
           # Skip if this is a version bump commit (prevents infinite loop)
           if [[ "$COMMIT_MSG" == "chore(release): Bump version to"* ]]; then
             echo "Skipping release - this is a version bump commit"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "bump_type=none" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Skip if this is a merge of our own release PR (Merge pull request #N from .../release/vX.Y.Z)
+          if [[ "$COMMIT_MSG" =~ ^Merge\ pull\ request\ #[0-9]+\ from\ .*release/v ]]; then
+            echo "Skipping release - this is the merge of an automated release PR"
             echo "should_release=false" >> $GITHUB_OUTPUT
             echo "bump_type=none" >> $GITHUB_OUTPUT
             exit 0
