@@ -58,7 +58,7 @@ help:
 	@echo "  make test-regression-local - Run local tests only (no K8s)"
 	@echo ""
 	@echo "$(YELLOW)Local development (quick dev, build releases later):$(NC)"
-	@echo "  make run-gateway       - Run gateway (needs PostgreSQL; use gateway.yaml or DB_DSN)"
+	@echo "  make run-gateway       - Run gateway (needs PostgreSQL; use gateway-k8s.yaml or DB_DSN)"
 	@echo "  make run-frontend      - Run frontend dev server (Next.js, hot reload)"
 	@echo ""
 	@echo "$(YELLOW)Utilities:$(NC)"
@@ -68,12 +68,12 @@ help:
 #------------------------------------------------------------------------------
 # Local development (quick dev; use make build / Docker for releases)
 #------------------------------------------------------------------------------
-# Gateway: requires PostgreSQL. Use root gateway.yaml or set DB_DSN.
+# Gateway: requires PostgreSQL. Use root gateway-k8s.yaml or set DB_DSN.
 # Frontend: point at local gateway via frontend/.env.local (see .env.local.example).
 run-gateway:
 	@echo "$(GREEN)Starting gateway (gRPC :5020, HTTP :5021)...$(NC)"
-	@echo "$(YELLOW)Requires: PostgreSQL. Set DB_DSN or use gateway.yaml. ClickHouse optional.$(NC)"
-	go run ./cmd/gateway -config gateway.yaml
+	@echo "$(YELLOW)Requires: PostgreSQL. Set DB_DSN or use gateway-k8s.yaml. ClickHouse optional.$(NC)"
+	go run ./cmd/gateway -config gateway-k8s.yaml
 
 run-frontend:
 	@echo "$(GREEN)Starting frontend dev server (Next.js, typically :3000)...$(NC)"

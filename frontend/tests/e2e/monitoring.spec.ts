@@ -20,6 +20,10 @@ test.describe('Monitoring Page', () => {
             await expect(page.getByRole('tab', { name: /Overview/i })).toBeVisible();
             await expect(page.getByRole('tab', { name: /Connections/i })).toBeVisible();
             await expect(page.getByRole('tab', { name: /Traffic/i })).toBeVisible();
+            await expect(page.getByRole('tab', { name: /Errors/i })).toBeVisible();
+            await expect(page.getByRole('tab', { name: /Host/i })).toBeVisible();
+            await expect(page.getByRole('tab', { name: /Gateway/i })).toBeVisible();
+            await expect(page.getByRole('tab', { name: /Performance/i })).toBeVisible();
             await expect(page.getByRole('tab', { name: /System/i })).toBeVisible();
             await expect(page.getByRole('tab', { name: /Configure/i })).toBeVisible();
         });
@@ -95,39 +99,61 @@ test.describe('Monitoring Page', () => {
             await expect(page.getByText('HTTP 4xx/5xx Errors')).toBeVisible();
         });
 
-        test('should display Top Endpoints table', async ({ page }) => {
+        test('should display Top URLs by Traffic table', async ({ page }) => {
             await page.getByRole('tab', { name: /Traffic/i }).click();
-            await expect(page.getByText('Top Endpoints')).toBeVisible();
-            await expect(page.getByRole('columnheader', { name: 'URI' })).toBeVisible();
+            await expect(page.getByText('Top URLs by Traffic')).toBeVisible();
+            await expect(page.getByRole('columnheader', { name: 'URL Path' })).toBeVisible();
             await expect(page.getByRole('columnheader', { name: 'Requests' })).toBeVisible();
-            await expect(page.getByRole('columnheader', { name: 'P95 Latency' })).toBeVisible();
+            await expect(page.getByRole('columnheader', { name: 'Bandwidth' })).toBeVisible();
+            await expect(page.getByRole('columnheader', { name: 'Avg Latency' })).toBeVisible();
             await expect(page.getByRole('columnheader', { name: 'Errors' })).toBeVisible();
         });
     });
 
-    test.describe('System Tab', () => {
-        test('should switch to System tab', async ({ page }) => {
-            await page.getByRole('tab', { name: /System/i }).click();
+    test.describe('Host Tab (node metrics)', () => {
+        test('should switch to Host tab', async ({ page }) => {
+            await page.getByRole('tab', { name: /Host/i }).click();
             const panel = page.locator('[role="tabpanel"][data-state="active"]').first();
             await expect(panel.getByText(/CPU Usage/i).first()).toBeVisible();
             await expect(panel.getByText(/Memory Usage/i).first()).toBeVisible();
         });
 
         test('should display Network metrics', async ({ page }) => {
-            await page.getByRole('tab', { name: /System/i }).click();
+            await page.getByRole('tab', { name: /Host/i }).click();
             await expect(page.getByText('Network In')).toBeVisible();
             await expect(page.getByText('Network Out')).toBeVisible();
         });
 
         test('should display CPU/Memory charts', async ({ page }) => {
-            await page.getByRole('tab', { name: /System/i }).click();
+            await page.getByRole('tab', { name: /Host/i }).click();
             await expect(page.getByText(/CPU Usage.*Over Time/i)).toBeVisible();
             await expect(page.getByText(/Memory Usage.*Over Time/i)).toBeVisible();
         });
 
         test('should display data source indicator', async ({ page }) => {
+            await page.getByRole('tab', { name: /Host/i }).click();
+            await expect(page.getByText(/Aggregated Metrics|Host Metrics|Fleet Average|Single Node/i)).toBeVisible();
+        });
+    });
+
+    test.describe('Gateway Tab', () => {
+        test('should switch to Gateway tab and show EPS', async ({ page }) => {
+            await page.getByRole('tab', { name: /Gateway/i }).click();
+            await expect(page.getByText('Gateway EPS')).toBeVisible();
+            await expect(page.getByText('Message Rate (EPS)')).toBeVisible();
+        });
+    });
+
+    test.describe('System Tab (analytics system metrics)', () => {
+        test('should switch to System tab', async ({ page }) => {
             await page.getByRole('tab', { name: /System/i }).click();
-            await expect(page.getByText(/Aggregated Metrics|Host Metrics/i)).toBeVisible();
+            await expect(page.getByText('CPU Usage').first()).toBeVisible();
+            await expect(page.getByText('Memory Usage').first()).toBeVisible();
+        });
+
+        test('should display Network Throughput', async ({ page }) => {
+            await page.getByRole('tab', { name: /System/i }).click();
+            await expect(page.getByText('Network Throughput')).toBeVisible();
         });
     });
 
@@ -155,16 +181,22 @@ test.describe('Monitoring Page', () => {
         test('should persist tab selection in URL', async ({ page }) => {
             await page.getByRole('tab', { name: /Connections/i }).click();
             await expect(page).toHaveURL(/tab=connections/);
-            
+
             await page.getByRole('tab', { name: /Traffic/i }).click();
             await expect(page).toHaveURL(/tab=traffic/);
-            
+
+            await page.getByRole('tab', { name: /Errors/i }).click();
+            await expect(page).toHaveURL(/tab=errors/);
+
+            await page.getByRole('tab', { name: /Host/i }).click();
+            await expect(page).toHaveURL(/tab=host/);
+
             await page.getByRole('tab', { name: /System/i }).click();
             await expect(page).toHaveURL(/tab=system/);
         });
 
         test('should load correct tab from URL parameter', async ({ page }) => {
-            await page.goto('/avika/monitoring?tab=system');
+            await page.goto(withBase('/monitoring?tab=system'));
             await expect(page.getByRole('tab', { name: /System/i })).toHaveAttribute('data-state', 'active');
         });
     });
@@ -253,14 +285,15 @@ test.describe('Monitoring Page - Data Validation', () => {
             await page.getByRole('tab', { name: /System/i }).click();
             await page.waitForTimeout(2000);
 
-            // System tab should render the key cards even when values are 0/unknown.
             const panel = page.locator('[role="tabpanel"][data-state="active"]').first();
             await expect(panel.getByText(/CPU Usage/i).first()).toBeVisible();
             await expect(panel.getByText(/Memory Usage/i).first()).toBeVisible();
         });
+    });
 
+    test.describe('Host Tab - Data Presence', () => {
         test('should show Network rates', async ({ page }) => {
-            await page.getByRole('tab', { name: /System/i }).click();
+            await page.getByRole('tab', { name: /Host/i }).click();
             await page.waitForTimeout(2000);
 
             const panel = page.locator('[role="tabpanel"][data-state="active"]').first();
@@ -270,14 +303,22 @@ test.describe('Monitoring Page - Data Validation', () => {
     });
 
     test.describe('Traffic Tab - Data Presence', () => {
-        test('should display Top Endpoints with data or empty message', async ({ page }) => {
+        test('should display Top URLs by Traffic with data or empty message', async ({ page }) => {
             await page.getByRole('tab', { name: /Traffic/i }).click();
             await page.waitForTimeout(2000);
             
-            const table = page.locator('text=Top Endpoints').locator('..').locator('..');
+            const table = page.locator('text=Top URLs by Traffic').locator('..').locator('..');
             const hasData = await table.locator('tbody tr').count() > 0;
-            const hasEmpty = await table.getByText('No endpoint data available').isVisible().catch(() => false);
+            const hasEmpty = await table.getByText('No traffic data available').isVisible().catch(() => false);
             expect(hasData || hasEmpty).toBeTruthy();
+        });
+    });
+
+    test.describe('Errors Tab', () => {
+        test('should switch to Errors tab and show Error Rate Over Time', async ({ page }) => {
+            await page.getByRole('tab', { name: /Errors/i }).click();
+            await expect(page.getByText('Error Rate Over Time')).toBeVisible();
+            await expect(page.getByText('Error-Prone Endpoints')).toBeVisible();
         });
     });
 
