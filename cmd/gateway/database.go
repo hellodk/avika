@@ -333,7 +333,9 @@ func (db *DB) GetUserInfo(username string) (*middleware.UserInfo, error) {
 func (db *DB) CreateUser(username, email, role string) error {
 	// Generate a random password for OIDC users (they won't use it)
 	randomPassword := make([]byte, 32)
-	rand.Read(randomPassword)
+	if _, err := rand.Read(randomPassword); err != nil {
+		return fmt.Errorf("generate random password: %w", err)
+	}
 	passwordHash := fmt.Sprintf("%x", sha256.Sum256(randomPassword))
 
 	query := `
