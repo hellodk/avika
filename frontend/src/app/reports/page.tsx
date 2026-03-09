@@ -12,7 +12,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 import { TimeRangePicker, TimeRange } from "@/components/ui/time-range-picker";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { toast } from "sonner";
@@ -235,13 +235,28 @@ export default function ReportsPage() {
                 return;
             }
         }
-        // PDF or Excel: server-side
-        const base = typeof window !== 'undefined' ? window.location.origin : '';
+        // PDF or Excel: server-side (use apiUrl so base path is included, e.g. /avika/api/reports/download)
         const params = `${getReportQueryParams()}&format=${format}`;
-        const url = `${base}/api/reports/download?${params}`;
+        const url = apiUrl(`/api/reports/download?${params}`);
         try {
             const res = await fetch(url, { credentials: 'include' });
-            if (!res.ok) throw new Error(await res.text() || res.statusText);
+            const contentType = res.headers.get('Content-Type') || '';
+            if (!res.ok) {
+                const text = await res.text();
+                let msg = text;
+                try {
+                    const j = JSON.parse(text);
+                    if (j?.error) msg = j.error;
+                } catch {
+                    if (text.length > 200) msg = `${text.slice(0, 200)}…`;
+                }
+                throw new Error(msg || res.statusText);
+            }
+            // If server returned HTML (e.g. SPA fallback due to wrong path), don't save as file
+            if (contentType.includes('text/html')) {
+                toast.error('Download failed: server returned a page instead of a file. Check base path configuration.');
+                return;
+            }
             const blob = await res.blob();
             const disp = res.headers.get('Content-Disposition');
             const match = disp?.match(/filename="?([^";\n]+)"?/);
