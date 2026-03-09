@@ -79,6 +79,9 @@ type server struct {
 	// AI Error Analysis
 	errorAnalysisAPI *ErrorAnalysisAPI
 
+	// Real-time log analysis (sliding-window per agent / group)
+	realtimeAggregator *RealtimeAggregator
+
 	// Monitoring stats (atomic)
 	messageCount int64 // total messages received since last tick
 	dbLatencySum int64 // sum of DB latency in ns (use atomic)
@@ -303,6 +306,11 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 						}
 						s.trackDBOp(start)
 					}(entry, currentSession.id)
+				}
+
+				// 2b. Real-time sliding-window aggregation (for /api/servers/:id/realtime-stats and group)
+				if s.realtimeAggregator != nil {
+					s.realtimeAggregator.Add(currentSession.id, entry)
 				}
 
 				// 3. Aggregate Analytics (Legacy in-memory, keep for now as fallback/realtime cache)
@@ -1239,17 +1247,18 @@ func main() {
 
 	// Initialize server
 	srv := &server{
-		recommendations: []*pb.Recommendation{},
-		db:              db,
-		clickhouse:      chDB,
+		recommendations:    []*pb.Recommendation{},
+		db:                 db,
+		clickhouse:         chDB,
 		analytics: &AnalyticsCache{
 			StatusCodes:    make(map[string]int64),
 			EndpointStats:  make(map[string]*EndpointStats),
 			RequestHistory: []*pb.TimeSeriesPoint{},
 		},
-		config:     cfg,
-		alerts:     NewAlertEngine(db, chDB, cfg),
-		pskManager: pskManager,
+		config:             cfg,
+		alerts:             NewAlertEngine(db, chDB, cfg),
+		pskManager:         pskManager,
+		realtimeAggregator: NewRealtimeAggregator(),
 	}
 
 	// Initialize AI Error Analysis (LLM-powered)
@@ -1634,8 +1643,10 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.Handle("DELETE /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUnassignServer)))
 	mux.Handle("PUT /api/servers/{agentId}/tags", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateServerTags)))
 	mux.Handle("GET /api/servers/{agentId}/drift", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetServerDrift)))
+	mux.Handle("GET /api/servers/{agentId}/realtime-stats", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleServerRealtimeStats)))
 	mux.Handle("GET /api/projects/{id}/drift/compare", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCompareDrift)))
 	mux.Handle("GET /api/groups/{id}/logs/stream", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGroupLogsStream)))
+	mux.Handle("GET /api/groups/{id}/realtime-stats", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGroupRealtimeStats)))
 
 	// Agent Runtime Configuration API (agent self-config, persisted on agent)
 	mux.Handle("GET /api/agents/{id}/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetAgentRuntimeConfig)))
@@ -1766,16 +1777,26 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.HandleFunc("/metrics", srv.handleMetrics)
 
 	// Agent update distribution endpoint
-	// Serves agent binaries and version.json from the updates directory
+	// Serves agent binaries and version.json from the updates directory.
+	// When running as a process on a VM, create the directory if missing so update serving is enabled.
 	updatesDir := cfg.Server.UpdatesDir
 	if updatesDir == "" {
 		updatesDir = "./updates" // Default directory
 	}
-	if _, err := os.Stat(updatesDir); err == nil {
+	if _, err := os.Stat(updatesDir); err != nil {
+		if os.IsNotExist(err) {
+			if mkErr := os.MkdirAll(updatesDir, 0755); mkErr == nil {
+				log.Printf("Serving agent updates from %s on /updates/ (directory created)", updatesDir)
+				mux.Handle("/updates/", http.StripPrefix("/updates/", http.FileServer(http.Dir(updatesDir))))
+			} else {
+				log.Printf("Updates directory not found (%s), update serving disabled: %v", updatesDir, mkErr)
+			}
+		} else {
+			log.Printf("Updates directory not found (%s), update serving disabled: %v", updatesDir, err)
+		}
+	} else {
 		log.Printf("Serving agent updates from %s on /updates/", updatesDir)
 		mux.Handle("/updates/", http.StripPrefix("/updates/", http.FileServer(http.Dir(updatesDir))))
-	} else {
-		log.Printf("Updates directory not found (%s), update serving disabled", updatesDir)
 	}
 
 	// AI Error Analysis API (LLM-powered)
@@ -1802,6 +1823,69 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 type groupLogEntry struct {
 	agentID string
 	entry   *pb.LogEntry
+}
+
+// handleServerRealtimeStats returns sliding-window real-time stats for one server (agent).
+func (srv *server) handleServerRealtimeStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	agentID := r.PathValue("agentId")
+	if agentID == "" {
+		http.Error(w, `{"error":"agent id required"}`, http.StatusBadRequest)
+		return
+	}
+	windowSec := 60
+	if wStr := r.URL.Query().Get("window"); wStr != "" {
+		if n, err := strconv.Atoi(wStr); err == nil && n > 0 {
+			windowSec = n
+		}
+	}
+	if srv.realtimeAggregator == nil {
+		http.Error(w, `{"error":"realtime aggregator not available"}`, http.StatusServiceUnavailable)
+		return
+	}
+	stats := srv.realtimeAggregator.Stats(agentID, windowSec)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
+// handleGroupRealtimeStats returns sliding-window real-time stats for a group (merged from all agents).
+func (srv *server) handleGroupRealtimeStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	groupID := r.PathValue("id")
+	if groupID == "" {
+		http.Error(w, `{"error":"group id required"}`, http.StatusBadRequest)
+		return
+	}
+	windowSec := 60
+	if wStr := r.URL.Query().Get("window"); wStr != "" {
+		if n, err := strconv.Atoi(wStr); err == nil && n > 0 {
+			windowSec = n
+		}
+	}
+	resp, err := srv.GetGroupAgents(r.Context(), &pb.GetGroupAgentsRequest{GroupId: groupID})
+	if err != nil || resp == nil || len(resp.Agents) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"no agents in group or group not found"}`))
+		return
+	}
+	agentIDs := make([]string, 0, len(resp.Agents))
+	for _, a := range resp.Agents {
+		agentIDs = append(agentIDs, a.AgentId)
+	}
+	if srv.realtimeAggregator == nil {
+		http.Error(w, `{"error":"realtime aggregator not available"}`, http.StatusServiceUnavailable)
+		return
+	}
+	stats := srv.realtimeAggregator.StatsGroup(agentIDs, windowSec)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
 }
 
 // handleGroupLogsStream streams merged logs from all agents in a group as SSE (Radar-style).

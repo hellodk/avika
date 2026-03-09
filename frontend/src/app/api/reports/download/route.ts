@@ -6,6 +6,7 @@ export async function GET(req: Request) {
     const start = parseInt(searchParams.get('start') || '0');
     const end = parseInt(searchParams.get('end') || '0');
     const agentIds = searchParams.get('agent_ids')?.split(',').filter(Boolean) || [];
+    const format = (searchParams.get('format') || 'pdf').toLowerCase(); // pdf | excel | xlsx
 
     const client = getAgentServiceClient();
 
@@ -15,6 +16,7 @@ export async function GET(req: Request) {
             end_time: end,
             agent_ids: agentIds,
             report_type: 'summary',
+            format: format === 'excel' || format === 'xlsx' ? 'excel' : 'pdf',
         }, (err: any, response: any) => {
             if (err) {
                 console.error('gRPC DownloadReport Error:', err);
@@ -22,18 +24,18 @@ export async function GET(req: Request) {
             }
 
             if (!response?.content) {
-                return resolve(NextResponse.json({ error: 'No PDF content returned' }, { status: 500 }));
+                return resolve(NextResponse.json({ error: 'No report content returned' }, { status: 500 }));
             }
 
-            const pdfBuffer = Buffer.from(response.content);
+            const buffer = Buffer.from(response.content);
             const fileName = response.file_name || `avika-report-${Date.now()}.pdf`;
 
-            return resolve(new NextResponse(pdfBuffer, {
+            return resolve(new NextResponse(buffer, {
                 status: 200,
                 headers: {
                     'Content-Type': response.content_type || 'application/pdf',
                     'Content-Disposition': `attachment; filename="${fileName}"`,
-                    'Content-Length': pdfBuffer.length.toString(),
+                    'Content-Length': buffer.length.toString(),
                 },
             }));
         });

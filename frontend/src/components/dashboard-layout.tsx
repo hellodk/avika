@@ -8,7 +8,7 @@ import {
     FileText, Heart, Cpu, ChevronDown, ChevronRight,
     Bell, User, Menu, X, HelpCircle, LogOut,
     LayoutDashboard, Layers, GitBranch, Terminal, BookOpen, KeyRound, Globe,
-    LineChart, Users, FolderKanban, Lock, Info, Key, ShieldCheck
+    LineChart, FolderKanban, Lock, Info, Key, ShieldCheck
 } from "lucide-react";
 import { ProjectSelector } from "@/components/project-selector";
 import { EnvironmentTabs } from "@/components/environment-tabs";
@@ -52,11 +52,10 @@ const NAV_SECTIONS: NavSection[] = [
         ]
     },
     {
-        title: "Monitoring",
+        title: "Observability",
         items: [
             { href: "/monitoring", icon: <Cpu />, label: "Monitoring" },
             { href: "/analytics", icon: <BarChart2 />, label: "Analytics" },
-            { href: "/analytics/visitors", icon: <Users />, label: "Visitor Analytics" },
         ]
     },
     {

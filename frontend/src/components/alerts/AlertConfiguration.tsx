@@ -107,7 +107,10 @@ export function AlertConfiguration() {
                 </div>
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <DialogTrigger asChild>
-                        <Button onClick={() => setEditingRule({ enabled: true, comparison: 'gt', window_sec: 300 })}>
+                        <Button
+                            onClick={() => setEditingRule({ enabled: true, comparison: 'gt', window_sec: 300 })}
+                            className="bg-[rgb(var(--theme-primary))] text-white hover:opacity-90 dark:bg-[rgb(var(--theme-primary))] dark:text-white"
+                        >
                             <Plus className="w-4 h-4 mr-2" />
                             Add Rule
                         </Button>

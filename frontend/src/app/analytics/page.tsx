@@ -20,6 +20,16 @@ import { TimeRangePicker, TimeRange } from "@/components/ui/time-range-picker";
 import { AutoRefreshSelector, AutoRefreshConfig } from "@/components/ui/auto-refresh-selector";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+
+const VisitorAnalyticsContent = dynamic(
+    () => import("@/app/analytics/visitors/page").then((m) => ({ default: m.default })),
+    { ssr: false, loading: () => <div className="flex items-center justify-center py-12"><RefreshCw className="h-8 w-8 animate-spin" style={{ color: "rgb(var(--theme-text-muted))" }} /></div> }
+);
+const GeoAnalyticsContent = dynamic(
+    () => import("@/app/analytics/geo/page").then((m) => ({ default: m.default })),
+    { ssr: false, loading: () => <div className="flex items-center justify-center py-12"><RefreshCw className="h-8 w-8 animate-spin" style={{ color: "rgb(var(--theme-text-muted))" }} /></div> }
+);
 import { LiveMetricsProvider, useLiveMetrics } from "@/components/analytics/LiveMetricsProvider";
 import { TrafficDashboard } from "@/components/analytics/dashboards/TrafficDashboard";
 import { NginxCoreDashboard } from "@/components/analytics/dashboards/NginxCoreDashboard";
@@ -172,14 +182,6 @@ function AnalyticsView() {
     const [analyticsData, setAnalyticsData] = useState<any>(initialData);
 
     const handleTabChange = (value: string) => {
-        if (value === "geo") {
-            router.push("/analytics/geo");
-            return;
-        }
-        if (value === "visitors") {
-            router.push("/analytics/visitors");
-            return;
-        }
         const params = new URLSearchParams(searchParams.toString());
         params.set("tab", value);
         router.push(`${pathname}?${params.toString()}`);
@@ -626,12 +628,13 @@ function AnalyticsView() {
                         {/* OVERVIEW TAB - Key metrics moved to Monitoring > Overview */}
                         <TabsContent value="overview" className="space-y-6">
                             <p className="text-sm" style={{ color: 'rgb(var(--theme-text-muted))' }}>
-                                Key metrics and charts are on <Link href="/monitoring" className="underline hover:opacity-90" style={{ color: 'rgb(var(--theme-primary))' }}>Monitoring → Overview</Link>. Use the links below for detailed analytics.
+                                Key metrics and charts are on <Link href="/monitoring" className="underline hover:opacity-90" style={{ color: 'rgb(var(--theme-primary))' }}>Monitoring → Overview</Link>. Use the tabs above for detailed analytics.
                             </p>
                             <div className="grid gap-4 sm:grid-cols-2">
-                                <Link
-                                    href="/analytics/visitors"
-                                    className="flex items-center gap-4 p-4 rounded-lg border-2 transition-colors hover:border-blue-500/50"
+                                <button
+                                    type="button"
+                                    onClick={() => handleTabChange("visitors")}
+                                    className="flex items-center gap-4 p-4 rounded-lg border-2 transition-colors hover:border-blue-500/50 text-left w-full"
                                     style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
                                 >
                                     <div className="p-2 rounded-lg" style={{ background: 'rgba(var(--theme-primary), 0.15)' }}>
@@ -642,10 +645,11 @@ function AnalyticsView() {
                                         <p className="text-sm" style={{ color: 'rgb(var(--theme-text-muted))' }}>Browsers, devices, referrers, status codes (GoAccess-style)</p>
                                     </div>
                                     <ArrowUpRight className="h-4 w-4 ml-auto flex-shrink-0" style={{ color: 'rgb(var(--theme-text-muted))' }} />
-                                </Link>
-                                <Link
-                                    href="/analytics/geo"
-                                    className="flex items-center gap-4 p-4 rounded-lg border-2 transition-colors hover:border-blue-500/50"
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleTabChange("geo")}
+                                    className="flex items-center gap-4 p-4 rounded-lg border-2 transition-colors hover:border-blue-500/50 text-left w-full"
                                     style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
                                 >
                                     <div className="p-2 rounded-lg" style={{ background: 'rgba(var(--theme-primary), 0.15)' }}>
@@ -656,11 +660,17 @@ function AnalyticsView() {
                                         <p className="text-sm" style={{ color: 'rgb(var(--theme-text-muted))' }}>Traffic by country and city</p>
                                     </div>
                                     <ArrowUpRight className="h-4 w-4 ml-auto flex-shrink-0" style={{ color: 'rgb(var(--theme-text-muted))' }} />
-                                </Link>
+                                </button>
                             </div>
                         </TabsContent>
 
-                        {/* Errors and Traffic moved to Monitoring */}
+                        <TabsContent value="visitors" className="space-y-6 mt-6">
+                            <VisitorAnalyticsContent />
+                        </TabsContent>
+
+                        <TabsContent value="geo" className="space-y-6 mt-6">
+                            <GeoAnalyticsContent />
+                        </TabsContent>
                     </>
                 )}
             </Tabs>

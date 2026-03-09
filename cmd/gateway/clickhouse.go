@@ -162,7 +162,9 @@ func NewClickHouseDB(addr, username, password string) (*ClickHouseDB, error) {
 	log.Printf("GeoIP lookup initialized with well-known IP database")
 
 	if err := db.migrate(); err != nil {
-		log.Printf("Warning: ClickHouse migration failed: %v", err)
+		// Migration failure (e.g. auth 516) means the connection is not usable;
+		// return error so callers do not log "Connected to ClickHouse database".
+		return nil, fmt.Errorf("ClickHouse migration failed (check username/password): %w", err)
 	}
 
 	// Start background flushers
@@ -1139,7 +1141,6 @@ func (db *ClickHouseDB) GetReportData(ctx context.Context, start, end time.Time,
 		if math.IsNaN(lat) {
 			lat = 0
 		}
-
 		resp.Summary = &pb.ReportSummary{
 			TotalRequests:  int64(reqs),
 			ErrorRate:      float32(errRate),
@@ -1147,6 +1148,35 @@ func (db *ClickHouseDB) GetReportData(ctx context.Context, start, end time.Time,
 			AvgLatency:     float32(lat * 1000),
 			UniqueVisitors: int64(visitors),
 		}
+	}
+
+	// Previous period (same duration before start) for trend
+	prevStart := start.Add(-end.Sub(start))
+	prevWhere := "WHERE timestamp >= ? AND timestamp < ?"
+	prevArgs := []interface{}{prevStart, start}
+	if len(agentIDs) > 0 {
+		prevWhere += " AND instance_id IN (?)"
+		prevArgs = append(prevArgs, agentIDs)
+	}
+	prevRow := db.conn.QueryRow(ctx, fmt.Sprintf(`
+		SELECT count(*), countIf(status >= 400) FROM nginx_analytics.access_logs %s`, prevWhere), prevArgs...)
+	var prevReqs, prevErrs uint64
+	if err := prevRow.Scan(&prevReqs, &prevErrs); err == nil {
+		resp.Summary.PrevPeriodRequests = int64(prevReqs)
+		if prevReqs > 0 {
+			resp.Summary.PrevPeriodErrorRate = float32((float64(prevErrs) / float64(prevReqs)) * 100)
+		}
+	}
+
+	// Peak RPS (max requests per minute in period, then /60 for RPS approximation)
+	peakRow := db.conn.QueryRow(ctx, fmt.Sprintf(`
+		SELECT max(c) FROM (
+			SELECT count(*) as c FROM nginx_analytics.access_logs %s
+			GROUP BY toStartOfMinute(timestamp)
+		)`, whereClause), args...)
+	var peakPerMin uint64
+	if err := peakRow.Scan(&peakPerMin); err == nil {
+		resp.Summary.PeakRps = float32(float64(peakPerMin) / 60.0)
 	}
 
 	// 2. Traffic Trend (Daily or Hourly based on range)

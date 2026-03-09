@@ -5711,6 +5711,7 @@ type ReportRequest struct {
 	EndTime       int64                  `protobuf:"varint,2,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`         // Unix timestamp
 	AgentIds      []string               `protobuf:"bytes,3,rep,name=agent_ids,json=agentIds,proto3" json:"agent_ids,omitempty"`       // Optional filter
 	ReportType    string                 `protobuf:"bytes,4,opt,name=report_type,json=reportType,proto3" json:"report_type,omitempty"` // "summary", "detailed", "security"
+	Format        string                 `protobuf:"bytes,5,opt,name=format,proto3" json:"format,omitempty"`                           // Download format: "pdf", "excel" (optional, default pdf)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5773,16 +5774,29 @@ func (x *ReportRequest) GetReportType() string {
 	return ""
 }
 
+func (x *ReportRequest) GetFormat() string {
+	if x != nil {
+		return x.Format
+	}
+	return ""
+}
+
 type ReportResponse struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	GeneratedAt    int64                  `protobuf:"varint,1,opt,name=generated_at,json=generatedAt,proto3" json:"generated_at,omitempty"`
-	Summary        *ReportSummary         `protobuf:"bytes,2,opt,name=summary,proto3" json:"summary,omitempty"`
-	TrafficTrend   []*TimeSeriesPoint     `protobuf:"bytes,3,rep,name=traffic_trend,json=trafficTrend,proto3" json:"traffic_trend,omitempty"` // Reusing TimeSeriesPoint
-	TopUris        []*EndpointStat        `protobuf:"bytes,4,rep,name=top_uris,json=topUris,proto3" json:"top_uris,omitempty"`                // Reusing EndpointStat
-	TopServers     []*ServerStat          `protobuf:"bytes,5,rep,name=top_servers,json=topServers,proto3" json:"top_servers,omitempty"`       // Reusing ServerStat
-	SecurityEvents []*SecurityEvent       `protobuf:"bytes,6,rep,name=security_events,json=securityEvents,proto3" json:"security_events,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	GeneratedAt         int64                  `protobuf:"varint,1,opt,name=generated_at,json=generatedAt,proto3" json:"generated_at,omitempty"`
+	Summary             *ReportSummary         `protobuf:"bytes,2,opt,name=summary,proto3" json:"summary,omitempty"`
+	TrafficTrend        []*TimeSeriesPoint     `protobuf:"bytes,3,rep,name=traffic_trend,json=trafficTrend,proto3" json:"traffic_trend,omitempty"` // Reusing TimeSeriesPoint
+	TopUris             []*EndpointStat        `protobuf:"bytes,4,rep,name=top_uris,json=topUris,proto3" json:"top_uris,omitempty"`                // Reusing EndpointStat
+	TopServers          []*ServerStat          `protobuf:"bytes,5,rep,name=top_servers,json=topServers,proto3" json:"top_servers,omitempty"`       // Reusing ServerStat
+	SecurityEvents      []*SecurityEvent       `protobuf:"bytes,6,rep,name=security_events,json=securityEvents,proto3" json:"security_events,omitempty"`
+	ExecutiveSummary    string                 `protobuf:"bytes,7,opt,name=executive_summary,json=executiveSummary,proto3" json:"executive_summary,omitempty"`           // One-paragraph health + trend + risk
+	TopIssues           []string               `protobuf:"bytes,8,rep,name=top_issues,json=topIssues,proto3" json:"top_issues,omitempty"`                                // 3–5 bullets
+	Recommendations     []string               `protobuf:"bytes,9,rep,name=recommendations,proto3" json:"recommendations,omitempty"`                                     // 1–3 short actions
+	PeriodOverPeriod    string                 `protobuf:"bytes,10,opt,name=period_over_period,json=periodOverPeriod,proto3" json:"period_over_period,omitempty"`        // e.g. "Requests +12%, Errors −8% vs previous period"
+	AvailabilitySummary string                 `protobuf:"bytes,11,opt,name=availability_summary,json=availabilitySummary,proto3" json:"availability_summary,omitempty"` // e.g. "All agents healthy"
+	AlertsSummary       string                 `protobuf:"bytes,12,opt,name=alerts_summary,json=alertsSummary,proto3" json:"alerts_summary,omitempty"`                   // e.g. "3 alert rules active"
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ReportResponse) Reset() {
@@ -5857,15 +5871,60 @@ func (x *ReportResponse) GetSecurityEvents() []*SecurityEvent {
 	return nil
 }
 
+func (x *ReportResponse) GetExecutiveSummary() string {
+	if x != nil {
+		return x.ExecutiveSummary
+	}
+	return ""
+}
+
+func (x *ReportResponse) GetTopIssues() []string {
+	if x != nil {
+		return x.TopIssues
+	}
+	return nil
+}
+
+func (x *ReportResponse) GetRecommendations() []string {
+	if x != nil {
+		return x.Recommendations
+	}
+	return nil
+}
+
+func (x *ReportResponse) GetPeriodOverPeriod() string {
+	if x != nil {
+		return x.PeriodOverPeriod
+	}
+	return ""
+}
+
+func (x *ReportResponse) GetAvailabilitySummary() string {
+	if x != nil {
+		return x.AvailabilitySummary
+	}
+	return ""
+}
+
+func (x *ReportResponse) GetAlertsSummary() string {
+	if x != nil {
+		return x.AlertsSummary
+	}
+	return ""
+}
+
 type ReportSummary struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	TotalRequests  int64                  `protobuf:"varint,1,opt,name=total_requests,json=totalRequests,proto3" json:"total_requests,omitempty"`
-	ErrorRate      float32                `protobuf:"fixed32,2,opt,name=error_rate,json=errorRate,proto3" json:"error_rate,omitempty"`
-	TotalBandwidth uint64                 `protobuf:"varint,3,opt,name=total_bandwidth,json=totalBandwidth,proto3" json:"total_bandwidth,omitempty"`
-	AvgLatency     float32                `protobuf:"fixed32,4,opt,name=avg_latency,json=avgLatency,proto3" json:"avg_latency,omitempty"`
-	UniqueVisitors int64                  `protobuf:"varint,5,opt,name=unique_visitors,json=uniqueVisitors,proto3" json:"unique_visitors,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	TotalRequests       int64                  `protobuf:"varint,1,opt,name=total_requests,json=totalRequests,proto3" json:"total_requests,omitempty"`
+	ErrorRate           float32                `protobuf:"fixed32,2,opt,name=error_rate,json=errorRate,proto3" json:"error_rate,omitempty"`
+	TotalBandwidth      uint64                 `protobuf:"varint,3,opt,name=total_bandwidth,json=totalBandwidth,proto3" json:"total_bandwidth,omitempty"`
+	AvgLatency          float32                `protobuf:"fixed32,4,opt,name=avg_latency,json=avgLatency,proto3" json:"avg_latency,omitempty"`
+	UniqueVisitors      int64                  `protobuf:"varint,5,opt,name=unique_visitors,json=uniqueVisitors,proto3" json:"unique_visitors,omitempty"`
+	PeakRps             float32                `protobuf:"fixed32,6,opt,name=peak_rps,json=peakRps,proto3" json:"peak_rps,omitempty"`                                   // Max RPS in period
+	PrevPeriodRequests  int64                  `protobuf:"varint,7,opt,name=prev_period_requests,json=prevPeriodRequests,proto3" json:"prev_period_requests,omitempty"` // Same duration before start
+	PrevPeriodErrorRate float32                `protobuf:"fixed32,8,opt,name=prev_period_error_rate,json=prevPeriodErrorRate,proto3" json:"prev_period_error_rate,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ReportSummary) Reset() {
@@ -5929,6 +5988,27 @@ func (x *ReportSummary) GetAvgLatency() float32 {
 func (x *ReportSummary) GetUniqueVisitors() int64 {
 	if x != nil {
 		return x.UniqueVisitors
+	}
+	return 0
+}
+
+func (x *ReportSummary) GetPeakRps() float32 {
+	if x != nil {
+		return x.PeakRps
+	}
+	return 0
+}
+
+func (x *ReportSummary) GetPrevPeriodRequests() int64 {
+	if x != nil {
+		return x.PrevPeriodRequests
+	}
+	return 0
+}
+
+func (x *ReportSummary) GetPrevPeriodErrorRate() float32 {
+	if x != nil {
+		return x.PrevPeriodErrorRate
 	}
 	return 0
 }
@@ -12881,14 +12961,15 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\x10suggested_config\x18\n" +
 	" \x01(\tR\x0fsuggestedConfig\x12\x16\n" +
 	"\x06server\x18\v \x01(\tR\x06server\x12\x1c\n" +
-	"\ttimestamp\x18\f \x01(\x03R\ttimestamp\"\x87\x01\n" +
+	"\ttimestamp\x18\f \x01(\x03R\ttimestamp\"\x9f\x01\n" +
 	"\rReportRequest\x12\x1d\n" +
 	"\n" +
 	"start_time\x18\x01 \x01(\x03R\tstartTime\x12\x19\n" +
 	"\bend_time\x18\x02 \x01(\x03R\aendTime\x12\x1b\n" +
 	"\tagent_ids\x18\x03 \x03(\tR\bagentIds\x12\x1f\n" +
 	"\vreport_type\x18\x04 \x01(\tR\n" +
-	"reportType\"\xf0\x02\n" +
+	"reportType\x12\x16\n" +
+	"\x06format\x18\x05 \x01(\tR\x06format\"\xee\x04\n" +
 	"\x0eReportResponse\x12!\n" +
 	"\fgenerated_at\x18\x01 \x01(\x03R\vgeneratedAt\x127\n" +
 	"\asummary\x18\x02 \x01(\v2\x1d.nginx.agent.v1.ReportSummaryR\asummary\x12D\n" +
@@ -12896,7 +12977,15 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\btop_uris\x18\x04 \x03(\v2\x1c.nginx.agent.v1.EndpointStatR\atopUris\x12;\n" +
 	"\vtop_servers\x18\x05 \x03(\v2\x1a.nginx.agent.v1.ServerStatR\n" +
 	"topServers\x12F\n" +
-	"\x0fsecurity_events\x18\x06 \x03(\v2\x1d.nginx.agent.v1.SecurityEventR\x0esecurityEvents\"\xc8\x01\n" +
+	"\x0fsecurity_events\x18\x06 \x03(\v2\x1d.nginx.agent.v1.SecurityEventR\x0esecurityEvents\x12+\n" +
+	"\x11executive_summary\x18\a \x01(\tR\x10executiveSummary\x12\x1d\n" +
+	"\n" +
+	"top_issues\x18\b \x03(\tR\ttopIssues\x12(\n" +
+	"\x0frecommendations\x18\t \x03(\tR\x0frecommendations\x12,\n" +
+	"\x12period_over_period\x18\n" +
+	" \x01(\tR\x10periodOverPeriod\x121\n" +
+	"\x14availability_summary\x18\v \x01(\tR\x13availabilitySummary\x12%\n" +
+	"\x0ealerts_summary\x18\f \x01(\tR\ralertsSummary\"\xca\x02\n" +
 	"\rReportSummary\x12%\n" +
 	"\x0etotal_requests\x18\x01 \x01(\x03R\rtotalRequests\x12\x1d\n" +
 	"\n" +
@@ -12904,7 +12993,10 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\x0ftotal_bandwidth\x18\x03 \x01(\x04R\x0etotalBandwidth\x12\x1f\n" +
 	"\vavg_latency\x18\x04 \x01(\x02R\n" +
 	"avgLatency\x12'\n" +
-	"\x0funique_visitors\x18\x05 \x01(\x03R\x0euniqueVisitors\"U\n" +
+	"\x0funique_visitors\x18\x05 \x01(\x03R\x0euniqueVisitors\x12\x19\n" +
+	"\bpeak_rps\x18\x06 \x01(\x02R\apeakRps\x120\n" +
+	"\x14prev_period_requests\x18\a \x01(\x03R\x12prevPeriodRequests\x123\n" +
+	"\x16prev_period_error_rate\x18\b \x01(\x02R\x13prevPeriodErrorRate\"U\n" +
 	"\rSecurityEvent\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\x03R\x05count\x12\x1a\n" +

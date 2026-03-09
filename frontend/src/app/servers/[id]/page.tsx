@@ -101,6 +101,17 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     const [driftGroups, setDriftGroups] = useState<{ group_id: string; group_name: string; report_id: string; status: string; baseline_type: string; diff_summary?: string; error_message?: string; created_at: number }[]>([]);
     const [driftLoading, setDriftLoading] = useState(false);
 
+    // Real-time log analysis (sliding window from gateway)
+    const [realtimeStats, setRealtimeStats] = useState<{
+        window_sec: number;
+        total_requests: number;
+        total_errors: number;
+        error_rate_pct: number;
+        total_bytes: number;
+        request_rate_per_sec?: number;
+        top_endpoints?: { uri: string; requests: number; bytes: number }[];
+    } | null>(null);
+
     const fetchDetails = async () => {
         setIsLoading(true);
         try {
@@ -382,6 +393,25 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         const interval = setInterval(fetchUptime, 30000);
         return () => clearInterval(interval);
     }, [id]);
+
+    // Poll real-time stats when Logs tab is active (sliding-window from gateway)
+    useEffect(() => {
+        if (activeTab !== "logs") return;
+        const fetchRealtime = async () => {
+            try {
+                const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}/realtime-stats?window=60`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setRealtimeStats(data);
+                }
+            } catch {
+                setRealtimeStats(null);
+            }
+        };
+        fetchRealtime();
+        const interval = setInterval(fetchRealtime, 2500);
+        return () => clearInterval(interval);
+    }, [id, activeTab]);
 
     if (isLoading && !serverInfo) {
         return (
@@ -822,6 +852,35 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                 </div>
                             </div>
                         </CardHeader>
+                        {/* Real-time stats strip (sliding window from gateway) */}
+                        <div className="px-6 pb-2 flex flex-wrap items-center gap-4 border-b" style={{ borderColor: "rgb(var(--theme-border))" }}>
+                            <span className="text-xs font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>Live (last 60s)</span>
+                            {realtimeStats ? (
+                                <>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Requests</span>
+                                        <span className="font-mono text-sm font-semibold" style={{ color: "rgb(var(--theme-text))" }}>{realtimeStats.total_requests.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Error rate</span>
+                                        <span className={`font-mono text-sm font-semibold ${realtimeStats.error_rate_pct > 5 ? "text-amber-400" : ""}`} style={realtimeStats.error_rate_pct > 5 ? undefined : { color: "rgb(var(--theme-text))" }}>{realtimeStats.error_rate_pct.toFixed(2)}%</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Req/s</span>
+                                        <span className="font-mono text-sm font-semibold" style={{ color: "rgb(var(--theme-primary))" }}>{(realtimeStats.request_rate_per_sec ?? 0).toFixed(1)}</span>
+                                    </div>
+                                    {realtimeStats.top_endpoints?.[0] && (
+                                        <div className="flex items-center gap-1.5 truncate max-w-[200px]">
+                                            <span className="text-xs shrink-0" style={{ color: "rgb(var(--theme-text-muted))" }}>Top</span>
+                                            <span className="font-mono text-xs truncate" style={{ color: "rgb(var(--theme-text))" }} title={realtimeStats.top_endpoints[0].uri}>{realtimeStats.top_endpoints[0].uri}</span>
+                                            <span className="text-xs shrink-0" style={{ color: "rgb(var(--theme-text-muted))" }}>({realtimeStats.top_endpoints[0].requests})</span>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <span className="text-xs italic" style={{ color: "rgb(var(--theme-text-muted))" }}>No data yet — stream logs to see live stats</span>
+                            )}
+                        </div>
                         <CardContent>
                             <div className="space-y-2 font-mono text-xs">
                                 {logs.length === 0 && isConnected && <div className="italic" style={{ color: "rgb(var(--theme-text-muted))" }}>Waiting for logs...</div>}

@@ -35,6 +35,9 @@ func GeneratePDFReport(report *pb.ReportResponse, start, end time.Time) ([]byte,
 	pdf.SetY(170)
 	drawPerformanceSummary(pdf, report)
 
+	// Executive visibility (summary, period-over-period, availability, alerts, top issues, recommendations)
+	drawExecutiveVisibility(pdf, report)
+
 	// Footer
 	drawFooter(pdf)
 
@@ -369,6 +372,61 @@ func drawPerformanceSummary(pdf *gofpdf.Fpdf, report *pb.ReportResponse) {
 		}
 		pdf.CellFormat(30, 7, status, "B", 0, "C", false, 0, "")
 		pdf.Ln(-1)
+	}
+}
+
+func drawExecutiveVisibility(pdf *gofpdf.Fpdf, report *pb.ReportResponse) {
+	y := pdf.GetY() + 10
+	if y > 240 {
+		pdf.AddPage()
+		y = 20
+	}
+	pdf.SetY(y)
+	pdf.SetFont("Arial", "B", 10)
+	pdf.SetTextColor(30, 41, 59)
+	pdf.Cell(0, 6, "EXECUTIVE VISIBILITY")
+	pdf.Ln(8)
+
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetTextColor(51, 65, 85)
+	if report.ExecutiveSummary != "" {
+		pdf.MultiCell(0, 5, report.ExecutiveSummary, "", "", false)
+		pdf.Ln(4)
+	}
+	if report.PeriodOverPeriod != "" {
+		pdf.Cell(0, 5, "Trend: "+report.PeriodOverPeriod)
+		pdf.Ln(5)
+	}
+	if report.AvailabilitySummary != "" {
+		pdf.Cell(0, 5, "Availability: "+report.AvailabilitySummary)
+		pdf.Ln(5)
+	}
+	if report.AlertsSummary != "" {
+		pdf.Cell(0, 5, "Alerts: "+report.AlertsSummary)
+		pdf.Ln(8)
+	}
+	if len(report.TopIssues) > 0 {
+		pdf.SetFont("Arial", "B", 9)
+		pdf.Cell(0, 5, "Top issues")
+		pdf.Ln(5)
+		pdf.SetFont("Arial", "", 8)
+		for _, s := range report.TopIssues {
+			pdf.Cell(5, 5, "")
+			pdf.Cell(0, 5, "• "+s)
+			pdf.Ln(5)
+		}
+		pdf.Ln(3)
+	}
+	if len(report.Recommendations) > 0 {
+		pdf.SetFont("Arial", "B", 9)
+		pdf.Cell(0, 5, "Recommendations")
+		pdf.Ln(5)
+		pdf.SetFont("Arial", "", 8)
+		for _, s := range report.Recommendations {
+			pdf.Cell(5, 5, "")
+			pdf.Cell(0, 5, "• "+s)
+			pdf.Ln(5)
+		}
 	}
 }
 
