@@ -36,7 +36,7 @@ data:
         type: grafana-clickhouse-datasource
         uid: {{ .Values.grafana.datasources.clickhouse.uid }}
         access: proxy
-        isDefault: true
+        isDefault: {{ .Values.grafana.datasources.clickhouse.isDefault | default false }}
         editable: false
         jsonData:
           host: {{ $clickhouseHost | quote }}

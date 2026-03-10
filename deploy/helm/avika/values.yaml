@@ -628,6 +628,8 @@ grafana:
     clickhouse:
       name: "ClickHouse"
       uid: "DS_CLICKHOUSE"
+      # Set to true only if this is the sole datasource (avoids "Only one datasource can be default" when using sidecar or shared Grafana).
+      isDefault: false
       # Host: leave empty to use in-cluster FQDN. Override if Grafana runs in another namespace or needs a different address.
       host: ""  # e.g. "avika-clickhouse-0.avika-clickhouse.avika.svc.cluster.local" for direct pod DNS
       port: 8123

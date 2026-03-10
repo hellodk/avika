@@ -93,7 +93,7 @@ export function AgentFleetTable({
     onTerminal
 }: AgentFleetTableProps) {
     const router = useRouter();
-    const pathname = usePathname();
+    const pathname = usePathname() ?? "";
     const searchParams = useSearchParams();
 
     const searchQuery = searchParams.get('q') || "";
@@ -313,7 +313,8 @@ export function AgentFleetTable({
                             value={searchQuery}
                             onChange={(e) => updateParams({ q: e.target.value })}
                             className="pl-10 pr-4 py-2 text-sm rounded-lg border w-72 focus:outline-none focus:ring-2 focus:ring-blue-500"
- style={{ background: 'rgb(var(--theme-background))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
+                            style={{ background: 'rgb(var(--theme-background))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
+                            data-testid="inventory-search"
                         />
                     </div>
                     <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: 'rgb(var(--theme-border))', background: 'rgb(var(--theme-background))' }}>
@@ -366,7 +367,7 @@ export function AgentFleetTable({
 
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}>
+                            <Button variant="outline" size="sm" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }} data-testid="inventory-export-trigger">
                                 <Download className="h-4 w-4 mr-2" />
                                 Export
                                 <ChevronDown className="h-3 w-3 ml-1" />

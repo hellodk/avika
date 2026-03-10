@@ -50,10 +50,10 @@ const formatSegment = (segment: string) => {
 };
 
 export function Breadcrumb() {
-    const pathname = usePathname();
+    const pathname = usePathname() ?? "";
 
     // Don't show breadcrumb on home or generic root pages
-    if (pathname === "/") return null;
+    if (!pathname || pathname === "/") return null;
 
     const segments = pathname.split('/').filter(Boolean);
 

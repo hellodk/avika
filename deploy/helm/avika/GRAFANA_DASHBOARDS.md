@@ -43,7 +43,15 @@ with no `--set`; the ConfigMap will use the password from the existing Secret. T
 
 **Override:** Set `grafana.datasources.clickhouse.password` in values (or via `--set`) to use a different password. If the secret has no password (empty), leave this empty.
 
-## 4. ClickHouse must be reachable from Grafana
+## 4. Only one datasource can be default
+
+If Grafana reports **"Only one datasource per organization can be marked as default"**, more than one provisioned datasource has `isDefault: true`. The chart sets the ClickHouse datasource to **`isDefault: false`** by default (`grafana.datasources.clickhouse.isDefault`). Set it to `true` only when this is the only datasource (e.g. temporary Grafana with no others). You can always set the default in the Grafana UI.
+
+**"Database is locked"** (SQLite): Grafana’s default DB can report this under heavy provisioning or concurrent writes. It usually clears after retries. For production, consider running Grafana with an external DB (e.g. PostgreSQL) if you see it often.
+
+---
+
+## 5. ClickHouse must be reachable from Grafana
 
 The datasource is provisioned with:
 
@@ -66,7 +74,7 @@ If Grafana shows **“Failed to create ClickHouse client”**, see `docs/DESIGN_
 
 ---
 
-## 5. Time range: DateTime64(3) and Grafana variables
+## 6. Time range: DateTime64(3) and Grafana variables
 
 ClickHouse tables use **DateTime64(3)** for `timestamp`. The Grafana ClickHouse plugin substitutes `$__fromTime` and `$__toTime` in a way that expects **no division by 1000** in the query. The dashboard JSON uses:
 
@@ -78,7 +86,7 @@ Do not use `$__fromTime/1000` or `$__toTime/1000`—the plugin can substitute va
 
 ---
 
-## 6. Check that ClickHouse has data
+## 7. Check that ClickHouse has data
 
 If the datasource connects but panels are empty:
 
@@ -90,7 +98,7 @@ If the datasource connects but panels are empty:
 
 ---
 
-## 7. Verifying the ClickHouse datasource (read-only)
+## 8. Verifying the ClickHouse datasource (read-only)
 
 You can confirm the datasource is provisioned without modifying the monitoring namespace:
 
@@ -109,7 +117,7 @@ You can confirm the datasource is provisioned without modifying the monitoring n
    ```
    This does not change anything; it only queries the datasource health.
 
-## 8. Temporary Grafana in avika (for testing dashboards)
+## 9. Temporary Grafana in avika (for testing dashboards)
 
 To run a Grafana instance in the avika namespace (same ClickHouse, same dashboards) for testing:
 
@@ -120,7 +128,7 @@ kubectl port-forward -n avika svc/avika-grafana-temporary 3000:3000
 
 Open http://localhost:3000 — user `admin`, pass from `grafana.temporary.adminPass` (e.g. `--set grafana.temporary.adminPass=yourpass` when enabling). The ClickHouse datasource is provisioned from the same secret; dashboards are loaded from the Avika folder. Disable when done: `--set grafana.temporary.enabled=false`.
 
-## 9. Redeploy after changes (Helm only)
+## 10. Redeploy after changes (Helm only)
 
 All changes must be applied via **Helm** (no `kubectl patch`). After changing `grafana.datasources.*` or dashboard JSON in the chart:
 

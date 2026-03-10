@@ -38,16 +38,17 @@ function InventoryPageContent() {
     // Delete confirmation state
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [agentToDelete, setAgentToDelete] = useState<any>(null);
+    const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
 
     const fetchAgents = async () => {
         try {
             const res = await apiFetch('/api/servers');
             if (!res.ok) throw new Error('Failed to fetch agents');
             const data = await res.json();
-            setInstances(Array.isArray(data.agents) ? data.agents : []);
+            setInstances(Array.isArray(data?.agents) ? data.agents : []);
             setError(null);
-        } catch (error: any) {
-            setError(error.message);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Failed to load inventory");
         } finally {
             setLoading(false);
         }
@@ -121,17 +122,21 @@ function InventoryPageContent() {
         }
     };
 
-    const handleBulkDelete = async () => {
+    const handleBulkDeleteClick = () => {
         if (selectedAgents.size === 0) return;
+        setBulkDeleteDialogOpen(true);
+    };
 
-        // Show confirmation
-        if (!window.confirm(`Are you sure you want to remove ${selectedAgents.size} agents?`)) return;
-
+    const handleBulkDeleteConfirm = async () => {
+        if (selectedAgents.size === 0) return;
+        setBulkDeleteDialogOpen(false);
         setLoading(true);
         let successCount = 0;
         let failCount = 0;
+        const toDelete = Array.from(selectedAgents);
+        setSelectedAgents(new Set());
 
-        for (const agentId of Array.from(selectedAgents)) {
+        for (const agentId of toDelete) {
             try {
                 const res = await apiFetch(`/api/servers/${encodeURIComponent(agentId)}`, { method: 'DELETE' });
                 if (res.ok) successCount++;
@@ -145,7 +150,6 @@ function InventoryPageContent() {
             description: `Successfully removed ${successCount} agents. ${failCount} failed.`
         });
 
-        setSelectedAgents(new Set());
         fetchAgents();
     };
 
@@ -183,7 +187,7 @@ function InventoryPageContent() {
                     <h2 className="text-xl font-semibold" style={{ color: 'rgb(var(--theme-text))' }}>Unable to load inventory</h2>
                     <p className="text-sm" style={{ color: 'rgb(var(--theme-text-muted))' }}>{error}</p>
                 </div>
-                <Button onClick={fetchAgents} variant="outline">
+                <Button onClick={fetchAgents} variant="outline" data-testid="inventory-error-retry">
                     <RefreshCw className="h-4 w-4 mr-2" />
                     Retry
                 </Button>
@@ -264,6 +268,27 @@ function InventoryPageContent() {
                 </AlertDialogContent>
             </AlertDialog>
 
+            <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+                <AlertDialogContent style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle style={{ color: 'rgb(var(--theme-text))' }}>Remove multiple agents</AlertDialogTitle>
+                        <AlertDialogDescription style={{ color: 'rgb(var(--theme-text-muted))' }}>
+                            Are you sure you want to remove <strong>{selectedAgents.size} agents</strong>? This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleBulkDeleteConfirm}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Remove {selectedAgents.size} agents
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-semibold" style={{ color: 'rgb(var(--theme-text))' }}>Inventory</h1>
@@ -304,7 +329,7 @@ function InventoryPageContent() {
                     setDeleteDialogOpen(true);
                 }}
                 onUpdate={updateAgent}
-                onBulkDelete={handleBulkDelete}
+                onBulkDelete={handleBulkDeleteClick}
                 onBulkUpdate={handleBulkUpdate}
                 onTerminal={(agent) => {
                     if (agent.is_pod) {
