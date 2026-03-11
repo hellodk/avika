@@ -957,7 +957,7 @@ func (s *server) handleGetServerDrift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"groups": items})
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"groups": items})
 }
 
 // handleCompareDrift handles GET /api/projects/{id}/drift/compare?groupA=uuid&groupB=uuid
@@ -979,5 +979,5 @@ func (s *server) handleCompareDrift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	_ = json.NewEncoder(w).Encode(result)
 }

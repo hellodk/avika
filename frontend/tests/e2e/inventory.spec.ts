@@ -43,7 +43,7 @@ test.describe('Inventory Page', () => {
         
         // Check page contains search input
         const pageContent = await page.content();
-        expect(pageContent).toContain('Search by hostname, IP, or agent ID...');
+        expect(pageContent).toContain('Search agents...');
     });
 
     test('should have status filter buttons', async ({ page }) => {
@@ -138,7 +138,7 @@ test.describe('Inventory Page - Accessibility', () => {
         
         // Basic accessibility structure - page title and search input
         expect(pageContent).toContain('Inventory');
-        expect(pageContent).toContain('Search by hostname, IP, or agent ID...');
+        expect(pageContent).toContain('Search agents...');
         
         // Page should have stats cards
         expect(pageContent).toContain('Total Agents');
@@ -147,7 +147,7 @@ test.describe('Inventory Page - Accessibility', () => {
     test('should be keyboard navigable', async ({ page }) => {
         // Check that search input exists in page content
         const pageContent = await page.content();
-        expect(pageContent).toContain('Search by hostname, IP, or agent ID...');
+        expect(pageContent).toContain('Search agents...');
         
         // Page should be interactive (not errored)
         await expect(page).toHaveURL(INV);

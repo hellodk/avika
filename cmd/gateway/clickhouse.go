@@ -724,13 +724,16 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, window 
 		currStatsWhereClause = currStatsWhereClause + " AND status > 0"
 	}
 
-	db.conn.QueryRow(ctx, fmt.Sprintf(`
+	err = db.conn.QueryRow(ctx, fmt.Sprintf(`
 		SELECT 
 			count(*), 
 			countIf(status >= 400), 
 			sum(body_bytes_sent), 
 			avg(request_time) 
 		FROM nginx_analytics.access_logs %s`, currStatsWhereClause), args...).Scan(&currReqs, &currErrors, &currBytes, &currLat)
+	if err != nil {
+		return nil, err
+	}
 
 	// Deltas need a slightly different filter
 	prevWhereClause := "WHERE timestamp >= ? AND timestamp < ? AND status > 0"
@@ -740,13 +743,16 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, window 
 		prevArgs = append(prevArgs, agentID)
 	}
 
-	db.conn.QueryRow(ctx, fmt.Sprintf(`
+	err = db.conn.QueryRow(ctx, fmt.Sprintf(`
 		SELECT 
 			count(*), 
 			countIf(status >= 400), 
 			sum(body_bytes_sent), 
 			avg(request_time) 
 		FROM nginx_analytics.access_logs %s`, prevWhereClause), prevArgs...).Scan(&prevReqs, &prevErrors, &prevBytes, &prevLat)
+	if err != nil {
+		return nil, err
+	}
 
 	currErrRate := 0.0
 	if currReqs > 0 {
@@ -1546,12 +1552,15 @@ func (db *ClickHouseDB) flushLogs(batch []logBatchItem) {
 		if item.entry.Timestamp == 0 {
 			ts = time.Now()
 		}
-		b.Append(ts, item.agentID, item.entry.RemoteAddr, item.entry.RequestMethod,
+		if err := b.Append(ts, item.agentID, item.entry.RemoteAddr, item.entry.RequestMethod,
 			item.entry.RequestUri, uint16(item.entry.Status), uint64(item.entry.BodyBytesSent),
 			float32(item.entry.RequestTime), item.entry.RequestId, item.entry.UpstreamAddr,
 			item.entry.UpstreamStatus, item.entry.UserAgent, item.entry.Referer,
 			item.clientIP, item.country, item.countryCode, item.city, item.region,
-			item.latitude, item.longitude, item.timezone, item.isp)
+			item.latitude, item.longitude, item.timezone, item.isp); err != nil {
+			log.Printf("FlushLogs: Append failed: %v", err)
+			return
+		}
 	}
 
 	if err := b.Send(); err != nil {
@@ -1591,9 +1600,14 @@ func (db *ClickHouseDB) flushSpans(batch []spanBatchItem) {
 	}
 
 	for _, s := range batch {
-		b.Append(s.traceID, s.spanID, s.parent, s.name, s.start, s.end, s.attrs, s.agentID)
+		if err := b.Append(s.traceID, s.spanID, s.parent, s.name, s.start, s.end, s.attrs, s.agentID); err != nil {
+			log.Printf("flushSpans: Append failed: %v", err)
+			return
+		}
 	}
-	b.Send()
+	if err := b.Send(); err != nil {
+		log.Printf("flushSpans: Send failed: %v", err)
+	}
 }
 
 func (db *ClickHouseDB) runSysFlusher() {
@@ -1624,7 +1638,7 @@ func (db *ClickHouseDB) flushSys(batch []sysBatchItem) {
 		return
 	}
 	for _, item := range batch {
-		b.Append(
+		if err := b.Append(
 			time.Now(),
 			item.agentID,
 			float32(item.entry.CpuUsagePercent),
@@ -1638,7 +1652,10 @@ func (db *ClickHouseDB) flushSys(batch []sysBatchItem) {
 			float32(item.entry.CpuUserPercent),
 			float32(item.entry.CpuSystemPercent),
 			float32(item.entry.CpuIowaitPercent),
-		)
+		); err != nil {
+			log.Printf("Failed to append system metrics: %v", err)
+			return
+		}
 	}
 	if err := b.Send(); err != nil {
 		log.Printf("Failed to send system metrics batch: %v", err)
@@ -1690,7 +1707,7 @@ func (db *ClickHouseDB) flushNginx(batch []nginxBatchItem) {
 		}
 		bytesIn := uint64(item.entry.BytesInTotal)
 		bytesOut := uint64(item.entry.BytesOutTotal)
-		b.Append(
+		if err := b.Append(
 			time.Now(),
 			item.agentID,
 			uint32(item.entry.ActiveConnections),
@@ -1703,7 +1720,10 @@ func (db *ClickHouseDB) flushNginx(batch []nginxBatchItem) {
 			rps,
 			s2xx, s3xx, s4xx, s5xx,
 			bytesIn, bytesOut,
-		)
+		); err != nil {
+			log.Printf("Failed to append nginx metrics: %v", err)
+			return
+		}
 	}
 	if err := b.Send(); err != nil {
 		log.Printf("Failed to send nginx metrics batch: %v", err)
@@ -1739,12 +1759,17 @@ func (db *ClickHouseDB) flushGw(batch []gwBatchItem) {
 		return
 	}
 	for _, item := range batch {
-		b.Append(time.Now(), item.metrics.gatewayID, item.metrics.metrics.Eps,
+		if err := b.Append(time.Now(), item.metrics.gatewayID, item.metrics.metrics.Eps,
 			uint32(item.metrics.metrics.ActiveConnections), item.metrics.metrics.CpuUsage,
 			item.metrics.metrics.MemoryMb, uint32(item.metrics.metrics.Goroutines),
-			item.metrics.metrics.DbLatency)
+			item.metrics.metrics.DbLatency); err != nil {
+			log.Printf("flushGw: Append failed: %v", err)
+			return
+		}
 	}
-	b.Send()
+	if err := b.Send(); err != nil {
+		log.Printf("flushGw: Send failed: %v", err)
+	}
 }
 
 // GeoDataResponse represents geo analytics data
@@ -1956,7 +1981,9 @@ func (db *ClickHouseDB) GetGeoData(ctx context.Context, window string) (*GeoData
 		WHERE timestamp >= ? AND country != ''
 	`
 	var countries, cities, total uint64
-	db.conn.QueryRow(ctx, querySummary, startTime).Scan(&countries, &cities, &total)
+	if err := db.conn.QueryRow(ctx, querySummary, startTime).Scan(&countries, &cities, &total); err != nil {
+		return nil, err
+	}
 	resp.TotalCountries = countries
 	resp.TotalCities = cities
 	resp.TotalRequests = total
@@ -2140,7 +2167,9 @@ func (db *ClickHouseDB) GetGeoDataFiltered(ctx context.Context, window string, a
 		WHERE timestamp >= ? AND country != '' AND %s
 	`, agentClause)
 	var countries, cities, total uint64
-	db.conn.QueryRow(ctx, querySummary, agentArgs...).Scan(&countries, &cities, &total)
+	if err := db.conn.QueryRow(ctx, querySummary, agentArgs...).Scan(&countries, &cities, &total); err != nil {
+		return nil, err
+	}
 	resp.TotalCountries = countries
 	resp.TotalCities = cities
 	resp.TotalRequests = total

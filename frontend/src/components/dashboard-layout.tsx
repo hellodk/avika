@@ -98,7 +98,7 @@ function EnvironmentTabsBar() {
 }
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-    const pathname = usePathname();
+    const pathname = usePathname() ?? "";
     const router = useRouter();
     const { user, logout } = useAuth();
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -115,7 +115,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     };
 
     // Get current page title for breadcrumb (match longest href so /analytics/visitors -> Visitor Analytics)
+    // pathname from usePathname() does not include basePath (e.g. /avika/inventory -> /inventory)
     const getCurrentPageTitle = () => {
+        if (!pathname) return "Dashboard";
         let best: string | null = null;
         let bestLen = 0;
         for (const section of NAV_SECTIONS) {
@@ -375,9 +377,10 @@ interface NavLinkProps {
 }
 
 function NavLink({ href, icon, label, pathname, collapsed, badge, badgeColor = "blue" }: NavLinkProps) {
-    const isActive = href === "/"
-        ? pathname === "/"
-        : pathname.startsWith(href) && (href !== "/" || pathname === "/");
+        const safePath = pathname ?? "";
+        const isActive = href === "/"
+        ? safePath === "/"
+        : safePath.startsWith(href) && (href !== "/" || safePath === "/");
 
     // Theme-aware badge colors using CSS variables
     const badgeStyles: Record<string, React.CSSProperties> = {

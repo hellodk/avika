@@ -274,7 +274,7 @@ func (p *LDAPProvider) LoginHandler() http.HandlerFunc {
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": true,
 			"user":    username,
 			"role":    role,
