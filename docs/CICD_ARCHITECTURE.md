@@ -200,7 +200,8 @@ on:
 
 | Secret | Description | Required For |
 |--------|-------------|--------------|
-| `GHCR_TOKEN` | GitHub Container Registry | Push to ghcr.io |
+| `DOCKERHUB_USERNAME` | Docker Hub username | Push images (CI/Release) |
+| `DOCKERHUB_TOKEN` | Docker Hub access token | Push images (CI/Release) |
 | `SIGNING_KEY` | GPG key for signing | Binary signing |
 
 ### Setting Up Secrets

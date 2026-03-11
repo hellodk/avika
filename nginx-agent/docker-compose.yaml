@@ -36,7 +36,7 @@ services:
   # ============================
 
   nginx1:
-    image: ghcr.io/hellodk/avika-agent:latest
+    image: docker.io/hellodk/avika-agent:latest
     depends_on: [backend, geodb-updater]
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
@@ -47,7 +47,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   nginx2:
-    image: ghcr.io/hellodk/avika-agent:latest
+    image: docker.io/hellodk/avika-agent:latest
     depends_on: [backend, geodb-updater]
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
@@ -58,7 +58,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   nginx3:
-    image: ghcr.io/hellodk/avika-agent:latest
+    image: docker.io/hellodk/avika-agent:latest
     depends_on: [backend, geodb-updater]
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
@@ -69,7 +69,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   nginx4:
-    image: ghcr.io/hellodk/avika-agent:latest
+    image: docker.io/hellodk/avika-agent:latest
     depends_on: [backend, geodb-updater]
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro

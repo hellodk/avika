@@ -84,7 +84,7 @@ spec:
         - name: {{ $name }}
           {{- $imgRepo := $component.image.repository }}
           {{- if $component.image.useGlobalRegistry }}
-          {{- $imgRepo = printf "%s/%s" ($.Values.global.imageRegistry | default "ghcr.io/hellodk") $component.image.repository }}
+          {{- $imgRepo = printf "%s/%s" ($.Values.global.imageRegistry | default "docker.io/hellodk") $component.image.repository }}
           {{- end }}
           image: "{{ $imgRepo }}:{{ $component.image.tag | default $.Chart.AppVersion }}"
           imagePullPolicy: {{ $component.image.pullPolicy | default "IfNotPresent" }}
@@ -330,7 +330,7 @@ spec:
         - name: {{ $sidecar.name }}
           {{- $sidecarImg := $sidecar.image.repository }}
           {{- if $sidecar.image.useGlobalRegistry }}
-          {{- $sidecarImg = printf "%s/%s" ($.Values.global.imageRegistry | default "ghcr.io/hellodk") $sidecar.image.repository }}
+          {{- $sidecarImg = printf "%s/%s" ($.Values.global.imageRegistry | default "docker.io/hellodk") $sidecar.image.repository }}
           {{- end }}
           image: "{{ $sidecarImg }}:{{ $sidecar.image.tag | default $.Chart.AppVersion }}"
           imagePullPolicy: {{ $sidecar.image.pullPolicy | default "IfNotPresent" }}

@@ -15,7 +15,7 @@ timezone: UTC
 # Single source of truth for app image registry (must match .github/IMAGE_REGISTRY).
 # Only gateway and frontend use this; other components use image.repository as-is.
 global:
-  imageRegistry: ghcr.io/hellodk
+  imageRegistry: docker.io/hellodk
 
 # Image pull secrets for private registries
 imagePullSecrets: []
