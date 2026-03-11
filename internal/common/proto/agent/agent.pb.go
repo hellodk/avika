@@ -3885,16 +3885,18 @@ func (x *UptimeReport) GetError() string {
 }
 
 type AnalyticsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`                    // Optional, defaults to all
-	TimeWindow    string                 `protobuf:"bytes,2,opt,name=time_window,json=timeWindow,proto3" json:"time_window,omitempty"`           // "1h", "24h", "7d"
-	EnvironmentId string                 `protobuf:"bytes,3,opt,name=environment_id,json=environmentId,proto3" json:"environment_id,omitempty"`  // Optional: filter by environment
-	ProjectId     string                 `protobuf:"bytes,4,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`              // Optional: filter by project (all environments)
-	FromTimestamp int64                  `protobuf:"varint,5,opt,name=from_timestamp,json=fromTimestamp,proto3" json:"from_timestamp,omitempty"` // Optional: absolute start time (milliseconds)
-	ToTimestamp   int64                  `protobuf:"varint,6,opt,name=to_timestamp,json=toTimestamp,proto3" json:"to_timestamp,omitempty"`       // Optional: absolute end time (milliseconds)
-	Timezone      string                 `protobuf:"bytes,7,opt,name=timezone,proto3" json:"timezone,omitempty"`                                 // Optional: client timezone for formatting
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	AgentId          string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`                              // Optional, defaults to all
+	TimeWindow       string                 `protobuf:"bytes,2,opt,name=time_window,json=timeWindow,proto3" json:"time_window,omitempty"`                     // "1h", "24h", "7d"
+	EnvironmentId    string                 `protobuf:"bytes,3,opt,name=environment_id,json=environmentId,proto3" json:"environment_id,omitempty"`            // Optional: filter by environment
+	ProjectId        string                 `protobuf:"bytes,4,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`                        // Optional: filter by project (all environments)
+	FromTimestamp    int64                  `protobuf:"varint,5,opt,name=from_timestamp,json=fromTimestamp,proto3" json:"from_timestamp,omitempty"`           // Optional: absolute start time (milliseconds)
+	ToTimestamp      int64                  `protobuf:"varint,6,opt,name=to_timestamp,json=toTimestamp,proto3" json:"to_timestamp,omitempty"`                 // Optional: absolute end time (milliseconds)
+	Timezone         string                 `protobuf:"bytes,7,opt,name=timezone,proto3" json:"timezone,omitempty"`                                           // Optional: client timezone for formatting
+	UrlFilter        string                 `protobuf:"bytes,8,opt,name=url_filter,json=urlFilter,proto3" json:"url_filter,omitempty"`                        // Optional: filter by specific URL
+	StatusCodeFilter string                 `protobuf:"bytes,9,opt,name=status_code_filter,json=statusCodeFilter,proto3" json:"status_code_filter,omitempty"` // Optional: filter by specific status code or class (e.g., "4xx")
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *AnalyticsRequest) Reset() {
@@ -3972,6 +3974,20 @@ func (x *AnalyticsRequest) GetToTimestamp() int64 {
 func (x *AnalyticsRequest) GetTimezone() string {
 	if x != nil {
 		return x.Timezone
+	}
+	return ""
+}
+
+func (x *AnalyticsRequest) GetUrlFilter() string {
+	if x != nil {
+		return x.UrlFilter
+	}
+	return ""
+}
+
+func (x *AnalyticsRequest) GetStatusCodeFilter() string {
+	if x != nil {
+		return x.StatusCodeFilter
 	}
 	return ""
 }
@@ -4718,6 +4734,10 @@ type AnalyticsSummary struct {
 	RequestsDelta  float32 `protobuf:"fixed32,5,opt,name=requests_delta,json=requestsDelta,proto3" json:"requests_delta,omitempty"`
 	LatencyDelta   float32 `protobuf:"fixed32,6,opt,name=latency_delta,json=latencyDelta,proto3" json:"latency_delta,omitempty"`
 	ErrorRateDelta float32 `protobuf:"fixed32,7,opt,name=error_rate_delta,json=errorRateDelta,proto3" json:"error_rate_delta,omitempty"`
+	Requests_2Xx   int64   `protobuf:"varint,8,opt,name=requests_2xx,json=requests2xx,proto3" json:"requests_2xx,omitempty"`
+	Requests_3Xx   int64   `protobuf:"varint,9,opt,name=requests_3xx,json=requests3xx,proto3" json:"requests_3xx,omitempty"`
+	Requests_4Xx   int64   `protobuf:"varint,10,opt,name=requests_4xx,json=requests4xx,proto3" json:"requests_4xx,omitempty"`
+	Requests_5Xx   int64   `protobuf:"varint,11,opt,name=requests_5xx,json=requests5xx,proto3" json:"requests_5xx,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -4797,6 +4817,34 @@ func (x *AnalyticsSummary) GetLatencyDelta() float32 {
 func (x *AnalyticsSummary) GetErrorRateDelta() float32 {
 	if x != nil {
 		return x.ErrorRateDelta
+	}
+	return 0
+}
+
+func (x *AnalyticsSummary) GetRequests_2Xx() int64 {
+	if x != nil {
+		return x.Requests_2Xx
+	}
+	return 0
+}
+
+func (x *AnalyticsSummary) GetRequests_3Xx() int64 {
+	if x != nil {
+		return x.Requests_3Xx
+	}
+	return 0
+}
+
+func (x *AnalyticsSummary) GetRequests_4Xx() int64 {
+	if x != nil {
+		return x.Requests_4Xx
+	}
+	return 0
+}
+
+func (x *AnalyticsSummary) GetRequests_5Xx() int64 {
+	if x != nil {
+		return x.Requests_5Xx
 	}
 	return 0
 }
@@ -12782,7 +12830,7 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\n" +
 	"check_type\x18\x04 \x01(\tR\tcheckType\x12\x16\n" +
 	"\x06target\x18\x05 \x01(\tR\x06target\x12\x14\n" +
-	"\x05error\x18\x06 \x01(\tR\x05error\"\xfa\x01\n" +
+	"\x05error\x18\x06 \x01(\tR\x05error\"\xc7\x02\n" +
 	"\x10AnalyticsRequest\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x1f\n" +
 	"\vtime_window\x18\x02 \x01(\tR\n" +
@@ -12792,7 +12840,10 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"project_id\x18\x04 \x01(\tR\tprojectId\x12%\n" +
 	"\x0efrom_timestamp\x18\x05 \x01(\x03R\rfromTimestamp\x12!\n" +
 	"\fto_timestamp\x18\x06 \x01(\x03R\vtoTimestamp\x12\x1a\n" +
-	"\btimezone\x18\a \x01(\tR\btimezone\"\xc9\a\n" +
+	"\btimezone\x18\a \x01(\tR\btimezone\x12\x1d\n" +
+	"\n" +
+	"url_filter\x18\b \x01(\tR\turlFilter\x12,\n" +
+	"\x12status_code_filter\x18\t \x01(\tR\x10statusCodeFilter\"\xc9\a\n" +
 	"\x11AnalyticsResponse\x12B\n" +
 	"\frequest_rate\x18\x01 \x03(\v2\x1f.nginx.agent.v1.TimeSeriesPointR\vrequestRate\x12L\n" +
 	"\x13status_distribution\x18\x02 \x03(\v2\x1b.nginx.agent.v1.StatusCountR\x12statusDistribution\x12G\n" +
@@ -12870,7 +12921,7 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\x14ApplyAugmentResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12\x18\n" +
-	"\apreview\x18\x03 \x01(\tR\apreview\"\x98\x02\n" +
+	"\apreview\x18\x03 \x01(\tR\apreview\"\xa4\x03\n" +
 	"\x10AnalyticsSummary\x12%\n" +
 	"\x0etotal_requests\x18\x01 \x01(\x03R\rtotalRequests\x12\x1d\n" +
 	"\n" +
@@ -12880,7 +12931,12 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\x0ftotal_bandwidth\x18\x04 \x01(\x04R\x0etotalBandwidth\x12%\n" +
 	"\x0erequests_delta\x18\x05 \x01(\x02R\rrequestsDelta\x12#\n" +
 	"\rlatency_delta\x18\x06 \x01(\x02R\flatencyDelta\x12(\n" +
-	"\x10error_rate_delta\x18\a \x01(\x02R\x0eerrorRateDelta\"=\n" +
+	"\x10error_rate_delta\x18\a \x01(\x02R\x0eerrorRateDelta\x12!\n" +
+	"\frequests_2xx\x18\b \x01(\x03R\vrequests2xx\x12!\n" +
+	"\frequests_3xx\x18\t \x01(\x03R\vrequests3xx\x12!\n" +
+	"\frequests_4xx\x18\n" +
+	" \x01(\x03R\vrequests4xx\x12!\n" +
+	"\frequests_5xx\x18\v \x01(\x03R\vrequests5xx\"=\n" +
 	"\rLatencyBucket\x12\x16\n" +
 	"\x06bucket\x18\x01 \x01(\tR\x06bucket\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\x03R\x05count\"}\n" +

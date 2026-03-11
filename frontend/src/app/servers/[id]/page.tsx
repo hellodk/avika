@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { FileCode, Save, RotateCcw, CheckCircle2, AlertTriangle, Shield, FileText, RefreshCw, Play, Square, RotateCcwIcon, Construction, Plus, Trash2, BarChart3, Activity, Terminal, Copy, Check, Settings, Server, Network, Zap, Globe, Info, GitCompare, Download, Search, X } from "lucide-react";
+import { FileCode, Save, RotateCcw, CheckCircle2, AlertTriangle, ArrowRightCircle, AlertCircle, Shield, FileText, RefreshCw, Play, Square, RotateCcwIcon, Construction, Plus, Trash2, BarChart3, Activity, Terminal, Copy, Check, Settings, Server, Network, Zap, Globe, Info, GitCompare, Download, Search, X, Loader2 } from "lucide-react";
 import { RefreshButton } from "@/components/ui/refresh-button";
 import Link from "next/link";
 import { useState, useEffect, use, useMemo, useRef, useCallback } from "react";
@@ -98,6 +98,22 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     const [configBackupsLoading, setConfigBackupsLoading] = useState(false);
     const [restoreLoading, setRestoreLoading] = useState(false);
 
+    // NGINX Config Backups State
+    const [nginxBackups, setNginxBackups] = useState<{ id: number; backup_type: string; created_at: string }[]>([]);
+    const [nginxBackupsLoading, setNginxBackupsLoading] = useState(false);
+    const [nginxRestoreLoading, setNginxRestoreLoading] = useState(false);
+
+    // Certificate Management State
+    const [isUploadCertDialogOpen, setIsUploadCertDialogOpen] = useState(false);
+    const [certUploadForm, setCertUploadForm] = useState({ domain: '', cert: '', key: '', chain: '', reload: true });
+    const [isUploadingCert, setIsUploadingCert] = useState(false);
+
+    // Maintenance Toggle State
+    const [isMaintenanceDialogOpen, setIsMaintenanceDialogOpen] = useState(false);
+    const [maintenanceForm, setMaintenanceForm] = useState({ reason: '', template_id: '', active: false });
+    const [isSettingMaintenance, setIsSettingMaintenance] = useState(false);
+    const [templates, setTemplates] = useState<any[]>([]);
+
     // Drift (per-group status for this server)
     const [driftGroups, setDriftGroups] = useState<{ group_id: string; group_name: string; report_id: string; status: string; baseline_type: string; diff_summary?: string; error_message?: string; created_at: number }[]>([]);
     const [driftLoading, setDriftLoading] = useState(false);
@@ -112,6 +128,9 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         request_rate_per_sec?: number;
         top_endpoints?: { uri: string; requests: number; bytes: number }[];
     } | null>(null);
+
+    // Analytics Filtering
+    const [activeStatusFilter, setActiveStatusFilter] = useState<string | null>(null); // '2xx', '3xx', '4xx', '5xx'
 
     const fetchDetails = async () => {
         setIsLoading(true);
@@ -133,9 +152,38 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         }
     };
 
-    const fetchAnalytics = async () => {
+    const fetchMaintenanceStatus = async () => {
         try {
-            const res = await apiFetch(`/api/analytics?agent_id=${encodeURIComponent(id)}&window=24h`);
+            const res = await apiFetch(`/api/maintenance/status?scope=agent&scope_id=${encodeURIComponent(id)}`);
+            if (res.ok) {
+                const data = await res.json();
+                setMaintenanceMode(data.active);
+                setMaintenanceForm(prev => ({ ...prev, active: data.active, reason: data.reason || '', template_id: data.template_id || '' }));
+            }
+        } catch (err) {
+            console.error("Failed to fetch maintenance status", err);
+        }
+    };
+
+    const fetchTemplates = async () => {
+        try {
+            const res = await apiFetch('/api/maintenance/templates');
+            if (res.ok) {
+                const data = await res.json();
+                setTemplates(data || []);
+            }
+        } catch (err) {
+            console.error("Failed to fetch templates", err);
+        }
+    };
+
+    const fetchAnalytics = async (statusFilter?: string) => {
+        try {
+            let url = `/api/analytics?agent_id=${encodeURIComponent(id)}&window=24h`;
+            if (statusFilter) {
+                url += `&status_class=${statusFilter}`;
+            }
+            const res = await apiFetch(url);
             const data = await res.json();
             setAnalytics(data);
         } catch (err) {
@@ -159,6 +207,76 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
             console.error("Failed to fetch agent config", err);
         } finally {
             setConfigLoading(false);
+        }
+    };
+
+    const fetchCertificates = async () => {
+        try {
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.certificates) {
+                    setCertificates(data.certificates);
+                }
+            }
+        } catch (err) {
+            console.error("Failed to fetch certificates", err);
+        }
+    };
+
+    const handleUploadCert = async () => {
+        if (!certUploadForm.domain || !certUploadForm.cert || !certUploadForm.key) {
+            toast.error("Missing fields", { description: "Domain, Certificate, and Private Key are required." });
+            return;
+        }
+
+        setIsUploadingCert(true);
+        try {
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}/certificates`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    domain: certUploadForm.domain,
+                    cert_content: certUploadForm.cert,
+                    key_content: certUploadForm.key,
+                    chain_content: certUploadForm.chain,
+                    reload_nginx: certUploadForm.reload
+                })
+            });
+
+            const result = await res.json();
+            if (res.ok && result.success) {
+                toast.success("Certificate uploaded successfully");
+                setIsUploadCertDialogOpen(false);
+                setCertUploadForm({ domain: '', cert: '', key: '', chain: '', reload: true });
+                fetchCertificates();
+            } else {
+                toast.error("Upload failed", { description: result.error || "Unknown error" });
+            }
+        } catch (err: any) {
+            toast.error("Upload failed", { description: err.message });
+        } finally {
+            setIsUploadingCert(false);
+        }
+    };
+
+    const handleDeleteCert = async (domain: string) => {
+        if (!confirm(`Are you sure you want to delete the certificate for ${domain}?`)) return;
+
+        try {
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}/certificates?domain=${encodeURIComponent(domain)}`, {
+                method: "DELETE"
+            });
+
+            const result = await res.json();
+            if (res.ok && result.success) {
+                toast.success("Certificate deleted");
+                fetchCertificates();
+            } else {
+                toast.error("Delete failed", { description: result.error || "Unknown error" });
+            }
+        } catch (err: any) {
+            toast.error("Delete failed", { description: err.message });
         }
     };
 
@@ -192,6 +310,45 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
             setDriftGroups([]);
         } finally {
             setDriftLoading(false);
+        }
+    };
+
+    const fetchNginxBackups = async () => {
+        setNginxBackupsLoading(true);
+        try {
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}/nginx/backups`);
+            if (res.ok) {
+                const data = await res.json();
+                setNginxBackups(data.backups || []);
+            }
+        } catch (err) {
+            console.error("Failed to fetch NGINX config backups", err);
+        } finally {
+            setNginxBackupsLoading(false);
+        }
+    };
+
+    const restoreNginxBackup = async (backupId: number) => {
+        if (!confirm("Are you sure you want to overwrite the current NGINX config with this backup?")) return;
+        setNginxRestoreLoading(true);
+        try {
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}/nginx/restore`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ backup_id: backupId, config_path: agentConfig.nginx_config_path }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                toast.success("NGINX Config restored");
+                fetchDetails(); // Reload config content
+                fetchNginxBackups();
+            } else {
+                toast.error("Restore failed", { description: data.error || data.message });
+            }
+        } catch (err: any) {
+            toast.error("Restore failed", { description: err?.message });
+        } finally {
+            setNginxRestoreLoading(false);
         }
     };
 
@@ -307,6 +464,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
             if (result.success) {
                 setIsEditing(false);
                 fetchDetails();
+                fetchNginxBackups();
             } else {
                 console.error("Failed to save config:", result.error);
                 alert("Failed to save: " + result.error);
@@ -316,8 +474,29 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         }
     };
 
-    const toggleMaintenance = () => {
-        setMaintenanceMode(!maintenanceMode);
+    const handleToggleMaintenance = async () => {
+        setIsSettingMaintenance(true);
+        try {
+            const res = await apiFetch('/api/maintenance/set', {
+                method: 'POST',
+                body: JSON.stringify({
+                    scope: 'agent',
+                    scope_id: id,
+                    active: !maintenanceMode,
+                    reason: maintenanceForm.reason,
+                    template_id: maintenanceForm.template_id,
+                }),
+            });
+            if (!res.ok) throw new Error("Failed to update maintenance mode");
+            
+            setMaintenanceMode(!maintenanceMode);
+            setIsMaintenanceDialogOpen(false);
+            toast.success(`Maintenance mode ${!maintenanceMode ? 'enabled' : 'disabled'}`);
+        } catch (err: any) {
+            toast.error("Error", { description: err.message });
+        } finally {
+            setIsSettingMaintenance(false);
+        }
     };
 
     useEffect(() => {
@@ -325,7 +504,10 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         fetchAnalytics();
         fetchAgentConfig();
         fetchConfigBackups();
+        fetchNginxBackups();
         fetchDrift();
+        fetchMaintenanceStatus();
+        fetchTemplates();
 
         if (!logStreaming) {
             setIsConnected(false);
@@ -414,28 +596,6 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         return () => clearInterval(interval);
     }, [id, activeTab]);
 
-    if (isLoading && !serverInfo) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
-            </div>
-        );
-    }
-
-    if (serverInfo?.error) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 p-6">
-                <AlertTriangle className="h-12 w-12 text-amber-500" />
-                <h2 className="text-lg font-semibold" style={{ color: `rgb(var(--theme-text))` }}>Failed to load server</h2>
-                <p className="text-sm text-neutral-400 text-center max-w-md">{serverInfo.error}</p>
-                <Button variant="outline" onClick={() => { setIsLoading(true); setServerInfo(null); fetchDetails(); }}>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Retry
-                </Button>
-            </div>
-        );
-    }
-
     const currentStatus = serverInfo?.status || "unknown";
     const execCommand = `kubectl exec -it ${serverInfo?.hostname} -- /bin/bash`;
 
@@ -468,7 +628,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
             }
             return true;
         });
-    }, [logs, logStatusFilter, logClientIpFilter, logTimeWindowMins, logSearch]);
+    }, [logs, logStatusFilter, logClientIpFilter, logTimeWindowMins, logSearch, id]); // Added id to deps just in case
 
     const logSearchMatches = useMemo(() => {
         if (!logSearch.trim()) return [];
@@ -509,6 +669,30 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
         return (ipN & mask) === (subN & mask);
     }
+
+    if (isLoading && !serverInfo) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
+            </div>
+        );
+    }
+
+    if (serverInfo?.error) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 p-6">
+                <AlertTriangle className="h-12 w-12 text-amber-500" />
+                <h2 className="text-lg font-semibold" style={{ color: `rgb(var(--theme-text))` }}>Failed to load server</h2>
+                <p className="text-sm text-neutral-400 text-center max-w-md">{serverInfo.error}</p>
+                <Button variant="outline" onClick={() => { setIsLoading(true); setServerInfo(null); fetchDetails(); }}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Retry
+                </Button>
+            </div>
+        );
+    }
+
+
 
     return (
         <div className="space-y-6">
@@ -566,6 +750,64 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                             Done
                         </Button>
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isMaintenanceDialogOpen} onOpenChange={setIsMaintenanceDialogOpen}>
+                <DialogContent className="bg-[rgb(var(--theme-surface))] border-[rgb(var(--theme-border))] text-[rgb(var(--theme-text))]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Construction className="h-5 w-5 text-amber-500" />
+                            {maintenanceMode ? "Disable Maintenance Mode" : "Enable Maintenance Mode"}
+                        </DialogTitle>
+                        <DialogDescription className="text-[rgb(var(--theme-text-muted))]">
+                            {maintenanceMode 
+                                ? "This will restore normal traffic flow to this instance." 
+                                : "Redirect all traffic to a custom maintenance page."}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {!maintenanceMode && (
+                        <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                                <Label>Reason for Maintenance</Label>
+                                <Input 
+                                    placeholder="e.g. Scheduled Database Upgrade"
+                                    value={maintenanceForm.reason}
+                                    onChange={(e) => setMaintenanceForm({...maintenanceForm, reason: e.target.value})}
+                                    className="bg-black/20 border-[rgb(var(--theme-border))]"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Select Template</Label>
+                                <Select 
+                                    value={maintenanceForm.template_id} 
+                                    onValueChange={(v) => setMaintenanceForm({...maintenanceForm, template_id: v})}
+                                >
+                                    <SelectTrigger className="bg-black/20 border-[rgb(var(--theme-border))]">
+                                        <SelectValue placeholder="Choose a template..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {templates.map(t => (
+                                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsMaintenanceDialogOpen(false)}>Cancel</Button>
+                        <Button 
+                            className={maintenanceMode ? "bg-red-600 hover:bg-red-700 text-white" : "bg-amber-500 hover:bg-amber-600 text-black font-medium"}
+                            onClick={handleToggleMaintenance}
+                            disabled={isSettingMaintenance}
+                        >
+                            {isSettingMaintenance ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            {maintenanceMode ? "Disable Now" : "Enable Maintenance"}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 
@@ -658,7 +900,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                         <Button
                             size="sm"
                             variant="outline"
-                            onClick={toggleMaintenance}
+                            onClick={() => setIsMaintenanceDialogOpen(true)}
                             className={maintenanceMode ? "border-amber-700 bg-amber-900/20 text-amber-400" : "border-neutral-700 hover:bg-neutral-800"}
                             style={!maintenanceMode ? { color: `rgb(var(--theme-text))` } : {}}
                         >
@@ -702,14 +944,14 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 </TabsList>
 
                 <TabsContent value="config">
-                    <Card className="bg-neutral-900 border-neutral-800">
+                    <Card className="bg-neutral-900 border-neutral-800 mb-6">
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <CardTitle className="text-white">nginx.conf</CardTitle>
                                 <div className="flex gap-2">
                                     {isEditing ? (
                                         <>
-                                            <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} className="border-neutral-700 text-white">
+                                            <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} className="border-neutral-700 text-white hover:bg-neutral-800">
                                                 <RotateCcw className="h-4 w-4 mr-2" />
                                                 Cancel
                                             </Button>
@@ -736,28 +978,176 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                             />
                         </CardContent>
                     </Card>
+
+                    <Card className="bg-neutral-900 border-neutral-800">
+                        <CardHeader>
+                            <CardTitle className="text-white flex items-center gap-2">
+                                <FileText className="h-5 w-5 text-amber-400" />
+                                Configuration History
+                            </CardTitle>
+                            <CardDescription className="text-neutral-400">
+                                Point-in-time backups of nginx.conf and associated certificates.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex items-center gap-2 mb-3">
+                                <RefreshButton
+                                    loading={nginxBackupsLoading}
+                                    onRefresh={fetchNginxBackups}
+                                    label="Refresh list"
+                                    aria-label="Refresh config backups list"
+                                    className="border-neutral-700 text-white hover:bg-neutral-800"
+                                />
+                            </div>
+                            {nginxBackups.length === 0 && !nginxBackupsLoading && (
+                                <p className="text-sm text-neutral-500">No backups yet. Save configuration to create one.</p>
+                            )}
+                            <ul className="space-y-2">
+                                {nginxBackups.map((b) => (
+                                    <li key={b.id} className="flex items-center justify-between p-3 rounded-lg bg-neutral-950 border border-neutral-800">
+                                        <div>
+                                            <span className="font-mono text-sm text-white">Snapshot #{b.id}</span>
+                                            <Badge className="ml-2 bg-neutral-800 text-neutral-300 hover:bg-neutral-700">{b.backup_type}</Badge>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xs text-neutral-500">
+                                                {b.created_at ? new Date(b.created_at).toLocaleString() : "—"}
+                                            </span>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300"
+                                                disabled={nginxRestoreLoading}
+                                                onClick={() => restoreNginxBackup(b.id)}
+                                            >
+                                                Restore
+                                            </Button>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        </CardContent>
+                    </Card>
                 </TabsContent>
 
                 <TabsContent value="certs">
                     <Card className="bg-neutral-900 border-neutral-800">
                         <CardHeader>
-                            <CardTitle className="text-white">SSL/TLS Certificates</CardTitle>
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="text-white flex items-center gap-2">
+                                    <Shield className="h-5 w-5 text-blue-400" />
+                                    SSL/TLS Certificates
+                                </CardTitle>
+                                <Dialog open={isUploadCertDialogOpen} onOpenChange={setIsUploadCertDialogOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                                            <Plus className="h-4 w-4 mr-2" />
+                                            Add Certificate
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="bg-neutral-900 border-neutral-800 text-white max-w-2xl">
+                                        <DialogHeader>
+                                            <DialogTitle>Upload Certificate</DialogTitle>
+                                            <DialogDescription className="text-neutral-400">
+                                                Manually upload a certificate and private key to this instance.
+                                            </DialogDescription>
+                                        </DialogHeader>
+                                        <div className="space-y-4 py-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="domain">Domain / Name</Label>
+                                                <Input
+                                                    id="domain"
+                                                    placeholder="example.com"
+                                                    value={certUploadForm.domain}
+                                                    onChange={(e) => setCertUploadForm({ ...certUploadForm, domain: e.target.value })}
+                                                    className="bg-neutral-950 border-neutral-800"
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="cert">Certificate (PEM)</Label>
+                                                    <Textarea
+                                                        id="cert"
+                                                        placeholder="-----BEGIN CERTIFICATE-----"
+                                                        value={certUploadForm.cert}
+                                                        onChange={(e) => setCertUploadForm({ ...certUploadForm, cert: e.target.value })}
+                                                        className="bg-neutral-950 border-neutral-800 font-mono text-xs h-32"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="key">Private Key (PEM)</Label>
+                                                    <Textarea
+                                                        id="key"
+                                                        placeholder="-----BEGIN PRIVATE KEY-----"
+                                                        value={certUploadForm.key}
+                                                        onChange={(e) => setCertUploadForm({ ...certUploadForm, key: e.target.value })}
+                                                        className="bg-neutral-950 border-neutral-800 font-mono text-xs h-32"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="chain">Intermediate Chain (Optional)</Label>
+                                                <Textarea
+                                                    id="chain"
+                                                    placeholder="-----BEGIN CERTIFICATE-----"
+                                                    value={certUploadForm.chain}
+                                                    onChange={(e) => setCertUploadForm({ ...certUploadForm, chain: e.target.value })}
+                                                    className="bg-neutral-950 border-neutral-800 font-mono text-xs h-24"
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Switch
+                                                    id="reload"
+                                                    checked={certUploadForm.reload}
+                                                    onCheckedChange={(v) => setCertUploadForm({ ...certUploadForm, reload: v })}
+                                                />
+                                                <Label htmlFor="reload" className="text-sm">Reload NGINX after upload</Label>
+                                            </div>
+                                        </div>
+                                        <DialogFooter>
+                                            <Button variant="outline" onClick={() => setIsUploadCertDialogOpen(false)} className="border-neutral-700 hover:bg-neutral-800">
+                                                Cancel
+                                            </Button>
+                                            <Button onClick={handleUploadCert} disabled={isUploadingCert} className="bg-blue-600 hover:bg-blue-700">
+                                                {isUploadingCert ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                                                Upload Certificate
+                                            </Button>
+                                        </DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
+                            </div>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-3">
                                 {certificates.length === 0 && <div className="text-neutral-500 italic p-4">No certificates discovered on this host.</div>}
                                 {certificates.map((cert, idx) => (
                                     <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-neutral-950 border border-neutral-800">
-                                        <div>
-                                            <div className="font-medium text-white">{cert.domain}</div>
-                                            <div className="text-sm text-neutral-400">Issuer: {cert.issuer} • {cert.cert_path}</div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 rounded-full bg-blue-500/10">
+                                                <Shield className="h-5 w-5 text-blue-400" />
+                                            </div>
+                                            <div>
+                                                <div className="font-medium text-white">{cert.domain}</div>
+                                                <div className="text-sm text-neutral-400">Issuer: {cert.issuer} • {cert.cert_path}</div>
+                                            </div>
                                         </div>
-                                        <div className="text-right">
-                                            <div className="text-sm text-neutral-300">Expires: {new Date(cert.expiry_timestamp * 1000).toLocaleDateString()}</div>
-                                            <Badge className={cert.days_until_expiry < 30 ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-green-500/10 text-green-400 border-green-500/20"}>
-                                                {cert.days_until_expiry < 30 && <AlertTriangle className="h-3 w-3 mr-1" />}
-                                                {cert.days_until_expiry} days left
-                                            </Badge>
+                                        <div className="flex items-center gap-4">
+                                            <div className="text-right">
+                                                <div className="text-sm text-neutral-300">Expires: {new Date(cert.expiry_timestamp * 1000).toLocaleDateString()}</div>
+                                                <Badge className={cert.days_until_expiry < 30 ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-green-500/10 text-green-400 border-green-500/20"}>
+                                                    {cert.days_until_expiry < 30 && <AlertTriangle className="h-3 w-3 mr-1" />}
+                                                    {cert.days_until_expiry} days left
+                                                </Badge>
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="text-neutral-500 hover:text-red-400 hover:bg-red-400/10"
+                                                onClick={() => handleDeleteCert(cert.domain)}
+                                                title="Delete Certificate"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
                                         </div>
                                     </div>
                                 ))}
@@ -910,37 +1300,115 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 <TabsContent value="analytics">
                     <div className="space-y-4">
                         <div className="grid gap-4 md:grid-cols-4">
-                            <Card className="bg-neutral-900 border-neutral-800">
-                                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-neutral-400">Total Requests</CardTitle></CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold text-white">{analytics?.summary?.total_requests?.toLocaleString() || "0"}</div>
-                                    <p className="text-xs text-neutral-500 mt-1">Last 24h</p>
-                                </CardContent>
-                            </Card>
-                            <Card className="bg-neutral-900 border-neutral-800">
-                                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-neutral-400">Avg Latency</CardTitle></CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold text-blue-400">{analytics?.summary?.avg_latency?.toFixed(2) || "0"} ms</div>
-                                    <p className="text-xs text-neutral-500 mt-1">Response time</p>
-                                </CardContent>
-                            </Card>
-                            <Card className="bg-neutral-900 border-neutral-800">
-                                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-neutral-400">Error Rate</CardTitle></CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold text-amber-400">{analytics?.summary?.error_rate?.toFixed(2) || "0"}%</div>
-                                    <p className="text-xs text-neutral-500 mt-1">4xx & 5xx</p>
-                                </CardContent>
-                            </Card>
-                            <Card className="bg-neutral-900 border-neutral-800">
-                                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-neutral-400">Bandwidth</CardTitle></CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold text-green-400">
-                                        {analytics?.summary?.total_bandwidth > 1024 * 1024
-                                            ? `${(analytics.summary.total_bandwidth / (1024 * 1024)).toFixed(2)} MB`
-                                            : `${(analytics?.summary?.total_bandwidth / 1024).toFixed(2) || "0"} KB`
-                                        }
+                            <Card 
+                                className={`rocker-widget rocker-gradient-2xx border-0 cursor-pointer transition-all ${activeStatusFilter === '2xx' ? 'ring-2 ring-white/50' : ''}`}
+                                onClick={() => {
+                                    const next = activeStatusFilter === '2xx' ? null : '2xx';
+                                    setActiveStatusFilter(next);
+                                    fetchAnalytics(next || undefined);
+                                }}
+                            >
+                                <CardHeader className="pb-2">
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-sm font-medium text-white/70">Success (2xx)</CardTitle>
+                                        <CheckCircle2 className="h-4 w-4 text-white/50" />
                                     </div>
-                                    <p className="text-xs text-neutral-500 mt-1">Data served</p>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold text-white">{analytics?.summary?.requests_2xx?.toLocaleString() || "0"}</div>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <div className="h-1 flex-1 bg-white/10 rounded-full overflow-hidden">
+                                            <div 
+                                                className="h-full bg-white/60" 
+                                                style={{ width: `${(analytics?.summary?.requests_2xx / analytics?.summary?.total_requests * 100) || 0}%` }}
+                                            />
+                                        </div>
+                                        <span className="text-[10px] text-white/60">{((analytics?.summary?.requests_2xx / (analytics?.summary?.total_requests || 1) * 100) || 0).toFixed(1)}%</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card 
+                                className={`rocker-widget rocker-gradient-3xx border-0 cursor-pointer transition-all ${activeStatusFilter === '3xx' ? 'ring-2 ring-white/50' : ''}`}
+                                onClick={() => {
+                                    const next = activeStatusFilter === '3xx' ? null : '3xx';
+                                    setActiveStatusFilter(next);
+                                    fetchAnalytics(next || undefined);
+                                }}
+                            >
+                                <CardHeader className="pb-2">
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-sm font-medium text-white/70">Redirects (3xx)</CardTitle>
+                                        <ArrowRightCircle className="h-4 w-4 text-white/50" />
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold text-white">{analytics?.summary?.requests_3xx?.toLocaleString() || "0"}</div>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <div className="h-1 flex-1 bg-white/10 rounded-full overflow-hidden">
+                                            <div 
+                                                className="h-full bg-white/60" 
+                                                style={{ width: `${(analytics?.summary?.requests_3xx / analytics?.summary?.total_requests * 100) || 0}%` }}
+                                            />
+                                        </div>
+                                        <span className="text-[10px] text-white/60">{((analytics?.summary?.requests_3xx / (analytics?.summary?.total_requests || 1) * 100) || 0).toFixed(1)}%</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card 
+                                className={`rocker-widget rocker-gradient-4xx border-0 cursor-pointer transition-all ${activeStatusFilter === '4xx' ? 'ring-2 ring-white/50' : ''}`}
+                                onClick={() => {
+                                    const next = activeStatusFilter === '4xx' ? null : '4xx';
+                                    setActiveStatusFilter(next);
+                                    fetchAnalytics(next || undefined);
+                                }}
+                            >
+                                <CardHeader className="pb-2">
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-sm font-medium text-white/70">Client Errors (4xx)</CardTitle>
+                                        <AlertTriangle className="h-4 w-4 text-white/50" />
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold text-white">{analytics?.summary?.requests_4xx?.toLocaleString() || "0"}</div>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <div className="h-1 flex-1 bg-white/10 rounded-full overflow-hidden">
+                                            <div 
+                                                className="h-full bg-white/60" 
+                                                style={{ width: `${(analytics?.summary?.requests_4xx / analytics?.summary?.total_requests * 100) || 0}%` }}
+                                            />
+                                        </div>
+                                        <span className="text-[10px] text-white/60">{((analytics?.summary?.requests_4xx / (analytics?.summary?.total_requests || 1) * 100) || 0).toFixed(1)}%</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card 
+                                className={`rocker-widget rocker-gradient-5xx border-0 cursor-pointer transition-all ${activeStatusFilter === '5xx' ? 'ring-2 ring-white/50' : ''}`}
+                                onClick={() => {
+                                    const next = activeStatusFilter === '5xx' ? null : '5xx';
+                                    setActiveStatusFilter(next);
+                                    fetchAnalytics(next || undefined);
+                                }}
+                            >
+                                <CardHeader className="pb-2">
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-sm font-medium text-white/70">Server Errors (5xx)</CardTitle>
+                                        <AlertCircle className="h-4 w-4 text-white/50" />
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold text-white">{analytics?.summary?.requests_5xx?.toLocaleString() || "0"}</div>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <div className="h-1 flex-1 bg-white/10 rounded-full overflow-hidden">
+                                            <div 
+                                                className="h-full bg-white/60" 
+                                                style={{ width: `${(analytics?.summary?.requests_5xx / analytics?.summary?.total_requests * 100) || 0}%` }}
+                                            />
+                                        </div>
+                                        <span className="text-[10px] text-white/60">{((analytics?.summary?.requests_5xx / (analytics?.summary?.total_requests || 1) * 100) || 0).toFixed(1)}%</span>
+                                    </div>
                                 </CardContent>
                             </Card>
                         </div>

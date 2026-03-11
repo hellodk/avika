@@ -450,22 +450,34 @@ func (db *ClickHouseDB) InsertSpans(entry *pb.LogEntry, agentID string, requestT
 }
 
 func (db *ClickHouseDB) GetAnalytics(ctx context.Context, window string, agentID string) (*pb.AnalyticsResponse, error) {
-	return db.GetAnalyticsWithAgentFilter(ctx, window, agentID, nil, 0, 0, "UTC")
+	return db.GetAnalyticsWithAgentFilter(ctx, &pb.AnalyticsRequest{TimeWindow: window, AgentId: agentID}, nil)
 }
 
 // GetAnalyticsFiltered returns analytics filtered by a list of agent IDs
 // This is used for project/environment filtering where multiple agents belong to the same scope
 func (db *ClickHouseDB) GetAnalyticsFiltered(ctx context.Context, window string, agentFilter []string) (*pb.AnalyticsResponse, error) {
-	return db.GetAnalyticsWithAgentFilter(ctx, window, "", agentFilter, 0, 0, "UTC")
+	return db.GetAnalyticsWithAgentFilter(ctx, &pb.AnalyticsRequest{TimeWindow: window}, agentFilter)
 }
 
 // GetAnalyticsWithTimeRange supports both relative time windows and absolute time ranges (backward compatible wrapper)
 func (db *ClickHouseDB) GetAnalyticsWithTimeRange(ctx context.Context, window string, agentID string, fromTs, toTs int64, clientTimezone string) (*pb.AnalyticsResponse, error) {
-	return db.GetAnalyticsWithAgentFilter(ctx, window, agentID, nil, fromTs, toTs, clientTimezone)
+	return db.GetAnalyticsWithAgentFilter(ctx, &pb.AnalyticsRequest{
+		TimeWindow:    window,
+		AgentId:       agentID,
+		FromTimestamp: fromTs,
+		ToTimestamp:   toTs,
+		Timezone:      clientTimezone,
+	}, nil)
 }
 
 // GetAnalyticsWithAgentFilter supports filtering by single agent ID or multiple agent IDs (for project/environment filtering)
-func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, window string, agentID string, agentFilter []string, fromTs, toTs int64, clientTimezone string) (*pb.AnalyticsResponse, error) {
+func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, req *pb.AnalyticsRequest, agentFilter []string) (*pb.AnalyticsResponse, error) {
+	window := req.TimeWindow
+	agentID := req.AgentId
+	fromTs := req.FromTimestamp
+	toTs := req.ToTimestamp
+	// clientTimezone := req.Timezone // Not used currently in the body but available
+
 	var startTime, endTime time.Time
 	var duration time.Duration
 
@@ -512,13 +524,12 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, window 
 	resp := &pb.AnalyticsResponse{}
 
 	// Determine bucket size and time format based on duration
-	// Include date context when range spans multiple days or crosses midnight
 	bucketSize := "toStartOfHour"
-	timeFormat := "%Y-%m-%d %H:%i" // Default: full datetime for clarity
+	timeFormat := "%Y-%m-%d %H:%i"
 
 	if duration <= 1*time.Hour {
 		bucketSize = "toStartOfMinute"
-		timeFormat = "%H:%i" // Just time for very short ranges
+		timeFormat = "%H:%i"
 	} else if duration <= 3*time.Hour {
 		bucketSize = "toStartOfFiveMinutes"
 		timeFormat = "%H:%i"
@@ -527,7 +538,6 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, window 
 		timeFormat = "%H:%i"
 	} else if duration <= 12*time.Hour {
 		bucketSize = "toStartOfHour"
-		// Add date if range might cross midnight
 		if startTime.Day() != endTime.Day() {
 			timeFormat = "%m-%d %H:%i"
 		} else {
@@ -535,17 +545,16 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, window 
 		}
 	} else if duration <= 24*time.Hour {
 		bucketSize = "toStartOfHour"
-		// Always show date for 24h as it crosses midnight
 		timeFormat = "%m-%d %H:%i"
 	} else if duration <= 7*24*time.Hour {
 		bucketSize = "toStartOfHour"
-		timeFormat = "%m-%d %H:00" // Date + hour for multi-day
+		timeFormat = "%m-%d %H:00"
 	} else {
 		bucketSize = "toStartOfDay"
-		timeFormat = "%Y-%m-%d" // Full date for long ranges
+		timeFormat = "%Y-%m-%d"
 	}
 
-	// Filter clause - use both start and end time for absolute ranges
+	// Filter clause
 	var whereClause string
 	var args []interface{}
 	if fromTs > 0 && toTs > 0 {
@@ -556,22 +565,42 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, window 
 		args = []interface{}{startTime}
 	}
 
-	// Agent filtering - supports single agent ID or multiple agent IDs (for project/environment filtering)
+	// Agent filtering
 	if len(agentFilter) > 0 {
-		// Multiple agents - use IN clause
 		placeholders := make([]string, len(agentFilter))
 		for i, id := range agentFilter {
 			placeholders[i] = "?"
 			args = append(args, id)
 		}
 		whereClause += fmt.Sprintf(" AND instance_id IN (%s)", strings.Join(placeholders, ","))
-	} else if agentID != "" && agentID != "all" {
-		// Single agent
+	} else if req.AgentId != "" && req.AgentId != "all" {
 		whereClause += " AND instance_id = ?"
-		args = append(args, agentID)
+		args = append(args, req.AgentId)
 	}
 
-	// 1. Request Rate with dynamic time format
+	// NEW: URL Filtering
+	if req.UrlFilter != "" {
+		whereClause += " AND request_uri = ?"
+		args = append(args, req.UrlFilter)
+	}
+
+	// NEW: Status Code / Class Filtering
+	if req.StatusCodeFilter != "" {
+		if strings.HasSuffix(req.StatusCodeFilter, "xx") && len(req.StatusCodeFilter) == 3 {
+			classPrefix := req.StatusCodeFilter[0:1]
+			classBase, _ := strconv.Atoi(classPrefix)
+			whereClause += " AND status >= ? AND status < ?"
+			args = append(args, classBase*100, (classBase+1)*100)
+		} else {
+			code, err := strconv.Atoi(req.StatusCodeFilter)
+			if err == nil {
+				whereClause += " AND status = ?"
+				args = append(args, code)
+			}
+		}
+	}
+
+	// 1. Request Rate
 	queryTimeSeries := fmt.Sprintf(`
 		SELECT
 			formatDateTime(%s(timestamp), '%s') as time,

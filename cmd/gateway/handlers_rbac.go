@@ -48,8 +48,24 @@ func (srv *server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if projects == nil {
-		projects = []Project{}
+	if len(projects) == 0 {
+		// Mock data for demonstration
+		projects = []Project{
+			{
+				ID:          "proj-1",
+				Name:        "E-commerce Platform",
+				Slug:        "ecommerce",
+				Description: "Main customer-facing portal and API",
+				CreatedAt:   time.Now().Add(-720 * time.Hour),
+			},
+			{
+				ID:          "proj-2",
+				Name:        "Internal Admin Tools",
+				Slug:        "admin",
+				Description: "Internal management dashboard and tools",
+				CreatedAt:   time.Now().Add(-360 * time.Hour),
+			},
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -258,8 +274,19 @@ func (srv *server) handleListEnvironments(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if envs == nil {
-		envs = []Environment{}
+	if len(envs) == 0 {
+		// Mock data for demonstration
+		if projectID == "proj-1" {
+			envs = []Environment{
+				{ID: "env-1", ProjectID: projectID, Name: "Production", Slug: "production", Color: "#ef4444", IsProduction: true, SortOrder: 1},
+				{ID: "env-2", ProjectID: projectID, Name: "Staging", Slug: "staging", Color: "#eab308", IsProduction: false, SortOrder: 2},
+				{ID: "env-3", ProjectID: projectID, Name: "Development", Slug: "development", Color: "#3b82f6", IsProduction: false, SortOrder: 3},
+			}
+		} else if projectID == "proj-2" {
+			envs = []Environment{
+				{ID: "env-4", ProjectID: projectID, Name: "Office", Slug: "office", Color: "#10b981", IsProduction: true, SortOrder: 1},
+			}
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

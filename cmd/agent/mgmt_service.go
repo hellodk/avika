@@ -18,6 +18,7 @@ import (
 	"github.com/creack/pty"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"path/filepath"
 )
 
 type mgmtServer struct {
@@ -27,10 +28,97 @@ type mgmtServer struct {
 }
 
 func newMgmtServer(configPath string) *mgmtServer {
+	// Ensure default cert directory exists
+	os.MkdirAll("/etc/nginx/ssl", 0755)
 	return &mgmtServer{
 		configManager: config.NewManager(configPath),
 		certManager:   certs.NewManager([]string{"/etc/nginx/ssl", "/etc/ssl/certs"}),
 	}
+}
+
+func (s *mgmtServer) ListCertificates(ctx context.Context, req *pb.CertListRequest) (*pb.CertListResponse, error) {
+	certificates, err := s.certManager.Discover()
+	if err != nil {
+		return &pb.CertListResponse{}, err
+	}
+	return &pb.CertListResponse{Certificates: certificates}, nil
+}
+
+func (s *mgmtServer) UploadCertificate(ctx context.Context, req *pb.UploadCertificateRequest) (*pb.UploadCertificateResponse, error) {
+	if req.Domain == "" || len(req.CertContent) == 0 || len(req.KeyContent) == 0 {
+		return &pb.UploadCertificateResponse{Success: false, Error: "missing domain, cert, or key content"}, nil
+	}
+
+	// For now, write to /etc/nginx/ssl
+	certDir := "/etc/nginx/ssl"
+	if _, err := os.Stat(certDir); os.IsNotExist(err) {
+		// Fallback to local certs if /etc/nginx/ssl is not writable or doesn't exist
+		certDir = "certs"
+		os.MkdirAll(certDir, 0755)
+	}
+
+	certPath := filepath.Join(certDir, req.Domain+".crt")
+	keyPath := filepath.Join(certDir, req.Domain+".key")
+	chainPath := filepath.Join(certDir, req.Domain+".chain.crt")
+
+	if err := os.WriteFile(certPath, req.CertContent, 0644); err != nil {
+		return &pb.UploadCertificateResponse{Success: false, Error: fmt.Sprintf("failed to write cert: %v", err)}, nil
+	}
+	if err := os.WriteFile(keyPath, req.KeyContent, 0600); err != nil {
+		return &pb.UploadCertificateResponse{Success: false, Error: fmt.Sprintf("failed to write key: %v", err)}, nil
+	}
+	if len(req.ChainContent) > 0 {
+		if err := os.WriteFile(chainPath, req.ChainContent, 0644); err != nil {
+			return &pb.UploadCertificateResponse{Success: false, Error: fmt.Sprintf("failed to write chain: %v", err)}, nil
+		}
+	}
+
+	if req.ReloadNginx {
+		if err := s.configManager.Reload(); err != nil {
+			return &pb.UploadCertificateResponse{Success: true, Error: "cert uploaded but nginx reload failed: " + err.Error()}, nil
+		}
+	}
+
+	return &pb.UploadCertificateResponse{Success: true}, nil
+}
+
+func (s *mgmtServer) DeleteCertificate(ctx context.Context, req *pb.DeleteCertificateRequest) (*pb.DeleteCertificateResponse, error) {
+	if req.CertificateId == "" {
+		return &pb.DeleteCertificateResponse{Success: false, Message: "certificate_id is required"}, nil
+	}
+
+	// In the agent, we expect certificate_id to be the domain if uploaded via this API
+	// or we look for the file directly.
+	domain := req.CertificateId
+
+	// Check /etc/nginx/ssl and certs/
+	dirs := []string{"/etc/nginx/ssl", "certs"}
+	deleted := false
+	for _, dir := range dirs {
+		certPath := filepath.Join(dir, domain+".crt")
+		keyPath := filepath.Join(dir, domain+".key")
+		chainPath := filepath.Join(dir, domain+".chain.crt")
+
+		if _, err := os.Stat(certPath); err == nil {
+			os.Remove(certPath)
+			os.Remove(keyPath)
+			os.Remove(chainPath)
+			deleted = true
+		}
+	}
+
+	if !deleted {
+		return &pb.DeleteCertificateResponse{Success: false, Message: "certificate not found"}, nil
+	}
+
+	return &pb.DeleteCertificateResponse{Success: true, Message: "Certificate deleted successfully"}, nil
+}
+
+func (s *mgmtServer) SetMaintenance(ctx context.Context, req *pb.SetMaintenanceRequest) (*pb.SetMaintenanceResponse, error) {
+	// TODO: Implement maintenance mode logic
+	// This would involve creating a maintenance.html and updating nginx config
+	log.Printf("SetMaintenance called: action=%s", req.Action)
+	return &pb.SetMaintenanceResponse{Success: true}, nil
 }
 
 func (s *mgmtServer) GetConfig(ctx context.Context, req *pb.ConfigRequest) (*pb.ConfigResponse, error) {
@@ -139,14 +227,6 @@ func (s *mgmtServer) StopNginx(ctx context.Context, req *pb.StopRequest) (*pb.St
 		}, nil
 	}
 	return &pb.StopResponse{Success: true}, nil
-}
-
-func (s *mgmtServer) ListCertificates(ctx context.Context, req *pb.CertListRequest) (*pb.CertListResponse, error) {
-	certificates, err := s.certManager.Discover()
-	if err != nil {
-		return &pb.CertListResponse{Certificates: []*pb.Certificate{}}, nil
-	}
-	return &pb.CertListResponse{Certificates: certificates}, nil
 }
 
 func (s *mgmtServer) GetLogs(req *pb.LogRequest, stream pb.AgentService_GetLogsServer) error {

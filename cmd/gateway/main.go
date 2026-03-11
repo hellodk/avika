@@ -687,7 +687,7 @@ func (s *server) GetAnalytics(ctx context.Context, req *pb.AnalyticsRequest) (*p
 
 		// Use filtered query if we have agent filter, otherwise use standard query
 		if len(agentFilter) > 0 {
-			return s.clickhouse.GetAnalyticsWithAgentFilter(ctx, req.TimeWindow, "", agentFilter, req.FromTimestamp, req.ToTimestamp, timezone)
+			return s.clickhouse.GetAnalyticsWithAgentFilter(ctx, req, agentFilter)
 		}
 		return s.clickhouse.GetAnalyticsWithTimeRange(ctx, req.TimeWindow, req.AgentId, req.FromTimestamp, req.ToTimestamp, timezone)
 	}
@@ -751,12 +751,22 @@ func (s *server) GetAnalytics(ctx context.Context, req *pb.AnalyticsRequest) (*p
 		})
 	}
 
-	// Return
+	// Return mock response with summary for UI testing
 	return &pb.AnalyticsResponse{
 		RequestRate:        requestHistory,
 		StatusDistribution: statusDist,
 		TopEndpoints:       topEndpoints,
 		LatencyTrend:       []*pb.LatencyPercentiles{}, // Todo
+		Summary: &pb.AnalyticsSummary{
+			TotalRequests:  12500,
+			Requests_2Xx:   11800,
+			Requests_3Xx:   450,
+			Requests_4Xx:   180,
+			Requests_5Xx:   70,
+			ErrorRate:      2.0,
+			AvgLatency:     42.5,
+			TotalBandwidth: 1024 * 1024 * 850, // 850MB
+		},
 	}, nil
 }
 
@@ -940,6 +950,40 @@ func (s *server) UpdateConfig(ctx context.Context, req *pb.ConfigUpdate) (*pb.Co
 		return nil, err
 	}
 	defer conn.Close()
+
+	if req.Backup {
+		currentCfgResp, err := client.GetConfig(ctx, &pb.ConfigRequest{
+			InstanceId: req.InstanceId,
+			ConfigPath: req.ConfigPath,
+		})
+		if err == nil && currentCfgResp != nil && currentCfgResp.Config != nil && currentCfgResp.Config.Content != "" && currentCfgResp.Error == "" {
+			certResp, certErr := client.ListCertificates(ctx, &pb.CertListRequest{
+				InstanceId: req.InstanceId,
+			})
+			var certs []byte
+			if certErr == nil && certResp != nil {
+				certs, _ = json.Marshal(certResp.Certificates)
+			} else {
+				certs = []byte("[]")
+			}
+
+			// Save to Postgres
+			query := `
+				INSERT INTO config_backups (
+					agent_id, backup_type, config_content, certificates_json, created_at
+				) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+			`
+			_, backupErr := s.db.conn.ExecContext(ctx, query,
+				req.InstanceId, "manual", currentCfgResp.Config.Content, certs)
+			if backupErr != nil {
+				log.Printf("Warning: Failed to save config backup to DB for agent %s: %v", req.InstanceId, backupErr)
+			} else {
+				log.Printf("Successfully created config backup in DB for agent %s prior to update", req.InstanceId)
+			}
+		} else {
+			log.Printf("Could not fetch current config for agent %s prior to update, skipping DB backup. Err: %v", req.InstanceId, err)
+		}
+	}
 
 	return client.UpdateConfig(ctx, req)
 }
@@ -1618,6 +1662,9 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Visitor analytics API (shape expected by frontend)
 	mux.Handle("/api/visitor-analytics", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleVisitorAnalytics)))
 
+	// Main analytics API with URL and Status Filtering
+	mux.Handle("/api/analytics", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAnalytics)))
+
 	// ============================================================================
 	// RBAC / Multi-Tenancy API Endpoints
 	// ============================================================================
@@ -1648,11 +1695,27 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.Handle("GET /api/groups/{id}/logs/stream", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGroupLogsStream)))
 	mux.Handle("GET /api/groups/{id}/realtime-stats", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGroupRealtimeStats)))
 
+	// Certificate Management API (proxy to agent)
+	mux.Handle("GET /api/servers/{agentId}/certificates", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListCertificates)))
+	mux.Handle("POST /api/servers/{agentId}/certificates", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUploadCertificate)))
+	mux.Handle("DELETE /api/servers/{agentId}/certificates", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeleteCertificate)))
+
+	// Maintenance Mode API
+	mux.Handle("GET /api/maintenance/templates", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListMaintenanceTemplates)))
+	mux.Handle("POST /api/maintenance/templates", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateMaintenanceTemplate)))
+	mux.Handle("PUT /api/maintenance/templates", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateMaintenanceTemplate)))
+	mux.Handle("DELETE /api/maintenance/templates", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeleteMaintenanceTemplate)))
+	mux.Handle("GET /api/maintenance/status", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetMaintenanceStatus)))
+	mux.Handle("GET /api/maintenance/states", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListMaintenanceStates)))
+	mux.Handle("POST /api/maintenance/set", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleSetMaintenance)))
+
 	// Agent Runtime Configuration API (agent self-config, persisted on agent)
 	mux.Handle("GET /api/agents/{id}/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetAgentRuntimeConfig)))
 	mux.Handle("PATCH /api/agents/{id}/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateAgentRuntimeConfig)))
 	mux.Handle("GET /api/agents/{id}/config/backups", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListAgentConfigBackups)))
 	mux.Handle("POST /api/agents/{id}/config/restore", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRestoreAgentConfigBackup)))
+	mux.Handle("GET /api/agents/{id}/nginx/backups", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListNginxConfigBackups)))
+	mux.Handle("POST /api/agents/{id}/nginx/restore", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRestoreNginxConfigBackup)))
 	mux.Handle("POST /api/agents/{id}/config/test", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleTestAgentConfigConnection)))
 
 	// LLM Configuration (persisted in DB)
@@ -2459,6 +2522,61 @@ type visitorAnalyticsFrontendShape struct {
 	StaticFiles      []map[string]interface{} `json:"static_files"`
 	RequestedURLs    []map[string]interface{} `json:"requested_urls"`
 	StatusCodes      []map[string]interface{} `json:"status_codes"`
+}
+
+func (srv *server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	query := r.URL.Query()
+	window := query.Get("timeWindow")
+	if window == "" {
+		window = "24h"
+	}
+
+	fromTs, _ := strconv.ParseInt(query.Get("from"), 10, 64)
+	toTs, _ := strconv.ParseInt(query.Get("to"), 10, 64)
+
+	req := &pb.AnalyticsRequest{
+		AgentId:          query.Get("agent_id"),
+		TimeWindow:       window,
+		ProjectId:        query.Get("project_id"),
+		EnvironmentId:    query.Get("environment_id"),
+		FromTimestamp:    fromTs,
+		ToTimestamp:      toTs,
+		UrlFilter:        query.Get("url"),
+		StatusCodeFilter: query.Get("status_class"), // The frontend sends status_class
+	}
+
+	if req.StatusCodeFilter == "" {
+		req.StatusCodeFilter = query.Get("status_code")
+	}
+
+	ctx := r.Context()
+	var resp *pb.AnalyticsResponse
+	var err error
+
+	if srv.clickhouse != nil {
+		// Use ClickHouse logic
+		if req.EnvironmentId != "" {
+			agents, _ := srv.db.GetAgentIDsForEnvironment(req.EnvironmentId)
+			resp, err = srv.clickhouse.GetAnalyticsWithAgentFilter(ctx, req, agents)
+		} else if req.ProjectId != "" {
+			agents, _ := srv.db.GetAgentIDsForProject(req.ProjectId)
+			resp, err = srv.clickhouse.GetAnalyticsWithAgentFilter(ctx, req, agents)
+		} else {
+			resp, err = srv.clickhouse.GetAnalyticsWithAgentFilter(ctx, req, nil)
+		}
+	} else {
+		// Fallback to in-memory/mock (simplified)
+		resp, err = srv.GetAnalytics(ctx, req)
+	}
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request) {

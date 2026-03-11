@@ -8,7 +8,7 @@ import {
     FileText, Heart, Cpu, ChevronDown, ChevronRight,
     Bell, User, Menu, X, HelpCircle, LogOut,
     LayoutDashboard, Layers, GitBranch, Terminal, BookOpen, KeyRound, Globe,
-    LineChart, FolderKanban, Lock, Info, Key, ShieldCheck
+    LineChart, FolderKanban, Lock, Info, Key, ShieldCheck, Wrench
 } from "lucide-react";
 import { ProjectSelector } from "@/components/project-selector";
 import { EnvironmentTabs } from "@/components/environment-tabs";
@@ -64,6 +64,7 @@ const NAV_SECTIONS: NavSection[] = [
             { href: "/inventory", icon: <Server />, label: "Inventory" },
             { href: "/provisions", icon: <Layers />, label: "Provisions" },
             { href: "/optimization", icon: <Zap />, label: "AI Tuner", badge: "Beta", badgeColor: "purple" },
+            { href: "/maintenance", icon: <Wrench />, label: "Maintenance" },
             { href: "/audit", icon: <ShieldCheck />, label: "Audit Logs" },
         ]
     },
