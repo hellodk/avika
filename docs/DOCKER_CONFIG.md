@@ -94,27 +94,21 @@ Each build creates multiple tags:
 4. Enable **2FA** on Docker Hub
 5. Regularly **rotate access tokens**
 
-## Alternative Registries
+## Primary registry (Docker Hub)
 
-### GitHub Container Registry (ghcr.io)
+Avika CI/Release push to **Docker Hub** (`docker.io/hellodk`). Set repository secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`. See [CONTAINER_REGISTRY.md](CONTAINER_REGISTRY.md) and [GITHUB_SECRETS_SETUP.md](GITHUB_SECRETS_SETUP.md).
 
-Update `.github/workflows/agent-build.yml`:
-
+Login step used in workflows:
 ```yaml
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/agent
-```
-
-Login step:
-```yaml
-- name: Log in to GitHub Container Registry
+- name: Login to Docker Hub
   uses: docker/login-action@v3
   with:
-    registry: ghcr.io
-    username: ${{ github.actor }}
-    password: ${{ secrets.GITHUB_TOKEN }}
+    registry: docker.io
+    username: ${{ secrets.DOCKERHUB_USERNAME }}
+    password: ${{ secrets.DOCKERHUB_TOKEN }}
 ```
+
+## Alternative Registries
 
 ### AWS ECR
 

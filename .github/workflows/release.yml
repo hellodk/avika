@@ -34,7 +34,6 @@ concurrency:
 
 permissions:
   contents: write
-  packages: write
   pull-requests: write
 
 env:
@@ -326,12 +325,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to GitHub Container Registry
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract metadata
         id: docker-meta
@@ -447,7 +446,7 @@ jobs:
           $([ -n "$FIXES" ] && echo "### Bug Fixes" && echo "$FIXES" && echo "")
           $([ -n "$OTHERS" ] && echo "### Other Changes" && echo "$OTHERS" && echo "")
           
-          ## Docker Images (GHCR)
+          ## Docker Images (Docker Hub)
           
           \`\`\`bash
           docker pull ${IMAGE_REGISTRY}/avika-gateway:${{ needs.version-bump.outputs.version }}
@@ -490,7 +489,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Bump type:** ${{ needs.analyze-commits.outputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Docker Images (GHCR)" >> $GITHUB_STEP_SUMMARY
+          echo "### Docker Images (Docker Hub)" >> $GITHUB_STEP_SUMMARY
           echo "- ${{ env.IMAGE_REGISTRY }}/avika-gateway:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- ${{ env.IMAGE_REGISTRY }}/avika-frontend:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- ${{ env.IMAGE_REGISTRY }}/avika-agent:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY

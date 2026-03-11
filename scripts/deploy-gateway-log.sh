@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Push gateway image with tag "log" and deploy only the gateway in avika namespace.
-# Prerequisite: docker build -t ghcr.io/hellodk/avika-gateway:log -f cmd/gateway/Dockerfile . (or make docker-gateway then docker tag)
+# Prerequisite: docker build -t docker.io/hellodk/avika-gateway:log -f cmd/gateway/Dockerfile . (or make docker-gateway then docker tag)
 
 set -e
-IMAGE="${IMAGE:-ghcr.io/hellodk/avika-gateway:log}"
+IMAGE="${IMAGE:-docker.io/hellodk/avika-gateway:log}"
 NAMESPACE="${NAMESPACE:-avika}"
 
 echo "Pushing $IMAGE ..."

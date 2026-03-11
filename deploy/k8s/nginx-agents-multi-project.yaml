@@ -195,7 +195,7 @@ spec:
           mountPath: /var/log/nginx
       
       - name: avika-agent
-        image: ghcr.io/hellodk/avika-agent:latest
+        image: docker.io/hellodk/avika-agent:latest
         imagePullPolicy: Always
         command: ["/usr/local/bin/avika-agent"]
         args: ["-config=/etc/avika/avika-agent.conf"]
@@ -338,7 +338,7 @@ spec:
           mountPath: /var/log/nginx
       
       - name: avika-agent
-        image: ghcr.io/hellodk/avika-agent:latest
+        image: docker.io/hellodk/avika-agent:latest
         imagePullPolicy: Always
         command: ["/usr/local/bin/avika-agent"]
         args: ["-config=/etc/avika/avika-agent.conf"]
@@ -481,7 +481,7 @@ spec:
           mountPath: /var/log/nginx
       
       - name: avika-agent
-        image: ghcr.io/hellodk/avika-agent:latest
+        image: docker.io/hellodk/avika-agent:latest
         imagePullPolicy: Always
         command: ["/usr/local/bin/avika-agent"]
         args: ["-config=/etc/avika/avika-agent.conf"]
@@ -624,7 +624,7 @@ spec:
           mountPath: /var/log/nginx
       
       - name: avika-agent
-        image: ghcr.io/hellodk/avika-agent:latest
+        image: docker.io/hellodk/avika-agent:latest
         imagePullPolicy: Always
         command: ["/usr/local/bin/avika-agent"]
         args: ["-config=/etc/avika/avika-agent.conf"]
@@ -767,7 +767,7 @@ spec:
           mountPath: /var/log/nginx
       
       - name: avika-agent
-        image: ghcr.io/hellodk/avika-agent:latest
+        image: docker.io/hellodk/avika-agent:latest
         imagePullPolicy: Always
         command: ["/usr/local/bin/avika-agent"]
         args: ["-config=/etc/avika/avika-agent.conf"]
@@ -910,7 +910,7 @@ spec:
           mountPath: /var/log/nginx
       
       - name: avika-agent
-        image: ghcr.io/hellodk/avika-agent:latest
+        image: docker.io/hellodk/avika-agent:latest
         imagePullPolicy: Always
         command: ["/usr/local/bin/avika-agent"]
         args: ["-config=/etc/avika/avika-agent.conf"]
