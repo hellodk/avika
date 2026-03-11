@@ -1114,6 +1114,35 @@ func handleLogRequest(cmdID string, req *pb.LogRequest, ss *StreamSync, agentID 
 	}
 }
 
+// buildBootstrapHeartbeat returns a minimal heartbeat so the gateway can register this agent
+// as soon as the stream is established, even if the WAL is corrupt and no buffered messages are sent.
+func buildBootstrapHeartbeat(agentID string) *pb.AgentMessage {
+	hostname, _ := os.Hostname()
+	if hostname == "" {
+		hostname = "unknown"
+	}
+	isPod, podIP := detectK8s()
+	return &pb.AgentMessage{
+		AgentId:   agentID,
+		Timestamp: time.Now().Unix(),
+		Payload: &pb.AgentMessage_Heartbeat{
+			Heartbeat: &pb.Heartbeat{
+				Hostname:     hostname,
+				Version:      "unknown",
+				AgentVersion: Version,
+				Uptime:       0,
+				Instances:    nil,
+				IsPod:        isPod,
+				PodIp:        podIP,
+				BuildDate:    BuildDate,
+				GitCommit:    GitCommit,
+				GitBranch:    GitBranch,
+				MgmtAddress:  getChosenMgmtAddress(),
+			},
+		},
+	}
+}
+
 func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gatewayAddr string) {
 	defer agentInfo("Sender loop for %s exited", gatewayAddr)
 	var conn *grpc.ClientConn
@@ -1194,6 +1223,19 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 			}
 			ss.SetStream(stream)
 			agentInfo("Connected to Gateway")
+
+			// Send one heartbeat immediately so the gateway registers this agent (session) even if the WAL is corrupt.
+			if err := ss.Send(buildBootstrapHeartbeat(agentID)); err != nil {
+				agentWarn("Bootstrap heartbeat failed: %v", err)
+				ss.SetStream(nil)
+				conn.Close()
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(5 * time.Second):
+					continue
+				}
+			}
 
 			// Start Receiver routine (for commands)
 			go func() {
