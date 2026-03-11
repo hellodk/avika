@@ -358,7 +358,7 @@ func TestRevokeAgent(t *testing.T) {
 	signature, timestamp := ComputeAgentSignature(psk, agentID, hostname)
 
 	// Auto-enroll
-	pm.ValidateAgentAuth(agentID, hostname, signature, timestamp)
+	_ = pm.ValidateAgentAuth(agentID, hostname, signature, timestamp)
 
 	// Verify enrolled
 	agents := pm.ListAgents()
@@ -438,7 +438,7 @@ func TestListAgents(t *testing.T) {
 
 	for _, a := range agents {
 		sig, ts := ComputeAgentSignature(psk, a.id, a.host)
-		pm.ValidateAgentAuth(a.id, a.host, sig, ts)
+		_ = pm.ValidateAgentAuth(a.id, a.host, sig, ts)
 	}
 
 	// List should have all agents
@@ -682,13 +682,13 @@ func BenchmarkValidateAuth(b *testing.B) {
 	signature, timestamp := ComputeAgentSignature(psk, agentID, hostname)
 
 	// Pre-enroll agent
-	pm.ValidateAgentAuth(agentID, hostname, signature, timestamp)
+	_ = pm.ValidateAgentAuth(agentID, hostname, signature, timestamp)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Generate fresh signature each time (simulates real usage)
 		sig, ts := ComputeAgentSignature(psk, agentID, hostname)
-		pm.ValidateAgentAuth(agentID, hostname, sig, ts)
+		_ = pm.ValidateAgentAuth(agentID, hostname, sig, ts)
 	}
 }
 
