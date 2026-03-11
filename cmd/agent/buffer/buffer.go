@@ -151,17 +151,22 @@ func (b *FileBuffer) ReadNext() ([]byte, int64, error) {
 	return data, newOffset, nil
 }
 
-// SkipCorrupt skips the current corrupted message by moving the read offset forward.
-// This is a dangerous operation and should only be used when ReadNext returns a corruption error.
+// SkipCorrupt skips the current corrupted record by advancing past the 4-byte length
+// prefix we already read. The next ReadNext will then read the next length header.
+// Must only be used when ReadNext returns a "suspiciously large message length" error.
 func (b *FileBuffer) SkipCorrupt(currentOffset int64) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	// Since we don't know the actual length, we can only try to "skip" by 1 byte
-	// or look for the next valid-looking length header.
-	// For now, let's just move forward by 1 byte to try and find a new valid header.
-	b.readOffset = currentOffset + 1
-	return b.Ack(b.readOffset)
+	// We read 4 bytes (length) at currentOffset; skip that prefix to realign to the next record.
+	b.readOffset = currentOffset + 4
+	if _, err := b.cursorFile.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+	if err := binary.Write(b.cursorFile, binary.LittleEndian, b.readOffset); err != nil {
+		return err
+	}
+	return b.cursorFile.Sync()
 }
 
 // Ack updates the read offset and persists it to the cursor file.

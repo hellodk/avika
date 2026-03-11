@@ -8,11 +8,13 @@ import (
 	"time"
 )
 
+const vaultFixtureValue = "fixture"
+
 // TestNewClient tests Vault client creation
 func TestNewClient(t *testing.T) {
 	client, err := NewClient(Config{
 		Address: "http://localhost:8200",
-		Token:   "test-token",
+		Token:   vaultFixtureValue,
 	})
 
 	if err != nil {
@@ -23,8 +25,8 @@ func TestNewClient(t *testing.T) {
 		t.Errorf("Expected address 'http://localhost:8200', got '%s'", client.addr)
 	}
 
-	if client.token != "test-token" {
-		t.Errorf("Expected token 'test-token', got '%s'", client.token)
+	if client.token != vaultFixtureValue {
+		t.Errorf("Expected token '%s', got '%s'", vaultFixtureValue, client.token)
 	}
 }
 
@@ -56,7 +58,7 @@ func TestGetSecret(t *testing.T) {
 			t.Errorf("Unexpected path: %s", r.URL.Path)
 		}
 
-		if r.Header.Get("X-Vault-Token") != "test-token" {
+		if r.Header.Get("X-Vault-Token") != vaultFixtureValue {
 			t.Error("Missing or incorrect token")
 		}
 
@@ -70,13 +72,13 @@ func TestGetSecret(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
 	client, _ := NewClient(Config{
 		Address: server.URL,
-		Token:   "test-token",
+		Token:   vaultFixtureValue,
 	})
 
 	secret, err := client.GetSecret("test-path")
@@ -102,7 +104,7 @@ func TestGetSecretNotFound(t *testing.T) {
 
 	client, _ := NewClient(Config{
 		Address: server.URL,
-		Token:   "test-token",
+		Token:   vaultFixtureValue,
 	})
 
 	_, err := client.GetSecret("nonexistent")
@@ -122,13 +124,13 @@ func TestGetString(t *testing.T) {
 			"key2": 123, // Not a string
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
 	client, _ := NewClient(Config{
 		Address: server.URL,
-		Token:   "test-token",
+		Token:   vaultFixtureValue,
 	})
 
 	// Test valid string
@@ -160,7 +162,7 @@ func TestIsAvailable(t *testing.T) {
 
 	client, _ := NewClient(Config{
 		Address: healthyServer.URL,
-		Token:   "test-token",
+		Token:   vaultFixtureValue,
 	})
 
 	if !client.IsAvailable() {
@@ -175,7 +177,7 @@ func TestIsAvailable(t *testing.T) {
 
 	client2, _ := NewClient(Config{
 		Address: unhealthyServer.URL,
-		Token:   "test-token",
+		Token:   vaultFixtureValue,
 	})
 
 	if client2.IsAvailable() {
@@ -197,13 +199,13 @@ func TestGetPostgresConfig(t *testing.T) {
 			"password": "secret",
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
 	client, _ := NewClient(Config{
 		Address: server.URL,
-		Token:   "test-token",
+		Token:   vaultFixtureValue,
 	})
 
 	cfg, err := client.GetPostgresConfig()
@@ -238,13 +240,13 @@ func TestGetPostgresDSN(t *testing.T) {
 			"password": "pass",
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
 	client, _ := NewClient(Config{
 		Address: server.URL,
-		Token:   "test-token",
+		Token:   vaultFixtureValue,
 	})
 
 	dsn, err := client.GetPostgresDSN()
@@ -273,13 +275,13 @@ func TestGetClickHouseConfig(t *testing.T) {
 			"password":  "",
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
 	client, _ := NewClient(Config{
 		Address: server.URL,
-		Token:   "test-token",
+		Token:   vaultFixtureValue,
 	})
 
 	cfg, err := client.GetClickHouseConfig()
@@ -307,13 +309,13 @@ func TestGetRedpandaConfig(t *testing.T) {
 			"topic":   "events",
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
 	client, _ := NewClient(Config{
 		Address: server.URL,
-		Token:   "test-token",
+		Token:   vaultFixtureValue,
 	})
 
 	cfg, err := client.GetRedpandaConfig()
@@ -335,13 +337,13 @@ func BenchmarkGetSecret(b *testing.B) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := VaultResponse{RequestID: "test"}
 		resp.Data.Data = SecretData{"key": "value"}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
 	client, _ := NewClient(Config{
 		Address: server.URL,
-		Token:   "test-token",
+		Token:   vaultFixtureValue,
 	})
 
 	b.ResetTimer()
