@@ -82,6 +82,11 @@ var (
 	// Optional CIDR to avoid for mgmt (e.g. VirtualBox NAT 10.0.2.0/24). When set, prefer an interface outside this CIDR.
 	// Leave unset in Class A–only enterprise; only the default-route vs 192.168.x heuristic runs when unset.
 	mgmtNatCIDR = flag.String("mgmt-nat-cidr", "", "CIDR to avoid when choosing mgmt IP (e.g. 10.0.2.0/24). Env: AVIKA_MGMT_NAT_CIDR.")
+	// Syslog SIEM Fan-out
+	syslogEnabled  = flag.Bool("syslog-enabled", false, "Enable syslog fan-out for SIEM")
+	syslogTarget   = flag.String("syslog-target", "", "Syslog server target (e.g., 'udp://10.0.0.1:514')")
+	syslogFacility = flag.String("syslog-facility", "local7", "Syslog facility")
+	syslogSeverity = flag.String("syslog-severity", "info", "Syslog severity")
 )
 
 // Version information - set at build time via -ldflags
@@ -218,6 +223,22 @@ func loadConfig(path string) error {
 			if !setFlags["mgmt-nat-cidr"] {
 				*mgmtNatCIDR = val
 			}
+		case "SYSLOG_ENABLED":
+			if !setFlags["syslog-enabled"] {
+				*syslogEnabled = val == "true" || val == "1"
+			}
+		case "SYSLOG_TARGET":
+			if !setFlags["syslog-target"] {
+				*syslogTarget = val
+			}
+		case "SYSLOG_FACILITY":
+			if !setFlags["syslog-facility"] {
+				*syslogFacility = val
+			}
+		case "SYSLOG_SEVERITY":
+			if !setFlags["syslog-severity"] {
+				*syslogSeverity = val
+			}
 		default:
 			// Parse labels with LABEL_ prefix: LABEL_project=myproject
 			if strings.HasPrefix(key, "LABEL_") {
@@ -278,6 +299,10 @@ func loadEnv() {
 		{"MGMT_ADVERTISE", "mgmt-advertise", func(val string) { *mgmtAdvertise = val }},
 		{"AVIKA_MGMT_NAT_CIDR", "mgmt-nat-cidr", func(val string) { *mgmtNatCIDR = val }},
 		{"MGMT_NAT_CIDR", "mgmt-nat-cidr", func(val string) { *mgmtNatCIDR = val }},
+		{"SYSLOG_ENABLED", "syslog-enabled", func(val string) { *syslogEnabled = val == "true" || val == "1" }},
+		{"SYSLOG_TARGET", "syslog-target", func(val string) { *syslogTarget = val }},
+		{"SYSLOG_FACILITY", "syslog-facility", func(val string) { *syslogFacility = val }},
+		{"SYSLOG_SEVERITY", "syslog-severity", func(val string) { *syslogSeverity = val }},
 	}
 
 	for _, m := range envMappings {
@@ -500,6 +525,12 @@ func main() {
 		"localhost:4317", // OTel OTLP gRPC endpoint
 		*agentID,
 		currentHostname,
+		logs.SyslogConfig{
+			Enabled:       *syslogEnabled,
+			TargetAddress: *syslogTarget,
+			Facility:      *syslogFacility,
+			Severity:      *syslogSeverity,
+		},
 	)
 	collector.Start()
 	defer collector.Stop()

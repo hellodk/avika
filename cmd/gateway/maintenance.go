@@ -590,7 +590,6 @@ func (s *server) ListMaintenanceStates(ctx context.Context, req *pb.ListMaintena
 func (s *server) applyMaintenanceToAgents(ctx context.Context, req *pb.SetMaintenanceRequest, enable bool) ([]*pb.AgentMaintenanceResult, error) {
 	// Get affected agents based on scope
 	var agentIDs []string
-	var err error
 
 	switch req.Scope {
 	case "agent":
@@ -618,10 +617,6 @@ func (s *server) applyMaintenanceToAgents(ctx context.Context, req *pb.SetMainte
 			rows.Scan(&agentID)
 			agentIDs = append(agentIDs, agentID)
 		}
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	// For now, just return success for each agent
@@ -897,10 +892,6 @@ func nullIfEmpty(s string) interface{} {
 // handleListMaintenanceTemplates returns all maintenance templates for a project
 func (s *server) handleListMaintenanceTemplates(w http.ResponseWriter, r *http.Request) {
 	projectID := r.URL.Query().Get("project_id")
-	if projectID == "" {
-		http.Error(w, `{"error":"project_id required"}`, http.StatusBadRequest)
-		return
-	}
 
 	resp, err := s.ListMaintenanceTemplates(r.Context(), &pb.ListMaintenanceTemplatesRequest{
 		ProjectId: projectID,

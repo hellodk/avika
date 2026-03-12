@@ -411,6 +411,8 @@ func agentConfigResponseToAgentConfig(resp *pb.GetAgentConfigResponse) *pb.Agent
 		BufferDir:       resp.BufferDir,
 		UpdateServer:    resp.UpdateServer,
 		LogLevel:        resp.LogLevel,
+		LogRotation:     resp.LogRotation,
+		Syslog:          resp.Syslog,
 	}
 	if ga := strings.TrimSpace(resp.GatewayAddress); ga != "" {
 		parts := strings.Split(ga, ",")
@@ -465,6 +467,17 @@ func agentConfigToUpdates(cfg *pb.AgentConfig) map[string]string {
 	}
 	if strings.TrimSpace(cfg.UpdateServer) != "" {
 		updates["UPDATE_SERVER"] = cfg.UpdateServer
+	}
+
+	if cfg.LogRotation != nil {
+		if b, err := json.Marshal(cfg.LogRotation); err == nil {
+			updates["LOG_ROTATION"] = string(b)
+		}
+	}
+	if cfg.Syslog != nil {
+		if b, err := json.Marshal(cfg.Syslog); err == nil {
+			updates["SYSLOG"] = string(b)
+		}
 	}
 
 	if len(cfg.GatewayAddresses) > 0 {

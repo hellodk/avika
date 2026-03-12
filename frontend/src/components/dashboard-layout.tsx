@@ -27,6 +27,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { GlobalSearch } from "@/components/global-search";
+import { CommandPalette } from "@/components/command-palette";
 
 interface NavSection {
     title: string;
@@ -56,6 +57,7 @@ const NAV_SECTIONS: NavSection[] = [
         items: [
             { href: "/monitoring", icon: <Cpu />, label: "Monitoring" },
             { href: "/analytics", icon: <BarChart2 />, label: "Analytics" },
+            { href: "/observability/slo", icon: <Activity />, label: "SLOs & SLIs" },
         ]
     },
     {
@@ -144,6 +146,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
     return (
         <div className="flex h-screen overflow-hidden" style={{ background: "rgb(var(--theme-background))" }}>
+            <CommandPalette />
             {/* Sidebar */}
             <aside
                 className={`dashboard-layout-sidebar ${sidebarCollapsed ? 'w-16' : 'w-64'} flex-shrink-0 border-r flex flex-col transition-all duration-300`}

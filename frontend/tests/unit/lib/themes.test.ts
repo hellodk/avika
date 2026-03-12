@@ -13,8 +13,8 @@ describe('themes', () => {
             expect(themes.light.name).toBe('Light');
         });
 
-        it('THEME_IDS should include dark and light only', () => {
-            expect(THEME_IDS).toEqual(['dark', 'light']);
+        it('THEME_IDS should include defined themes', () => {
+            expect(THEME_IDS).toEqual(['dark', 'light', 'rocker']);
             THEME_IDS.forEach((id) => {
                 expect(themes[id as ThemeName]).toBeDefined();
             });

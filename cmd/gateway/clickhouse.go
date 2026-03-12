@@ -1499,6 +1499,10 @@ func (db *ClickHouseDB) DeleteAgentData(agentID string) error {
 }
 
 func (db *ClickHouseDB) QueryMetricAverage(ctx context.Context, metricType string, windowSec int) (float64, error) {
+	return db.QueryMetricAverageOffset(ctx, metricType, windowSec, 0)
+}
+
+func (db *ClickHouseDB) QueryMetricAverageOffset(ctx context.Context, metricType string, windowSec int, offsetSec int) (float64, error) {
 	var query string
 	var table string
 	var column string
@@ -1518,8 +1522,8 @@ func (db *ClickHouseDB) QueryMetricAverage(ctx context.Context, metricType strin
 		query = fmt.Sprintf(`
 			SELECT if(count(*) > 0, (countIf(status >= 400) / count(*)) * 100, 0)
 			FROM nginx_analytics.access_logs
-			WHERE timestamp >= now() - INTERVAL %d SECOND
-		`, windowSec)
+			WHERE timestamp >= now() - INTERVAL %d SECOND AND timestamp < now() - INTERVAL %d SECOND
+		`, windowSec+offsetSec, offsetSec)
 	default:
 		return 0, fmt.Errorf("unknown metric type: %s", metricType)
 	}
@@ -1528,8 +1532,8 @@ func (db *ClickHouseDB) QueryMetricAverage(ctx context.Context, metricType strin
 		query = fmt.Sprintf(`
 			SELECT avg(%s)
 			FROM %s
-			WHERE timestamp >= now() - INTERVAL %d SECOND
-		`, column, table, windowSec)
+			WHERE timestamp >= now() - INTERVAL %d SECOND AND timestamp < now() - INTERVAL %d SECOND
+		`, column, table, windowSec+offsetSec, offsetSec)
 	}
 
 	var avg float64

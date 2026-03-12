@@ -36,10 +36,12 @@ export function apiUrl(path: string): string {
 
 /**
  * Normalize server/agent ID from a dynamic route segment (e.g. from URL params).
- * Restores the backend id: space -> "+" (URL decoding), "-" -> "+" (we use "-" in URLs).
+ * Restores the backend id: space -> "+" (URL decoding).
+ * NOTE: We previously replaced "-" with "+" but this broke IDs containing hyphens.
  */
 export function normalizeServerId(id: string): string {
-  return id.replace(/ /g, "+").replace(/-/g, "+");
+  if (!id) return "";
+  return id.replace(/ /g, "+");
 }
 
 /**
@@ -47,6 +49,7 @@ export function normalizeServerId(id: string): string {
  * Use this when building /servers/... or /agents/... links and when showing the id in the UI.
  */
 export function serverIdForDisplay(id: string): string {
+  if (!id) return "";
   return id.replace(/\+/g, "-");
 }
 

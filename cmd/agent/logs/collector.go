@@ -15,7 +15,8 @@ type LogCollector struct {
 	accessTailer  *Tailer
 	errorTailer   *Tailer
 
-	exporter *OTLPExporter
+	exporter         *OTLPExporter
+	syslogForwarder  *SyslogForwarder
 
 	// Channels for distribution
 	gatewayChan chan *pb.LogEntry
@@ -25,7 +26,7 @@ type LogCollector struct {
 	wg     sync.WaitGroup
 }
 
-func NewLogCollector(accessLog, errorLog, logFormat, otlpEndpoint, agentID, hostname string) *LogCollector {
+func NewLogCollector(accessLog, errorLog, logFormat, otlpEndpoint, agentID, hostname string, syslogCfg ...SyslogConfig) *LogCollector {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var exporter *OTLPExporter
@@ -38,14 +39,23 @@ func NewLogCollector(accessLog, errorLog, logFormat, otlpEndpoint, agentID, host
 		}
 	}
 
+	var syslog *SyslogForwarder
+	if len(syslogCfg) > 0 && syslogCfg[0].Enabled {
+		syslog = NewSyslogForwarder(syslogCfg[0])
+		if syslog != nil {
+			log.Printf("[INFO] Syslog forwarder enabled: %s", syslogCfg[0].TargetAddress)
+		}
+	}
+
 	return &LogCollector{
-		accessLogPath: accessLog,
-		errorLogPath:  errorLog,
-		logFormat:     logFormat,
-		exporter:      exporter,
-		gatewayChan:   make(chan *pb.LogEntry, 1000),
-		ctx:           ctx,
-		cancel:        cancel,
+		accessLogPath:   accessLog,
+		errorLogPath:    errorLog,
+		logFormat:       logFormat,
+		exporter:        exporter,
+		syslogForwarder: syslog,
+		gatewayChan:     make(chan *pb.LogEntry, 1000),
+		ctx:             ctx,
+		cancel:          cancel,
 	}
 }
 
@@ -88,11 +98,18 @@ func (c *LogCollector) consume(input <-chan *pb.LogEntry) {
 
 			// Forward to OTLP
 			if c.exporter != nil {
-				// Non-blocking send or separate goroutine recommended for production
-				// For now, simple synchronous call (with timeout inside Export)
 				go func(e *pb.LogEntry) {
 					if err := c.exporter.Export(e); err != nil {
-						// Suppress frequent errors or log occasionally
+						// Suppress frequent errors
+					}
+				}(entry)
+			}
+
+			// Forward to Syslog (SIEM fan-out)
+			if c.syslogForwarder != nil {
+				go func(e *pb.LogEntry) {
+					if err := c.syslogForwarder.Forward(e); err != nil {
+						// Suppress frequent errors
 					}
 				}(entry)
 			}
@@ -116,6 +133,9 @@ func (c *LogCollector) Stop() {
 
 	if c.exporter != nil {
 		c.exporter.Close()
+	}
+	if c.syslogForwarder != nil {
+		c.syslogForwarder.Close()
 	}
 }
 

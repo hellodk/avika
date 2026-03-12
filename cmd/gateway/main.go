@@ -1714,6 +1714,15 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.Handle("PATCH /api/agents/{id}/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateAgentRuntimeConfig)))
 	mux.Handle("GET /api/agents/{id}/config/backups", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListAgentConfigBackups)))
 	mux.Handle("POST /api/agents/{id}/config/restore", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRestoreAgentConfigBackup)))
+
+	// SLO Tracking
+	mux.Handle("GET /api/slo-targets", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetSLOTargets)))
+	mux.Handle("POST /api/slo-targets", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpsertSLOTarget)))
+	mux.Handle("DELETE /api/slo-targets", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeleteSLOTarget)))
+	mux.Handle("GET /api/slo-compliance", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetSLOCompliance)))
+
+	// Config Scoring
+	mux.Handle("POST /api/config/score", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleScoreConfig)))
 	mux.Handle("GET /api/agents/{id}/nginx/backups", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListNginxConfigBackups)))
 	mux.Handle("POST /api/agents/{id}/nginx/restore", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRestoreNginxConfigBackup)))
 	mux.Handle("POST /api/agents/{id}/config/test", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleTestAgentConfigConnection)))

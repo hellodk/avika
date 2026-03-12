@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip } from "recharts";
 import { TerminalOverlay } from "@/components/TerminalOverlay";
 import { apiFetch, apiUrl, normalizeServerId, serverIdForDisplay } from "@/lib/api";
+import Editor, { loader } from "@monaco-editor/react";
 
 interface LogEntry {
     timestamp?: number | string;
@@ -33,6 +34,35 @@ interface LogEntry {
 }
 
 const TAB_VALUES = ["config", "certs", "logs", "analytics", "uptime", "drift", "settings"] as const;
+
+// NGINX Monarch language definition
+const nginxMonarch = {
+    keywords: [
+        'http', 'server', 'location', 'upstream', 'events', 'mail', 'if', 'rewrite', 'set', 'return',
+        'proxy_pass', 'fastcgi_pass', 'try_files', 'listen', 'server_name', 'root', 'index', 'error_page',
+        'access_log', 'error_log', 'include', 'proxy_set_header', 'add_header', 'alias', 'allow', 'deny',
+        'auth_basic', 'auth_basic_user_file', 'break', 'client_max_body_size', 'gzip', 'gzip_types', 'gzip_proxied',
+        'keepalive_timeout', 'proxy_redirect', 'proxy_buffering', 'proxy_cache', 'proxy_cache_path', 'proxy_cache_valid',
+        'ssl_certificate', 'ssl_certificate_key', 'ssl_protocols', 'ssl_ciphers', 'ssl_prefer_server_ciphers',
+        'limit_req', 'limit_req_zone', 'limit_conn', 'limit_conn_zone', 'worker_processes', 'worker_connections'
+    ],
+    tokenizer: {
+        root: [
+            [/[a-z_][a-z0-9_]*/, {
+                cases: {
+                    '@keywords': 'keyword',
+                    '@default': 'variable'
+                }
+            }],
+            [/\s+/, 'white'],
+            [/#.*$/, 'comment'],
+            [/"([^"\\]|\\.)*"/, 'string'],
+            [/'([^'\\]|\\.)*'/, 'string'],
+            [/[{}();]/, 'delimiter'],
+            [/\d+/, 'number'],
+        ]
+    }
+};
 
 export default function ServerDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id: rawId } = use(params);
@@ -91,6 +121,19 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         enable_vts_metrics: true,
         enable_log_streaming: true,
         auto_apply_config: true,
+        log_rotation: {
+            enabled: false,
+            schedule: 'daily',
+            max_size: '100M',
+            retain_count: 7,
+            compress: true
+        },
+        syslog: {
+            enabled: false,
+            target_address: '',
+            facility: 'local7',
+            severity: 'info'
+        }
     });
     const [isSavingConfig, setIsSavingConfig] = useState(false);
     const [configLoading, setConfigLoading] = useState(false);
@@ -128,9 +171,34 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         request_rate_per_sec?: number;
         top_endpoints?: { uri: string; requests: number; bytes: number }[];
     } | null>(null);
+    const [logSubTab, setLogSubTab] = useState<'live' | 'policies'>('live');
 
     // Analytics Filtering
     const [activeStatusFilter, setActiveStatusFilter] = useState<string | null>(null); // '2xx', '3xx', '4xx', '5xx'
+
+    // Config Scoring
+    const [configScore, setConfigScore] = useState<any>(null);
+    const [configScoreLoading, setConfigScoreLoading] = useState(false);
+
+    const fetchConfigScore = async (cfgString: string) => {
+        if (!cfgString) return;
+        setConfigScoreLoading(true);
+        try {
+            const res = await apiFetch("/api/config/score", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ config: cfgString }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setConfigScore(data);
+            }
+        } catch (err) {
+            console.error("Failed to fetch config score", err);
+        } finally {
+            setConfigScoreLoading(false);
+        }
+    };
 
     const fetchDetails = async () => {
         setIsLoading(true);
@@ -140,6 +208,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
             setServerInfo(data);
             if (data.config) {
                 setConfig(data.config.content);
+                fetchConfigScore(data.config.content);
             }
             if (data.certificates) {
                 setCertificates(data.certificates);
@@ -170,7 +239,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
             const res = await apiFetch('/api/maintenance/templates');
             if (res.ok) {
                 const data = await res.json();
-                setTemplates(data || []);
+                setTemplates(Array.isArray(data) ? data : []);
             }
         } catch (err) {
             console.error("Failed to fetch templates", err);
@@ -458,12 +527,12 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
             const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "update_config", content: config })
+                body: JSON.stringify({ action: "update_config", content: config, backup: true })
             });
             const result = await res.json();
             if (result.success) {
                 setIsEditing(false);
-                fetchDetails();
+                fetchDetails(); // This will re-fetch config and the score
                 fetchNginxBackups();
             } else {
                 console.error("Failed to save config:", result.error);
@@ -788,7 +857,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                         <SelectValue placeholder="Choose a template..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {templates.map(t => (
+                                        {Array.isArray(templates) && templates.map(t => (
                                             <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                                         ))}
                                     </SelectContent>
@@ -944,7 +1013,94 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 </TabsList>
 
                 <TabsContent value="config">
+                    {/* Config Scoring Widget */}
                     <Card className="bg-neutral-900 border-neutral-800 mb-6">
+                        <CardHeader className="pb-3 border-b border-neutral-800/50">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle className="text-white flex items-center gap-2">
+                                        <Shield className="h-5 w-5 text-blue-400" />
+                                        Configuration Health Score
+                                    </CardTitle>
+                                    <CardDescription className="text-neutral-400 mt-1">
+                                        Automated analysis of your NGINX configuration for security, performance, and reliability best practices.
+                                    </CardDescription>
+                                </div>
+                                {configScoreLoading ? (
+                                    <div className="flex items-center gap-2 text-neutral-400 bg-neutral-800/30 px-4 py-2 rounded-full border border-neutral-700">
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        <span className="text-sm font-medium">Analyzing...</span>
+                                    </div>
+                                ) : configScore ? (
+                                    <div className="flex items-center gap-4 bg-neutral-950 px-5 py-3 rounded-xl border border-neutral-800 shadow-inner">
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-xs text-neutral-500 uppercase font-semibold tracking-wider">Overall Score</span>
+                                            <div className="flex items-baseline gap-1">
+                                                <span className={`text-4xl font-bold tracking-tighter ${configScore.score >= 90 ? 'text-green-500' : configScore.score >= 70 ? 'text-amber-500' : 'text-red-500'}`}>
+                                                    {configScore.score}
+                                                </span>
+                                                <span className="text-lg text-neutral-600 font-medium">/100</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : null}
+                            </div>
+                        </CardHeader>
+                        {configScore && configScore.checks && configScore.checks.length > 0 && (
+                            <CardContent className="pt-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {configScore.checks.map((check: any, idx: number) => (
+                                        <div key={idx} className={`p-4 rounded-lg border ${check.passed ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'} flex flex-col gap-2 relative overflow-hidden group transition-colors hover:border-neutral-700`}>
+                                            <div className={`absolute top-0 right-0 w-16 h-16 -mr-8 -mt-8 rounded-full opacity-10 ${check.passed ? 'bg-green-500' : 'bg-red-500'} transition-transform group-hover:scale-150 duration-500`} />
+                                            
+                                            <div className="flex items-start justify-between z-10">
+                                                <div className="flex items-center gap-2">
+                                                    {check.passed ? (
+                                                        <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+                                                    ) : (
+                                                        <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
+                                                    )}
+                                                    <h4 className="font-semibold text-white/90 text-sm leading-tight">{check.rule.name}</h4>
+                                                </div>
+                                                {!check.passed && check.rule.impact_score > 0 && (
+                                                    <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20 text-[10px] px-1.5 py-0 h-5 font-mono">
+                                                        -{check.rule.impact_score} pts
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="mt-1 z-10 flex-grow flex flex-col">
+                                                <p className="text-xs text-neutral-400 leading-relaxed mb-3">
+                                                    {check.rule.description}
+                                                </p>
+                                                <div className="flex items-center justify-between mt-auto">
+                                                    <Badge variant="secondary" className="bg-neutral-800 text-neutral-300 border-neutral-700 text-[10px] capitalize px-2 py-0.5">
+                                                        {check.rule.category}
+                                                    </Badge>
+                                                    
+                                                    {!check.passed && (
+                                                        <Button 
+                                                            variant="ghost" 
+                                                            size="sm" 
+                                                            className="h-6 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 px-2 py-0"
+                                                            onClick={() => {
+                                                                setIsEditing(true);
+                                                                document.getElementById('config-editor')?.scrollIntoView({ behavior: 'smooth' });
+                                                            }}
+                                                        >
+                                                            Fix in Editor <ArrowRightCircle className="h-3 w-3 ml-1" />
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        )}
+                    </Card>
+
+                    <Card className="bg-neutral-900 border-neutral-800 mb-6" id="config-editor">
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <CardTitle className="text-white">nginx.conf</CardTitle>
@@ -969,13 +1125,31 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                 </div>
                             </div>
                         </CardHeader>
-                        <CardContent>
-                            <Textarea
-                                value={config}
-                                onChange={(e) => setConfig(e.target.value)}
-                                disabled={!isEditing}
-                                className="font-mono text-sm bg-neutral-950 border-neutral-800 min-h-[400px] text-neutral-300"
-                            />
+                        <CardContent className="p-0 border-t border-neutral-800">
+                            <div className="h-[600px] w-full bg-neutral-950 overflow-hidden">
+                                <Editor
+                                    height="100%"
+                                    defaultLanguage="nginx"
+                                    value={config}
+                                    theme="vs-dark"
+                                    onChange={(value) => setConfig(value || "")}
+                                    options={{
+                                        readOnly: !isEditing,
+                                        minimap: { enabled: true },
+                                        fontSize: 14,
+                                        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                        scrollBeyondLastLine: false,
+                                        wordWrap: "on",
+                                        automaticLayout: true,
+                                        lineNumbers: "on",
+                                        renderWhitespace: "selection",
+                                    }}
+                                    beforeMount={(monaco) => {
+                                        monaco.languages.register({ id: 'nginx' });
+                                        monaco.languages.setMonarchTokensProvider('nginx', nginxMonarch as any);
+                                    }}
+                                />
+                            </div>
                         </CardContent>
                     </Card>
 
@@ -1157,144 +1331,362 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 </TabsContent>
 
                 <TabsContent value="logs">
-                    <Card className="bg-neutral-900 border-neutral-800" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
-                        <CardHeader>
-                            <div className="flex flex-wrap items-center justify-between gap-4">
-                                <CardTitle style={{ color: "rgb(var(--theme-text))" }}>Live Logs</CardTitle>
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <div className="flex items-center gap-2">
-                                        <Label className="text-xs whitespace-nowrap" style={{ color: "rgb(var(--theme-text-muted))" }}>Stream</Label>
-                                        <Switch checked={logStreaming} onCheckedChange={setLogStreaming} />
-                                    </div>
-                                    <Select value={String(logTailLines)} onValueChange={(v) => setLogTailLines(Number(v))}>
-                                        <SelectTrigger className="w-[90px] h-9" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="100">100 lines</SelectItem>
-                                            <SelectItem value="200">200 lines</SelectItem>
-                                            <SelectItem value="500">500 lines</SelectItem>
-                                            <SelectItem value="1000">1000 lines</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <Select value={logType} onValueChange={(v: 'access' | 'error') => setLogType(v)}>
-                                        <SelectTrigger className="w-[120px] h-9" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="access">Access</SelectItem>
-                                            <SelectItem value="error">Error</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <Select value={logStatusFilter} onValueChange={setLogStatusFilter}>
-                                        <SelectTrigger className="w-[100px] h-9" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
-                                            <SelectValue placeholder="Status" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">All</SelectItem>
-                                            <SelectItem value="2xx">2xx</SelectItem>
-                                            <SelectItem value="4xx">4xx</SelectItem>
-                                            <SelectItem value="5xx">5xx</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <Select value={String(logTimeWindowMins)} onValueChange={(v) => setLogTimeWindowMins(Number(v))}>
-                                        <SelectTrigger className="w-[110px] h-9" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="0">All time</SelectItem>
-                                            <SelectItem value="5">Last 5m</SelectItem>
-                                            <SelectItem value="15">Last 15m</SelectItem>
-                                            <SelectItem value="60">Last 1h</SelectItem>
-                                            <SelectItem value="360">Last 6h</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <Input
-                                        placeholder="IP or CIDR"
-                                        value={logClientIpFilter}
-                                        onChange={(e) => setLogClientIpFilter(e.target.value)}
-                                        className="w-[140px] h-9 font-mono text-xs"
-                                        style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}
-                                    />
-                                    <div className="flex items-center gap-1 border rounded-md pl-2 h-9" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))" }}>
-                                        <Search className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--theme-text-muted))" }} />
-                                        <Input
-                                            placeholder="Search (Ctrl+F)"
-                                            value={logSearch}
-                                            onChange={(e) => { setLogSearch(e.target.value); setLogSearchMatchIndex(-1); }}
-                                            className="border-0 w-[120px] h-8 font-mono text-xs focus-visible:ring-0 focus-visible:ring-offset-0"
-                                            style={{ background: "transparent", color: "rgb(var(--theme-text))" }}
-                                        />
-                                        {logSearch.trim() && (
-                                            <>
-                                                <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                                    {logSearchMatches.length > 0 ? `${logSearchMatchIndex >= 0 ? logSearchMatchIndex + 1 : "0"}/${logSearchMatches.length}` : "0"}
-                                                </span>
-                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => goToSearchMatch(-1)} title="Previous">↑</Button>
-                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => goToSearchMatch(1)} title="Next">↓</Button>
-                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setLogSearch(""); setLogSearchMatchIndex(-1); }} title="Clear"><X className="h-3.5 w-3.5" /></Button>
-                                            </>
-                                        )}
-                                    </div>
-                                    <Button variant="outline" size="sm" className="h-9 gap-1" onClick={downloadLogs} disabled={filteredLogs.length === 0}>
-                                        <Download className="h-4 w-4" /> Download
-                                    </Button>
-                                    <Button variant="outline" size="sm" className="h-9" onClick={() => setLogs([])}>Clear</Button>
-                                </div>
-                            </div>
-                        </CardHeader>
-                        {/* Real-time stats strip (sliding window from gateway) */}
-                        <div className="px-6 pb-2 flex flex-wrap items-center gap-4 border-b" style={{ borderColor: "rgb(var(--theme-border))" }}>
-                            <span className="text-xs font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>Live (last 60s)</span>
-                            {realtimeStats ? (
-                                <>
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Requests</span>
-                                        <span className="font-mono text-sm font-semibold" style={{ color: "rgb(var(--theme-text))" }}>{realtimeStats.total_requests.toLocaleString()}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Error rate</span>
-                                        <span className={`font-mono text-sm font-semibold ${realtimeStats.error_rate_pct > 5 ? "text-amber-400" : ""}`} style={realtimeStats.error_rate_pct > 5 ? undefined : { color: "rgb(var(--theme-text))" }}>{realtimeStats.error_rate_pct.toFixed(2)}%</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Req/s</span>
-                                        <span className="font-mono text-sm font-semibold" style={{ color: "rgb(var(--theme-primary))" }}>{(realtimeStats.request_rate_per_sec ?? 0).toFixed(1)}</span>
-                                    </div>
-                                    {realtimeStats.top_endpoints?.[0] && (
-                                        <div className="flex items-center gap-1.5 truncate max-w-[200px]">
-                                            <span className="text-xs shrink-0" style={{ color: "rgb(var(--theme-text-muted))" }}>Top</span>
-                                            <span className="font-mono text-xs truncate" style={{ color: "rgb(var(--theme-text))" }} title={realtimeStats.top_endpoints[0].uri}>{realtimeStats.top_endpoints[0].uri}</span>
-                                            <span className="text-xs shrink-0" style={{ color: "rgb(var(--theme-text-muted))" }}>({realtimeStats.top_endpoints[0].requests})</span>
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                <span className="text-xs italic" style={{ color: "rgb(var(--theme-text-muted))" }}>No data yet — stream logs to see live stats</span>
-                            )}
+                    <div className="space-y-4">
+                        <div className="flex gap-2 p-1 bg-neutral-900 border border-neutral-800 rounded-lg w-fit" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                            <Button
+                                variant={logSubTab === 'live' ? 'secondary' : 'ghost'}
+                                size="sm"
+                                onClick={() => setLogSubTab('live')}
+                                className={`text-xs h-7 px-3 ${logSubTab === 'live' ? 'bg-neutral-800 text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
+                                style={logSubTab === 'live' ? { background: "rgb(var(--theme-background))", color: "rgb(var(--theme-text))" } : { color: "rgb(var(--theme-text-muted))" }}
+                            >
+                                Live Feed
+                            </Button>
+                            <Button
+                                variant={logSubTab === 'policies' ? 'secondary' : 'ghost'}
+                                size="sm"
+                                onClick={() => setLogSubTab('policies')}
+                                className={`text-xs h-7 px-3 ${logSubTab === 'policies' ? 'bg-neutral-800 text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
+                                style={logSubTab === 'policies' ? { background: "rgb(var(--theme-background))", color: "rgb(var(--theme-text))" } : { color: "rgb(var(--theme-text-muted))" }}
+                            >
+                                Policies & Rotation
+                            </Button>
                         </div>
-                        <CardContent>
-                            <div className="space-y-2 font-mono text-xs">
-                                {logs.length === 0 && isConnected && <div className="italic" style={{ color: "rgb(var(--theme-text-muted))" }}>Waiting for logs...</div>}
-                                {!logStreaming && logs.length === 0 && <div className="italic" style={{ color: "rgb(var(--theme-text-muted))" }}>Stream is off. Turn on to connect.</div>}
-                                {logStreaming && !isConnected && logs.length === 0 && <div className="italic" style={{ color: "rgb(var(--theme-text-muted))" }}>Connecting to log stream...</div>}
-                                {filteredLogs.length < logs.length && logs.length > 0 && (
-                                    <div className="text-xs mb-2" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                        Showing {filteredLogs.length} of {logs.length} entries (filters applied)
+
+                        {logSubTab === 'live' ? (
+                            <Card className="bg-neutral-900 border-neutral-800" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                                <CardHeader>
+                                    <div className="flex flex-wrap items-center justify-between gap-4">
+                                        <CardTitle style={{ color: "rgb(var(--theme-text))" }}>Live Logs</CardTitle>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <Label className="text-xs whitespace-nowrap" style={{ color: "rgb(var(--theme-text-muted))" }}>Stream</Label>
+                                                <Switch checked={logStreaming} onCheckedChange={setLogStreaming} />
+                                            </div>
+                                            <Select value={String(logTailLines)} onValueChange={(v) => setLogTailLines(Number(v))}>
+                                                <SelectTrigger className="w-[90px] h-9" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="100">100 lines</SelectItem>
+                                                    <SelectItem value="200">200 lines</SelectItem>
+                                                    <SelectItem value="500">500 lines</SelectItem>
+                                                    <SelectItem value="1000">1000 lines</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <Select value={logType} onValueChange={(v: 'access' | 'error') => setLogType(v)}>
+                                                <SelectTrigger className="w-[120px] h-9" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="access">Access</SelectItem>
+                                                    <SelectItem value="error">Error</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <Select value={logStatusFilter} onValueChange={setLogStatusFilter}>
+                                                <SelectTrigger className="w-[100px] h-9" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
+                                                    <SelectValue placeholder="Status" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">All</SelectItem>
+                                                    <SelectItem value="2xx">2xx</SelectItem>
+                                                    <SelectItem value="4xx">4xx</SelectItem>
+                                                    <SelectItem value="5xx">5xx</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <Select value={String(logTimeWindowMins)} onValueChange={(v) => setLogTimeWindowMins(Number(v))}>
+                                                <SelectTrigger className="w-[110px] h-9" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="0">All time</SelectItem>
+                                                    <SelectItem value="5">Last 5m</SelectItem>
+                                                    <SelectItem value="15">Last 15m</SelectItem>
+                                                    <SelectItem value="60">Last 1h</SelectItem>
+                                                    <SelectItem value="360">Last 6h</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <Input
+                                                placeholder="IP or CIDR"
+                                                value={logClientIpFilter}
+                                                onChange={(e) => setLogClientIpFilter(e.target.value)}
+                                                className="w-[140px] h-9 font-mono text-xs"
+                                                style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}
+                                            />
+                                            <div className="flex items-center gap-1 border rounded-md pl-2 h-9" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))" }}>
+                                                <Search className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--theme-text-muted))" }} />
+                                                <Input
+                                                    placeholder="Search"
+                                                    value={logSearch}
+                                                    onChange={(e) => { setLogSearch(e.target.value); setLogSearchMatchIndex(-1); }}
+                                                    className="border-0 w-[120px] h-8 font-mono text-xs focus-visible:ring-0 focus-visible:ring-offset-0"
+                                                    style={{ background: "transparent", color: "rgb(var(--theme-text))" }}
+                                                />
+                                                {logSearch.trim() && (
+                                                    <>
+                                                        <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                                            {logSearchMatches.length > 0 ? `${logSearchMatchIndex >= 0 ? logSearchMatchIndex + 1 : "0"}/${logSearchMatches.length}` : "0"}
+                                                        </span>
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => goToSearchMatch(-1)} title="Previous">↑</Button>
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => goToSearchMatch(1)} title="Next">↓</Button>
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setLogSearch(""); setLogSearchMatchIndex(-1); }} title="Clear"><X className="h-3.5 w-3.5" /></Button>
+                                                    </>
+                                                )}
+                                            </div>
+                                            <Button variant="outline" size="sm" className="h-9 gap-1" onClick={downloadLogs} disabled={filteredLogs.length === 0}>
+                                                <Download className="h-4 w-4" /> Download
+                                            </Button>
+                                            <Button variant="outline" size="sm" className="h-9" onClick={() => setLogs([])}>Clear</Button>
+                                        </div>
                                     </div>
-                                )}
-                                {filteredLogs.map((log, idx) => (
-                                    <div
-                                        key={idx}
-                                        id={`log-line-${idx}`}
-                                        className={`p-2 rounded ${(log.status ?? 0) >= 400 ? 'bg-red-500/10 text-red-400' : ''} ${logSearchMatchIndex >= 0 && logSearchMatches[logSearchMatchIndex] === idx ? 'ring-1 ring-primary' : ''}`}
-                                        style={{ color: (log.status ?? 0) >= 400 ? undefined : "rgb(var(--theme-text-muted))" }}
-                                    >
-                                        <span className="opacity-80">[{log.formattedTime || log.timestamp}]</span> {log.remote_addr && <span className="text-neutral-500">{log.remote_addr} </span>}{log.message}
+                                </CardHeader>
+                                {/* Real-time stats strip */}
+                                <div className="px-6 pb-2 flex flex-wrap items-center gap-4 border-b" style={{ borderColor: "rgb(var(--theme-border))" }}>
+                                    <span className="text-xs font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>Live (last 60s)</span>
+                                    {realtimeStats ? (
+                                        <>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Requests</span>
+                                                <span className="font-mono text-sm font-semibold" style={{ color: "rgb(var(--theme-text))" }}>{realtimeStats.total_requests.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Error rate</span>
+                                                <span className={`font-mono text-sm font-semibold ${realtimeStats.error_rate_pct > 5 ? "text-amber-400" : ""}`} style={realtimeStats.error_rate_pct > 5 ? undefined : { color: "rgb(var(--theme-text))" }}>{realtimeStats.error_rate_pct.toFixed(2)}%</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Req/s</span>
+                                                <span className="font-mono text-sm font-semibold" style={{ color: "rgb(var(--theme-primary))" }}>{(realtimeStats.request_rate_per_sec ?? 0).toFixed(1)}</span>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <span className="text-xs italic" style={{ color: "rgb(var(--theme-text-muted))" }}>No data yet</span>
+                                    )}
+                                </div>
+                                <CardContent>
+                                    <div className="space-y-1 font-mono text-xs max-h-[600px] overflow-auto">
+                                        {filteredLogs.map((log, idx) => {
+                                            const isMatch = logSearch.trim() && (log.message || log.content || '').toLowerCase().includes(logSearch.trim().toLowerCase());
+                                            const isSelectedMatch = logSearchMatches[logSearchMatchIndex] === idx;
+                                            
+                                            return (
+                                                <div 
+                                                    key={idx} 
+                                                    id={`log-line-${idx}`}
+                                                    className={`p-1 rounded transition-colors ${(log.status ?? 0) >= 400 ? 'bg-red-500/10 text-red-400' : ''} ${isSelectedMatch ? 'bg-yellow-500/20 ring-1 ring-yellow-500/50' : isMatch ? 'bg-yellow-500/10' : ''}`} 
+                                                    style={{ color: (log.status ?? 0) >= 400 ? undefined : "rgb(var(--theme-text-muted))" }}
+                                                >
+                                                    <span className="opacity-80">[{log.formattedTime || log.timestamp}]</span> {log.message}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                ))}
+                                </CardContent>
+                            </Card>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Log Rotation Card */}
+                                <Card className="bg-neutral-900 border-neutral-800" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                                    <CardHeader>
+                                        <CardTitle className="text-lg flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
+                                            <RotateCcw className="h-5 w-5 text-blue-400" />
+                                            Log Rotation
+                                        </CardTitle>
+                                        <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>Automate log splitting and cleanup</CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <div className="flex items-center justify-between p-3 rounded-lg bg-neutral-950 border border-neutral-800" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))" }}>
+                                            <div>
+                                                <Label className="text-sm font-medium" style={{ color: "rgb(var(--theme-text))" }}>Enable Rotation</Label>
+                                                <p className="text-[10px]" style={{ color: "rgb(var(--theme-text-muted))" }}>Manage local log file sizes automatically</p>
+                                            </div>
+                                            <Switch 
+                                                checked={agentConfig.log_rotation?.enabled} 
+                                                onCheckedChange={(v) => setAgentConfig(prev => ({ ...prev, log_rotation: { ...prev.log_rotation, enabled: v } }))} 
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Schedule</Label>
+                                                <Select value={agentConfig.log_rotation?.schedule} onValueChange={(v) => setAgentConfig(prev => ({ ...prev, log_rotation: { ...prev.log_rotation, schedule: v } }))}>
+                                                    <SelectTrigger className="h-8 text-xs" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="daily">Daily</SelectItem>
+                                                        <SelectItem value="weekly">Weekly</SelectItem>
+                                                        <SelectItem value="size-based">Size Based</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Max Size</Label>
+                                                <Input 
+                                                    value={agentConfig.log_rotation?.max_size} 
+                                                    onChange={(e) => setAgentConfig(prev => ({ ...prev, log_rotation: { ...prev.log_rotation, max_size: e.target.value } }))}
+                                                    className="h-8 text-xs font-mono"
+                                                    placeholder="100M"
+                                                    style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Retain Count</Label>
+                                                <Input 
+                                                    type="number"
+                                                    value={agentConfig.log_rotation?.retain_count} 
+                                                    onChange={(e) => setAgentConfig(prev => ({ ...prev, log_rotation: { ...prev.log_rotation, retain_count: parseInt(e.target.value) || 0 } }))}
+                                                    className="h-8 text-xs"
+                                                    style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}
+                                                />
+                                            </div>
+                                            <div className="flex items-center justify-between h-full pt-6">
+                                                <Label className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Compress (.gz)</Label>
+                                                <Switch 
+                                                    checked={agentConfig.log_rotation?.compress} 
+                                                    onCheckedChange={(v) => setAgentConfig(prev => ({ ...prev, log_rotation: { ...prev.log_rotation, compress: v } }))} 
+                                                />
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                {/* Syslog Fan-out Card */}
+                                <Card className="bg-neutral-900 border-neutral-800" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                                    <CardHeader>
+                                        <CardTitle className="text-lg flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
+                                            <Network className="h-5 w-5 text-amber-400" />
+                                            Syslog Exporter (SIEM)
+                                        </CardTitle>
+                                        <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>Ship logs to remote SIEM or log aggregators</CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <div className="flex items-center justify-between p-3 rounded-lg bg-neutral-950 border border-neutral-800" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))" }}>
+                                            <div>
+                                                <Label className="text-sm font-medium" style={{ color: "rgb(var(--theme-text))" }}>Enable Syslog</Label>
+                                                <p className="text-[10px]" style={{ color: "rgb(var(--theme-text-muted))" }}>Stream logs over UDP/TCP using syslog protocol</p>
+                                            </div>
+                                            <Switch 
+                                                checked={agentConfig.syslog?.enabled} 
+                                                onCheckedChange={(v) => setAgentConfig(prev => ({ ...prev, syslog: { ...prev.syslog, enabled: v } }))} 
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Target Address</Label>
+                                            <Input 
+                                                value={agentConfig.syslog?.target_address} 
+                                                onChange={(e) => setAgentConfig(prev => ({ ...prev, syslog: { ...prev.syslog, target_address: e.target.value } }))}
+                                                className="h-8 text-xs font-mono"
+                                                placeholder="udp://syslog.internal:514"
+                                                style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Facility</Label>
+                                                <Select value={agentConfig.syslog?.facility} onValueChange={(v) => setAgentConfig(prev => ({ ...prev, syslog: { ...prev.syslog, facility: v } }))}>
+                                                    <SelectTrigger className="h-8 text-xs" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="local0">local0</SelectItem>
+                                                        <SelectItem value="local7">local7</SelectItem>
+                                                        <SelectItem value="daemon">daemon</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Severity</Label>
+                                                <Select value={agentConfig.syslog?.severity} onValueChange={(v) => setAgentConfig(prev => ({ ...prev, syslog: { ...prev.syslog, severity: v } }))}>
+                                                    <SelectTrigger className="h-8 text-xs" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="info">Info</SelectItem>
+                                                        <SelectItem value="notice">Notice</SelectItem>
+                                                        <SelectItem value="warn">Warning</SelectItem>
+                                                        <SelectItem value="err">Error</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                {/* Custom Log Format Card */}
+                                <Card className="md:col-span-2 bg-neutral-900 border-neutral-800" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                                    <CardHeader>
+                                        <CardTitle className="text-lg flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
+                                            <FileText className="h-5 w-5 text-green-400" />
+                                            Custom Log Format
+                                        </CardTitle>
+                                        <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>Define custom `log_format` directives for structured logging (e.g. JSON, LTSV)</CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <Label style={{ color: "rgb(var(--theme-text))" }}>Format Template</Label>
+                                                <Select value={agentConfig.log_format} onValueChange={(v) => setAgentConfig(prev => ({ ...prev, log_format: v }))}>
+                                                    <SelectTrigger className="w-[200px] h-8 text-xs" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text))" }}>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="combined">Combined (Standard)</SelectItem>
+                                                        <SelectItem value="json">JSON (Structured)</SelectItem>
+                                                        <SelectItem value="custom">Manual Definition</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="border border-neutral-800 rounded bg-neutral-950 p-2 font-mono text-[10px]" style={{ background: "rgb(var(--theme-background))", borderColor: "rgb(var(--theme-border))" }}>
+                                                {agentConfig.log_format === 'json' ? (
+                                                    <div className="text-green-400 overflow-x-auto whitespace-pre">
+{`log_format json_analytics escape=json '{
+  "time_local": "$time_local",
+  "remote_addr": "$remote_addr",
+  "request": "$request",
+  "status": "$status",
+  "body_bytes_sent": "$body_bytes_sent",
+  "http_referer": "$http_referer",
+  "http_user_agent": "$http_user_agent",
+  "request_time": "$request_time"
+}';`}
+                                                    </div>
+                                                ) : agentConfig.log_format === 'combined' ? (
+                                                    <div className="text-blue-400 overflow-x-auto whitespace-pre">
+{`log_format combined '$remote_addr - $remote_user [$time_local] '
+                     '"$request" $status $body_bytes_sent '
+                     '"$http_referer" "$http_user_agent"';`}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-amber-400 italic">
+                                                        Custom format detected in NGINX config. Definitions can be modified via the Config tab.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                <Card className="md:col-span-2 bg-neutral-900 border-neutral-800" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                                    <div className="p-4 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Settings className="h-4 w-4 text-neutral-400" />
+                                            <span className="text-sm font-medium" style={{ color: "rgb(var(--theme-text))" }}>Save changes to agent configuration</span>
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                                            onClick={saveAgentConfig}
+                                            disabled={isSavingConfig}
+                                        >
+                                            {isSavingConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                            Apply Policy
+                                        </Button>
+                                    </div>
+                                </Card>
                             </div>
-                        </CardContent>
-                    </Card>
+                        )}
+                    </div>
                 </TabsContent>
 
                 <TabsContent value="analytics">

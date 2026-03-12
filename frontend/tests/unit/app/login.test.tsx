@@ -159,6 +159,7 @@ describe('LoginPage', () => {
                     headers: {
                         'Content-Type': 'application/json',
                     },
+                    credentials: 'include',
                     body: JSON.stringify({ username: 'admin', password: 'password123' }),
                 });
             });
