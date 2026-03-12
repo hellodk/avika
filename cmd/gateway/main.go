@@ -877,7 +877,7 @@ func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.Cl
 	}
 	log.Printf("Found session for %s, dialing %s", agentID, target)
 
-	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to agent %s: %v", agentID, err)
 	}
@@ -915,7 +915,7 @@ func (s *server) Execute(stream pb.AgentService_ExecuteServer) error {
 			if err != nil {
 				return
 			}
-			agentStream.Send(req)
+			_ = agentStream.Send(req)
 		}
 	}()
 
@@ -2147,7 +2147,7 @@ func (srv *server) handleTerminal(w http.ResponseWriter, r *http.Request, upgrad
 	// Radar-style structured errors: send JSON { type: "error", error: "...", code: "..." } so frontend can show clear message
 	writeExecError := func(code, msg string) {
 		payload := fmt.Sprintf(`{"type":"error","error":%q,"code":%q}`, msg, code)
-		ws.WriteMessage(websocket.TextMessage, []byte(payload))
+		_ = ws.WriteMessage(websocket.TextMessage, []byte(payload))
 	}
 
 	client, conn, err := srv.getAgentClient(agentID)

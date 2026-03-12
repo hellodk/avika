@@ -146,8 +146,8 @@ func (s *server) CreateMaintenanceTemplate(ctx context.Context, req *pb.CreateMa
 	if createdBy.Valid {
 		template.CreatedBy = &createdBy.String
 	}
-	json.Unmarshal(assetsData, &template.Assets)
-	json.Unmarshal(variablesData, &template.Variables)
+	_ = json.Unmarshal(assetsData, &template.Assets)
+	_ = json.Unmarshal(variablesData, &template.Variables)
 
 	return maintenanceTemplateToProto(&template), nil
 }
@@ -242,8 +242,8 @@ func (s *server) UpdateMaintenanceTemplate(ctx context.Context, req *pb.UpdateMa
 	if createdBy.Valid {
 		template.CreatedBy = &createdBy.String
 	}
-	json.Unmarshal(assetsData, &template.Assets)
-	json.Unmarshal(variablesData, &template.Variables)
+	_ = json.Unmarshal(assetsData, &template.Assets)
+	_ = json.Unmarshal(variablesData, &template.Variables)
 
 	return maintenanceTemplateToProto(&template), nil
 }
@@ -614,7 +614,9 @@ func (s *server) applyMaintenanceToAgents(ctx context.Context, req *pb.SetMainte
 		defer rows.Close()
 		for rows.Next() {
 			var agentID string
-			rows.Scan(&agentID)
+			if err := rows.Scan(&agentID); err != nil {
+				continue
+			}
 			agentIDs = append(agentIDs, agentID)
 		}
 	}
@@ -785,8 +787,8 @@ func scanMaintenanceTemplate(rows *sql.Rows) (*MaintenanceTemplate, error) {
 	if cssContent.Valid {
 		template.CSSContent = cssContent.String
 	}
-	json.Unmarshal(assetsData, &template.Assets)
-	json.Unmarshal(variablesData, &template.Variables)
+	_ = json.Unmarshal(assetsData, &template.Assets)
+	_ = json.Unmarshal(variablesData, &template.Variables)
 
 	return &template, nil
 }

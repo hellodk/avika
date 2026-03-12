@@ -110,7 +110,7 @@ func (s *server) getAgentConfigClient(agentID string) (pb.AgentConfigServiceClie
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	conn, err := grpc.Dial(target, dialOpts...)
+	conn, err := grpc.NewClient(target, dialOpts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to agent %s: %v", agentID, err)
 	}
@@ -229,7 +229,7 @@ func (srv *server) handleUpdateAgentRuntimeConfig(w http.ResponseWriter, r *http
 		}
 
 		// Log audit event
-		srv.db.CreateAuditLog(user.Username, "update_runtime_config", "agent", agentID, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
+		_ = srv.db.CreateAuditLog(user.Username, "update_runtime_config", "agent", agentID, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
 			"persist":    body.Persist,
 			"hot_reload": body.HotReload,
 			"updates":    updates,

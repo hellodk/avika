@@ -54,13 +54,6 @@ func (db *DB) GetVersion() string {
 	return version
 }
 
-// migrate is deprecated - migrations are now handled by embedded SQL files in migrations/
-// This function is kept for backwards compatibility but does nothing
-func (db *DB) migrate() error {
-	// Migrations are now handled by migrations.Runner
-	// See cmd/gateway/migrations/*.sql for schema definitions
-	return nil
-}
 
 // GetSetting retrieves a setting value by key
 func (db *DB) GetSetting(key string) (string, error) {

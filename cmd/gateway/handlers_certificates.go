@@ -11,9 +11,6 @@ import (
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 )
 
-const (
-	defaultAgentPort = 5025
-)
 
 // handleListCertificates proxies ListCertificates to the agent
 func (s *server) handleListCertificates(w http.ResponseWriter, r *http.Request) {

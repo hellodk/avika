@@ -135,7 +135,7 @@ func (srv *server) handleRestoreNginxConfigBackup(w http.ResponseWriter, r *http
 	}
 
 	if srv.db != nil {
-		srv.db.CreateAuditLog(user.Username, "restore_nginx_config_backup", "agent", agentID, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
+		_ = srv.db.CreateAuditLog(user.Username, "restore_nginx_config_backup", "agent", agentID, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
 			"backup_id":   reqBody.BackupID,
 			"config_path": reqBody.ConfigPath,
 			"success":     updateResp.Success,

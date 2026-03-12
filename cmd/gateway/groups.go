@@ -164,7 +164,7 @@ func (s *server) CreateGroup(ctx context.Context, req *pb.CreateGroupRequest) (*
 	if createdBy.Valid {
 		group.CreatedBy = &createdBy.String
 	}
-	json.Unmarshal(metadataJSON, &group.Metadata)
+	_ = json.Unmarshal(metadataJSON, &group.Metadata)
 
 	return agentGroupToProto(&group), nil
 }
@@ -245,7 +245,7 @@ func (s *server) UpdateGroup(ctx context.Context, req *pb.UpdateGroupRequest) (*
 	if createdBy.Valid {
 		group.CreatedBy = &createdBy.String
 	}
-	json.Unmarshal(metadataJSON, &group.Metadata)
+	_ = json.Unmarshal(metadataJSON, &group.Metadata)
 
 	return agentGroupToProto(&group), nil
 }
@@ -309,7 +309,9 @@ func (s *server) AddAgentsToGroup(ctx context.Context, req *pb.AddAgentsToGroupR
 		if err == sql.ErrNoRows {
 			// Agent not in server_assignments, check if agent exists
 			var exists bool
-			s.db.conn.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM agents WHERE agent_id = $1)", agentID).Scan(&exists)
+			if err := s.db.conn.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM agents WHERE agent_id = $1)", agentID).Scan(&exists); err != nil {
+				exists = false
+			}
 			if !exists {
 				result.Success = false
 				result.Error = "agent not found"
@@ -408,10 +410,12 @@ func (s *server) SetGoldenAgent(ctx context.Context, req *pb.SetGoldenAgentReque
 	} else {
 		// Verify agent is in this group
 		var inGroup bool
-		s.db.conn.QueryRowContext(ctx,
+		if err := s.db.conn.QueryRowContext(ctx,
 			"SELECT EXISTS(SELECT 1 FROM server_assignments WHERE agent_id = $1 AND group_id = $2)",
 			req.AgentId, req.GroupId,
-		).Scan(&inGroup)
+		).Scan(&inGroup); err != nil {
+			inGroup = false
+		}
 
 		if !inGroup {
 			return nil, status.Error(codes.InvalidArgument, "agent must be in the group to be set as golden agent")
@@ -580,7 +584,7 @@ func scanAgentGroup(rows *sql.Rows) (*AgentGroup, error) {
 	if createdBy.Valid {
 		group.CreatedBy = &createdBy.String
 	}
-	json.Unmarshal(metadataJSON, &group.Metadata)
+	_ = json.Unmarshal(metadataJSON, &group.Metadata)
 
 	return &group, nil
 }
@@ -610,7 +614,7 @@ func scanAgentGroupRow(row *sql.Row) (*AgentGroup, error) {
 	if createdBy.Valid {
 		group.CreatedBy = &createdBy.String
 	}
-	json.Unmarshal(metadataJSON, &group.Metadata)
+	_ = json.Unmarshal(metadataJSON, &group.Metadata)
 
 	return &group, nil
 }

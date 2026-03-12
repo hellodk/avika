@@ -524,8 +524,8 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, req *pb
 	resp := &pb.AnalyticsResponse{}
 
 	// Determine bucket size and time format based on duration
-	bucketSize := "toStartOfHour"
-	timeFormat := "%Y-%m-%d %H:%i"
+	var bucketSize string
+	var timeFormat string
 
 	if duration <= 1*time.Hour {
 		bucketSize = "toStartOfMinute"
