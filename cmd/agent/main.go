@@ -534,7 +534,7 @@ func main() {
 		"localhost:4317", // OTel OTLP gRPC endpoint
 		*agentID,
 		currentHostname,
-		logs.SyslogConfig{
+		logs.LogSyslogConfig{
 			Enabled:       *syslogEnabled,
 			TargetAddress: *syslogTarget,
 			Facility:      *syslogFacility,
