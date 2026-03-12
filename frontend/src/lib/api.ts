@@ -5,6 +5,15 @@
 // Base path from environment (set at build time)
 export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
+/** Resolve base path at runtime so /avika works when app is served under /avika even if env is unset */
+function getBasePath(): string {
+  if (BASE_PATH) return BASE_PATH;
+  if (typeof window !== "undefined" && window.location.pathname.startsWith("/avika")) {
+    return "/avika";
+  }
+  return "";
+}
+
 // Feature flag for local development without backend
 const MOCK_BACKEND = process.env.NEXT_PUBLIC_MOCK_BACKEND === "true";
 
@@ -20,18 +29,20 @@ export async function apiFetch(
     return handleMockResponse(path, options);
   }
 
+  const base = getBasePath();
   // Prepend base path if the path starts with /
-  const url = path.startsWith("/") ? `${BASE_PATH}${path}` : path;
+  const url = path.startsWith("/") ? `${base}${path}` : path;
   // Always send credentials (cookies) so session is forwarded to API routes
   const opts = { ...options, credentials: "include" as RequestCredentials };
   return fetch(url, opts);
 }
 
 /**
- * Helper to build full URL with base path
+ * Helper to build full URL with base path (uses runtime getBasePath in browser, BASE_PATH in Node)
  */
 export function apiUrl(path: string): string {
-  return path.startsWith("/") ? `${BASE_PATH}${path}` : path;
+  const base = typeof window !== "undefined" ? getBasePath() : BASE_PATH;
+  return path.startsWith("/") ? `${base}${path}` : path;
 }
 
 /**
@@ -98,10 +109,10 @@ async function handleMockResponse(path: string, options?: RequestInit): Promise<
       "status": "online",
       "version": "1.1.0"
     };
-  } else if (route.startsWith("/api/servers")) {
+  } else if (route.startsWith("/api/servers") && !route.match(/\/api\/servers\/[^/]+/)) {
     data = {
       agents: [
-        { id: "mock-agent-1", hostname: "web-01.local", active: true, capabilities: ["nginx", "waf"] }
+        { id: "mock-agent-1", agent_id: "mock-agent-1", hostname: "web-01.local", active: true, capabilities: ["nginx", "waf"] }
       ]
     };
   }
