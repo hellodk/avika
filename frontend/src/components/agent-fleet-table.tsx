@@ -446,7 +446,7 @@ export function AgentFleetTable({
                                 </TableRow>
                             ))
                         ) : filteredInstances.length === 0 ? (
-                            <TableRow>
+                            <TableRow key="empty-state">
                                 <TableCell colSpan={8} className="h-40 text-center" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                     <div className="flex flex-col items-center justify-center gap-2">
                                         <Server className="h-8 w-8 opacity-20" />
@@ -455,13 +455,14 @@ export function AgentFleetTable({
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            filteredInstances.map((instance) => {
+                            filteredInstances.map((instance, index) => {
                                 const statusInfo = getAgentStatus(instance.last_seen);
-                                const needsUpdate = instance.agent_version !== latestVersion;
+                                const needsUpdate = instance.agent_version && instance.agent_version !== latestVersion;
                                 const isSelected = selectedAgents.has(instance.agent_id);
+                                const agentKey = instance.agent_id || `agent-${index}`;
 
                                 return (
-                                    <TableRow key={instance.agent_id} className={`hover:opacity-95 ${isSelected ? 'bg-blue-500/5' : ''}`} style={{ borderColor: 'rgb(var(--theme-border))' }}>
+                                    <TableRow key={agentKey} className={`hover:opacity-95 ${isSelected ? 'bg-blue-500/5' : ''}`} style={{ borderColor: 'rgb(var(--theme-border))' }}>
                                         <TableCell>
                                             <input
                                                 type="checkbox"

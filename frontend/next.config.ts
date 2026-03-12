@@ -120,6 +120,7 @@ const nextConfig: NextConfig = {
       { source: '/waf', destination: '/settings/waf', permanent: false },
       { source: '/visitors', destination: '/analytics/visitors', permanent: false },
       { source: '/geo', destination: '/analytics/geo', permanent: false },
+      { source: '/servers', destination: '/inventory', permanent: false },
     ];
   },
 };
