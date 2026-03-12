@@ -146,8 +146,12 @@ func (s *server) CreateMaintenanceTemplate(ctx context.Context, req *pb.CreateMa
 	if createdBy.Valid {
 		template.CreatedBy = &createdBy.String
 	}
-	_ = json.Unmarshal(assetsData, &template.Assets)
-	_ = json.Unmarshal(variablesData, &template.Variables)
+	if err := json.Unmarshal(assetsData, &template.Assets); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(variablesData, &template.Variables); err != nil {
+		return nil, err
+	}
 
 	return maintenanceTemplateToProto(&template), nil
 }
@@ -704,8 +708,12 @@ func (s *server) scanMaintenanceStateFromRow(row *sql.Row) (*MaintenanceState, e
 	}
 
 	state.BypassIPs = bypassIPs
-	json.Unmarshal(templateVarsJSON, &state.TemplateVars)
-	json.Unmarshal(bypassHeadersJSON, &state.BypassHeaders)
+	if err := json.Unmarshal(templateVarsJSON, &state.TemplateVars); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(bypassHeadersJSON, &state.BypassHeaders); err != nil {
+		return nil, err
+	}
 
 	return &state, nil
 }
@@ -756,8 +764,12 @@ func (s *server) scanMaintenanceStateFromRows(rows *sql.Rows) (*MaintenanceState
 	}
 
 	state.BypassIPs = bypassIPs
-	json.Unmarshal(templateVarsJSON, &state.TemplateVars)
-	json.Unmarshal(bypassHeadersJSON, &state.BypassHeaders)
+	if err := json.Unmarshal(templateVarsJSON, &state.TemplateVars); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(bypassHeadersJSON, &state.BypassHeaders); err != nil {
+		return nil, err
+	}
 
 	return &state, nil
 }

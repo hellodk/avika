@@ -1944,7 +1944,9 @@ func (srv *server) handleGroupRealtimeStats(w http.ResponseWriter, r *http.Reque
 	if err != nil || resp == nil || len(resp.Agents) == 0 {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error":"no agents in group or group not found"}`))
+		if _, err := w.Write([]byte(`{"error":"no agents in group or group not found"}`)); err != nil {
+			log.Printf("handleGroupRealtimeStats: failed to write error response: %v", err)
+		}
 		return
 	}
 	agentIDs := make([]string, 0, len(resp.Agents))
@@ -1972,7 +1974,9 @@ func (srv *server) handleGroupLogsStream(w http.ResponseWriter, r *http.Request)
 	if err != nil || resp == nil || len(resp.Agents) == 0 {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error":"no agents in group or group not found"}`))
+		if _, err := w.Write([]byte(`{"error":"no agents in group or group not found"}`)); err != nil {
+			log.Printf("handleGroupLogsStream: failed to write error response: %v", err)
+		}
 		return
 	}
 
@@ -2293,7 +2297,9 @@ func (srv *server) handleExportReport(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=nginx-report-%d.pdf", time.Now().Unix()))
-	w.Write(pdfData)
+	if _, err := w.Write(pdfData); err != nil {
+		log.Printf("handleExportReport: failed to write PDF response: %v", err)
+	}
 }
 
 // handleMetrics exposes Prometheus-format metrics
