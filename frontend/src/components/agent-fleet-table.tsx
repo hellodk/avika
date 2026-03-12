@@ -159,14 +159,35 @@ export function AgentFleetTable({
         return result;
     }, [instances, searchQuery, filterStatus, sortField, sortDirection, selectedProject, selectedEnvironment, environments, serverAssignments]);
 
-    // Stats - computed from filtered instances
+    // Fleet for stats: same project/env and status filter as table, but NOT search (so header cards show global fleet health)
+    const instancesForStats = useMemo(() => {
+        let result = instances.filter(instance => {
+            if (selectedEnvironment) {
+                const assignment = serverAssignments[instance.agent_id];
+                if (!assignment || assignment.environment_id !== selectedEnvironment.id) return false;
+            } else if (selectedProject) {
+                const assignment = serverAssignments[instance.agent_id];
+                if (!assignment) return false;
+                const envBelongsToProject = environments.some(env => env.id === assignment.environment_id);
+                if (!envBelongsToProject) return false;
+            }
+            if (filterStatus === "all") return true;
+            const status = getAgentStatus(instance.last_seen);
+            if (filterStatus === "online") return status.label === "Online";
+            if (filterStatus === "offline") return status.label !== "Online";
+            return true;
+        });
+        return result;
+    }, [instances, filterStatus, selectedProject, selectedEnvironment, environments, serverAssignments]);
+
+    // Stats - from fleet (no search) so header cards don't change when typing in search
     const stats = useMemo(() => {
-        const total = filteredInstances.length;
-        const online = filteredInstances.filter(i => getAgentStatus(i.last_seen).label === "Online").length;
+        const total = instancesForStats.length;
+        const online = instancesForStats.filter(i => getAgentStatus(i.last_seen).label === "Online").length;
         const offline = total - online;
-        const needsUpdate = filteredInstances.filter(i => i.agent_version !== latestVersion).length;
+        const needsUpdate = instancesForStats.filter(i => i.agent_version && i.agent_version !== latestVersion).length;
         return { total, online, offline, needsUpdate };
-    }, [filteredInstances, latestVersion]);
+    }, [instancesForStats, latestVersion]);
 
     const handleSort = (field: SortField) => {
         if (sortField === field) {

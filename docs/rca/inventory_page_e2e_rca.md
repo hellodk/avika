@@ -1,5 +1,15 @@
 # Inventory Page E2E Test and RCA
 
+## Status: Fixes Applied
+
+- **Observations 1 & 2 (N/A columns / Needs Update):** Mock agent data in `api/servers/route.ts` and client `api.ts` was enriched with `ip`, `version`, `agent_version`, and `last_seen` so the table and stats show real values instead of N/A.
+- **Observation 3 (Sticky loading):** `handleBulkUpdate` and `handleBulkDeleteConfirm` now call `setLoading(false)` in a `finally` block.
+- **Observation 4 (Deletion/await):** `handleBulkDeleteConfirm` now `await fetchAgents()` and uses `finally`; bulk delete/update use `Promise.all()` for concurrent requests. *Note:* With `NEXT_PUBLIC_MOCK_BACKEND=true`, the DELETE route still calls gRPC (no mock branch), so delete may 500 and the list will not change until a real backend is used.
+- **Observation 5 (Search vs header):** Header cards (Total Agents, Online, Offline, Needs Update) are now computed from the fleet with project/env and status filter only—**not** from the search filter—so they no longer change when typing in the search box.
+- **Suspense/skeleton:** Dead Suspense was removed; skeleton is shown on initial load when `loading && instances.length === 0`.
+
+---
+
 ## E2E Test Observations
 
 During the end-to-end testing of the Inventory page (`http://127.0.0.1:3000/avika/inventory`), several bugs and user experience issues were identified.

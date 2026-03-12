@@ -6,10 +6,29 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     if (process.env.NEXT_PUBLIC_MOCK_BACKEND === "true") {
+        const now = Math.floor(Date.now() / 1000);
         return NextResponse.json({
             agents: [
-                { id: "mock-grpc-node-1", agent_id: "mock-grpc-node-1", hostname: "ingress.mock", active: true },
-                { id: "mock-grpc-node-2", agent_id: "mock-grpc-node-2", hostname: "app-server.mock", active: false }
+                {
+                    id: "mock-grpc-node-1",
+                    agent_id: "mock-grpc-node-1",
+                    hostname: "ingress.mock",
+                    active: true,
+                    ip: "192.168.1.10",
+                    version: "1.24.0",
+                    agent_version: "0.1.0",
+                    last_seen: now - 60,
+                },
+                {
+                    id: "mock-grpc-node-2",
+                    agent_id: "mock-grpc-node-2",
+                    hostname: "app-server.mock",
+                    active: false,
+                    ip: "192.168.1.11",
+                    version: "1.24.0",
+                    agent_version: "0.1.0",
+                    last_seen: now - 3600,
+                },
             ],
             system_version: "mock-1.0.0"
         });

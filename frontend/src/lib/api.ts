@@ -110,10 +110,21 @@ async function handleMockResponse(path: string, options?: RequestInit): Promise<
       "version": "1.1.0"
     };
   } else if (route.startsWith("/api/servers") && !route.match(/\/api\/servers\/[^/]+/)) {
+    const now = Math.floor(Date.now() / 1000);
     data = {
       agents: [
-        { id: "mock-agent-1", agent_id: "mock-agent-1", hostname: "web-01.local", active: true, capabilities: ["nginx", "waf"] }
-      ]
+        {
+          id: "mock-agent-1",
+          agent_id: "mock-agent-1",
+          hostname: "web-01.local",
+          active: true,
+          capabilities: ["nginx", "waf"],
+          ip: "192.168.1.10",
+          version: "1.24.0",
+          agent_version: "0.1.0",
+          last_seen: now - 60,
+        },
+      ],
     };
   }
 
