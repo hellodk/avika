@@ -229,9 +229,9 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				agentLog := logging.WithAgent(gatewayLog, agentID, hb.Hostname, ip)
 				mgmt := hb.GetMgmtAddress()
 				if mgmt != "" {
-					agentLog.Info().Bool("pod", isPod).Bool("psk", pskAuthenticated).Str("mgmt_address", mgmt).Msg("Agent registered (dial will use mgmt_address)")
+					agentLog.Info().Bool("pod", isPod).Bool("psk", pskAuthenticated).Str("mgmt_address", mgmt).Msg("Agent successfully registered (dial-back will use mgmt_address)")
 				} else {
-					agentLog.Info().Bool("pod", isPod).Bool("psk", pskAuthenticated).Msg("Agent registered (dial will use peer IP)")
+					agentLog.Info().Bool("pod", isPod).Bool("psk", pskAuthenticated).Msg("Agent successfully registered (dial-back will use peer IP)")
 				}
 
 				// 4a. Auto-assign to environment based on labels

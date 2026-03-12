@@ -51,8 +51,8 @@ var (
 	gatewayAddr   = flag.String("gateway", "", "Gateway address(es) - comma-separated for multi-gateway (e.g., 'gw1:5020,gw2:5020')")
 	agentID       = flag.String("id", "", "The agent ID (default: hostname)")
 	logLevel      = flag.String("log-level", "info", "Log level (debug, info, warn, error). Set via LOG_LEVEL env for dynamic override.")
-	logFile       = flag.String("log-file", "", "Path to log file. If empty, logs to stdout")
-	bufferDir     = flag.String("buffer-dir", "./", "Directory to store the persistent buffer")
+	logFile       = flag.String("log-file", "/var/log/avika-agent/agent.log", "Path to log file. If empty, logs to stdout")
+	bufferDir     = flag.String("buffer-dir", "/var/lib/avika-agent/data", "Directory to store the persistent buffer")
 	version       = flag.Bool("version", false, "Display version and exit")
 	healthPort    = flag.Int("health-port", DefaultHealthPort, "Port for health check endpoints")
 	mgmtPort      = flag.Int("mgmt-port", DefaultMgmtPort, "Port for management gRPC server")
@@ -74,7 +74,7 @@ var (
 	updateInterval = flag.Duration("update-interval", 168*time.Hour, "Interval between update checks (default: 1 week)")
 
 	// Config File
-	configFile = flag.String("config", "/etc/avika/avika-agent.conf", "Path to configuration file")
+	configFile = flag.String("config", "/etc/avika-agent/avika-agent.conf", "Path to configuration file")
 
 	// Management address advertisement: host or host:port the gateway should use to dial this agent (Option A - correct IP)
 	mgmtAdvertise = flag.String("mgmt-advertise", "", "Address to advertise for gateway dial-back (e.g. 10.0.2.15 or 10.0.2.15:5025). Also set via AVIKA_MGMT_ADVERTISE.")
@@ -99,6 +99,9 @@ var (
 
 var (
 	globalUpdater *updater.Updater
+	currentHostname, _ = os.Hostname()
+	currentIP       = getChosenIP()
+
 	startTime     = time.Now()
 	agentLabels   = make(map[string]string) // Labels for auto-assignment (project, environment, etc.)
 )
@@ -450,7 +453,13 @@ func main() {
 		*agentID = getOrGenerateAgentID()
 	}
 
-	agentInfo("Starting agent id=%s version=%s gateways=%s", *agentID, Version, *gatewayAddr)
+	agentInfo("=== Avika Agent Starting ===")
+	agentInfo("Agent ID:  %s", *agentID)
+	agentInfo("Agent IP:  %s", currentIP)
+	agentInfo("Version:   %s", Version)
+	agentInfo("Buffer:    %s", *bufferDir)
+	agentInfo("Gateways:  %s", *gatewayAddr)
+	agentInfo("============================")
 	agentLabelsMu.RLock()
 	if len(agentLabels) > 0 {
 		labelsCopy := make(map[string]string, len(agentLabels))
@@ -949,7 +958,7 @@ func getChosenMgmtAddress() string {
 }
 
 func getOrGenerateAgentID() string {
-	const idFile = ".agent_id"
+	idFile := filepath.Join(*bufferDir, "agent_id")
 
 	// 1. Try reading from file (stable across restarts)
 	data, err := os.ReadFile(idFile)
@@ -1253,7 +1262,7 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 				}
 			}
 			ss.SetStream(stream)
-			agentInfo("Connected to Gateway")
+			agentInfo("Connected to Gateway %s", targetAddr)
 
 			// Send one heartbeat immediately so the gateway registers this agent (session) even if the WAL is corrupt.
 			if err := ss.Send(buildBootstrapHeartbeat(agentID)); err != nil {
@@ -1302,9 +1311,12 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 		if err != nil {
 			log.Printf("Buffer read error: %v", err)
 			if strings.Contains(err.Error(), "suspiciously large message length") {
-				log.Printf("Corruption detected at offset %d, attempting to skip...", offset)
+				agentWarn("CRITICAL: Buffer corruption detected at offset %d. Message length reported as huge. This usually means the WAL file is corrupted.", offset)
+				agentWarn("Attempting to skip the corrupted length header (4 bytes) to realign...")
 				if skipErr := wal.SkipCorrupt(offset); skipErr != nil {
-					log.Printf("Failed to skip corrupt message: %v", skipErr)
+					agentError("Failed to skip corrupt message: %v", skipErr)
+				} else {
+					agentInfo("Successfully advanced read offset past corruption.")
 				}
 			}
 			select {
