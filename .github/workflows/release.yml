@@ -11,7 +11,6 @@ on:
     branches:
       - master
       - main
-  # Manual trigger for forcing specific version bumps
   workflow_dispatch:
     inputs:
       bump_type:
@@ -29,14 +28,18 @@ on:
         required: false
         default: ''
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
-  packages: write
+  pull-requests: write
 
 env:
   GO_VERSION: '1.24'
   NODE_VERSION: '20'
-  DOCKERHUB_USERNAME: hellodk
+  # Image registry: single source is .github/IMAGE_REGISTRY (set in build-push-images job)
 
 jobs:
   # Analyze commits to determine if release is needed and what type
@@ -55,13 +58,21 @@ jobs:
       - name: Analyze commits for version bump
         id: analyze
         run: |
-          # Get the commit message
-          COMMIT_MSG=$(git log -1 --pretty=%B)
+          # Get the commit message (first line only for merge commits)
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -1)
           echo "Commit message: $COMMIT_MSG"
           
           # Skip if this is a version bump commit (prevents infinite loop)
           if [[ "$COMMIT_MSG" == "chore(release): Bump version to"* ]]; then
             echo "Skipping release - this is a version bump commit"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "bump_type=none" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Skip if this is a merge of our own release PR (Merge pull request #N from .../release/vX.Y.Z)
+          if [[ "$COMMIT_MSG" =~ ^Merge\ pull\ request\ #[0-9]+\ from\ .*release/v ]]; then
+            echo "Skipping release - this is the merge of an automated release PR"
             echo "should_release=false" >> $GITHUB_OUTPUT
             echo "bump_type=none" >> $GITHUB_OUTPUT
             exit 0
@@ -122,6 +133,7 @@ jobs:
           
           echo "Final decision: should_release=$([ "$BUMP_TYPE" != "none" ] && echo true || echo false), bump_type=$BUMP_TYPE"
 
+  # Version bump via release branch + PR + merge so we comply with "changes via PR" without needing a bypass.
   version-bump:
     name: Bump Version
     runs-on: ubuntu-latest
@@ -144,22 +156,23 @@ jobs:
 
       - name: Bump version
         id: bump
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
+          set -e
+          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+          echo "Default branch: $DEFAULT_BRANCH"
+          
           # Read current version
           CURRENT_VERSION=$(cat VERSION | tr -d '[:space:]')
           echo "Current version: $CURRENT_VERSION"
           
-          # Remove any pre-release suffix for parsing
           BASE_VERSION=$(echo "$CURRENT_VERSION" | cut -d'-' -f1)
-          
-          # Parse version components
           IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
           
-          # Get bump type from analysis
           BUMP_TYPE="${{ needs.analyze-commits.outputs.bump_type }}"
           echo "Bump type: $BUMP_TYPE"
           
-          # Bump based on type
           case "$BUMP_TYPE" in
             major)
               MAJOR=$((MAJOR + 1))
@@ -175,30 +188,42 @@ jobs:
               ;;
           esac
           
-          # Construct new version
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
-          
-          # Add prerelease suffix if specified (manual trigger only)
           PRERELEASE="${{ inputs.prerelease }}"
           if [ -n "$PRERELEASE" ]; then
             NEW_VERSION="${NEW_VERSION}-${PRERELEASE}"
           fi
-          
           echo "New version: $NEW_VERSION"
           
-          # Update VERSION file
           echo "$NEW_VERSION" > VERSION
-          
-          # Commit and tag
           git add VERSION
           git commit -m "chore(release): Bump version to ${NEW_VERSION}"
           git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
           
-          # Push changes
-          git push origin HEAD
+          # Push release branch (not default branch, so branch protection usually allows it)
+          RELEASE_BRANCH="release/v${NEW_VERSION}"
+          git checkout -b "$RELEASE_BRANCH"
+          git push -u origin "$RELEASE_BRANCH"
+          
+          # Create PR and merge (satisfies "changes must be made through a pull request")
+          gh pr create --base "$DEFAULT_BRANCH" --head "$RELEASE_BRANCH" \
+            --title "chore(release): Bump version to ${NEW_VERSION}" \
+            --body "Automated version bump for release v${NEW_VERSION}."
+          sleep 2
+          PR_NUM=$(gh pr list --base "$DEFAULT_BRANCH" --head "$RELEASE_BRANCH" --state open --json number -q '.[0].number')
+          if [ -z "$PR_NUM" ]; then
+            echo "::error::Could not get PR number. Create and merge the version-bump PR manually, then push tag v${NEW_VERSION} and re-run this workflow."
+            exit 1
+          fi
+          # Merge immediately (satisfies "changes via PR"). If rules require approval, add github-actions[bot] to bypass or merge the PR manually.
+          if ! gh pr merge "$PR_NUM" --merge; then
+            echo "::error::Could not merge PR #$PR_NUM. If branch rules require review, add github-actions[bot] to the ruleset bypass list, or merge the PR manually and push tag: git push origin v${NEW_VERSION}"
+            exit 1
+          fi
+          
+          # Push tag (tags are not subject to branch PR rules)
           git push origin "v${NEW_VERSION}"
           
-          # Set outputs
           echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
           echo "tag=v${NEW_VERSION}" >> $GITHUB_OUTPUT
 
@@ -285,6 +310,9 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      - name: Set image registry (single source .github/IMAGE_REGISTRY)
+        run: echo "IMAGE_REGISTRY=$(cat .github/IMAGE_REGISTRY | tr -d '\n')" >> $GITHUB_ENV
+
       - name: Get build metadata
         id: meta
         run: |
@@ -297,17 +325,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to DockerHub
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ env.DOCKERHUB_USERNAME }}
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract metadata
         id: docker-meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.DOCKERHUB_USERNAME }}/avika-${{ matrix.image.name }}
+          images: ${{ env.IMAGE_REGISTRY }}/avika-${{ matrix.image.name }}
           tags: |
             type=semver,pattern={{version}},value=${{ needs.version-bump.outputs.version }}
             type=semver,pattern={{major}}.{{minor}},value=${{ needs.version-bump.outputs.version }}
@@ -374,6 +403,9 @@ jobs:
           ref: v${{ needs.version-bump.outputs.version }}
           fetch-depth: 0
 
+      - name: Set image registry (single source .github/IMAGE_REGISTRY)
+        run: echo "IMAGE_REGISTRY=$(cat .github/IMAGE_REGISTRY | tr -d '\n')" >> $GITHUB_ENV
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -393,6 +425,7 @@ jobs:
       - name: Generate release notes
         id: release_notes
         run: |
+          IMAGE_REGISTRY=$(cat .github/IMAGE_REGISTRY | tr -d '\n')
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           
           if [ -n "$PREV_TAG" ]; then
@@ -413,12 +446,12 @@ jobs:
           $([ -n "$FIXES" ] && echo "### Bug Fixes" && echo "$FIXES" && echo "")
           $([ -n "$OTHERS" ] && echo "### Other Changes" && echo "$OTHERS" && echo "")
           
-          ## Docker Images
+          ## Docker Images (Docker Hub)
           
           \`\`\`bash
-          docker pull hellodk/avika-gateway:${{ needs.version-bump.outputs.version }}
-          docker pull hellodk/avika-frontend:${{ needs.version-bump.outputs.version }}
-          docker pull hellodk/avika-agent:${{ needs.version-bump.outputs.version }}
+          docker pull ${IMAGE_REGISTRY}/avika-gateway:${{ needs.version-bump.outputs.version }}
+          docker pull ${IMAGE_REGISTRY}/avika-frontend:${{ needs.version-bump.outputs.version }}
+          docker pull ${IMAGE_REGISTRY}/avika-agent:${{ needs.version-bump.outputs.version }}
           \`\`\`
           
           ## Binaries
@@ -456,7 +489,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Bump type:** ${{ needs.analyze-commits.outputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Docker Images" >> $GITHUB_STEP_SUMMARY
-          echo "- hellodk/avika-gateway:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- hellodk/avika-frontend:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- hellodk/avika-agent:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "### Docker Images (Docker Hub)" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ env.IMAGE_REGISTRY }}/avika-gateway:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ env.IMAGE_REGISTRY }}/avika-frontend:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ env.IMAGE_REGISTRY }}/avika-agent:${{ needs.version-bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY

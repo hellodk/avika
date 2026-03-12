@@ -33,6 +33,25 @@ message GetAgentConfigResponse {
   string log_level = 14;
   string log_file = 15;
   string config_file_path = 16; // Path to avika-agent.conf
+  string mgmt_advertise = 17;   // AVIKA_MGMT_ADVERTISE: IP or host:port for gateway dial-back
+  string mgmt_nat_cidr = 18;    // AVIKA_MGMT_NAT_CIDR: CIDR to avoid when choosing mgmt IP (e.g. 10.0.2.0/24)
+  LogRotateConfig log_rotation = 19;
+  SyslogConfig syslog = 20;
+}
+
+message LogRotateConfig {
+  bool enabled = 1;
+  string schedule = 2;       // "daily", "weekly", "size-based"
+  string max_size = 3;       // e.g., "100M"
+  int32 retain_count = 4;    // Number of archived logs to keep
+  bool compress = 5;         // gzip archived logs
+}
+
+message SyslogConfig {
+  bool enabled = 1;
+  string target_address = 2; // e.g., "udp://10.0.0.1:514"
+  string facility = 3;       // "local7"
+  string severity = 4;       // "info"
 }
 
 message AgentConfigUpdate {

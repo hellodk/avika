@@ -372,7 +372,7 @@ spec:
       # Container 2: Avika Agent (Sidecar)
       # -----------------------------------------------------------------
       - name: avika-agent
-        image: hellodk/avika-agent:latest
+        image: docker.io/hellodk/avika-agent:latest
         imagePullPolicy: Always
         
         # Use standalone agent binary, not the bundled nginx image

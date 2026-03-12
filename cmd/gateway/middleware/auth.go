@@ -83,8 +83,12 @@ func NewAuthManager(config AuthConfig) *AuthManager {
 	// Auto-generate JWT secret if not provided
 	if config.JWTSecret == "" {
 		secret := make([]byte, 32)
-		rand.Read(secret)
-		config.JWTSecret = base64.StdEncoding.EncodeToString(secret)
+		if _, err := rand.Read(secret); err != nil {
+			log.Printf("Warning: failed to generate JWT secret: %v", err)
+			config.JWTSecret = base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("avika-fallback-%d", time.Now().UnixNano())))
+		} else {
+			config.JWTSecret = base64.StdEncoding.EncodeToString(secret)
+		}
 		log.Printf("Auto-generated JWT secret (store this for persistence across restarts)")
 	}
 
@@ -270,7 +274,7 @@ func (am *AuthManager) LoginHandler() http.HandlerFunc {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(LoginResponse{
+			_ = json.NewEncoder(w).Encode(LoginResponse{
 				Success: false,
 				Message: "Invalid request body",
 			})
@@ -282,7 +286,7 @@ func (am *AuthManager) LoginHandler() http.HandlerFunc {
 			log.Printf("Failed login attempt for user: %s from IP: %s", req.Username, getClientIP(r))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(LoginResponse{
+			_ = json.NewEncoder(w).Encode(LoginResponse{
 				Success: false,
 				Message: "Invalid username or password",
 			})
@@ -304,7 +308,7 @@ func (am *AuthManager) LoginHandler() http.HandlerFunc {
 			log.Printf("Failed to generate token: %v", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(LoginResponse{
+			_ = json.NewEncoder(w).Encode(LoginResponse{
 				Success: false,
 				Message: "Internal server error",
 			})
@@ -326,7 +330,7 @@ func (am *AuthManager) LoginHandler() http.HandlerFunc {
 		log.Printf("Successful login for user: %s from IP: %s (password_change_required=%v)", req.Username, getClientIP(r), requirePassChange)
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(LoginResponse{
+		_ = json.NewEncoder(w).Encode(LoginResponse{
 			Success:           true,
 			Message:           "Login successful",
 			User:              user,
@@ -374,7 +378,7 @@ func (am *AuthManager) ChangePasswordHandler(onPasswordChanged func(username, ne
 		if user == nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(ChangePasswordResponse{
+			_ = json.NewEncoder(w).Encode(ChangePasswordResponse{
 				Success: false,
 				Message: "Not authenticated",
 			})
@@ -385,7 +389,7 @@ func (am *AuthManager) ChangePasswordHandler(onPasswordChanged func(username, ne
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(ChangePasswordResponse{
+			_ = json.NewEncoder(w).Encode(ChangePasswordResponse{
 				Success: false,
 				Message: "Invalid request body",
 			})
@@ -397,7 +401,7 @@ func (am *AuthManager) ChangePasswordHandler(onPasswordChanged func(username, ne
 		if !valid {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(ChangePasswordResponse{
+			_ = json.NewEncoder(w).Encode(ChangePasswordResponse{
 				Success: false,
 				Message: "Current password is incorrect",
 			})
@@ -408,7 +412,7 @@ func (am *AuthManager) ChangePasswordHandler(onPasswordChanged func(username, ne
 		if len(req.NewPassword) < 8 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(ChangePasswordResponse{
+			_ = json.NewEncoder(w).Encode(ChangePasswordResponse{
 				Success: false,
 				Message: "New password must be at least 8 characters",
 			})
@@ -438,7 +442,7 @@ func (am *AuthManager) ChangePasswordHandler(onPasswordChanged func(username, ne
 		log.Printf("Password changed for user: %s from IP: %s", user.Username, getClientIP(r))
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(ChangePasswordResponse{
+		_ = json.NewEncoder(w).Encode(ChangePasswordResponse{
 			Success: true,
 			Message: "Password changed successfully",
 		})
@@ -466,7 +470,7 @@ func (am *AuthManager) LogoutHandler() http.HandlerFunc {
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": true,
 			"message": "Logged out successfully",
 		})
@@ -480,7 +484,7 @@ func (am *AuthManager) MeHandler() http.HandlerFunc {
 		if user == nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"authenticated": false,
 			})
 			return
@@ -500,7 +504,7 @@ func (am *AuthManager) MeHandler() http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"authenticated": true,
 			"user":          user,
 			"token":         token,
@@ -573,7 +577,7 @@ func (am *AuthManager) sendUnauthorized(w http.ResponseWriter, r *http.Request, 
 	if strings.HasPrefix(r.URL.Path, "/api/") || r.Header.Get("Accept") == "application/json" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"error":   "unauthorized",
 			"message": message,
 		})

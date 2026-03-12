@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAgentServiceClient } from '@/lib/grpc-client';
+import { normalizeServerId } from '@/lib/api';
 
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = normalizeServerId(rawId);
     const client = getAgentServiceClient();
 
     return new Promise<NextResponse>((resolve) => {

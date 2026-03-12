@@ -178,7 +178,9 @@ func (p *OIDCProvider) discoverMetadata() error {
 // generateState creates a cryptographically random state parameter
 func (p *OIDCProvider) generateState(redirectURI string) string {
 	b := make([]byte, 32)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return ""
+	}
 	state := base64.URLEncoding.EncodeToString(b)
 
 	p.stateMu.Lock()
@@ -492,7 +494,7 @@ func (p *OIDCProvider) CallbackHandler() http.HandlerFunc {
 func (p *OIDCProvider) StatusHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"enabled":      p.config.Enabled,
 			"provider_url": p.config.ProviderURL,
 		})

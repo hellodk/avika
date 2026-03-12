@@ -62,8 +62,12 @@ func NewPSKManager(config PSKConfig) *PSKManager {
 	// Generate PSK if enabled but not provided
 	if config.Enabled && config.Key == "" {
 		key := make([]byte, 32)
-		rand.Read(key)
-		config.Key = hex.EncodeToString(key)
+		if _, err := rand.Read(key); err != nil {
+			log.Printf("Warning: failed to generate PSK: %v", err)
+			config.Key = hex.EncodeToString([]byte(fmt.Sprintf("avika-psk-fallback-%d", time.Now().UnixNano())))
+		} else {
+			config.Key = hex.EncodeToString(key)
+		}
 
 		log.Println("")
 		log.Println("*************************************************************")

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAgentServiceClient } from '@/lib/grpc-client';
+import { normalizeServerId } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,7 +8,8 @@ export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const { id: agentId } = await params;
+    const { id: rawId } = await params;
+    const agentId = normalizeServerId(rawId);
     console.log(`[Update API] Triggering update for agent: "${agentId}"`);
     const client = getAgentServiceClient();
 

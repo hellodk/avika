@@ -1,85 +1,12 @@
 package main
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/avika-ai/avika/cmd/gateway/middleware"
 )
 
-// mockDB implements a subset of DB methods for testing
-type mockDB struct {
-	isSuperAdmin       bool
-	projects           []Project
-	projectsForUser    []Project
-	hasProjectAccess   bool
-	visibleAgents      []string
-	createProjectErr   error
-	createdProject     *Project
-}
-
-func (m *mockDB) IsSuperAdmin(username string) (bool, error) {
-	return m.isSuperAdmin, nil
-}
-
-func (m *mockDB) ListProjects() ([]Project, error) {
-	return m.projects, nil
-}
-
-func (m *mockDB) ListProjectsForUser(username string) ([]Project, error) {
-	return m.projectsForUser, nil
-}
-
-func (m *mockDB) HasProjectAccess(username, projectID string, permission Permission) (bool, error) {
-	return m.hasProjectAccess, nil
-}
-
-func (m *mockDB) GetVisibleAgentIDs(username string) ([]string, error) {
-	return m.visibleAgents, nil
-}
-
-func (m *mockDB) CreateProject(name, slug, description, createdBy string) (*Project, error) {
-	if m.createProjectErr != nil {
-		return nil, m.createProjectErr
-	}
-	if m.createdProject != nil {
-		return m.createdProject, nil
-	}
-	return &Project{
-		ID:          "test-id",
-		Name:        name,
-		Slug:        slug,
-		Description: description,
-		CreatedBy:   createdBy,
-	}, nil
-}
-
-func (m *mockDB) CreateDefaultEnvironments(projectID string) error {
-	return nil
-}
-
-func (m *mockDB) CreateAuditLog(username, action, resourceType, resourceID, ipAddress, userAgent string, details interface{}) error {
-	return nil
-}
-
-// Helper to create a request with user context
-func requestWithUser(method, path string, body []byte, user *middleware.User) *http.Request {
-	var req *http.Request
-	if body != nil {
-		req = httptest.NewRequest(method, path, bytes.NewReader(body))
-	} else {
-		req = httptest.NewRequest(method, path, nil)
-	}
-	if user != nil {
-		ctx := context.WithValue(req.Context(), middleware.UserContextKey, user)
-		req = req.WithContext(ctx)
-	}
-	return req
-}
 
 func TestHandleListProjects_Unauthorized(t *testing.T) {
 	srv := &server{

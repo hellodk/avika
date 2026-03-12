@@ -13,7 +13,7 @@ import (
 func TestHealthEndpoint(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"status":  "healthy",
 			"version": "test",
 		})
@@ -41,7 +41,7 @@ func TestHealthEndpoint(t *testing.T) {
 func TestReadyEndpoint(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"status": "ready",
 		})
 	})
@@ -90,7 +90,7 @@ func TestCORSHeaders(t *testing.T) {
 func TestJSONContentType(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": []string{"item1", "item2"},
 			"total": 2,
 		})
@@ -130,7 +130,7 @@ func TestContextCancellation(t *testing.T) {
 func TestTimeoutHandling(t *testing.T) {
 	handler := http.TimeoutHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(50 * time.Millisecond)
-		w.Write([]byte("ok"))
+		_, _ = w.Write([]byte("ok"))
 	}), 10*time.Millisecond, "timeout")
 
 	req := httptest.NewRequest("GET", "/slow", nil)
@@ -199,7 +199,7 @@ func TestErrorResponse(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"error":   "validation_error",
 			"message": "Invalid request body",
 			"details": []string{"field 'name' is required"},
@@ -237,7 +237,7 @@ func BenchmarkJSONEncoding(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		w := httptest.NewRecorder()
-		json.NewEncoder(w).Encode(data)
+		_ = json.NewEncoder(w).Encode(data)
 	}
 }
 

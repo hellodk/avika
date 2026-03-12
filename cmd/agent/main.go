@@ -51,8 +51,8 @@ var (
 	gatewayAddr   = flag.String("gateway", "", "Gateway address(es) - comma-separated for multi-gateway (e.g., 'gw1:5020,gw2:5020')")
 	agentID       = flag.String("id", "", "The agent ID (default: hostname)")
 	logLevel      = flag.String("log-level", "info", "Log level (debug, info, warn, error). Set via LOG_LEVEL env for dynamic override.")
-	logFile       = flag.String("log-file", "", "Path to log file. If empty, logs to stdout")
-	bufferDir     = flag.String("buffer-dir", "./", "Directory to store the persistent buffer")
+	logFile       = flag.String("log-file", "/var/log/avika-agent/agent.log", "Path to log file. If empty, logs to stdout")
+	bufferDir     = flag.String("buffer-dir", "/var/lib/avika-agent/data", "Directory to store the persistent buffer")
 	version       = flag.Bool("version", false, "Display version and exit")
 	healthPort    = flag.Int("health-port", DefaultHealthPort, "Port for health check endpoints")
 	mgmtPort      = flag.Int("mgmt-port", DefaultMgmtPort, "Port for management gRPC server")
@@ -74,10 +74,19 @@ var (
 	updateInterval = flag.Duration("update-interval", 168*time.Hour, "Interval between update checks (default: 1 week)")
 
 	// Config File
-	configFile = flag.String("config", "/etc/avika/avika-agent.conf", "Path to configuration file")
+	configFile = flag.String("config", "/etc/avika-agent/avika-agent.conf", "Path to configuration file")
 
 	// Management address advertisement: host or host:port the gateway should use to dial this agent (Option A - correct IP)
 	mgmtAdvertise = flag.String("mgmt-advertise", "", "Address to advertise for gateway dial-back (e.g. 10.0.2.15 or 10.0.2.15:5025). Also set via AVIKA_MGMT_ADVERTISE.")
+
+	// Optional CIDR to avoid for mgmt (e.g. VirtualBox NAT 10.0.2.0/24). When set, prefer an interface outside this CIDR.
+	// Leave unset in Class A–only enterprise; only the default-route vs 192.168.x heuristic runs when unset.
+	mgmtNatCIDR = flag.String("mgmt-nat-cidr", "", "CIDR to avoid when choosing mgmt IP (e.g. 10.0.2.0/24). Env: AVIKA_MGMT_NAT_CIDR.")
+	// Syslog SIEM Fan-out
+	syslogEnabled  = flag.Bool("syslog-enabled", false, "Enable syslog fan-out for SIEM")
+	syslogTarget   = flag.String("syslog-target", "", "Syslog server target (e.g., 'udp://10.0.0.1:514')")
+	syslogFacility = flag.String("syslog-facility", "local7", "Syslog facility")
+	syslogSeverity = flag.String("syslog-severity", "info", "Syslog severity")
 )
 
 // Version information - set at build time via -ldflags
@@ -90,6 +99,9 @@ var (
 
 var (
 	globalUpdater *updater.Updater
+	currentHostname, _ = os.Hostname()
+	currentIP       = getChosenIP()
+
 	startTime     = time.Now()
 	agentLabels   = make(map[string]string) // Labels for auto-assignment (project, environment, etc.)
 )
@@ -210,6 +222,26 @@ func loadConfig(path string) error {
 			if *mgmtAdvertise == "" {
 				*mgmtAdvertise = val
 			}
+		case "AVIKA_MGMT_NAT_CIDR", "MGMT_NAT_CIDR":
+			if !setFlags["mgmt-nat-cidr"] {
+				*mgmtNatCIDR = val
+			}
+		case "SYSLOG_ENABLED":
+			if !setFlags["syslog-enabled"] {
+				*syslogEnabled = val == "true" || val == "1"
+			}
+		case "SYSLOG_TARGET":
+			if !setFlags["syslog-target"] {
+				*syslogTarget = val
+			}
+		case "SYSLOG_FACILITY":
+			if !setFlags["syslog-facility"] {
+				*syslogFacility = val
+			}
+		case "SYSLOG_SEVERITY":
+			if !setFlags["syslog-severity"] {
+				*syslogSeverity = val
+			}
 		default:
 			// Parse labels with LABEL_ prefix: LABEL_project=myproject
 			if strings.HasPrefix(key, "LABEL_") {
@@ -268,6 +300,12 @@ func loadEnv() {
 		{"PSK_KEY", "psk", func(val string) { *pskKey = val }},
 		{"AVIKA_MGMT_ADVERTISE", "mgmt-advertise", func(val string) { *mgmtAdvertise = val }},
 		{"MGMT_ADVERTISE", "mgmt-advertise", func(val string) { *mgmtAdvertise = val }},
+		{"AVIKA_MGMT_NAT_CIDR", "mgmt-nat-cidr", func(val string) { *mgmtNatCIDR = val }},
+		{"MGMT_NAT_CIDR", "mgmt-nat-cidr", func(val string) { *mgmtNatCIDR = val }},
+		{"SYSLOG_ENABLED", "syslog-enabled", func(val string) { *syslogEnabled = val == "true" || val == "1" }},
+		{"SYSLOG_TARGET", "syslog-target", func(val string) { *syslogTarget = val }},
+		{"SYSLOG_FACILITY", "syslog-facility", func(val string) { *syslogFacility = val }},
+		{"SYSLOG_SEVERITY", "syslog-severity", func(val string) { *syslogSeverity = val }},
 	}
 
 	for _, m := range envMappings {
@@ -415,7 +453,13 @@ func main() {
 		*agentID = getOrGenerateAgentID()
 	}
 
-	agentInfo("Starting agent id=%s version=%s gateways=%s", *agentID, Version, *gatewayAddr)
+	agentInfo("=== Avika Agent Starting ===")
+	agentInfo("Agent ID:  %s", *agentID)
+	agentInfo("Agent IP:  %s", currentIP)
+	agentInfo("Version:   %s", Version)
+	agentInfo("Buffer:    %s", *bufferDir)
+	agentInfo("Gateways:  %s", *gatewayAddr)
+	agentInfo("============================")
 	agentLabelsMu.RLock()
 	if len(agentLabels) > 0 {
 		labelsCopy := make(map[string]string, len(agentLabels))
@@ -490,6 +534,12 @@ func main() {
 		"localhost:4317", // OTel OTLP gRPC endpoint
 		*agentID,
 		currentHostname,
+		logs.LogSyslogConfig{
+			Enabled:       *syslogEnabled,
+			TargetAddress: *syslogTarget,
+			Facility:      *syslogFacility,
+			Severity:      *syslogSeverity,
+		},
 	)
 	collector.Start()
 	defer collector.Stop()
@@ -734,6 +784,82 @@ func getPreferredIPv4() string {
 	return ""
 }
 
+// ipInCIDR returns true if ip is inside the given CIDR (e.g. "10.0.2.0/24").
+func ipInCIDR(ipStr, cidrStr string) bool {
+	if cidrStr == "" {
+		return false
+	}
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return false
+	}
+	_, network, err := net.ParseCIDR(cidrStr)
+	if err != nil {
+		return false
+	}
+	return network.Contains(ip)
+}
+
+// isVirtualBoxNAT returns true if ip is in 10.0.2.0/24 (VirtualBox NAT). Used only when
+// we also have a 192.168.x interface (lab/VM pattern); not used in Class A–only enterprise.
+func isVirtualBoxNAT(ip string) bool {
+	return ipInCIDR(ip, "10.0.2.0/24")
+}
+
+// has192168 returns true if the host has at least one 192.168.0.0/16 address.
+func has192168() bool {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return false
+	}
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipv4 := ipnet.IP.To4(); ipv4 != nil && ipv4[0] == 192 && ipv4[1] == 168 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// getPreferredMgmtIPv4 returns an IP preferred for management. avoidCIDR is optional (e.g. "10.0.2.0/24").
+// When avoidCIDR is set: return first candidate not in that CIDR (for enterprise AVIKA_MGMT_NAT_CIDR).
+// When avoidCIDR is empty and we have 192.168.x: return first 192.168.x (VirtualBox host-only/bridged).
+// Otherwise return first candidate.
+func getPreferredMgmtIPv4(avoidCIDR string) string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	var candidates []string
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipv4 := ipnet.IP.To4(); ipv4 != nil {
+				candidates = append(candidates, ipv4.String())
+			}
+		}
+	}
+	if len(candidates) == 0 {
+		return ""
+	}
+	if avoidCIDR != "" {
+		for _, ip := range candidates {
+			if !ipInCIDR(ip, avoidCIDR) {
+				return ip
+			}
+		}
+		return candidates[0]
+	}
+	// VirtualBox heuristic: prefer 192.168.0.0/16 when present
+	for _, ip := range candidates {
+		p := net.ParseIP(ip)
+		if p != nil && p.To4() != nil && p[0] == 192 && p[1] == 168 {
+			return ip
+		}
+	}
+	return candidates[0]
+}
+
 // getDefaultRouteIPv4 returns the IPv4 of the interface that has the default route (Linux only).
 // Parses /proc/net/route and finds the interface for destination 00000000, then returns its first IPv4.
 func getDefaultRouteIPv4() string {
@@ -779,7 +905,8 @@ func getDefaultRouteIPv4() string {
 }
 
 // getChosenIP returns the IP to use for agent_id suffix and for building mgmt_address.
-// Order: AVIKA_MGMT_ADVERTISE (host part) > default-route interface IP (Linux) > first non-loopback IPv4.
+// Order: AVIKA_MGMT_ADVERTISE > (if AVIKA_MGMT_NAT_CIDR set and default-route in that CIDR: prefer other) > (VirtualBox: default 10.0.2.x and has 192.168.x: prefer 192.168.x) > default-route > first non-loopback.
+// In Class A–only enterprise (no 192.168.x), the VirtualBox heuristic never runs; use AVIKA_MGMT_ADVERTISE or default-route.
 func getChosenIP() string {
 	if *mgmtAdvertise != "" {
 		host, _, err := net.SplitHostPort(*mgmtAdvertise)
@@ -788,8 +915,29 @@ func getChosenIP() string {
 		}
 		return host
 	}
-	if ip := getDefaultRouteIPv4(); ip != "" {
-		return ip
+	defaultRouteIP := getDefaultRouteIPv4()
+
+	if *mgmtNatCIDR != "" {
+		if defaultRouteIP != "" && ipInCIDR(defaultRouteIP, *mgmtNatCIDR) {
+			if preferred := getPreferredMgmtIPv4(*mgmtNatCIDR); preferred != "" {
+				return preferred
+			}
+		}
+		if defaultRouteIP != "" {
+			return defaultRouteIP
+		}
+		return getPreferredMgmtIPv4(*mgmtNatCIDR)
+	}
+
+	// VirtualBox-only heuristic: only when default route is 10.0.2.x and host has 192.168.x (lab/VM).
+	// In enterprise with only 10.0.0.0/8, has192168() is false → we use default-route.
+	if defaultRouteIP != "" && isVirtualBoxNAT(defaultRouteIP) && has192168() {
+		if preferred := getPreferredMgmtIPv4(""); preferred != "" {
+			return preferred
+		}
+	}
+	if defaultRouteIP != "" {
+		return defaultRouteIP
 	}
 	return getPreferredIPv4()
 }
@@ -810,7 +958,7 @@ func getChosenMgmtAddress() string {
 }
 
 func getOrGenerateAgentID() string {
-	const idFile = ".agent_id"
+	idFile := filepath.Join(*bufferDir, "agent_id")
 
 	// 1. Try reading from file (stable across restarts)
 	data, err := os.ReadFile(idFile)
@@ -1006,6 +1154,35 @@ func handleLogRequest(cmdID string, req *pb.LogRequest, ss *StreamSync, agentID 
 	}
 }
 
+// buildBootstrapHeartbeat returns a minimal heartbeat so the gateway can register this agent
+// as soon as the stream is established, even if the WAL is corrupt and no buffered messages are sent.
+func buildBootstrapHeartbeat(agentID string) *pb.AgentMessage {
+	hostname, _ := os.Hostname()
+	if hostname == "" {
+		hostname = "unknown"
+	}
+	isPod, podIP := detectK8s()
+	return &pb.AgentMessage{
+		AgentId:   agentID,
+		Timestamp: time.Now().Unix(),
+		Payload: &pb.AgentMessage_Heartbeat{
+			Heartbeat: &pb.Heartbeat{
+				Hostname:     hostname,
+				Version:      "unknown",
+				AgentVersion: Version,
+				Uptime:       0,
+				Instances:    nil,
+				IsPod:        isPod,
+				PodIp:        podIP,
+				BuildDate:    BuildDate,
+				GitCommit:    GitCommit,
+				GitBranch:    GitBranch,
+				MgmtAddress:  getChosenMgmtAddress(),
+			},
+		},
+	}
+}
+
 func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gatewayAddr string) {
 	defer agentInfo("Sender loop for %s exited", gatewayAddr)
 	var conn *grpc.ClientConn
@@ -1085,7 +1262,20 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 				}
 			}
 			ss.SetStream(stream)
-			agentInfo("Connected to Gateway")
+			agentInfo("Connected to Gateway %s", targetAddr)
+
+			// Send one heartbeat immediately so the gateway registers this agent (session) even if the WAL is corrupt.
+			if err := ss.Send(buildBootstrapHeartbeat(agentID)); err != nil {
+				agentWarn("Bootstrap heartbeat failed: %v", err)
+				ss.SetStream(nil)
+				conn.Close()
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(5 * time.Second):
+					continue
+				}
+			}
 
 			// Start Receiver routine (for commands)
 			go func() {
@@ -1121,9 +1311,12 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 		if err != nil {
 			log.Printf("Buffer read error: %v", err)
 			if strings.Contains(err.Error(), "suspiciously large message length") {
-				log.Printf("Corruption detected at offset %d, attempting to skip...", offset)
+				agentWarn("CRITICAL: Buffer corruption detected at offset %d. Message length reported as huge. This usually means the WAL file is corrupted.", offset)
+				agentWarn("Attempting to skip the corrupted length header (4 bytes) to realign...")
 				if skipErr := wal.SkipCorrupt(offset); skipErr != nil {
-					log.Printf("Failed to skip corrupt message: %v", skipErr)
+					agentError("Failed to skip corrupt message: %v", skipErr)
+				} else {
+					agentInfo("Successfully advanced read offset past corruption.")
 				}
 			}
 			select {

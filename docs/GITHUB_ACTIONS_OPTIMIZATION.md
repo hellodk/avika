@@ -23,7 +23,7 @@
 ### 3. **Optional follow-ups**
 
 - **Root scripts**: Consider moving `check_grpc.go`, `check_ch.go`, and `test_grpc.go` into e.g. `scripts/` or a small `cmd/check-*` so the root is not a multi-main package. Then CI could use `go test ./...` again if desired.
-- **Build on PR / Build on Merge**: These use Docker only; no Go version change. Ensure `DOCKERHUB_TOKEN` (and `RELEASE_TOKEN` for release) are set in repo secrets if those workflows are used.
+- **Build on PR / Build on Merge**: Images are pushed to Docker Hub using `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`. Ensure `RELEASE_TOKEN` (or bypass for release) if using the Release workflow.
 - **arm64 (Build on Merge)**: Uses `runs-on: ubuntu-24.04-arm`. If that runner is unavailable in your org, switch to a single-platform build or use QEMU on `ubuntu-latest` for multi-arch.
 
 ## Workflow summary
@@ -37,5 +37,9 @@
 
 ## Required secrets
 
-- **DOCKERHUB_TOKEN**: For Build on PR, Build on Merge, and Release (Docker push).
+- **Docker Hub (images)**: Set `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` for CI/Release to push images. Registry base is set in [.github/IMAGE_REGISTRY](../../.github/IMAGE_REGISTRY). See [CONTAINER_REGISTRY.md](CONTAINER_REGISTRY.md).
 - **RELEASE_TOKEN** (optional): For Release workflow to push version bump and tags; falls back to `GITHUB_TOKEN` if unset.
+
+## Release workflow and branch protection
+
+If the **Release** workflow fails at **Bump Version** with `GH013` / "repository rule violations" (e.g. "Changes must be made through a pull request"), the default branch is protected and the workflow cannot push the version-bump commit. **Fix:** add **github-actions[bot]** to the bypass list of that branch rule. See [GITHUB_RELEASE_BYPASS.md](GITHUB_RELEASE_BYPASS.md).

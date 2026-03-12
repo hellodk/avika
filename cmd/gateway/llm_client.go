@@ -178,7 +178,7 @@ func getEnvString(key, defaultVal string) string {
 func getEnvFloat(key string, defaultVal float64) float64 {
 	if v := os.Getenv(key); v != "" {
 		var f float64
-		fmt.Sscanf(v, "%f", &f)
+		_, _ = fmt.Sscanf(v, "%f", &f)
 		return f
 	}
 	return defaultVal

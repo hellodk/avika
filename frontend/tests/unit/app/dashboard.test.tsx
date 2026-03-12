@@ -122,10 +122,12 @@ describe('Dashboard Page', () => {
             });
         });
 
-        it('renders refresh button', () => {
+        it('renders refresh button', async () => {
             render(<Home />);
             
-            expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument();
+            await waitFor(() => {
+                expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument();
+            });
         });
 
         it('renders time range picker', () => {
@@ -344,10 +346,12 @@ describe('Dashboard Page', () => {
             });
         });
 
-        it('has aria-label for refresh button', () => {
+        it('has aria-label for refresh button', async () => {
             render(<Home />);
 
-            expect(screen.getByLabelText(/refresh dashboard data/i)).toBeInTheDocument();
+            await waitFor(() => {
+                expect(screen.getByLabelText(/refresh dashboard data/i)).toBeInTheDocument();
+            });
         });
     });
 });

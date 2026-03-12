@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -145,8 +146,12 @@ func (s *server) CreateMaintenanceTemplate(ctx context.Context, req *pb.CreateMa
 	if createdBy.Valid {
 		template.CreatedBy = &createdBy.String
 	}
-	json.Unmarshal(assetsData, &template.Assets)
-	json.Unmarshal(variablesData, &template.Variables)
+	if err := json.Unmarshal(assetsData, &template.Assets); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(variablesData, &template.Variables); err != nil {
+		return nil, err
+	}
 
 	return maintenanceTemplateToProto(&template), nil
 }
@@ -241,8 +246,8 @@ func (s *server) UpdateMaintenanceTemplate(ctx context.Context, req *pb.UpdateMa
 	if createdBy.Valid {
 		template.CreatedBy = &createdBy.String
 	}
-	json.Unmarshal(assetsData, &template.Assets)
-	json.Unmarshal(variablesData, &template.Variables)
+	_ = json.Unmarshal(assetsData, &template.Assets)
+	_ = json.Unmarshal(variablesData, &template.Variables)
 
 	return maintenanceTemplateToProto(&template), nil
 }
@@ -589,7 +594,6 @@ func (s *server) ListMaintenanceStates(ctx context.Context, req *pb.ListMaintena
 func (s *server) applyMaintenanceToAgents(ctx context.Context, req *pb.SetMaintenanceRequest, enable bool) ([]*pb.AgentMaintenanceResult, error) {
 	// Get affected agents based on scope
 	var agentIDs []string
-	var err error
 
 	switch req.Scope {
 	case "agent":
@@ -614,13 +618,11 @@ func (s *server) applyMaintenanceToAgents(ctx context.Context, req *pb.SetMainte
 		defer rows.Close()
 		for rows.Next() {
 			var agentID string
-			rows.Scan(&agentID)
+			if err := rows.Scan(&agentID); err != nil {
+				continue
+			}
 			agentIDs = append(agentIDs, agentID)
 		}
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	// For now, just return success for each agent
@@ -706,8 +708,12 @@ func (s *server) scanMaintenanceStateFromRow(row *sql.Row) (*MaintenanceState, e
 	}
 
 	state.BypassIPs = bypassIPs
-	json.Unmarshal(templateVarsJSON, &state.TemplateVars)
-	json.Unmarshal(bypassHeadersJSON, &state.BypassHeaders)
+	if err := json.Unmarshal(templateVarsJSON, &state.TemplateVars); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(bypassHeadersJSON, &state.BypassHeaders); err != nil {
+		return nil, err
+	}
 
 	return &state, nil
 }
@@ -758,8 +764,12 @@ func (s *server) scanMaintenanceStateFromRows(rows *sql.Rows) (*MaintenanceState
 	}
 
 	state.BypassIPs = bypassIPs
-	json.Unmarshal(templateVarsJSON, &state.TemplateVars)
-	json.Unmarshal(bypassHeadersJSON, &state.BypassHeaders)
+	if err := json.Unmarshal(templateVarsJSON, &state.TemplateVars); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(bypassHeadersJSON, &state.BypassHeaders); err != nil {
+		return nil, err
+	}
 
 	return &state, nil
 }
@@ -789,8 +799,8 @@ func scanMaintenanceTemplate(rows *sql.Rows) (*MaintenanceTemplate, error) {
 	if cssContent.Valid {
 		template.CSSContent = cssContent.String
 	}
-	json.Unmarshal(assetsData, &template.Assets)
-	json.Unmarshal(variablesData, &template.Variables)
+	_ = json.Unmarshal(assetsData, &template.Assets)
+	_ = json.Unmarshal(variablesData, &template.Variables)
 
 	return &template, nil
 }
@@ -891,4 +901,128 @@ func nullIfEmpty(s string) interface{} {
 		return nil
 	}
 	return s
+}
+
+// handleListMaintenanceTemplates returns all maintenance templates for a project
+func (s *server) handleListMaintenanceTemplates(w http.ResponseWriter, r *http.Request) {
+	projectID := r.URL.Query().Get("project_id")
+
+	resp, err := s.ListMaintenanceTemplates(r.Context(), &pb.ListMaintenanceTemplatesRequest{
+		ProjectId: projectID,
+	})
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp.Templates)
+}
+
+// handleCreateMaintenanceTemplate creates a new maintenance template
+func (s *server) handleCreateMaintenanceTemplate(w http.ResponseWriter, r *http.Request) {
+	var req pb.CreateMaintenanceTemplateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
+		return
+	}
+
+	resp, err := s.CreateMaintenanceTemplate(r.Context(), &req)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// handleSetMaintenance enables or disables maintenance mode
+func (s *server) handleSetMaintenance(w http.ResponseWriter, r *http.Request) {
+	var req pb.SetMaintenanceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
+		return
+	}
+
+	resp, err := s.SetMaintenance(r.Context(), &req)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// handleGetMaintenanceStatus returns the current maintenance status for a scope
+func (s *server) handleGetMaintenanceStatus(w http.ResponseWriter, r *http.Request) {
+	scope := r.URL.Query().Get("scope")
+	scopeID := r.URL.Query().Get("scope_id")
+	if scope == "" || scopeID == "" {
+		http.Error(w, `{"error":"scope and scope_id required"}`, http.StatusBadRequest)
+		return
+	}
+
+	state, err := s.GetMaintenanceStatus(r.Context(), &pb.GetMaintenanceStatusRequest{
+		Scope:   scope,
+		ScopeId: scopeID,
+	})
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(state)
+}
+
+// handleListMaintenanceStates returns all active maintenance states
+func (s *server) handleListMaintenanceStates(w http.ResponseWriter, r *http.Request) {
+	resp, err := s.ListMaintenanceStates(r.Context(), &pb.ListMaintenanceStatesRequest{})
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp.States)
+}
+
+// handleUpdateMaintenanceTemplate updates an existing maintenance template
+func (s *server) handleUpdateMaintenanceTemplate(w http.ResponseWriter, r *http.Request) {
+	var req pb.UpdateMaintenanceTemplateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
+		return
+	}
+
+	resp, err := s.UpdateMaintenanceTemplate(r.Context(), &req)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// handleDeleteMaintenanceTemplate deletes a maintenance template
+func (s *server) handleDeleteMaintenanceTemplate(w http.ResponseWriter, r *http.Request) {
+	templateID := r.URL.Query().Get("id")
+	if templateID == "" {
+		http.Error(w, `{"error":"id required"}`, http.StatusBadRequest)
+		return
+	}
+
+	resp, err := s.DeleteMaintenanceTemplate(r.Context(), &pb.DeleteMaintenanceTemplateRequest{
+		TemplateId: templateID,
+	})
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }

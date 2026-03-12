@@ -1,12 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Download, Calendar, Loader2, RefreshCw } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { FileText, Download, Calendar, Loader2, FileSpreadsheet, ChevronDown } from "lucide-react";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { apiFetch, apiUrl } from "@/lib/api";
 import { TimeRangePicker, TimeRange } from "@/components/ui/time-range-picker";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { toast } from "sonner";
@@ -97,7 +103,10 @@ export default function ReportsPage() {
                     errorRate: data.summary?.error_rate,
                     totalBandwidth: data.summary?.total_bandwidth,
                     avgLatency: data.summary?.avg_latency,
-                    uniqueVisitors: data.summary?.unique_visitors
+                    uniqueVisitors: data.summary?.unique_visitors,
+                    peakRps: data.summary?.peak_rps,
+                    prevPeriodRequests: data.summary?.prev_period_requests,
+                    prevPeriodErrorRate: data.summary?.prev_period_error_rate
                 },
                 trafficTrend: data.traffic_trend?.map((t: any) => ({
                     time: t.time,
@@ -105,7 +114,13 @@ export default function ReportsPage() {
                     errors: t.errors
                 })) || [],
                 topUris: data.top_uris || [],
-                topServers: data.top_servers || []
+                topServers: data.top_servers || [],
+                executiveSummary: data.executive_summary,
+                topIssues: data.top_issues || [],
+                recommendations: data.recommendations || [],
+                periodOverPeriod: data.period_over_period,
+                availabilitySummary: data.availability_summary,
+                alertsSummary: data.alerts_summary
             };
             setReportData(mappedData);
             toast.success("Report generated", { description: `${timeRange.label} report ready` });
@@ -118,18 +133,145 @@ export default function ReportsPage() {
         }
     };
 
-    const downloadReport = () => {
-        if (!reportData) return;
-        const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `avika-report-${new Date().toISOString()}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        toast.success("Report downloaded");
+    const getReportQueryParams = (): string => {
+        if (timeRange.type === 'relative' && timeRange.value) {
+            const now = new Date();
+            let startTime = new Date(now.getTime());
+            if (timeRange.value === '24h') startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            else if (timeRange.value === '7d') startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            else if (timeRange.value === '30d') startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            return `start=${Math.floor(startTime.getTime() / 1000)}&end=${Math.floor(now.getTime() / 1000)}`;
+        }
+        if (timeRange.type === 'absolute' && timeRange.from && timeRange.to) {
+            return `start=${Math.floor(timeRange.from.getTime() / 1000)}&end=${Math.floor(timeRange.to.getTime() / 1000)}`;
+        }
+        const now = new Date();
+        const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return `start=${Math.floor(start.getTime() / 1000)}&end=${Math.floor(now.getTime() / 1000)}`;
+    };
+
+    type ReportFormat = 'pdf' | 'csv' | 'excel' | 'json';
+
+    function reportDataToCSV(data: any): string {
+        const rows: string[] = [];
+        const escape = (v: unknown) => {
+            const s = String(v ?? '');
+            return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+        if (data.summary) {
+            rows.push('Section,Metric,Value');
+            const s = data.summary;
+            rows.push(`Summary,Total Requests,${s.totalRequests ?? ''}`);
+            rows.push(`Summary,Error Rate (%),${s.errorRate ?? ''}`);
+            rows.push(`Summary,Avg Latency (ms),${s.avgLatency ?? ''}`);
+            rows.push(`Summary,Unique Visitors,${s.uniqueVisitors ?? ''}`);
+            rows.push(`Summary,Total Bandwidth,${s.totalBandwidth ?? ''}`);
+            if (s.peakRps != null) rows.push(`Summary,Peak RPS,${s.peakRps}`);
+            if (s.prevPeriodRequests != null) rows.push(`Summary,Prev Period Requests,${s.prevPeriodRequests}`);
+            rows.push('');
+        }
+        if (data.executiveSummary) rows.push('Executive Summary,' + escape(data.executiveSummary));
+        if (data.periodOverPeriod) rows.push('Period over period,' + escape(data.periodOverPeriod));
+        if (data.availabilitySummary) rows.push('Availability,' + escape(data.availabilitySummary));
+        if (data.alertsSummary) rows.push('Alerts,' + escape(data.alertsSummary));
+        if (data.topIssues?.length) data.topIssues.forEach((i: string) => rows.push('Top issue,' + escape(i)));
+        if (data.recommendations?.length) data.recommendations.forEach((r: string) => rows.push('Recommendation,' + escape(r)));
+        if (data.executiveSummary || data.periodOverPeriod || data.topIssues?.length || data.recommendations?.length) rows.push('');
+        if (data.trafficTrend?.length) {
+            rows.push('Time,Requests,Errors');
+            data.trafficTrend.forEach((t: { time?: string; requests?: number; errors?: number }) => {
+                rows.push([t.time ?? '', t.requests ?? '', t.errors ?? ''].map(escape).join(','));
+            });
+            rows.push('');
+        }
+        if (data.topUris?.length) {
+            rows.push('URI,Requests');
+            data.topUris.forEach((u: { uri?: string; requests?: number }) => {
+                rows.push([u.uri ?? '', u.requests ?? ''].map(escape).join(','));
+            });
+            rows.push('');
+        }
+        if (data.topServers?.length) {
+            rows.push('Hostname,Requests');
+            data.topServers.forEach((s: { hostname?: string; requests?: number }) => {
+                rows.push([s.hostname ?? '', s.requests ?? ''].map(escape).join(','));
+            });
+        }
+        return rows.join('\n');
+    }
+
+    const downloadReport = async (format: ReportFormat) => {
+        const dateStr = new Date().toISOString().slice(0, 10);
+        if (format === 'json' || format === 'csv') {
+            if (!reportData) {
+                toast.error('Generate a report first', { description: 'Click "Generate Report" to load data, then download.' });
+                return;
+            }
+            if (format === 'json') {
+                const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `avika-report-${dateStr}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                toast.success('Report downloaded as JSON');
+                return;
+            }
+            if (format === 'csv') {
+                const csv = reportDataToCSV(reportData);
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `avika-report-${dateStr}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                toast.success('Report downloaded as CSV');
+                return;
+            }
+        }
+        // PDF or Excel: server-side (use apiUrl so base path is included, e.g. /avika/api/reports/download)
+        const params = `${getReportQueryParams()}&format=${format}`;
+        const url = apiUrl(`/api/reports/download?${params}`);
+        try {
+            const res = await fetch(url, { credentials: 'include' });
+            const contentType = res.headers.get('Content-Type') || '';
+            if (!res.ok) {
+                const text = await res.text();
+                let msg = text;
+                try {
+                    const j = JSON.parse(text);
+                    if (j?.error) msg = j.error;
+                } catch {
+                    if (text.length > 200) msg = `${text.slice(0, 200)}…`;
+                }
+                throw new Error(msg || res.statusText);
+            }
+            // If server returned HTML (e.g. SPA fallback due to wrong path), don't save as file
+            if (contentType.includes('text/html')) {
+                toast.error('Download failed: server returned a page instead of a file. Check base path configuration.');
+                return;
+            }
+            const blob = await res.blob();
+            const disp = res.headers.get('Content-Disposition');
+            const match = disp?.match(/filename="?([^";\n]+)"?/);
+            const name = match?.[1] || `avika-report-${dateStr}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+            toast.success(`Report downloaded as ${format.toUpperCase()}`);
+        } catch (e: any) {
+            toast.error(`Download failed: ${e?.message || 'Unknown error'}`);
+        }
     };
 
     return (
@@ -158,15 +300,33 @@ export default function ReportsPage() {
                             </>
                         )}
                     </Button>
-                    {reportData && (
-                        <Button 
-                            variant="outline" 
-                            onClick={downloadReport}
-                            style={{ borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text-muted))" }}
-                        >
-                            <Download className="mr-2 h-4 w-4" /> Export JSON
-                        </Button>
-                    )}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="outline"
+                                data-testid="reports-download-trigger"
+                                style={{ borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text-muted))" }}
+                            >
+                                <Download className="mr-2 h-4 w-4" />
+                                Download
+                                <ChevronDown className="ml-2 h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" data-testid="reports-download-menu">
+                            <DropdownMenuItem data-testid="reports-download-pdf" onClick={() => downloadReport('pdf')}>
+                                <FileText className="mr-2 h-4 w-4" /> PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem data-testid="reports-download-excel" onClick={() => downloadReport('excel')}>
+                                <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel
+                            </DropdownMenuItem>
+                            <DropdownMenuItem data-testid="reports-download-csv" onClick={() => downloadReport('csv')}>
+                                <FileSpreadsheet className="mr-2 h-4 w-4" /> CSV
+                            </DropdownMenuItem>
+                            <DropdownMenuItem data-testid="reports-download-json" onClick={() => downloadReport('json')}>
+                                <FileText className="mr-2 h-4 w-4" /> JSON
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </div>
 
@@ -221,9 +381,69 @@ export default function ReportsPage() {
                                         {(Number(reportData.summary?.uniqueVisitors) || 0).toLocaleString()}
                                     </p>
                                 </div>
+                                {(reportData.summary?.peakRps != null && Number(reportData.summary.peakRps) > 0) && (
+                                    <div>
+                                        <p className="text-sm mb-1" style={{ color: "rgb(var(--theme-text-muted))" }}>Peak RPS</p>
+                                        <p className="text-3xl font-bold" style={{ color: "rgb(var(--theme-text))" }}>
+                                            {Number(reportData.summary.peakRps).toFixed(1)}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </CardContent>
                     </Card>
+
+                    {/* Executive visibility: summary, trend, availability, alerts, issues, recommendations */}
+                    {(reportData.executiveSummary || reportData.periodOverPeriod || reportData.topIssues?.length || reportData.recommendations?.length) && (
+                        <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                            <CardHeader>
+                                <CardTitle className="text-lg font-semibold" style={{ color: "rgb(var(--theme-text))" }}>
+                                    Executive visibility
+                                </CardTitle>
+                                <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                    Health, trend, availability, and actions
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {reportData.executiveSummary && (
+                                    <p className="text-sm leading-relaxed" style={{ color: "rgb(var(--theme-text))" }}>
+                                        {reportData.executiveSummary}
+                                    </p>
+                                )}
+                                {reportData.periodOverPeriod && (
+                                    <p className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                        <span className="font-medium" style={{ color: "rgb(var(--theme-text))" }}>Trend:</span> {reportData.periodOverPeriod}
+                                    </p>
+                                )}
+                                {(reportData.availabilitySummary || reportData.alertsSummary) && (
+                                    <div className="flex flex-wrap gap-4 text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                        {reportData.availabilitySummary && <span><span className="font-medium" style={{ color: "rgb(var(--theme-text))" }}>Availability:</span> {reportData.availabilitySummary}</span>}
+                                        {reportData.alertsSummary && <span><span className="font-medium" style={{ color: "rgb(var(--theme-text))" }}>Alerts:</span> {reportData.alertsSummary}</span>}
+                                    </div>
+                                )}
+                                {reportData.topIssues?.length > 0 && (
+                                    <div>
+                                        <p className="text-sm font-medium mb-1" style={{ color: "rgb(var(--theme-text))" }}>Top issues</p>
+                                        <ul className="list-disc list-inside text-sm space-y-1" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                            {reportData.topIssues.map((issue: string, i: number) => (
+                                                <li key={i}>{issue}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                                {reportData.recommendations?.length > 0 && (
+                                    <div>
+                                        <p className="text-sm font-medium mb-1" style={{ color: "rgb(var(--theme-text))" }}>Recommendations</p>
+                                        <ul className="list-disc list-inside text-sm space-y-1" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                            {reportData.recommendations.map((rec: string, i: number) => (
+                                                <li key={i}>{rec}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
 
                     {/* Traffic Trend */}
                     <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>

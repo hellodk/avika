@@ -5,7 +5,12 @@ on:
   pull_request:
     branches: [master, main, develop, uat]
   push:
-    branches: [master, main, develop, uat]
+    # Skip push for default branch: same commit already validated via PR. Reduces 5→4 runs per merge.
+    branches: [develop, intermediate, 'feat/*']
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   GO_VERSION: '1.24'
@@ -136,9 +141,11 @@ jobs:
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
         with:
-          username: ${{ env.DOCKERHUB_USERNAME }}
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push Gateway
@@ -149,8 +156,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ env.DOCKERHUB_USERNAME }}/avika-gateway:${{ steps.meta.outputs.image_tag }}
-            ${{ env.DOCKERHUB_USERNAME }}/avika-gateway:sha-${{ steps.meta.outputs.sha }}
+            ${{ env.IMAGE_REGISTRY }}/avika-gateway:${{ steps.meta.outputs.image_tag }}
+            ${{ env.IMAGE_REGISTRY }}/avika-gateway:sha-${{ steps.meta.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -166,8 +173,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ env.DOCKERHUB_USERNAME }}/avika-frontend:${{ steps.meta.outputs.image_tag }}
-            ${{ env.DOCKERHUB_USERNAME }}/avika-frontend:sha-${{ steps.meta.outputs.sha }}
+            ${{ env.IMAGE_REGISTRY }}/avika-frontend:${{ steps.meta.outputs.image_tag }}
+            ${{ env.IMAGE_REGISTRY }}/avika-frontend:sha-${{ steps.meta.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -181,8 +188,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ env.DOCKERHUB_USERNAME }}/avika-agent:${{ steps.meta.outputs.image_tag }}
-            ${{ env.DOCKERHUB_USERNAME }}/avika-agent:sha-${{ steps.meta.outputs.sha }}
+            ${{ env.IMAGE_REGISTRY }}/avika-agent:${{ steps.meta.outputs.image_tag }}
+            ${{ env.IMAGE_REGISTRY }}/avika-agent:sha-${{ steps.meta.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -192,8 +199,8 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## Docker images pushed" >> $GITHUB_STEP_SUMMARY
+          echo "## Docker images pushed (Docker Hub)" >> $GITHUB_STEP_SUMMARY
           echo "Tags: \`${{ steps.meta.outputs.image_tag }}\`, \`sha-${{ steps.meta.outputs.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- hellodk/avika-gateway" >> $GITHUB_STEP_SUMMARY
-          echo "- hellodk/avika-frontend" >> $GITHUB_STEP_SUMMARY
-          echo "- hellodk/avika-agent" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ env.IMAGE_REGISTRY }}/avika-gateway" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ env.IMAGE_REGISTRY }}/avika-frontend" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ env.IMAGE_REGISTRY }}/avika-agent" >> $GITHUB_STEP_SUMMARY

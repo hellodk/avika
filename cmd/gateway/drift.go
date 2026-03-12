@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
+	"log"
 	"strings"
 	"time"
 
@@ -345,7 +344,9 @@ func (s *server) GetDriftReport(ctx context.Context, req *pb.GetDriftReportReque
 	if baselineAgentID.Valid {
 		report.BaselineAgentID = &baselineAgentID.String
 	}
-	json.Unmarshal(itemsJSON, &report.Items)
+	if err := json.Unmarshal(itemsJSON, &report.Items); err != nil {
+		log.Printf("Failed to unmarshal items for report %s: %v", report.ID, err)
+	}
 
 	return driftReportToProto(&report), nil
 }
@@ -392,7 +393,9 @@ func (s *server) ListDriftReports(ctx context.Context, req *pb.ListDriftReportsR
 		if baselineAgentID.Valid {
 			report.BaselineAgentID = &baselineAgentID.String
 		}
-		json.Unmarshal(itemsJSON, &report.Items)
+		if err := json.Unmarshal(itemsJSON, &report.Items); err != nil {
+			log.Printf("Failed to unmarshal items for report %s: %v", report.ID, err)
+		}
 
 		reports = append(reports, driftReportToProto(&report))
 	}
@@ -718,10 +721,6 @@ func summarizeDiff(diff string) string {
 	return fmt.Sprintf("+%d lines, -%d lines", added, removed)
 }
 
-func computeConfigHash(content string) string {
-	hash := sha256.Sum256([]byte(content))
-	return hex.EncodeToString(hash[:])
-}
 
 // DriftForAgentGroupItem is the drift status of one agent in one group (for GET /api/servers/:id/drift).
 type DriftForAgentGroupItem struct {
@@ -957,7 +956,7 @@ func (s *server) handleGetServerDrift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"groups": items})
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"groups": items})
 }
 
 // handleCompareDrift handles GET /api/projects/{id}/drift/compare?groupA=uuid&groupB=uuid
@@ -979,5 +978,5 @@ func (s *server) handleCompareDrift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	_ = json.NewEncoder(w).Encode(result)
 }

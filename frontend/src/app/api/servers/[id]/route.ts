@@ -1,6 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { getAgentServiceClient } from '@/lib/grpc-client';
+import { normalizeServerId } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +9,8 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = normalizeServerId(rawId);
     const client = getAgentServiceClient();
     console.log(`GET /api/servers/${id} - extracting details`);
 
@@ -26,8 +28,21 @@ export async function GET(
             // For now, let's fetch config and certs to provide a full "details" view
             client.GetConfig({ instance_id: id }, (configErr: any, config: any) => {
                 client.ListCertificates({ instance_id: id }, (certErr: any, certs: any) => {
+                    const normalizedAgent = {
+                        ...(agent || {}),
+                        agent_id: agent?.agentId || agent?.agent_id || agent?.id,
+                        agent_version: agent?.agentVersion || agent?.agent_version,
+                        instances_count: agent?.instancesCount || agent?.instances_count,
+                        last_seen: agent?.lastSeen || agent?.last_seen,
+                        is_pod: agent?.isPod || agent?.is_pod,
+                        pod_ip: agent?.podIp || agent?.pod_ip,
+                        psk_authenticated: agent?.pskAuthenticated || agent?.psk_authenticated,
+                        build_date: agent?.buildDate || agent?.build_date,
+                        git_commit: agent?.gitCommit || agent?.git_commit,
+                        git_branch: agent?.gitBranch || agent?.git_branch,
+                    };
                     resolve(NextResponse.json({
-                        ...agent,
+                        ...normalizedAgent,
                         config: config?.config || null,
                         certificates: certs?.certificates || [],
                         configError: configErr?.message || null,
@@ -43,7 +58,8 @@ export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = normalizeServerId(rawId);
     const { action, content, backup } = await request.json();
     const client = getAgentServiceClient();
     console.log(`POST /api/servers/${id} - action: ${action}`);
@@ -88,7 +104,8 @@ export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = normalizeServerId(rawId);
     const client = getAgentServiceClient();
     console.log(`DELETE /api/servers/${id} - removing agent`);
 

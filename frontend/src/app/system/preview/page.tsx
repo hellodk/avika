@@ -12,6 +12,7 @@
 
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
+import { serverIdForDisplay } from "@/lib/api";
 
 // Mock data for preview
 const MOCK_INFRA = [
@@ -232,7 +233,7 @@ export default function SystemPreviewPage() {
                   >
                     <td className="py-3 px-4">
                       <Link
-                        href={`/servers/${encodeURIComponent(agent.id)}`}
+                        href={`/servers/${encodeURIComponent(serverIdForDisplay(agent.id))}`}
                         className="inline-flex items-center gap-2 font-medium hover:underline"
                         style={{ color: "rgb(var(--theme-text))" }}
                       >

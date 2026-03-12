@@ -8,9 +8,14 @@
 # =============================================================================
 
 # -- Global Settings --
-nameOverride: ""
+nameOverride: "avika"
 fullnameOverride: ""
 timezone: UTC
+
+# Single source of truth for app image registry (must match .github/IMAGE_REGISTRY).
+# Only gateway and frontend use this; other components use image.repository as-is.
+global:
+  imageRegistry: docker.io/hellodk
 
 # Image pull secrets for private registries
 imagePullSecrets: []
@@ -205,7 +210,8 @@ components:
     enabled: true
     replicaCount: 1
     image:
-      repository: hellodk/avika-gateway
+      useGlobalRegistry: true
+      repository: avika-gateway
       tag: "latest"
       pullPolicy: Always
     terminationGracePeriodSeconds: 35
@@ -221,9 +227,10 @@ components:
     service:
       type: ClusterIP
     
+    # Metrics are served on the main HTTP port (5021); use 5021 for Prometheus scrape
     podAnnotations:
       prometheus.io/scrape: "true"
-      prometheus.io/port: "5022"
+      prometheus.io/port: "5021"
       prometheus.io/path: "/metrics"
     
     # Init containers are handled specially in deployment.yaml template
@@ -288,7 +295,8 @@ components:
     enabled: true
     replicaCount: 1
     image:
-      repository: hellodk/avika-frontend
+      useGlobalRegistry: true
+      repository: avika-frontend
       tag: "latest"
       pullPolicy: Always
     
@@ -298,6 +306,12 @@ components:
     
     service:
       type: ClusterIP
+    
+    # Prometheus scrape (path = basePath + /api/metrics)
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "5031"
+      prometheus.io/path: "/avika/api/metrics"
     
     # Base path for subpath routing (e.g., /avika)
     basePath: "/avika"
@@ -567,6 +581,13 @@ monitoring:
     interval: 30s
     path: /metrics
 
+  # Optional ServiceMonitor resources for Prometheus Operator (e.g. kube-prometheus-stack).
+  # When enabled, creates ServiceMonitors for gateway and frontend so Prometheus discovers
+  # Avika metrics without relying on pod annotations. Disabled by default.
+  serviceMonitor:
+    enabled: false
+    # namespace: ""  # If set, ServiceMonitors are created in this namespace; default: release namespace
+
 # =============================================================================
 # GRAFANA INTEGRATION (kube-prometheus-stack)
 # =============================================================================
@@ -585,7 +606,7 @@ grafana:
   temporary:
     enabled: false
     # Set when enabling (e.g. --set grafana.temporary.adminPass=yourpass). Do not commit real secrets.
-    adminPass: "REPLACE_ME"
+    adminPass: "promoperator"
     image:
       repository: grafana/grafana
       tag: "11.5.0"
@@ -607,6 +628,8 @@ grafana:
     clickhouse:
       name: "ClickHouse"
       uid: "DS_CLICKHOUSE"
+      # Set to true only if this is the sole datasource (avoids "Only one datasource can be default" when using sidecar or shared Grafana).
+      isDefault: false
       # Host: leave empty to use in-cluster FQDN. Override if Grafana runs in another namespace or needs a different address.
       host: ""  # e.g. "avika-clickhouse-0.avika-clickhouse.avika.svc.cluster.local" for direct pod DNS
       port: 8123

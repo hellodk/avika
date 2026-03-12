@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { apiFetch } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertTriangle, Bell, CheckCircle2, XCircle, RefreshCw, ShieldOff, Settings } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertTriangle, Bell, CheckCircle2, XCircle, ShieldOff, Settings } from "lucide-react";
 import { RefreshButton } from "@/components/ui/refresh-button";
+import { TimeRangePicker, TimeRange } from "@/components/ui/time-range-picker";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { AlertConfiguration } from "@/components/alerts/AlertConfiguration";
 
@@ -20,6 +21,30 @@ interface Alert {
     source: string;
     metric: string;
     status: "active" | "acknowledged" | "resolved";
+}
+
+/** Convert TimeRange to from/to Date for filtering alerts by timestamp */
+function getTimeRangeBounds(range: TimeRange): { from: Date; to: Date } {
+    const now = new Date();
+    if (range.type === "absolute" && range.from != null && range.to != null) {
+        return { from: range.from, to: range.to };
+    }
+    const value = range.value || "1h";
+    const multipliers: Record<string, number> = {
+        "5m": 5 * 60 * 1000,
+        "15m": 15 * 60 * 1000,
+        "30m": 30 * 60 * 1000,
+        "1h": 60 * 60 * 1000,
+        "3h": 3 * 60 * 60 * 1000,
+        "6h": 6 * 60 * 60 * 1000,
+        "12h": 12 * 60 * 60 * 1000,
+        "24h": 24 * 60 * 60 * 1000,
+        "2d": 2 * 24 * 60 * 60 * 1000,
+        "7d": 7 * 24 * 60 * 60 * 1000,
+        "30d": 30 * 24 * 60 * 60 * 1000,
+    };
+    const ms = multipliers[value] ?? 60 * 60 * 1000;
+    return { from: new Date(now.getTime() - ms), to: now };
 }
 
 // Skeleton loader component
@@ -69,6 +94,11 @@ export default function AlertsPage() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [timeRange, setTimeRange] = useState<TimeRange>({
+        type: "relative",
+        value: "24h",
+        label: "Last 24 hours",
+    });
 
     const fetchAlerts = async () => {
         setLoading(true);
@@ -112,12 +142,24 @@ export default function AlertsPage() {
 
     useEffect(() => {
         fetchAlerts();
-        // Auto-refresh every 30 seconds
         const interval = setInterval(fetchAlerts, 30000);
         return () => clearInterval(interval);
     }, []);
 
-    const activeAlerts = alerts.filter(a => a.status === "active");
+    const { from, to } = useMemo(() => getTimeRangeBounds(timeRange), [timeRange]);
+    const alertsInRange = useMemo(() => {
+        const fromMs = from.getTime();
+        const toMs = to.getTime();
+        return alerts.filter((a) => {
+            const t = new Date(a.timestamp).getTime();
+            return t >= fromMs && t <= toMs;
+        });
+    }, [alerts, from, to]);
+    /** Only active/acknowledged in range — resolved cards removed from list */
+    const listAlerts = useMemo(
+        () => alertsInRange.filter((a) => a.status !== "resolved"),
+        [alertsInRange]
+    );
 
     const getSeverityStyles = (severity: string) => {
         switch (severity) {
@@ -175,9 +217,9 @@ export default function AlertsPage() {
         }
     };
 
-    const criticalCount = alerts.filter(a => a.severity === "critical" && a.status === "active").length;
-    const warningCount = alerts.filter(a => a.severity === "warning" && a.status === "active").length;
-    const resolvedCount = alerts.filter(a => a.status === "resolved").length;
+    const criticalCount = alertsInRange.filter((a) => a.severity === "critical" && a.status === "active").length;
+    const warningCount = alertsInRange.filter((a) => a.severity === "warning" && a.status === "active").length;
+    const resolvedCount = alertsInRange.filter((a) => a.status === "resolved").length;
 
     return (
         <div className="space-y-6">
@@ -192,16 +234,25 @@ export default function AlertsPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <RefreshButton
-                        loading={loading}
-                        refreshing={refreshing}
-                        onRefresh={() => {
-                            setRefreshing(true);
-                            fetchAlerts().finally(() => setRefreshing(false));
-                        }}
-                        disabled={loading}
-                        aria-label="Refresh alerts"
-                    />
+                    <TimeRangePicker value={timeRange} onChange={setTimeRange} />
+                    {loading && !refreshing ? (
+                        <Skeleton
+                            className="h-9 w-[100px] shrink-0 rounded-md"
+                            style={{ background: "rgb(var(--theme-surface))" }}
+                            aria-hidden="true"
+                        />
+                    ) : (
+                        <RefreshButton
+                            loading={loading}
+                            refreshing={refreshing}
+                            onRefresh={() => {
+                                setRefreshing(true);
+                                fetchAlerts().finally(() => setRefreshing(false));
+                            }}
+                            disabled={loading}
+                            aria-label="Refresh alerts"
+                        />
+                    )}
                 </div>
             </div>
 
@@ -224,7 +275,7 @@ export default function AlertsPage() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>Total Alerts</p>
-                                <p className="text-3xl font-bold mt-1" style={{ color: "rgb(var(--theme-text))" }}>{alerts.length}</p>
+                                <p className="text-3xl font-bold mt-1" style={{ color: "rgb(var(--theme-text))" }}>{alertsInRange.length}</p>
                             </div>
                             <div className="p-3 rounded-lg bg-blue-500/10">
                                 <Bell className="h-6 w-6 text-blue-500" />
@@ -288,12 +339,10 @@ export default function AlertsPage() {
                         <AlertSkeleton />
                         <AlertSkeleton />
                     </>
-                ) : alerts.length === 0 ? (
-                    // Show empty state when no alerts
+                ) : listAlerts.length === 0 ? (
                     <EmptyState />
                 ) : (
-                    // Show alerts
-                    alerts.map((alert) => {
+                    listAlerts.map((alert) => {
                         const styles = getSeverityStyles(alert.severity);
                         return (
                             <Card 

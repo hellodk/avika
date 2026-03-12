@@ -110,7 +110,7 @@ func (s *server) getAgentConfigClient(agentID string) (pb.AgentConfigServiceClie
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	conn, err := grpc.Dial(target, dialOpts...)
+	conn, err := grpc.NewClient(target, dialOpts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to agent %s: %v", agentID, err)
 	}
@@ -165,7 +165,9 @@ func (srv *server) handleGetAgentRuntimeConfig(w http.ResponseWriter, r *http.Re
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(cfg)
+	if err := json.NewEncoder(w).Encode(cfg); err != nil {
+		log.Printf("handleGetAgentRuntimeConfig: failed to encode response for agent %s: %v", agentID, err)
+	}
 }
 
 // PATCH /api/agents/{id}/config
@@ -229,15 +231,19 @@ func (srv *server) handleUpdateAgentRuntimeConfig(w http.ResponseWriter, r *http
 		}
 
 		// Log audit event
-		srv.db.CreateAuditLog(user.Username, "update_runtime_config", "agent", agentID, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
+		if err := srv.db.CreateAuditLog(user.Username, "update_runtime_config", "agent", agentID, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
 			"persist":    body.Persist,
 			"hot_reload": body.HotReload,
 			"updates":    updates,
-		})
+		}); err != nil {
+			log.Printf("handleUpdateAgentRuntimeConfig: failed to create audit log for user %s agent %s: %v", user.Username, agentID, err)
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("handleUpdateAgentRuntimeConfig: failed to encode response for agent %s: %v", agentID, err)
+	}
 }
 
 // GET /api/agents/{id}/config/backups - List agent config backups (last 5)
@@ -314,12 +320,16 @@ func (srv *server) handleRestoreAgentConfigBackup(w http.ResponseWriter, r *http
 		return
 	}
 	if srv.db != nil {
-		srv.db.CreateAuditLog(user.Username, "restore_agent_config_backup", "agent", agentID, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
+		if err := srv.db.CreateAuditLog(user.Username, "restore_agent_config_backup", "agent", agentID, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
 			"backup_name": body.BackupName,
-		})
+		}); err != nil {
+			log.Printf("handleRestoreAgentConfigBackup: failed to create audit log for user %s agent %s: %v", user.Username, agentID, err)
+		}
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("handleRestoreAgentConfigBackup: failed to encode response for agent %s: %v", agentID, err)
+	}
 }
 
 // POST /api/agents/{id}/config/test
@@ -411,6 +421,8 @@ func agentConfigResponseToAgentConfig(resp *pb.GetAgentConfigResponse) *pb.Agent
 		BufferDir:       resp.BufferDir,
 		UpdateServer:    resp.UpdateServer,
 		LogLevel:        resp.LogLevel,
+		LogRotation:     resp.LogRotation,
+		Syslog:          resp.Syslog,
 	}
 	if ga := strings.TrimSpace(resp.GatewayAddress); ga != "" {
 		parts := strings.Split(ga, ",")
@@ -465,6 +477,17 @@ func agentConfigToUpdates(cfg *pb.AgentConfig) map[string]string {
 	}
 	if strings.TrimSpace(cfg.UpdateServer) != "" {
 		updates["UPDATE_SERVER"] = cfg.UpdateServer
+	}
+
+	if cfg.LogRotation != nil {
+		if b, err := json.Marshal(cfg.LogRotation); err == nil {
+			updates["LOG_ROTATION"] = string(b)
+		}
+	}
+	if cfg.Syslog != nil {
+		if b, err := json.Marshal(cfg.Syslog); err == nil {
+			updates["SYSLOG"] = string(b)
+		}
 	}
 
 	if len(cfg.GatewayAddresses) > 0 {

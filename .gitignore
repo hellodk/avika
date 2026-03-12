@@ -35,6 +35,9 @@ docker-compose.override.yml
 .gcp/credentials.json
 .azure/credentials
 
+# Script that outputs credentials from k8s (pre-commit secret check; local use only)
+scripts/get-clickhouse-credentials.sh
+
 # ============================================================================
 # Build outputs
 # ============================================================================
@@ -74,6 +77,9 @@ dist/
 *~
 .DS_Store
 *.iml
+
+# Extracted/generated instruction or plan dumps
+agent-instructions-extract.txt
 
 # Logs
 *.log
@@ -181,6 +187,7 @@ check_grpc.go
 
 # Generated files
 gateway.yaml
+gateway-k8s.yaml
 curl_output.txt
 home/
 scripts/et

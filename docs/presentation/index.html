@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Avika NGINX Manager — impress.js</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Sharp text: avoid blur when parent is CSS-transformed (impress.js) */
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: geometricPrecision;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #1a1a1a;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      color: #fff;
+    }
+
+    /* impress.js states */
+    .impress-not-supported .hint { display: none; }
+    .impress-not-supported #impress { display: none; }
+    .impress-not-supported #fallback { display: flex !important; }
+
+    .impress-enabled .step {
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      pointer-events: none;
+    }
+    .impress-enabled .step.present {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .impress-enabled .step.past,
+    .impress-enabled .step.future { opacity: 0; }
+
+    /* Steps = content on infinite canvas (no heavy cards) */
+    .step {
+      width: 900px;
+      padding: 40px 50px;
+      position: relative;
+      text-align: center;
+      /* Crisp text when scaled/rotated: promote layer, no rasterization blur */
+      will-change: transform;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: geometricPrecision;
+    }
+    .step.small { width: 600px; }
+    .step.wide { width: 1100px; text-align: left; }
+    .step.left { text-align: left; }
+
+    .step .line {
+      font-size: 2.2rem;
+      font-weight: 400;
+      line-height: 1.4;
+      letter-spacing: -0.01em;
+      color: #fff;
+    }
+    .step .line strong { color: #fff; font-weight: 700; }
+    .step .line.muted { font-size: 1.5rem; color: #888; font-weight: 400; }
+    .step .sub {
+      font-size: 1.1rem;
+      color: #888;
+      margin-top: 24px;
+      font-weight: 400;
+      line-height: 1.5;
+    }
+    .step .sub strong { color: #aaa; }
+
+    /* Big title step — like "# impress.js" in the bored demo */
+    .step.hero .line {
+      font-size: 5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      color: #fff;
+      background: none;
+      -webkit-text-fill-color: #fff;
+    }
+    .step.hero .sub { font-size: 1.5rem; margin-top: 20px; color: #888; }
+
+    /* Small “aside” steps */
+    .step.tiny .line { font-size: 1.4rem; color: #888; }
+    .step.tiny .line strong { color: #fff; font-weight: 700; }
+
+    .step .asterisk { font-size: 0.85rem; color: #666; margin-top: 16px; font-style: italic; }
+
+    .hint {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      font-size: 0.75rem;
+      color: #666;
+      z-index: 9998;
+    }
+
+    #fallback {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      color: #888;
+      text-align: center;
+      gap: 12px;
+    }
+    #fallback .line { color: #fff; background: none; -webkit-text-fill-color: #fff; }
+  </style>
+</head>
+<body>
+
+<!--
+  Bored-style: one idea per step, 3D canvas, dramatic scale/rotation.
+  Ref: https://impress.js.org/#/bored
+-->
+<div id="impress"
+     data-transition-duration="1000"
+     data-width="1920"
+     data-height="1080"
+     data-max-scale="3"
+     data-min-scale="0.2"
+     data-perspective="1000">
+
+  <!-- 1 -->
+  <div id="bored" class="step" data-x="0" data-y="0" data-z="0" data-scale="1">
+    <p class="line">Managing <strong>hundreds</strong> of NGINX instances?</p>
+  </div>
+
+  <!-- 2 -->
+  <div id="tired" class="step" data-x="1200" data-y="0" data-z="-200" data-rotate-y="15" data-scale="0.9">
+    <p class="line">Tired of <strong>60-second</strong> metrics...</p>
+  </div>
+
+  <!-- 3 -->
+  <div id="price" class="step" data-x="2400" data-y="0" data-z="-400" data-rotate-y="-10" data-scale="0.85">
+    <p class="line">and <strong>$10,000+</strong> per year?</p>
+  </div>
+
+  <!-- 4 -->
+  <div id="then" class="step small" data-x="3400" data-y="200" data-z="-100" data-rotate-y="5" data-scale="0.7">
+    <p class="line muted">then you should try</p>
+  </div>
+
+  <!-- 5 – hero -->
+  <div id="avika" class="step hero" data-x="4200" data-y="0" data-z="200" data-rotate-y="-15" data-scale="1.4">
+    <p class="line">Avika</p>
+    <p class="sub">NGINX Manager</p>
+  </div>
+
+  <!-- 6 -->
+  <div id="opensource" class="step" data-x="5500" data-y="0" data-z="-100" data-rotate-y="10" data-scale="0.9">
+    <p class="line">Open source. <strong>Zero</strong> cost.</p>
+    <p class="asterisk">* no per-instance fees</p>
+  </div>
+
+  <!-- 7 -->
+  <div id="onedash" class="step" data-x="0" data-y="900" data-z="-300" data-rotate-x="12" data-scale="0.95">
+    <p class="line">One <strong>dashboard</strong>.</p>
+    <p class="sub">Every instance. VMs, containers, Kubernetes.</p>
+  </div>
+
+  <!-- 8 -->
+  <div id="realtime" class="step" data-x="1300" data-y="900" data-z="0" data-rotate-x="-8" data-scale="1">
+    <p class="line">Real-time.</p>
+    <p class="sub"><strong>1 second</strong> — not 60.</p>
+  </div>
+
+  <!-- 9 -->
+  <div id="ai" class="step" data-x="2600" data-y="900" data-z="-200" data-rotate-y="12" data-scale="0.9">
+    <p class="line">AI finds the <strong>problem</strong>.</p>
+    <p class="sub">Anomaly detection · Root cause · Recommendations</p>
+  </div>
+
+  <!-- 10 -->
+  <div id="push" class="step" data-x="3800" data-y="900" data-z="100" data-rotate-y="-18" data-scale="0.85">
+    <p class="line">Push, <strong>not</strong> pull.</p>
+    <p class="sub">Agent → Gateway. Outbound only. No data loss.</p>
+  </div>
+
+  <!-- 11 -->
+  <div id="scale" class="step" data-x="5000" data-y="900" data-z="-150" data-scale="0.8">
+    <p class="line">Scale.</p>
+    <p class="sub"><strong>1000+</strong> agents per gateway. Tested.</p>
+  </div>
+
+  <!-- 12 -->
+  <div id="secure" class="step" data-x="0" data-y="1800" data-z="-100" data-rotate-x="-10" data-rotate-y="8" data-scale="0.9">
+    <p class="line">Secure. <strong>Auditable</strong>. Yours.</p>
+    <p class="sub">RBAC · TLS · Air-gapped · No vendor lock-in</p>
+  </div>
+
+  <!-- 13 -->
+  <div id="why" class="step small" data-x="1400" data-y="1800" data-z="0" data-rotate-y="-12" data-scale="0.75">
+    <p class="line muted">Why Avika?</p>
+  </div>
+
+  <!-- 14 -->
+  <div id="summary" class="step wide" data-x="2600" data-y="1800" data-z="200" data-rotate-y="5" data-scale="1">
+    <p class="line">Full <strong>visibility</strong>. No lock-in.</p>
+    <p class="sub">Deploy as the standard NGINX management platform — lower cost, faster incident response, complete control.</p>
+  </div>
+
+  <!-- 15 – outro -->
+  <div id="end" class="step hero" data-x="4000" data-y="1800" data-z="300" data-rotate-y="-10" data-scale="1.2">
+    <p class="line">Avika</p>
+    <p class="sub">use the source · impress.js.org</p>
+  </div>
+
+</div>
+
+<div class="hint">Use the spacebar or arrow keys to navigate. Press 'P' to launch speaker console.</div>
+<div id="fallback">
+  <p class="line">Your browser doesn’t support impress.js.</p>
+  <p class="sub">Use Chrome, Firefox, or Safari.</p>
+</div>
+
+<script src="impress.js"></script>
+<script>
+  (function () {
+    if (typeof impress !== 'function') {
+      document.getElementById('impress').style.display = 'none';
+      document.getElementById('fallback').style.display = 'flex';
+      return;
+    }
+    impress().init();
+  }());
+</script>
+</body>
+</html>

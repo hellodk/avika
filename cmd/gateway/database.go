@@ -54,13 +54,6 @@ func (db *DB) GetVersion() string {
 	return version
 }
 
-// migrate is deprecated - migrations are now handled by embedded SQL files in migrations/
-// This function is kept for backwards compatibility but does nothing
-func (db *DB) migrate() error {
-	// Migrations are now handled by migrations.Runner
-	// See cmd/gateway/migrations/*.sql for schema definitions
-	return nil
-}
 
 // GetSetting retrieves a setting value by key
 func (db *DB) GetSetting(key string) (string, error) {
@@ -191,6 +184,14 @@ func (db *DB) UpdateAgentStatus(agentID string, status string, lastSeen int64) e
 }
 
 func (db *DB) RemoveAgent(agentID string) error {
+	// Backup before deleting
+	insertQuery := `
+	INSERT INTO historical_agents (agent_id, hostname, ip)
+	SELECT agent_id, hostname, ip FROM agents WHERE agent_id = $1
+	ON CONFLICT (agent_id) DO NOTHING;
+	`
+	_, _ = db.conn.Exec(insertQuery, agentID)
+
 	query := `DELETE FROM agents WHERE agent_id = $1`
 	_, err := db.conn.Exec(query, agentID)
 	return err
@@ -249,6 +250,14 @@ func (db *DB) PruneStaleAgents(maxAge time.Duration) ([]string, error) {
 			}
 		}
 	}
+
+	// Backup before deleting
+	insertQuery := `
+	INSERT INTO historical_agents (agent_id, hostname, ip)
+	SELECT agent_id, hostname, ip FROM agents WHERE status = 'offline' AND last_seen < $1
+	ON CONFLICT (agent_id) DO NOTHING;
+	`
+	_, _ = db.conn.Exec(insertQuery, threshold)
 
 	query := `DELETE FROM agents WHERE status = 'offline' AND last_seen < $1`
 	_, err = db.conn.Exec(query, threshold)
@@ -309,6 +318,50 @@ func (db *DB) ListAlertRules() ([]*pb.AlertRule, error) {
 	return rules, nil
 }
 
+// GetAgentCounts returns total agent count and count of online agents (for reports).
+func (db *DB) GetAgentCounts() (total, online int, err error) {
+	err = db.conn.QueryRow("SELECT count(*), COALESCE(sum(CASE WHEN status = 'online' THEN 1 ELSE 0 END), 0) FROM agents").Scan(&total, &online)
+	return total, online, err
+}
+
+// ListAgents returns all agents from the database as AgentInfo (for reports, insights, or callers that need a list from DB).
+func (db *DB) ListAgents() ([]*pb.AgentInfo, error) {
+	rows, err := db.conn.Query("SELECT agent_id, hostname, version, instances_count, uptime, ip, status, last_seen, is_pod, pod_ip, agent_version, psk_authenticated FROM agents")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []*pb.AgentInfo
+	for rows.Next() {
+		var id, hostname, version, uptime, ip, status, podIP, agentVersion string
+		var instancesCount int
+		var lastSeen int64
+		var isPod, pskAuthenticated bool
+
+		if err := rows.Scan(&id, &hostname, &version, &instancesCount, &uptime, &ip, &status, &lastSeen, &isPod, &podIP, &agentVersion, &pskAuthenticated); err != nil {
+			log.Printf("Failed to scan agent row: %v", err)
+			continue
+		}
+
+		list = append(list, &pb.AgentInfo{
+			AgentId:          id,
+			Hostname:         hostname,
+			Version:          version,
+			Status:           status,
+			InstancesCount:   int32(instancesCount),
+			Uptime:           uptime,
+			Ip:               ip,
+			LastSeen:         lastSeen,
+			IsPod:            isPod,
+			PodIp:            podIP,
+			AgentVersion:     agentVersion,
+			PskAuthenticated: pskAuthenticated,
+		})
+	}
+	return list, nil
+}
+
 // ============================================================================
 // OIDC Integration Methods (implements middleware.UserProvisioner and middleware.TeamMapper)
 // ============================================================================
@@ -333,7 +386,9 @@ func (db *DB) GetUserInfo(username string) (*middleware.UserInfo, error) {
 func (db *DB) CreateUser(username, email, role string) error {
 	// Generate a random password for OIDC users (they won't use it)
 	randomPassword := make([]byte, 32)
-	rand.Read(randomPassword)
+	if _, err := rand.Read(randomPassword); err != nil {
+		return fmt.Errorf("generate random password: %w", err)
+	}
 	passwordHash := fmt.Sprintf("%x", sha256.Sum256(randomPassword))
 
 	query := `

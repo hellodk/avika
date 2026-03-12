@@ -82,7 +82,11 @@ spec:
       {{- end }}
       containers:
         - name: {{ $name }}
-          image: "{{ $component.image.repository }}:{{ $component.image.tag | default $.Chart.AppVersion }}"
+          {{- $imgRepo := $component.image.repository }}
+          {{- if $component.image.useGlobalRegistry }}
+          {{- $imgRepo = printf "%s/%s" ($.Values.global.imageRegistry | default "docker.io/hellodk") $component.image.repository }}
+          {{- end }}
+          image: "{{ $imgRepo }}:{{ $component.image.tag | default $.Chart.AppVersion }}"
           imagePullPolicy: {{ $component.image.pullPolicy | default "IfNotPresent" }}
           {{- with $.Values.securityContext }}
           securityContext:
@@ -324,7 +328,11 @@ spec:
         {{- /* Sidecar Containers */ -}}
         {{- range $sidecar := $component.sidecars }}
         - name: {{ $sidecar.name }}
-          image: "{{ $sidecar.image.repository }}:{{ $sidecar.image.tag | default $.Chart.AppVersion }}"
+          {{- $sidecarImg := $sidecar.image.repository }}
+          {{- if $sidecar.image.useGlobalRegistry }}
+          {{- $sidecarImg = printf "%s/%s" ($.Values.global.imageRegistry | default "docker.io/hellodk") $sidecar.image.repository }}
+          {{- end }}
+          image: "{{ $sidecarImg }}:{{ $sidecar.image.tag | default $.Chart.AppVersion }}"
           imagePullPolicy: {{ $sidecar.image.pullPolicy | default "IfNotPresent" }}
           {{- if $sidecar.ports }}
           ports:

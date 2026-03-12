@@ -8,7 +8,7 @@ import {
     FileText, Heart, Cpu, ChevronDown, ChevronRight,
     Bell, User, Menu, X, HelpCircle, LogOut,
     LayoutDashboard, Layers, GitBranch, Terminal, BookOpen, KeyRound, Globe,
-    LineChart, Users, FolderKanban, Lock, Info, Key, ShieldCheck
+    LineChart, FolderKanban, Lock, Info, Key, ShieldCheck, Wrench
 } from "lucide-react";
 import { ProjectSelector } from "@/components/project-selector";
 import { EnvironmentTabs } from "@/components/environment-tabs";
@@ -27,6 +27,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { GlobalSearch } from "@/components/global-search";
+import { CommandPalette } from "@/components/command-palette";
 
 interface NavSection {
     title: string;
@@ -47,11 +48,16 @@ const NAV_SECTIONS: NavSection[] = [
         items: [
             { href: "/", icon: <LayoutDashboard />, label: "Dashboard" },
             { href: "/system", icon: <Heart />, label: "System Health" },
-            { href: "/monitoring", icon: <Cpu />, label: "Monitoring" },
-            { href: "/analytics", icon: <BarChart2 />, label: "Analytics" },
-            { href: "/analytics/visitors", icon: <Users />, label: "Visitor Analytics" },
             { href: "/alerts", icon: <ShieldAlert />, label: "Alerts" },
             { href: "/reports", icon: <FileText />, label: "Reports" },
+        ]
+    },
+    {
+        title: "Observability",
+        items: [
+            { href: "/monitoring", icon: <Cpu />, label: "Monitoring" },
+            { href: "/analytics", icon: <BarChart2 />, label: "Analytics" },
+            { href: "/observability/slo", icon: <Activity />, label: "SLOs & SLIs" },
         ]
     },
     {
@@ -60,6 +66,7 @@ const NAV_SECTIONS: NavSection[] = [
             { href: "/inventory", icon: <Server />, label: "Inventory" },
             { href: "/provisions", icon: <Layers />, label: "Provisions" },
             { href: "/optimization", icon: <Zap />, label: "AI Tuner", badge: "Beta", badgeColor: "purple" },
+            { href: "/maintenance", icon: <Wrench />, label: "Maintenance" },
             { href: "/audit", icon: <ShieldCheck />, label: "Audit Logs" },
         ]
     },
@@ -94,7 +101,7 @@ function EnvironmentTabsBar() {
 }
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-    const pathname = usePathname();
+    const pathname = usePathname() ?? "";
     const router = useRouter();
     const { user, logout } = useAuth();
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -111,7 +118,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     };
 
     // Get current page title for breadcrumb (match longest href so /analytics/visitors -> Visitor Analytics)
+    // pathname from usePathname() does not include basePath (e.g. /avika/inventory -> /inventory)
     const getCurrentPageTitle = () => {
+        if (!pathname) return "Dashboard";
         let best: string | null = null;
         let bestLen = 0;
         for (const section of NAV_SECTIONS) {
@@ -137,6 +146,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
     return (
         <div className="flex h-screen overflow-hidden" style={{ background: "rgb(var(--theme-background))" }}>
+            <CommandPalette />
             {/* Sidebar */}
             <aside
                 className={`dashboard-layout-sidebar ${sidebarCollapsed ? 'w-16' : 'w-64'} flex-shrink-0 border-r flex flex-col transition-all duration-300`}
@@ -371,9 +381,10 @@ interface NavLinkProps {
 }
 
 function NavLink({ href, icon, label, pathname, collapsed, badge, badgeColor = "blue" }: NavLinkProps) {
-    const isActive = href === "/"
-        ? pathname === "/"
-        : pathname.startsWith(href) && (href !== "/" || pathname === "/");
+        const safePath = pathname ?? "";
+        const isActive = href === "/"
+        ? safePath === "/"
+        : safePath.startsWith(href) && (href !== "/" || safePath === "/");
 
     // Theme-aware badge colors using CSS variables
     const badgeStyles: Record<string, React.CSSProperties> = {

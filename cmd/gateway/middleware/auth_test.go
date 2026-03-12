@@ -434,7 +434,7 @@ func TestMeHandler(t *testing.T) {
 		}
 
 		var resp map[string]interface{}
-		json.NewDecoder(w.Body).Decode(&resp)
+		_ = json.NewDecoder(w.Body).Decode(&resp)
 
 		if resp["authenticated"] != true {
 			t.Error("Expected authenticated to be true")
@@ -452,7 +452,7 @@ func TestMeHandler(t *testing.T) {
 		}
 
 		var resp map[string]interface{}
-		json.NewDecoder(w.Body).Decode(&resp)
+		_ = json.NewDecoder(w.Body).Decode(&resp)
 
 		if resp["authenticated"] != false {
 			t.Error("Expected authenticated to be false")
@@ -474,7 +474,7 @@ func TestAuthMiddleware(t *testing.T) {
 	// Create a simple handler that returns 200
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	})
 
 	publicPaths := []string{"/api/auth/login", "/api/auth/logout", "/health"}
@@ -619,7 +619,7 @@ func TestChangePasswordHandler(t *testing.T) {
 		}
 
 		var resp ChangePasswordResponse
-		json.NewDecoder(w.Body).Decode(&resp)
+		_ = json.NewDecoder(w.Body).Decode(&resp)
 
 		if !resp.Success {
 			t.Errorf("Expected success, got: %s", resp.Message)
@@ -924,7 +924,7 @@ func TestLoginWithPasswordChangeRequired(t *testing.T) {
 	}
 
 	var resp LoginResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 
 	if !resp.Success {
 		t.Error("Login should succeed")

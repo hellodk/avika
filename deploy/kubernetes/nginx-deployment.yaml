@@ -40,7 +40,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: hellodk/avika-agent:latest
+        image: docker.io/hellodk/avika-agent:latest
         ports:
         - containerPort: 80
           name: http

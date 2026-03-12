@@ -28,6 +28,9 @@ interface AlertRule {
     window_sec: number;
     enabled: boolean;
     recipients: string;
+    cooldown_sec?: number;
+    severity?: string;
+    conditions?: string;
 }
 
 export function AlertConfiguration() {
@@ -95,6 +98,28 @@ export function AlertConfiguration() {
         }
     };
 
+    const getSeverityColor = (sev?: string) => {
+        switch (sev?.toLowerCase()) {
+            case "critical": return "bg-rose-100 text-rose-700 border-rose-200";
+            case "warning": return "bg-amber-100 text-amber-700 border-amber-200";
+            case "info": return "bg-sky-100 text-sky-700 border-sky-200";
+            default: return "bg-slate-100 text-slate-700 border-slate-200";
+        }
+    };
+
+    const getComparisonLabel = (comp: string) => {
+        switch (comp) {
+            case "gt": return ">";
+            case "lt": return "<";
+            case "gte": return "≥";
+            case "lte": return "≤";
+            case "eq": return "=";
+            case "rate_increase": return "Rate ↑";
+            case "rate_decrease": return "Rate ↓";
+            default: return comp;
+        }
+    };
+
     return (
         <Card className="shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -107,7 +132,10 @@ export function AlertConfiguration() {
                 </div>
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <DialogTrigger asChild>
-                        <Button onClick={() => setEditingRule({ enabled: true, comparison: 'gt', window_sec: 300 })}>
+                        <Button
+                            onClick={() => setEditingRule({ enabled: true, comparison: 'gt', window_sec: 300, severity: 'warning', cooldown_sec: 300 })}
+                            className="bg-[rgb(var(--theme-primary))] text-white hover:opacity-90 dark:bg-[rgb(var(--theme-primary))] dark:text-white"
+                        >
                             <Plus className="w-4 h-4 mr-2" />
                             Add Rule
                         </Button>
@@ -128,17 +156,43 @@ export function AlertConfiguration() {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2">
+                                    <Label htmlFor="severity">Severity</Label>
+                                    <Select value={editingRule?.severity || "warning"} onValueChange={(val) => setEditingRule({ ...editingRule, severity: val })}>
+                                        <SelectTrigger className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                                            <SelectValue placeholder="Severity" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="info">Info</SelectItem>
+                                            <SelectItem value="warning">Warning</SelectItem>
+                                            <SelectItem value="critical">Critical</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="cooldown">Cooldown (s)</Label>
+                                    <Input
+                                        id="cooldown"
+                                        type="number"
+                                        value={editingRule?.cooldown_sec || 300}
+                                        onChange={(e) => setEditingRule({ ...editingRule, cooldown_sec: parseInt(e.target.value) })}
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
                                     <Label htmlFor="metric">Metric</Label>
                                     <Select value={editingRule?.metric_type || ""} onValueChange={(val) => setEditingRule({ ...editingRule, metric_type: val })}>
                                         <SelectTrigger className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
-                                            <SelectValue placeholder="Select Metric" />
+                                            <SelectValue placeholder="Metric" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="metric">Select Metric</SelectItem>
                                             <SelectItem value="cpu">CPU Usage (%)</SelectItem>
                                             <SelectItem value="memory">Memory Usage (%)</SelectItem>
                                             <SelectItem value="rps">Requests Per Second</SelectItem>
                                             <SelectItem value="error_rate">Error Rate (%)</SelectItem>
+                                            <SelectItem value="latency">P95 Latency (ms)</SelectItem>
+                                            <SelectItem value="connections">Active Connections</SelectItem>
+                                            <SelectItem value="config_drift">Config Drift (agents)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -151,6 +205,11 @@ export function AlertConfiguration() {
                                         <SelectContent>
                                             <SelectItem value="gt">Greater Than</SelectItem>
                                             <SelectItem value="lt">Less Than</SelectItem>
+                                            <SelectItem value="gte">Greater or Equal</SelectItem>
+                                            <SelectItem value="lte">Less or Equal</SelectItem>
+                                            <SelectItem value="eq">Equal To</SelectItem>
+                                            <SelectItem value="rate_increase">Rate of Increase (%)</SelectItem>
+                                            <SelectItem value="rate_decrease">Rate of Decrease (%)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -166,7 +225,7 @@ export function AlertConfiguration() {
                                     />
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="window">Window (seconds)</Label>
+                                    <Label htmlFor="window">Window (s)</Label>
                                     <Input
                                         id="window"
                                         type="number"
@@ -202,7 +261,8 @@ export function AlertConfiguration() {
                             <TableRow>
                                 <TableHead className="font-semibold">Rule Name</TableHead>
                                 <TableHead className="font-semibold">Condition</TableHead>
-                                <TableHead className="font-semibold">Window</TableHead>
+                                <TableHead className="font-semibold">Severity</TableHead>
+                                <TableHead className="font-semibold">Cooldown</TableHead>
                                 <TableHead className="font-semibold">Status</TableHead>
                                 <TableHead className="text-right font-semibold">Actions</TableHead>
                             </TableRow>
@@ -210,11 +270,11 @@ export function AlertConfiguration() {
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center py-8 text-slate-500">Loading rules...</TableCell>
+                                    <TableCell colSpan={6} className="text-center py-8 text-slate-500">Loading rules...</TableCell>
                                 </TableRow>
                             ) : rules.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center py-8 text-slate-500">
+                                    <TableCell colSpan={6} className="text-center py-8 text-slate-500">
                                         <div className="flex flex-col items-center gap-2">
                                             <AlertCircle className="w-8 h-8 opacity-20" />
                                             <span>No alert rules defined yet</span>
@@ -224,17 +284,26 @@ export function AlertConfiguration() {
                             ) : (
                                 rules.map((rule) => (
                                     <TableRow key={rule.id}>
-                                        <TableCell className="font-medium">{rule.name}</TableCell>
+                                        <TableCell className="font-medium">
+                                            <div>{rule.name}</div>
+                                            <div className="text-[10px] text-slate-400 font-normal truncate max-w-[150px]">{rule.recipients}</div>
+                                        </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2">
                                                 <Badge variant="outline" className="text-indigo-600 border-indigo-200 bg-indigo-50">
                                                     {rule.metric_type.toUpperCase()}
                                                 </Badge>
-                                                <span className="text-slate-500">{rule.comparison === 'gt' ? '>' : '<'}</span>
+                                                <span className="text-slate-500">{getComparisonLabel(rule.comparison)}</span>
                                                 <span className="font-semibold">{rule.threshold}</span>
                                             </div>
+                                            <div className="text-[10px] text-slate-400 mt-1">Window: {rule.window_sec}s</div>
                                         </TableCell>
-                                        <TableCell className="text-slate-600">{rule.window_sec}s</TableCell>
+                                        <TableCell>
+                                            <Badge className={`${getSeverityColor(rule.severity)} border font-medium`}>
+                                                {rule.severity || "warning"}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-slate-600 text-sm">{rule.cooldown_sec || 300}s</TableCell>
                                         <TableCell>
                                             {rule.enabled ? (
                                                 <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 flex items-center gap-1 w-fit">

@@ -63,7 +63,7 @@ func (p *LDAPProvider) connect() (*ldap.Conn, error) {
 	var l *ldap.Conn
 
 	if parsedURL.Scheme == "ldaps" {
-		l, err = ldap.DialTLS("tcp", parsedURL.Host, &tls.Config{InsecureSkipVerify: true})
+		l, err = ldap.DialURL(p.config.URL, ldap.DialWithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
 	} else {
 		l, err = ldap.DialURL(p.config.URL)
 	}
@@ -274,7 +274,7 @@ func (p *LDAPProvider) LoginHandler() http.HandlerFunc {
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": true,
 			"user":    username,
 			"role":    role,

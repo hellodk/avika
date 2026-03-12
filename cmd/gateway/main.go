@@ -27,8 +27,10 @@ import (
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/segmentio/kafka-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/expfmt"
 	"github.com/rs/zerolog"
+	"github.com/segmentio/kafka-go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -76,6 +78,9 @@ type server struct {
 
 	// AI Error Analysis
 	errorAnalysisAPI *ErrorAnalysisAPI
+
+	// Real-time log analysis (sliding-window per agent / group)
+	realtimeAggregator *RealtimeAggregator
 
 	// Monitoring stats (atomic)
 	messageCount int64 // total messages received since last tick
@@ -224,9 +229,9 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				agentLog := logging.WithAgent(gatewayLog, agentID, hb.Hostname, ip)
 				mgmt := hb.GetMgmtAddress()
 				if mgmt != "" {
-					agentLog.Info().Bool("pod", isPod).Bool("psk", pskAuthenticated).Str("mgmt_address", mgmt).Msg("Agent registered (dial will use mgmt_address)")
+					agentLog.Info().Bool("pod", isPod).Bool("psk", pskAuthenticated).Str("mgmt_address", mgmt).Msg("Agent successfully registered (dial-back will use mgmt_address)")
 				} else {
-					agentLog.Info().Bool("pod", isPod).Bool("psk", pskAuthenticated).Msg("Agent registered (dial will use peer IP)")
+					agentLog.Info().Bool("pod", isPod).Bool("psk", pskAuthenticated).Msg("Agent successfully registered (dial-back will use peer IP)")
 				}
 
 				// 4a. Auto-assign to environment based on labels
@@ -301,6 +306,11 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 						}
 						s.trackDBOp(start)
 					}(entry, currentSession.id)
+				}
+
+				// 2b. Real-time sliding-window aggregation (for /api/servers/:id/realtime-stats and group)
+				if s.realtimeAggregator != nil {
+					s.realtimeAggregator.Add(currentSession.id, entry)
 				}
 
 				// 3. Aggregate Analytics (Legacy in-memory, keep for now as fallback/realtime cache)
@@ -677,7 +687,7 @@ func (s *server) GetAnalytics(ctx context.Context, req *pb.AnalyticsRequest) (*p
 
 		// Use filtered query if we have agent filter, otherwise use standard query
 		if len(agentFilter) > 0 {
-			return s.clickhouse.GetAnalyticsWithAgentFilter(ctx, req.TimeWindow, "", agentFilter, req.FromTimestamp, req.ToTimestamp, timezone)
+			return s.clickhouse.GetAnalyticsWithAgentFilter(ctx, req, agentFilter)
 		}
 		return s.clickhouse.GetAnalyticsWithTimeRange(ctx, req.TimeWindow, req.AgentId, req.FromTimestamp, req.ToTimestamp, timezone)
 	}
@@ -741,12 +751,22 @@ func (s *server) GetAnalytics(ctx context.Context, req *pb.AnalyticsRequest) (*p
 		})
 	}
 
-	// Return
+	// Return mock response with summary for UI testing
 	return &pb.AnalyticsResponse{
 		RequestRate:        requestHistory,
 		StatusDistribution: statusDist,
 		TopEndpoints:       topEndpoints,
 		LatencyTrend:       []*pb.LatencyPercentiles{}, // Todo
+		Summary: &pb.AnalyticsSummary{
+			TotalRequests:  12500,
+			Requests_2Xx:   11800,
+			Requests_3Xx:   450,
+			Requests_4Xx:   180,
+			Requests_5Xx:   70,
+			ErrorRate:      2.0,
+			AvgLatency:     42.5,
+			TotalBandwidth: 1024 * 1024 * 850, // 850MB
+		},
 	}, nil
 }
 
@@ -806,11 +826,39 @@ func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.Cl
 	}
 	session := val.(*AgentSession)
 
-	// Prefer agent-reported mgmt_address (correct-IP); else pods use podIP; else connection IP
+	// Prefer agent-reported mgmt_address when it matches the connection peer (so we trust it).
+	// If the agent reported a different host (e.g. VirtualBox NAT 10.0.2.15) but connected from
+	// session.ip (e.g. 192.168.1.10), prefer connection peer for dialing - that's reachable.
 	var target string
 	if session.mgmtAddress != "" {
-		target = session.mgmtAddress
-		log.Printf("Using mgmt_address %s for agent %s", target, agentID)
+		mgmtHost, mgmtPortStr, err := net.SplitHostPort(session.mgmtAddress)
+		if err != nil {
+			mgmtHost = strings.TrimSpace(session.mgmtAddress)
+			mgmtPortStr = ""
+		}
+		useConnectionIP := session.ip != "" && mgmtHost != "" && mgmtHost != session.ip
+		if useConnectionIP {
+			port := mgmtPortStr
+			if port == "" {
+				port = strconv.Itoa(s.config.Agent.MgmtPort)
+				if port == "0" {
+					port = strconv.Itoa(config.DefaultAgentPort)
+				}
+			}
+			target = net.JoinHostPort(session.ip, port)
+			log.Printf("Using connection peer %s for agent %s (mgmt_address %s differs, peer is reachable)", target, agentID, session.mgmtAddress)
+		} else {
+			if mgmtPortStr != "" {
+				target = session.mgmtAddress
+			} else {
+				port := s.config.Agent.MgmtPort
+				if port == 0 {
+					port = config.DefaultAgentPort
+				}
+				target = net.JoinHostPort(mgmtHost, strconv.Itoa(port))
+			}
+			log.Printf("Using mgmt_address %s for agent %s", target, agentID)
+		}
 	} else {
 		targetIP := session.ip
 		if session.isPod && session.podIP != "" {
@@ -829,7 +877,7 @@ func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.Cl
 	}
 	log.Printf("Found session for %s, dialing %s", agentID, target)
 
-	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to agent %s: %v", agentID, err)
 	}
@@ -867,7 +915,7 @@ func (s *server) Execute(stream pb.AgentService_ExecuteServer) error {
 			if err != nil {
 				return
 			}
-			agentStream.Send(req)
+			_ = agentStream.Send(req)
 		}
 	}()
 
@@ -902,6 +950,40 @@ func (s *server) UpdateConfig(ctx context.Context, req *pb.ConfigUpdate) (*pb.Co
 		return nil, err
 	}
 	defer conn.Close()
+
+	if req.Backup {
+		currentCfgResp, err := client.GetConfig(ctx, &pb.ConfigRequest{
+			InstanceId: req.InstanceId,
+			ConfigPath: req.ConfigPath,
+		})
+		if err == nil && currentCfgResp != nil && currentCfgResp.Config != nil && currentCfgResp.Config.Content != "" && currentCfgResp.Error == "" {
+			certResp, certErr := client.ListCertificates(ctx, &pb.CertListRequest{
+				InstanceId: req.InstanceId,
+			})
+			var certs []byte
+			if certErr == nil && certResp != nil {
+				certs, _ = json.Marshal(certResp.Certificates)
+			} else {
+				certs = []byte("[]")
+			}
+
+			// Save to Postgres
+			query := `
+				INSERT INTO config_backups (
+					agent_id, backup_type, config_content, certificates_json, created_at
+				) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+			`
+			_, backupErr := s.db.conn.ExecContext(ctx, query,
+				req.InstanceId, "manual", currentCfgResp.Config.Content, certs)
+			if backupErr != nil {
+				log.Printf("Warning: Failed to save config backup to DB for agent %s: %v", req.InstanceId, backupErr)
+			} else {
+				log.Printf("Successfully created config backup in DB for agent %s prior to update", req.InstanceId)
+			}
+		} else {
+			log.Printf("Could not fetch current config for agent %s prior to update, skipping DB backup. Err: %v", req.InstanceId, err)
+		}
+	}
 
 	return client.UpdateConfig(ctx, req)
 }
@@ -1209,17 +1291,18 @@ func main() {
 
 	// Initialize server
 	srv := &server{
-		recommendations: []*pb.Recommendation{},
-		db:              db,
-		clickhouse:      chDB,
+		recommendations:    []*pb.Recommendation{},
+		db:                 db,
+		clickhouse:         chDB,
 		analytics: &AnalyticsCache{
 			StatusCodes:    make(map[string]int64),
 			EndpointStats:  make(map[string]*EndpointStats),
 			RequestHistory: []*pb.TimeSeriesPoint{},
 		},
-		config:     cfg,
-		alerts:     NewAlertEngine(db, chDB, cfg),
-		pskManager: pskManager,
+		config:             cfg,
+		alerts:             NewAlertEngine(db, chDB, cfg),
+		pskManager:         pskManager,
+		realtimeAggregator: NewRealtimeAggregator(),
 	}
 
 	// Initialize AI Error Analysis (LLM-powered)
@@ -1579,6 +1662,9 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Visitor analytics API (shape expected by frontend)
 	mux.Handle("/api/visitor-analytics", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleVisitorAnalytics)))
 
+	// Main analytics API with URL and Status Filtering
+	mux.Handle("/api/analytics", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAnalytics)))
+
 	// ============================================================================
 	// RBAC / Multi-Tenancy API Endpoints
 	// ============================================================================
@@ -1604,14 +1690,41 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.Handle("DELETE /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUnassignServer)))
 	mux.Handle("PUT /api/servers/{agentId}/tags", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateServerTags)))
 	mux.Handle("GET /api/servers/{agentId}/drift", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetServerDrift)))
+	mux.Handle("GET /api/servers/{agentId}/realtime-stats", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleServerRealtimeStats)))
 	mux.Handle("GET /api/projects/{id}/drift/compare", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCompareDrift)))
 	mux.Handle("GET /api/groups/{id}/logs/stream", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGroupLogsStream)))
+	mux.Handle("GET /api/groups/{id}/realtime-stats", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGroupRealtimeStats)))
+
+	// Certificate Management API (proxy to agent)
+	mux.Handle("GET /api/servers/{agentId}/certificates", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListCertificates)))
+	mux.Handle("POST /api/servers/{agentId}/certificates", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUploadCertificate)))
+	mux.Handle("DELETE /api/servers/{agentId}/certificates", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeleteCertificate)))
+
+	// Maintenance Mode API
+	mux.Handle("GET /api/maintenance/templates", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListMaintenanceTemplates)))
+	mux.Handle("POST /api/maintenance/templates", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateMaintenanceTemplate)))
+	mux.Handle("PUT /api/maintenance/templates", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateMaintenanceTemplate)))
+	mux.Handle("DELETE /api/maintenance/templates", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeleteMaintenanceTemplate)))
+	mux.Handle("GET /api/maintenance/status", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetMaintenanceStatus)))
+	mux.Handle("GET /api/maintenance/states", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListMaintenanceStates)))
+	mux.Handle("POST /api/maintenance/set", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleSetMaintenance)))
 
 	// Agent Runtime Configuration API (agent self-config, persisted on agent)
 	mux.Handle("GET /api/agents/{id}/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetAgentRuntimeConfig)))
 	mux.Handle("PATCH /api/agents/{id}/config", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateAgentRuntimeConfig)))
 	mux.Handle("GET /api/agents/{id}/config/backups", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListAgentConfigBackups)))
 	mux.Handle("POST /api/agents/{id}/config/restore", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRestoreAgentConfigBackup)))
+
+	// SLO Tracking
+	mux.Handle("GET /api/slo-targets", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetSLOTargets)))
+	mux.Handle("POST /api/slo-targets", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpsertSLOTarget)))
+	mux.Handle("DELETE /api/slo-targets", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeleteSLOTarget)))
+	mux.Handle("GET /api/slo-compliance", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetSLOCompliance)))
+
+	// Config Scoring
+	mux.Handle("POST /api/config/score", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleScoreConfig)))
+	mux.Handle("GET /api/agents/{id}/nginx/backups", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListNginxConfigBackups)))
+	mux.Handle("POST /api/agents/{id}/nginx/restore", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRestoreNginxConfigBackup)))
 	mux.Handle("POST /api/agents/{id}/config/test", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleTestAgentConfigConnection)))
 
 	// LLM Configuration (persisted in DB)
@@ -1736,16 +1849,26 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.HandleFunc("/metrics", srv.handleMetrics)
 
 	// Agent update distribution endpoint
-	// Serves agent binaries and version.json from the updates directory
+	// Serves agent binaries and version.json from the updates directory.
+	// When running as a process on a VM, create the directory if missing so update serving is enabled.
 	updatesDir := cfg.Server.UpdatesDir
 	if updatesDir == "" {
 		updatesDir = "./updates" // Default directory
 	}
-	if _, err := os.Stat(updatesDir); err == nil {
+	if _, err := os.Stat(updatesDir); err != nil {
+		if os.IsNotExist(err) {
+			if mkErr := os.MkdirAll(updatesDir, 0755); mkErr == nil {
+				log.Printf("Serving agent updates from %s on /updates/ (directory created)", updatesDir)
+				mux.Handle("/updates/", http.StripPrefix("/updates/", http.FileServer(http.Dir(updatesDir))))
+			} else {
+				log.Printf("Updates directory not found (%s), update serving disabled: %v", updatesDir, mkErr)
+			}
+		} else {
+			log.Printf("Updates directory not found (%s), update serving disabled: %v", updatesDir, err)
+		}
+	} else {
 		log.Printf("Serving agent updates from %s on /updates/", updatesDir)
 		mux.Handle("/updates/", http.StripPrefix("/updates/", http.FileServer(http.Dir(updatesDir))))
-	} else {
-		log.Printf("Updates directory not found (%s), update serving disabled", updatesDir)
 	}
 
 	// AI Error Analysis API (LLM-powered)
@@ -1758,9 +1881,10 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		mux.Handle("POST /api/v1/admin/llm/test", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.errorAnalysisAPI.HandleTestLLMConnection)))
 		log.Printf("AI Error Analysis API routes registered")
 	}
+	handler := metricsAndLogMiddleware(gatewayLog, false)(mux)
 	return &http.Server{
 		Addr:         cfg.GetHTTPAddress(),
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  120 * time.Second,
@@ -1771,6 +1895,71 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 type groupLogEntry struct {
 	agentID string
 	entry   *pb.LogEntry
+}
+
+// handleServerRealtimeStats returns sliding-window real-time stats for one server (agent).
+func (srv *server) handleServerRealtimeStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	agentID := r.PathValue("agentId")
+	if agentID == "" {
+		http.Error(w, `{"error":"agent id required"}`, http.StatusBadRequest)
+		return
+	}
+	windowSec := 60
+	if wStr := r.URL.Query().Get("window"); wStr != "" {
+		if n, err := strconv.Atoi(wStr); err == nil && n > 0 {
+			windowSec = n
+		}
+	}
+	if srv.realtimeAggregator == nil {
+		http.Error(w, `{"error":"realtime aggregator not available"}`, http.StatusServiceUnavailable)
+		return
+	}
+	stats := srv.realtimeAggregator.Stats(agentID, windowSec)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
+// handleGroupRealtimeStats returns sliding-window real-time stats for a group (merged from all agents).
+func (srv *server) handleGroupRealtimeStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	groupID := r.PathValue("id")
+	if groupID == "" {
+		http.Error(w, `{"error":"group id required"}`, http.StatusBadRequest)
+		return
+	}
+	windowSec := 60
+	if wStr := r.URL.Query().Get("window"); wStr != "" {
+		if n, err := strconv.Atoi(wStr); err == nil && n > 0 {
+			windowSec = n
+		}
+	}
+	resp, err := srv.GetGroupAgents(r.Context(), &pb.GetGroupAgentsRequest{GroupId: groupID})
+	if err != nil || resp == nil || len(resp.Agents) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		if _, err := w.Write([]byte(`{"error":"no agents in group or group not found"}`)); err != nil {
+			log.Printf("handleGroupRealtimeStats: failed to write error response: %v", err)
+		}
+		return
+	}
+	agentIDs := make([]string, 0, len(resp.Agents))
+	for _, a := range resp.Agents {
+		agentIDs = append(agentIDs, a.AgentId)
+	}
+	if srv.realtimeAggregator == nil {
+		http.Error(w, `{"error":"realtime aggregator not available"}`, http.StatusServiceUnavailable)
+		return
+	}
+	stats := srv.realtimeAggregator.StatsGroup(agentIDs, windowSec)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
 }
 
 // handleGroupLogsStream streams merged logs from all agents in a group as SSE (Radar-style).
@@ -1785,7 +1974,9 @@ func (srv *server) handleGroupLogsStream(w http.ResponseWriter, r *http.Request)
 	if err != nil || resp == nil || len(resp.Agents) == 0 {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error":"no agents in group or group not found"}`))
+		if _, err := w.Write([]byte(`{"error":"no agents in group or group not found"}`)); err != nil {
+			log.Printf("handleGroupLogsStream: failed to write error response: %v", err)
+		}
 		return
 	}
 
@@ -1960,7 +2151,7 @@ func (srv *server) handleTerminal(w http.ResponseWriter, r *http.Request, upgrad
 	// Radar-style structured errors: send JSON { type: "error", error: "...", code: "..." } so frontend can show clear message
 	writeExecError := func(code, msg string) {
 		payload := fmt.Sprintf(`{"type":"error","error":%q,"code":%q}`, msg, code)
-		ws.WriteMessage(websocket.TextMessage, []byte(payload))
+		_ = ws.WriteMessage(websocket.TextMessage, []byte(payload))
 	}
 
 	client, conn, err := srv.getAgentClient(agentID)
@@ -2106,7 +2297,9 @@ func (srv *server) handleExportReport(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=nginx-report-%d.pdf", time.Now().Unix()))
-	w.Write(pdfData)
+	if _, err := w.Write(pdfData); err != nil {
+		log.Printf("handleExportReport: failed to write PDF response: %v", err)
+	}
 }
 
 // handleMetrics exposes Prometheus-format metrics
@@ -2186,6 +2379,16 @@ func (srv *server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "# HELP nginx_gateway_recommendations_count Number of pending recommendations\n")
 	fmt.Fprintf(w, "# TYPE nginx_gateway_recommendations_count gauge\n")
 	fmt.Fprintf(w, "nginx_gateway_recommendations_count %d\n", recCount)
+
+	// Append Prometheus-registered HTTP metrics (avika_http_requests_total, avika_http_request_duration_seconds)
+	if mfs, err := prometheus.DefaultGatherer.Gather(); err == nil {
+		for _, mf := range mfs {
+			if _, err := expfmt.MetricFamilyToText(w, mf); err != nil {
+				log.Printf("metrics: write avika_http metrics: %v", err)
+				break
+			}
+		}
+	}
 }
 
 // startWebSocketServer is deprecated - use createHTTPServer instead
@@ -2334,6 +2537,61 @@ type visitorAnalyticsFrontendShape struct {
 	StaticFiles      []map[string]interface{} `json:"static_files"`
 	RequestedURLs    []map[string]interface{} `json:"requested_urls"`
 	StatusCodes      []map[string]interface{} `json:"status_codes"`
+}
+
+func (srv *server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	query := r.URL.Query()
+	window := query.Get("timeWindow")
+	if window == "" {
+		window = "24h"
+	}
+
+	fromTs, _ := strconv.ParseInt(query.Get("from"), 10, 64)
+	toTs, _ := strconv.ParseInt(query.Get("to"), 10, 64)
+
+	req := &pb.AnalyticsRequest{
+		AgentId:          query.Get("agent_id"),
+		TimeWindow:       window,
+		ProjectId:        query.Get("project_id"),
+		EnvironmentId:    query.Get("environment_id"),
+		FromTimestamp:    fromTs,
+		ToTimestamp:      toTs,
+		UrlFilter:        query.Get("url"),
+		StatusCodeFilter: query.Get("status_class"), // The frontend sends status_class
+	}
+
+	if req.StatusCodeFilter == "" {
+		req.StatusCodeFilter = query.Get("status_code")
+	}
+
+	ctx := r.Context()
+	var resp *pb.AnalyticsResponse
+	var err error
+
+	if srv.clickhouse != nil {
+		// Use ClickHouse logic
+		if req.EnvironmentId != "" {
+			agents, _ := srv.db.GetAgentIDsForEnvironment(req.EnvironmentId)
+			resp, err = srv.clickhouse.GetAnalyticsWithAgentFilter(ctx, req, agents)
+		} else if req.ProjectId != "" {
+			agents, _ := srv.db.GetAgentIDsForProject(req.ProjectId)
+			resp, err = srv.clickhouse.GetAnalyticsWithAgentFilter(ctx, req, agents)
+		} else {
+			resp, err = srv.clickhouse.GetAnalyticsWithAgentFilter(ctx, req, nil)
+		}
+	} else {
+		// Fallback to in-memory/mock (simplified)
+		resp, err = srv.GetAnalytics(ctx, req)
+	}
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request) {

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"os/exec"
 
 	//	"github.com/tufanbarisyildirim/gonginx"
 	//	"github.com/tufanbarisyildirim/gonginx/parser"
@@ -39,10 +40,10 @@ func (p *Parser) Parse() (*pb.NginxConfig, error) {
 	}, nil
 }
 
-// Validate checks if the config syntax is valid
+// Validate checks if the config syntax is valid by writing to a temporary file and running nginx -t.
+// Note: This is an approximation as it won't see included files unless they are absolute.
 func (p *Parser) Validate(content string) (*pb.ValidationResult, error) {
-	// Write to temp file
-	tmpFile, err := os.CreateTemp("", "nginx-*.conf")
+	tmpFile, err := os.CreateTemp("", "nginx-test-*.conf")
 	if err != nil {
 		return nil, err
 	}
@@ -53,16 +54,23 @@ func (p *Parser) Validate(content string) (*pb.ValidationResult, error) {
 	}
 	tmpFile.Close()
 
-	// Use nginx -t to validate
-	// Note: nginx -t normally checks the main config file.
-	// To check a specific file, we'd need to use -c, but that might fail if includes are relative.
-	// For now, we'll do a simple check or skip the actual nginx -t on arbitrary content
-	// unless we are sure about the structure.
-	// Actually, let's just return valid for now if we can't easily run nginx -t on a chunk.
+	// Try to use nginx -t -c
+	// Note: This may fail if the config has relative includes that don't exist in the temp dir.
+	// We use -t to test configuration and -c to specify the config file.
+	cmd := exec.Command("nginx", "-t", "-c", tmpFile.Name())
+	output, err := cmd.CombinedOutput()
+	
+	outStr := string(output)
+	if err != nil {
+		return &pb.ValidationResult{
+			Valid:  false,
+			Errors: []string{outStr},
+		}, nil
+	}
 
 	return &pb.ValidationResult{
 		Valid:    true,
 		Errors:   []string{},
-		Warnings: []string{},
+		Warnings: []string{outStr},
 	}, nil
 }

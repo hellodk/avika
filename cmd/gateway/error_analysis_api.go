@@ -155,7 +155,7 @@ func (api *ErrorAnalysisAPI) HandleGetErrorAnalysis(w http.ResponseWriter, r *ht
 
 	// Send response
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // HandleGetRecommendations handles GET /api/v1/recommendations
@@ -210,7 +210,7 @@ func (api *ErrorAnalysisAPI) HandleGetRecommendations(w http.ResponseWriter, r *
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // HandleGetErrorPatterns handles GET /api/v1/errors/patterns
@@ -248,7 +248,7 @@ func (api *ErrorAnalysisAPI) HandleGetErrorPatterns(w http.ResponseWriter, r *ht
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(patterns)
+	_ = json.NewEncoder(w).Encode(patterns)
 }
 
 // HandleGetErrorTrend handles GET /api/v1/errors/trends
@@ -272,7 +272,7 @@ func (api *ErrorAnalysisAPI) HandleGetErrorTrend(w http.ResponseWriter, r *http.
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(trend)
+	_ = json.NewEncoder(w).Encode(trend)
 }
 
 // HandleGetLLMConfig handles GET /api/v1/admin/llm/config
@@ -290,7 +290,7 @@ func (api *ErrorAnalysisAPI) HandleGetLLMConfig(w http.ResponseWriter, r *http.R
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(config)
+	_ = json.NewEncoder(w).Encode(config)
 }
 
 // HandleTestLLMConnection handles POST /api/v1/admin/llm/test
@@ -317,7 +317,7 @@ func (api *ErrorAnalysisAPI) HandleTestLLMConnection(w http.ResponseWriter, r *h
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // Database query methods
@@ -402,7 +402,9 @@ func (api *ErrorAnalysisAPI) getErrorSummary(ctx context.Context, startTime time
 
 	var topURI string
 	var topCnt uint64
-	api.db.conn.QueryRow(ctx, endpointQuery, args...).Scan(&topURI, &topCnt)
+	if err := api.db.conn.QueryRow(ctx, endpointQuery, args...).Scan(&topURI, &topCnt); err != nil {
+		return nil, err
+	}
 	summary.MostAffectedEndpoint = topURI
 
 	// Determine primary root cause
