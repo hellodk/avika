@@ -15,7 +15,7 @@ concurrency:
 env:
   GO_VERSION: '1.24'
   NODE_VERSION: '20'
-  # Image registry: single source is .github/IMAGE_REGISTRY (CI/Release set it in job steps)
+  DOCKERHUB_USERNAME: hellodk
 
 jobs:
   lint:
@@ -117,9 +117,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Set image registry (single source .github/IMAGE_REGISTRY)
-        run: echo "IMAGE_REGISTRY=$(cat .github/IMAGE_REGISTRY | tr -d '\n')" >> $GITHUB_ENV
 
       - name: Set image tags
         id: meta
