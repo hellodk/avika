@@ -482,7 +482,8 @@ export function AgentFleetTable({
                                 const needsUpdate = instance.agent_version && instance.agent_version !== latestVersion;
                                 const isSelected = selectedAgents.has(instance.agent_id);
                                 const agentKey = `${instance.agent_id ?? `agent-${index}`}-${index}`;
-                                const serverHref = `/servers/${encodeURIComponent(serverIdForDisplay(instance.agent_id))}`;
+                                // Use the raw agent_id for routing; display uses serverIdForDisplay.
+                                const serverHref = `/servers/${encodeURIComponent(instance.agent_id)}`;
 
                                 return (
                                     <TableRow
@@ -567,7 +568,7 @@ export function AgentFleetTable({
                                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex items-center justify-end gap-0.5">
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }} asChild>
-                                                    <Link href={`/servers/${encodeURIComponent(serverIdForDisplay(instance.agent_id))}`}>
+                                                    <Link href={`/servers/${encodeURIComponent(instance.agent_id)}`}>
                                                         <ExternalLink className="h-4 w-4" />
                                                     </Link>
                                                 </Button>
@@ -580,12 +581,12 @@ export function AgentFleetTable({
                                                     <Terminal className="h-4 w-4" />
                                                 </Button>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }} asChild>
-                                                    <Link href={`/servers/${encodeURIComponent(serverIdForDisplay(instance.agent_id))}?tab=drift`}>
+                                                    <Link href={`/servers/${encodeURIComponent(instance.agent_id)}?tab=drift`}>
                                                         <GitCompare className="h-4 w-4" />
                                                     </Link>
                                                 </Button>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }} asChild title="Edit agent config">
-                                                    <Link href={`/agents/${encodeURIComponent(serverIdForDisplay(instance.agent_id))}/config`}>
+                                                    <Link href={`/agents/${encodeURIComponent(instance.agent_id)}/config`}>
                                                         <Settings className="h-4 w-4" />
                                                     </Link>
                                                 </Button>
