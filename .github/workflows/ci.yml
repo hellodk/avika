@@ -15,7 +15,7 @@ concurrency:
 env:
   GO_VERSION: '1.24'
   NODE_VERSION: '20'
-  # Image registry: single source is .github/IMAGE_REGISTRY (CI/Release set it in job steps)
+  DOCKERHUB_USERNAME: hellodk
 
 jobs:
   lint:
