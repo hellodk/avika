@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -79,5 +81,29 @@ func TestUpdatesChecksumMatchesBinary(t *testing.T) {
 	got := strings.TrimSpace(string(shaBody))
 	if got != expectedSum {
 		t.Errorf("checksum file mismatch: got %q, expected %q", got, expectedSum)
+	}
+}
+
+// TestUpdatesChecksumServedOnTheFly ensures GET /updates/bin/agent-linux-amd64.sha256 returns hash of the binary (deploy script verification).
+func TestUpdatesChecksumServedOnTheFly(t *testing.T) {
+	dir := t.TempDir()
+	binDir := filepath.Join(dir, "bin")
+	_ = os.MkdirAll(binDir, 0755)
+	content := []byte("binary-content-for-checksum-test")
+	_ = os.WriteFile(filepath.Join(binDir, "agent-linux-amd64"), content, 0755)
+	h := sha256.Sum256(content)
+	expectedSum := hex.EncodeToString(h[:])
+
+	handler := updatesHandlerForDir(dir)
+	req := httptest.NewRequest("GET", "http://test/updates/bin/agent-linux-amd64.sha256", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("GET /updates/bin/agent-linux-amd64.sha256: expected 200, got %d", w.Code)
+	}
+	got := strings.TrimSpace(w.Body.String())
+	if got != expectedSum {
+		t.Errorf("checksum response mismatch: got %q, expected %q", got, expectedSum)
 	}
 }

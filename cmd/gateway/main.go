@@ -1543,9 +1543,26 @@ func updatesHandlerForDir(dir string) http.Handler {
 			f.Close()
 			return
 		}
-		if path == "agent-linux-amd64" || path == "agent-linux-arm64" ||
+		// Serve .sha256 by computing from the binary on the fly so it always matches the binary we serve
+		if path == "bin/agent-linux-amd64.sha256" || path == "bin/agent-linux-arm64.sha256" ||
 			path == "agent-linux-amd64.sha256" || path == "agent-linux-arm64.sha256" {
-			binPath := dir + "/bin/" + path
+			base := strings.TrimPrefix(path, "bin/")
+			base = strings.TrimSuffix(base, ".sha256")
+			binPath := binDir + "/" + base
+			sum, err := sha256SumFile(binPath)
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(sum + "\n"))
+			return
+		}
+		if path == "agent-linux-amd64" || path == "agent-linux-arm64" ||
+			path == "bin/agent-linux-amd64" || path == "bin/agent-linux-arm64" {
+			base := strings.TrimPrefix(path, "bin/")
+			binPath := binDir + "/" + base
 			f, err := os.Open(binPath)
 			if err != nil {
 				http.NotFound(w, r)
@@ -1557,12 +1574,8 @@ func updatesHandlerForDir(dir string) http.Handler {
 				http.NotFound(w, r)
 				return
 			}
-			if strings.HasSuffix(path, ".sha256") {
-				w.Header().Set("Content-Type", "text/plain")
-			} else {
-				w.Header().Set("Content-Type", "application/octet-stream")
-			}
-			http.ServeContent(w, r, path, info.ModTime(), f)
+			w.Header().Set("Content-Type", "application/octet-stream")
+			http.ServeContent(w, r, base, info.ModTime(), f)
 			f.Close()
 			return
 		}
