@@ -1,329 +1,133 @@
-# Service Management Scripts - README
+# Scripts Reference
 
-## ✅ What Was Created
-
-I've created professional service management scripts to replace manual `pkill` commands:
-
-### **Scripts Created:**
-
-1. **`scripts/start.sh`** - Start all services
-2. **`scripts/stop.sh`** - Stop all services gracefully
-3. **`scripts/restart.sh`** - Restart all services
-4. **`scripts/status.sh`** - Check service status
+This directory contains scripts for local development, builds, deployment, testing, and operations. Below: quick start, then **how to use each script**.
 
 ---
 
-## 🚀 Quick Start
+## Quick Start (local services)
 
 ```bash
-# Start all services
-./scripts/start.sh
-
-# Check status
-./scripts/status.sh
-
-# Stop all services
-./scripts/stop.sh
-
-# Restart all services
-./scripts/restart.sh
+./scripts/start.sh      # Start gateway, agent, frontend (and optional infra)
+./scripts/status.sh     # Check what's running
+./scripts/stop.sh       # Stop all
+./scripts/restart.sh    # Stop then start
 ```
 
 ---
 
-## 📋 Script Details
+## Script Reference (how to use each)
 
-### **start.sh**
+### Service management
 
-**Features:**
-- ✅ Checks if services are already running (prevents duplicates)
-- ✅ Creates `logs/` directory automatically
-- ✅ Starts services in correct order: Gateway → Agent → Frontend
-- ✅ Waits for each service to be ready
-- ✅ Shows PIDs, URLs, and log locations
-- ✅ Prompts to restart if already running
-
-**Output:**
-```
-╔════════════════════════════════════════════════════════════╗
-║         Starting NGINX Manager Services                   ║
-╚════════════════════════════════════════════════════════════╝
-
-📡 Starting Gateway...
-  PID: 12345
-  Logs: logs/gateway.log
-✓ Gateway started successfully
-
-🤖 Starting Agent...
-  PID: 12346
-  Agent ID: prod-nginx-agent
-  Logs: logs/agent.log
-✓ Agent started successfully
-
-🌐 Starting Frontend...
-  PID: 12347
-  URL: http://localhost:3000
-  Logs: logs/frontend.log
-✓ Frontend started successfully
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✓ All services started
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+| Script | Purpose | How to use |
+|--------|---------|------------|
+| **start.sh** | Start gateway, agent, frontend; optionally start Postgres/ClickHouse via docker-compose. Creates `logs/`. | `./scripts/start.sh` — Prompts if services already run. Use `AGENT_ID=my-id` if needed. |
+| **stop.sh** | Stop gateway, agent, frontend, update-server (SIGTERM then SIGKILL after 10s). | `./scripts/stop.sh` |
+| **restart.sh** | Stop all, wait 2s, start all. | `./scripts/restart.sh` |
+| **status.sh** | Show running/stopped for Gateway, Agent, Frontend, Update Server; show PIDs and ports. | `./scripts/status.sh` |
 
 ---
 
-### **stop.sh**
+### Build
 
-**Features:**
-- ✅ Graceful shutdown (SIGTERM first)
-- ✅ Force kill after 10 seconds if needed
-- ✅ Stops in reverse order: Frontend → Gateway → Agent
-- ✅ Shows which services were stopped
-- ✅ Lists any remaining processes
-
-**Output:**
-```
-🛑 Stopping NGINX Manager Services
-
-Stopping Frontend (Next.js)...
-  Sending SIGTERM to PIDs: 12347
-✓ Frontend (Next.js) stopped gracefully
-
-Stopping Gateway...
-  Sending SIGTERM to PIDs: 12345
-✓ Gateway stopped gracefully
-
-Stopping Agent...
-  Sending SIGTERM to PIDs: 12346
-✓ Agent stopped gracefully
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✓ All services stopped
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+| Script | Purpose | How to use |
+|--------|---------|------------|
+| **build-agent.sh** | Build agent Go binaries (linux amd64/arm64) into `bin/` with `.sha256`; optionally build and push multi-arch Docker image `hellodk/avika-agent` and apply K8s manifest. Uses `scripts/build.conf`. | `./scripts/build-agent.sh` — Bumps version (patch). `BUMP=none` — No bump. `SKIP_DOCKER=1` — Binaries only (used by release-local.sh). `SKIP_GIT_CHECK=1` to allow uncommitted changes. |
+| **build-stack.sh** | Full stack: version bump, build agent (calls build-agent.sh), build gateway + frontend Docker images, optional K8s deploy. | `./scripts/build-stack.sh` — Config via `build.conf` / `build.conf.local`. `BUMP=minor`, `BUMP=none`, etc. |
+| **release-local.sh** | Agent “local release”: builds via **build-agent.sh** (SKIP_DOCKER), then creates `dist/` with version.json, deploy-agent.sh copy, systemd service. For serving updates from gateway. | `SERVER_URL=http://your-gateway:5021/updates ./scripts/release-local.sh` — Requires SERVER_URL. `BUMP=none` (default) or `patch`/`minor`/`major`. |
+| **build.conf** | Shared build config: DOCKER_REPO, K8S_NAMESPACE, BUILD_PLATFORMS, etc. | Copy to `build.conf.local` (gitignored) to override. |
+| **docker-build.sh** | **(Deprecated)** Legacy agent Docker build (single arch, old image name). | Use **build-agent.sh** instead. |
+| **build_images.sh** | **(Deprecated)** Legacy “build all images” (different Dockerfiles). | Use **build-stack.sh** instead. |
 
 ---
 
-### **status.sh**
+### Deploy
 
-**Features:**
-- ✅ Shows running/stopped status for each service
-- ✅ Displays PID, uptime, CPU usage, memory usage
-- ✅ Checks if ports are listening
-- ✅ Shows external dependencies (PostgreSQL, ClickHouse)
-- ✅ Displays recent logs (last 5 lines)
-- ✅ Overall health summary
-
-**Output:**
-```
-╔════════════════════════════════════════════════════════════╗
-║         NGINX Manager - Service Status                    ║
-╚════════════════════════════════════════════════════════════╝
-
-Gateway
-  Status: ✓ Running
-    PID: 21495 | Uptime: 03:14:38 | CPU: 0.1% | MEM: 0.0%
-    Port: 50051 (listening)
-
-Agent
-  Status: ✓ Running
-    PID: 276553 | Uptime: 08:41 | CPU: 1.9% | MEM: 0.0%
-    Port: 50052 (listening)
-
-Frontend (Next.js)
-  Status: ✓ Running
-    PID: 184680 | Uptime: 01:11:38 | CPU: 0.0% | MEM: 0.0%
-    Port: 3000 (listening)
-
-External Dependencies
-  PostgreSQL: ✓ Running (Docker)
-  ClickHouse: ✓ Running (Docker)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✓ All services are running
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+| Script | Purpose | How to use |
+|--------|---------|------------|
+| **deploy-agent.sh** | One-liner installer: download agent binary from update server, verify checksum, install to `/usr/local/bin/avika-agent`, write `/etc/avika/avika-agent.conf`, download systemd unit. **Served by gateway** at `/updates/deploy-agent.sh`. | On a host: `curl -fsSL http://GATEWAY:5021/updates/deploy-agent.sh \| sudo UPDATE_SERVER=http://GATEWAY:5021/updates GATEWAY_SERVER=GATEWAY:5020 bash` |
+| **deploy-gateway-log.sh** | Push gateway image tagged `log` and update K8s deployment to use it. | `./scripts/deploy-gateway-log.sh` — Set `IMAGE`, `NAMESPACE` if needed. |
+| **deploy-pr-tag.sh** | Deploy frontend and gateway using a PR image tag (e.g. pr-58). | `./scripts/deploy-pr-tag.sh pr-58` |
 
 ---
 
-### **restart.sh**
+### Testing
 
-**Features:**
-- ✅ Stops all services
-- ✅ Waits 2 seconds
-- ✅ Starts all services
-- ✅ Simple and clean
+| Script | Purpose | How to use |
+|--------|---------|------------|
+| **run_all_tests.sh** | Run Go (gateway, agent, common), frontend unit, integration, e2e; generate HTML/PDF reports. | `./scripts/run_all_tests.sh` — Options: `--skip-integration`, `--skip-e2e`, `--open-report`, `--pdf`. |
+| **regression_tests.sh** | Regression suite (version display, agent log flow, etc.; some tests need K8s). | `./scripts/regression_tests.sh` — Invoked by `make test-regression`. |
+| **load_test.sh** | Unified load test: run simulator against gateway. **Simple mode** (no harness) or **full harness** (baseline, resource monitor, warmup, cooldown, report). | **Simple:** `SIMPLE=1 RPS=50000 AGENTS=500 DURATION=2m ./scripts/load_test.sh` **Full:** `RPS=50000 AGENTS=100 DURATION=5m ./scripts/load_test.sh` — Env: `GATEWAY_TARGET`, `RPS`, `AGENTS`, `DURATION`. |
+| **load_test_50k.sh** | Quick load test: 50k RPS, 500 agents, 2m (wrapper for load_test.sh simple mode). | `./scripts/load_test_50k.sh` |
+| **load_test_50k_100agents.sh** | Full harness: 50k RPS, 100 agents, 5m (wrapper for load_test.sh). | `./scripts/load_test_50k_100agents.sh` |
+| **generate_test_report.py** | Generate HTML/PDF test report from test results. | `python3 scripts/generate_test_report.py` — Options: `--output-dir`, `--pdf`, `--open`. |
 
 ---
 
-## 📁 Log Management
+### Dev / utilities
 
-All logs are stored in `logs/` directory:
+| Script | Purpose | How to use |
+|--------|---------|------------|
+| **safe-push.sh** | Git push with checks: uncommitted changes, secrets in staged files, then show what will be pushed and ask for confirmation. | `./scripts/safe-push.sh` or `./scripts/safe-push.sh "commit message"` |
+| **install-git-hooks.sh** | Install post-commit and pre-push hooks (optional auto-build on commit). | `./scripts/install-git-hooks.sh` — Configure via build.conf: `AUTO_BUILD_ON_COMMIT`, `AUTO_BUILD_BUMP_TYPE`. |
+| **agent-quickref.sh** | Print one-liner deploy command and service management commands (reference card). | `./scripts/agent-quickref.sh` |
+| **profile_agent.sh** | Agent resource profiling: memory, goroutines, pprof under load. | `./scripts/profile_agent.sh` — Options: `--duration`, `--port`, `--output`, `--skip-build`. |
+| **extract_all_agent_instructions.py** | Extract user instructions from Cursor agent transcripts under `~/.cursor/projects`. | `python3 scripts/extract_all_agent_instructions.py` — Writes `agent-instructions-extract.txt`. |
+| **onboard-issues-to-project.sh** | Create GitHub issues from implementation plan and add to a project (requires `gh`). | `GITHUB_PROJECT_NUMBER=1 ./scripts/onboard-issues-to-project.sh` |
+| **db-check** (Go, in `cmd/`) | Query agents table: agent_id, hostname, NGINX/agent version, is_pod, pod_ip. | `DB_DSN=postgres://user:pass@host:5432/avika?sslmode=disable go run ./cmd/db-check` |
 
-```
-logs/
-├── gateway.log    # Gateway service logs
-├── agent.log      # Agent service logs
-└── frontend.log   # Frontend (Next.js) logs
-```
+---
 
-**View logs:**
+### Ops
+
+| Script | Purpose | How to use |
+|--------|---------|------------|
+| **get-clickhouse-credentials.sh** | Get ClickHouse username/password from K8s secret (avika-db-secrets). | `./scripts/get-clickhouse-credentials.sh` — Print vars. `eval $(./scripts/get-clickhouse-credentials.sh -e)` — Export for local gateway. |
+| **grafana-setup.sh** | Create Avika folder in Grafana and organize dashboards (kube-prometheus-stack). | `./scripts/grafana-setup.sh` — Uses `GRAFANA_NAMESPACE`, `GRAFANA_SERVICE`, `LOCAL_PORT`. |
+
+---
+
+### Config
+
+| File | Purpose |
+|------|---------|
+| **build.conf** | Default build settings (DOCKER_REPO, K8S_NAMESPACE, BUILD_PLATFORMS, etc.). Override with `build.conf.local` (gitignored). |
+
+---
+
+## Log management
+
+Logs from `start.sh` are under `logs/`:
+
+- `logs/gateway.log`
+- `logs/agent.log`
+- `logs/frontend.log`
+
 ```bash
-# Real-time monitoring
 tail -f logs/gateway.log
-tail -f logs/agent.log
-tail -f logs/frontend.log
-
-# All logs at once
 tail -f logs/*.log
-
-# Last 50 lines
-tail -50 logs/gateway.log
 ```
 
 ---
 
-## 🔧 Environment Variables
+## Environment variables (start.sh)
 
-### Agent
-```bash
-export AGENT_ID=prod-nginx-agent  # Agent identifier
-./scripts/start.sh
-```
-
-### Gateway
-```bash
-export DB_DSN=postgres://user:pass@localhost/db
-export CLICKHOUSE_ADDR=localhost:9000
-./scripts/start.sh
-```
+- **Agent:** `AGENT_ID=my-id` (optional).
+- **Gateway:** `DB_DSN`, `CLICKHOUSE_ADDR` (or use defaults from docker-compose).
 
 ---
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
-### Service Won't Start
-
-1. **Check if port is in use:**
-   ```bash
-   netstat -tuln | grep -E "3000|50051|50052"
-   ```
-
-2. **Check logs:**
-   ```bash
-   tail -50 logs/gateway.log
-   ```
-
-3. **Ensure dependencies are running:**
-   ```bash
-   docker ps | grep -E "postgres|clickhouse"
-   ```
-
-### Service Won't Stop
-
-1. **Force stop:**
-   ```bash
-   ./scripts/stop.sh  # Already tries force kill
-   ```
-
-2. **Manual force kill (last resort):**
-   ```bash
-   pkill -9 -f "./gateway"
-   pkill -9 -f "./agent"
-   pkill -9 -f "next dev"
-   ```
-
-### Port Already in Use
-
-1. **Find process:**
-   ```bash
-   lsof -i :3000
-   lsof -i :50051
-   ```
-
-2. **Kill process:**
-   ```bash
-   kill -9 <PID>
-   ```
+- **Port in use:** `lsof -i :5020` (or 3000, 5021); then `kill <PID>` or run `./scripts/stop.sh`.
+- **Services won’t stop:** `./scripts/stop.sh` uses SIGTERM then SIGKILL; as last resort: `pkill -9 -f "./gateway"` (etc.).
+- **Build blocked by uncommitted changes:** Use `SKIP_GIT_CHECK=1` only if you know what you’re doing.
 
 ---
 
-## 📊 Monitoring
+## Related docs
 
-### Watch Status
-```bash
-watch -n 2 ./scripts/status.sh
-```
-
-### Monitor Resources
-```bash
-htop -p $(pgrep -d',' -f "gateway|agent|next")
-```
-
-### Check Health
-```bash
-# Gateway
-grpcurl -plaintext localhost:50051 list
-
-# Frontend
-curl http://localhost:3000/api/servers
-```
-
----
-
-## 🔄 Development Workflow
-
-```bash
-# 1. Make code changes
-vim cmd/agent/main.go
-
-# 2. Rebuild
-go build -o agent ./cmd/agent
-
-# 3. Restart services
-./scripts/restart.sh
-
-# 4. Check status
-./scripts/status.sh
-
-# 5. View logs
-tail -f logs/agent.log
-```
-
----
-
-## 💡 Best Practices
-
-1. ✅ **Always use scripts** - Don't use `pkill` directly
-2. ✅ **Check status first** - Avoid duplicate processes
-3. ✅ **Monitor logs** - Use `tail -f logs/*.log`
-4. ✅ **Graceful shutdown** - Let `stop.sh` handle it
-5. ✅ **Verify health** - Run `status.sh` after changes
-
----
-
-## 📚 Related Documentation
-
-- `docs/SERVICE_MANAGEMENT.txt` - Quick reference guide
-- `docs/VERSIONING_GUIDE.md` - CI/CD and versioning
-- `docs/SECURITY_GUIDE.md` - Security best practices
-
----
-
-## ✅ Summary
-
-**Before (Manual):**
-```bash
-pkill -9 -f "./gateway"
-pkill -9 -f "./agent"
-./gateway &
-./agent -id prod-nginx-agent &
-```
-
-**Now (Professional):**
-```bash
-./scripts/restart.sh
-```
-
-**Much better!** 🎉
+- `docs/SCRIPTS_CONSOLIDATION_PLAN.md` — Rationale for script merge/deprecations.
+- `docs/AGENT_DEPLOYMENT.md` — Agent install and deploy-agent.sh.
+- `docs/VERSIONING_GUIDE.md` — Version and CI/CD.
+- `Makefile` — `make test`, `make build-gateway`, `make run-gateway`, etc.
