@@ -121,9 +121,10 @@ echo ""
 
 # 1. Start Gateway
 echo -e "${BLUE}📡 Starting Gateway...${NC}"
-if ! check_running "Gateway" "\./gateway"; then
+if ! check_running "Gateway" "gateway"; then
     cd "$PROJECT_ROOT"
-    nohup ./gateway > logs/gateway.log 2>&1 &
+    mkdir -p bin
+    nohup ./bin/gateway > logs/gateway.log 2>&1 &
     GATEWAY_PID=$!
     echo "  PID: $GATEWAY_PID"
     echo "  Logs: logs/gateway.log"
@@ -140,15 +141,15 @@ echo ""
 
 # 1.5 Start Update Server (Distribution)
 echo -e "${BLUE}📦 Starting Update Server...${NC}"
-if ! check_running "Update Server" "\./update-server"; then
+if ! check_running "Update Server" "update-server"; then
     cd "$PROJECT_ROOT"
-    if [ ! -f "./update-server" ]; then
+    mkdir -p bin
+    if [ ! -f "./bin/update-server" ]; then
         echo -e "${YELLOW}  Building update server...${NC}"
-        go build -o update-server ./cmd/update-server
+        go build -o bin/update-server ./cmd/update-server
     fi
-    mkdir -p dist/bin
     
-    nohup ./update-server > logs/update-server.log 2>&1 &
+    nohup ./bin/update-server > logs/update-server.log 2>&1 &
     UPDATE_SERVER_PID=$!
     echo "  PID: $UPDATE_SERVER_PID"
     echo "  URL: http://localhost:8090"
@@ -166,15 +167,16 @@ echo ""
 
 # 2. Start Agent
 echo -e "${BLUE}🤖 Starting Agent...${NC}"
-if ! check_running "Agent" "\./agent"; then
+if ! check_running "Agent" "bin/agent"; then
     cd "$PROJECT_ROOT"
-    
+    mkdir -p bin
+
     # Get agent ID (default or from env)
     AGENT_ID=${AGENT_ID:-"prod-nginx-agent"}
     NGINX_STATUS_URL=${NGINX_STATUS_URL:-"http://127.0.0.1:9113/stub_status"}
     UPDATE_SERVER_URL=${UPDATE_SERVER_URL:-"http://localhost:8090"}
     
-    nohup ./agent -id "$AGENT_ID" \
+    nohup ./bin/agent -id "$AGENT_ID" \
                   -nginx-status-url "$NGINX_STATUS_URL" \
                   -update-server "$UPDATE_SERVER_URL" \
                   -update-interval "1m" > logs/agent.log 2>&1 &

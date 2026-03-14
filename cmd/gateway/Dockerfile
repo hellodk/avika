@@ -47,15 +47,15 @@ WORKDIR /app
 COPY --from=builder /app/cmd/gateway/gateway .
 COPY --from=builder /app/VERSION .
 
-# Copy updates directory with agent binaries and deploy script
-# Structure: /updates/version.json, /updates/bin/agent-linux-*, /updates/deploy-agent.sh
-RUN mkdir -p /app/updates/bin
+# Copy updates directory: version.json at root, binaries only in bin/
+# deploy-agent.sh is always served from scripts/ (see gateway updates handler)
+RUN mkdir -p /app/updates/bin /app/scripts
 COPY --from=builder /app/cmd/agent/agent-linux-amd64 /app/updates/bin/
 COPY --from=builder /app/cmd/agent/agent-linux-arm64 /app/updates/bin/
 COPY --from=builder /app/cmd/agent/agent-linux-amd64.sha256 /app/updates/bin/
 COPY --from=builder /app/cmd/agent/agent-linux-arm64.sha256 /app/updates/bin/
 COPY --from=builder /app/version.json /app/updates/
-COPY scripts/deploy-agent.sh /app/updates/
+COPY scripts/deploy-agent.sh /app/scripts/
 COPY deploy/systemd/avika-agent.service /app/updates/
 
 # Expose ports (5020-5050 range)

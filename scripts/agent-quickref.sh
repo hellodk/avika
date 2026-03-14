@@ -8,7 +8,7 @@ cat << 'EOF'
 
 📦 ONE-LINE DEPLOYMENT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-curl -fsSL http://<GATEWAY_HOST>:5021/deploy-agent.sh | \
+curl -fsSL http://<GATEWAY_HOST>:5021/updates/deploy-agent.sh | \
      GATEWAY_SERVER=<GATEWAY_HOST>:5020 \
      UPDATE_SERVER=http://<GATEWAY_HOST>:5021 sudo -E bash
 

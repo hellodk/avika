@@ -13,15 +13,15 @@ This directory contains the deployment script for the Avika NGINX Manager Agent.
 ### Basic Deployment
 
 ```bash
-# Download and run the deployment script
-curl -fsSL http://<GATEWAY_HOST>:5021/deploy-agent.sh | sudo bash
+# Download and run the deployment script (gateway serves deploy-agent.sh and binaries from /updates/)
+curl -fsSL http://<GATEWAY_HOST>:5021/updates/deploy-agent.sh | sudo bash
 ```
 
 ### Custom Deployment
 
 ```bash
 # Download the script
-curl -fsSL http://<GATEWAY_HOST>:5021/deploy-agent.sh -o deploy-agent.sh
+curl -fsSL http://<GATEWAY_HOST>:5021/updates/deploy-agent.sh -o deploy-agent.sh
 chmod +x deploy-agent.sh
 
 # Deploy with custom gateway server
@@ -134,7 +134,7 @@ chmod +x scripts/deploy-agent.sh
 sudo ./scripts/deploy-agent.sh
 
 # Or download from update server
-curl -fsSL http://<GATEWAY_HOST>:5021/deploy-agent.sh | sudo bash
+curl -fsSL http://<GATEWAY_HOST>:5021/updates/deploy-agent.sh | sudo bash
 ```
 
 **Why this happens:** The script's shebang is `#!/bin/bash`, but when you explicitly call `sh deploy-agent.sh`, it ignores the shebang and uses `/bin/sh` which doesn't support bash-specific syntax like `[[` double brackets.

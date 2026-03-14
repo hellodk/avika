@@ -1458,6 +1458,129 @@ func connectToClickHouse(cfg *config.Config) (*ClickHouseDB, error) {
 	return chDB, nil
 }
 
+// ensureUpdatesDir creates updates dir and bin/, writes version.json if missing, copies agent binaries from repo bin/ when present.
+func ensureUpdatesDir(dir string) {
+	_ = os.MkdirAll(dir, 0755)
+	binDir := dir + "/bin"
+	_ = os.MkdirAll(binDir, 0755)
+	versionPath := dir + "/version.json"
+	if _, err := os.Stat(versionPath); os.IsNotExist(err) {
+		v := "0.0.0"
+		for _, p := range []string{dir + "/../VERSION", "VERSION", "./VERSION"} {
+			if b, e := os.ReadFile(p); e == nil {
+				v = strings.TrimSpace(string(b))
+				break
+			}
+		}
+		_ = os.WriteFile(versionPath, []byte(fmt.Sprintf(`{"version":%q,"build_date":"","git_commit":""}`, v)), 0644)
+		log.Printf("Wrote %s (version %s)", versionPath, v)
+	}
+	for _, name := range []string{"agent-linux-amd64", "agent-linux-arm64", "agent-linux-amd64.sha256", "agent-linux-arm64.sha256"} {
+		dst := binDir + "/" + name
+		if _, err := os.Stat(dst); err == nil {
+			continue
+		}
+		src := "bin/" + name
+		data, err := os.ReadFile(src)
+		if err != nil {
+			continue
+		}
+		mode := os.FileMode(0755)
+		if strings.HasSuffix(name, ".sha256") {
+			mode = 0644
+		}
+		if err := os.WriteFile(dst, data, mode); err != nil {
+			continue
+		}
+		log.Printf("Copied %s -> %s", src, dst)
+	}
+}
+
+// updatesHandlerForDir serves deploy-agent.sh from scripts/, binaries from dir/bin/, version.json from dir (or synthetic).
+func updatesHandlerForDir(dir string) http.Handler {
+	fsRoot := http.StripPrefix("/updates/", http.FileServer(http.Dir(dir)))
+	binDir := dir + "/bin"
+	fsBin := http.StripPrefix("/updates/bin/", http.FileServer(http.Dir(binDir)))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		path := strings.TrimPrefix(r.URL.Path, "/updates/")
+		path = strings.TrimPrefix(path, "/")
+		if path == "deploy-agent.sh" {
+			f, err := os.Open("scripts/deploy-agent.sh")
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			info, err := f.Stat()
+			if err != nil || info.IsDir() {
+				f.Close()
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/x-sh")
+			http.ServeContent(w, r, "deploy-agent.sh", info.ModTime(), f)
+			f.Close()
+			return
+		}
+		if path == "agent-linux-amd64" || path == "agent-linux-arm64" ||
+			path == "agent-linux-amd64.sha256" || path == "agent-linux-arm64.sha256" {
+			binPath := dir + "/bin/" + path
+			f, err := os.Open(binPath)
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			info, err := f.Stat()
+			if err != nil || info.IsDir() {
+				f.Close()
+				http.NotFound(w, r)
+				return
+			}
+			if strings.HasSuffix(path, ".sha256") {
+				w.Header().Set("Content-Type", "text/plain")
+			} else {
+				w.Header().Set("Content-Type", "application/octet-stream")
+			}
+			http.ServeContent(w, r, path, info.ModTime(), f)
+			f.Close()
+			return
+		}
+		if strings.HasPrefix(path, "bin/") {
+			fsBin.ServeHTTP(w, r)
+			return
+		}
+		if path == "version.json" {
+			versionPath := dir + "/version.json"
+			f, err := os.Open(versionPath)
+			if err == nil {
+				info, err := f.Stat()
+				if err == nil && !info.IsDir() {
+					w.Header().Set("Content-Type", "application/json")
+					http.ServeContent(w, r, "version.json", info.ModTime(), f)
+					f.Close()
+					return
+				}
+				f.Close()
+			}
+			v := "0.0.0"
+			for _, p := range []string{dir + "/../VERSION", "VERSION", "./VERSION"} {
+				if b, err := os.ReadFile(p); err == nil {
+					v = strings.TrimSpace(string(b))
+					break
+				}
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"version":%q,"build_date":"","git_commit":""}`, v)))
+			return
+		}
+		fsRoot.ServeHTTP(w, r)
+	})
+}
+
 // createHTTPServer creates the HTTP server for WebSocket and reports
 func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux := http.NewServeMux()
@@ -1849,27 +1972,13 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.HandleFunc("/metrics", srv.handleMetrics)
 
 	// Agent update distribution endpoint
-	// Serves agent binaries and version.json from the updates directory.
-	// When running as a process on a VM, create the directory if missing so update serving is enabled.
 	updatesDir := cfg.Server.UpdatesDir
 	if updatesDir == "" {
-		updatesDir = "./updates" // Default directory
+		updatesDir = "./updates"
 	}
-	if _, err := os.Stat(updatesDir); err != nil {
-		if os.IsNotExist(err) {
-			if mkErr := os.MkdirAll(updatesDir, 0755); mkErr == nil {
-				log.Printf("Serving agent updates from %s on /updates/ (directory created)", updatesDir)
-				mux.Handle("/updates/", http.StripPrefix("/updates/", http.FileServer(http.Dir(updatesDir))))
-			} else {
-				log.Printf("Updates directory not found (%s), update serving disabled: %v", updatesDir, mkErr)
-			}
-		} else {
-			log.Printf("Updates directory not found (%s), update serving disabled: %v", updatesDir, err)
-		}
-	} else {
-		log.Printf("Serving agent updates from %s on /updates/", updatesDir)
-		mux.Handle("/updates/", http.StripPrefix("/updates/", http.FileServer(http.Dir(updatesDir))))
-	}
+	ensureUpdatesDir(updatesDir)
+	mux.Handle("/updates/", updatesHandlerForDir(updatesDir))
+	log.Printf("Serving agent updates from %s on /updates/", updatesDir)
 
 	// AI Error Analysis API (LLM-powered)
 	if srv.errorAnalysisAPI != nil {
