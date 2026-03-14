@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -1475,25 +1477,40 @@ func ensureUpdatesDir(dir string) {
 		_ = os.WriteFile(versionPath, []byte(fmt.Sprintf(`{"version":%q,"build_date":"","git_commit":""}`, v)), 0644)
 		log.Printf("Wrote %s (version %s)", versionPath, v)
 	}
-	for _, name := range []string{"agent-linux-amd64", "agent-linux-arm64", "agent-linux-amd64.sha256", "agent-linux-arm64.sha256"} {
+	for _, name := range []string{"agent-linux-amd64", "agent-linux-arm64"} {
 		dst := binDir + "/" + name
-		if _, err := os.Stat(dst); err == nil {
-			continue
+		if _, err := os.Stat(dst); os.IsNotExist(err) {
+			src := "bin/" + name
+			data, err := os.ReadFile(src)
+			if err != nil {
+				continue
+			}
+			if err := os.WriteFile(dst, data, 0755); err != nil {
+				continue
+			}
+			log.Printf("Copied %s -> %s", src, dst)
 		}
-		src := "bin/" + name
-		data, err := os.ReadFile(src)
+		// Always (re)generate .sha256 from the binary we serve so checksum never gets out of sync
+		sum, err := sha256SumFile(dst)
 		if err != nil {
 			continue
 		}
-		mode := os.FileMode(0755)
-		if strings.HasSuffix(name, ".sha256") {
-			mode = 0644
-		}
-		if err := os.WriteFile(dst, data, mode); err != nil {
+		shaPath := dst + ".sha256"
+		if err := os.WriteFile(shaPath, []byte(sum+"\n"), 0644); err != nil {
 			continue
 		}
-		log.Printf("Copied %s -> %s", src, dst)
+		log.Printf("Wrote %s (sha256 of %s)", shaPath, name)
 	}
+}
+
+// sha256SumFile returns the hex-encoded SHA256 of the file at path (format expected by deploy script: awk '{print $1}').
+func sha256SumFile(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	h := sha256.Sum256(data)
+	return hex.EncodeToString(h[:]), nil
 }
 
 // updatesHandlerForDir serves deploy-agent.sh from scripts/, binaries from dir/bin/, version.json from dir (or synthetic).

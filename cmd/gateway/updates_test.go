@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -53,5 +54,30 @@ func TestUpdatesBinaryServed(t *testing.T) {
 	}
 	if w.Body.String() != "fake-binary" {
 		t.Errorf("GET /updates/bin/agent-linux-amd64: body mismatch")
+	}
+}
+
+// TestUpdatesChecksumMatchesBinary ensures ensureUpdatesDir writes .sha256 that matches the binary (deploy script verification).
+func TestUpdatesChecksumMatchesBinary(t *testing.T) {
+	dir := t.TempDir()
+	binDir := filepath.Join(dir, "bin")
+	_ = os.MkdirAll(binDir, 0755)
+	binaryPath := filepath.Join(binDir, "agent-linux-amd64")
+	content := []byte("fake-binary-content")
+	_ = os.WriteFile(binaryPath, content, 0755)
+	// ensureUpdatesDir only copies from repo bin/ if dst missing; here we pre-seeded the binary, so it will only (re)gen .sha256
+	ensureUpdatesDir(dir)
+	shaPath := binaryPath + ".sha256"
+	shaBody, err := os.ReadFile(shaPath)
+	if err != nil {
+		t.Fatalf("expected .sha256 file: %v", err)
+	}
+	expectedSum, err := sha256SumFile(binaryPath)
+	if err != nil {
+		t.Fatalf("sha256SumFile: %v", err)
+	}
+	got := strings.TrimSpace(string(shaBody))
+	if got != expectedSum {
+		t.Errorf("checksum file mismatch: got %q, expected %q", got, expectedSum)
 	}
 }
