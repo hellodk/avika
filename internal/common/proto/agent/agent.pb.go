@@ -768,21 +768,22 @@ func (x *Update) GetUpdateUrl() string {
 }
 
 type Heartbeat struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Hostname      string                 `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
-	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"` // NGINX version
-	Uptime        float64                `protobuf:"fixed64,3,opt,name=uptime,proto3" json:"uptime,omitempty"`
-	Instances     []*NginxInstance       `protobuf:"bytes,4,rep,name=instances,proto3" json:"instances,omitempty"`
-	IsPod         bool                   `protobuf:"varint,5,opt,name=is_pod,json=isPod,proto3" json:"is_pod,omitempty"`
-	PodIp         string                 `protobuf:"bytes,6,opt,name=pod_ip,json=podIp,proto3" json:"pod_ip,omitempty"`
-	AgentVersion  string                 `protobuf:"bytes,7,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`                                            // Agent version
-	BuildDate     string                 `protobuf:"bytes,8,opt,name=build_date,json=buildDate,proto3" json:"build_date,omitempty"`                                                     // Build timestamp
-	GitCommit     string                 `protobuf:"bytes,9,opt,name=git_commit,json=gitCommit,proto3" json:"git_commit,omitempty"`                                                     // Git commit hash
-	GitBranch     string                 `protobuf:"bytes,10,opt,name=git_branch,json=gitBranch,proto3" json:"git_branch,omitempty"`                                                    // Git branch name
-	Labels        map[string]string      `protobuf:"bytes,11,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Agent labels for auto-assignment (project, environment, etc.)
-	MgmtAddress   string                 `protobuf:"bytes,12,opt,name=mgmt_address,json=mgmtAddress,proto3" json:"mgmt_address,omitempty"`                                              // Optional host:port the gateway should use to dial this agent (e.g. 10.0.2.15:5025)
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	Hostname              string                 `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	Version               string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"` // NGINX version
+	Uptime                float64                `protobuf:"fixed64,3,opt,name=uptime,proto3" json:"uptime,omitempty"`
+	Instances             []*NginxInstance       `protobuf:"bytes,4,rep,name=instances,proto3" json:"instances,omitempty"`
+	IsPod                 bool                   `protobuf:"varint,5,opt,name=is_pod,json=isPod,proto3" json:"is_pod,omitempty"`
+	PodIp                 string                 `protobuf:"bytes,6,opt,name=pod_ip,json=podIp,proto3" json:"pod_ip,omitempty"`
+	AgentVersion          string                 `protobuf:"bytes,7,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`                                            // Agent version
+	BuildDate             string                 `protobuf:"bytes,8,opt,name=build_date,json=buildDate,proto3" json:"build_date,omitempty"`                                                     // Build timestamp
+	GitCommit             string                 `protobuf:"bytes,9,opt,name=git_commit,json=gitCommit,proto3" json:"git_commit,omitempty"`                                                     // Git commit hash
+	GitBranch             string                 `protobuf:"bytes,10,opt,name=git_branch,json=gitBranch,proto3" json:"git_branch,omitempty"`                                                    // Git branch name
+	Labels                map[string]string      `protobuf:"bytes,11,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Agent labels for auto-assignment (project, environment, etc.)
+	MgmtAddress           string                 `protobuf:"bytes,12,opt,name=mgmt_address,json=mgmtAddress,proto3" json:"mgmt_address,omitempty"`                                              // Optional host:port the gateway should use to dial this agent (e.g. 10.0.2.15:5025)
+	MgmtAddressCandidates []string               `protobuf:"bytes,13,rep,name=mgmt_address_candidates,json=mgmtAddressCandidates,proto3" json:"mgmt_address_candidates,omitempty"`              // All non-loopback host:port the gateway can probe to find a reachable address (K8s CNI, multi-NIC, Vagrant, etc.)
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *Heartbeat) Reset() {
@@ -897,6 +898,13 @@ func (x *Heartbeat) GetMgmtAddress() string {
 		return x.MgmtAddress
 	}
 	return ""
+}
+
+func (x *Heartbeat) GetMgmtAddressCandidates() []string {
+	if x != nil {
+		return x.MgmtAddressCandidates
+	}
+	return nil
 }
 
 type NginxInstance struct {
@@ -1653,12 +1661,12 @@ type AlertRule struct {
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	MetricType    string                 `protobuf:"bytes,3,opt,name=metric_type,json=metricType,proto3" json:"metric_type,omitempty"` // "cpu", "memory", "rps", "error_rate"
 	Threshold     float32                `protobuf:"fixed32,4,opt,name=threshold,proto3" json:"threshold,omitempty"`
-	Comparison    string                 `protobuf:"bytes,5,opt,name=comparison,proto3" json:"comparison,omitempty"` // "gt", "lt"
+	Comparison    string                 `protobuf:"bytes,5,opt,name=comparison,proto3" json:"comparison,omitempty"` // "gt", "lt", "eq", "gte", "lte", "rate_increase", "rate_decrease"
 	WindowSec     int32                  `protobuf:"varint,6,opt,name=window_sec,json=windowSec,proto3" json:"window_sec,omitempty"`
 	Enabled       bool                   `protobuf:"varint,7,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	Recipients    string                 `protobuf:"bytes,8,opt,name=recipients,proto3" json:"recipients,omitempty"` // comma-separated emails or webhooks
 	CooldownSec   int32                  `protobuf:"varint,9,opt,name=cooldown_sec,json=cooldownSec,proto3" json:"cooldown_sec,omitempty"`
-	Severity      string                 `protobuf:"bytes,10,opt,name=severity,proto3" json:"severity,omitempty"` // "info", "warning", "critical"
+	Severity      string                 `protobuf:"bytes,10,opt,name=severity,proto3" json:"severity,omitempty"`     // "info", "warning", "critical"
 	Conditions    string                 `protobuf:"bytes,11,opt,name=conditions,proto3" json:"conditions,omitempty"` // JSON-encoded multi-condition rule
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -12575,7 +12583,7 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\x06Update\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x1d\n" +
 	"\n" +
-	"update_url\x18\x02 \x01(\tR\tupdateUrl\"\xe3\x03\n" +
+	"update_url\x18\x02 \x01(\tR\tupdateUrl\"\x9b\x04\n" +
 	"\tHeartbeat\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x16\n" +
@@ -12592,7 +12600,8 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"git_branch\x18\n" +
 	" \x01(\tR\tgitBranch\x12=\n" +
 	"\x06labels\x18\v \x03(\v2%.nginx.agent.v1.Heartbeat.LabelsEntryR\x06labels\x12!\n" +
-	"\fmgmt_address\x18\f \x01(\tR\vmgmtAddress\x1a9\n" +
+	"\fmgmt_address\x18\f \x01(\tR\vmgmtAddress\x126\n" +
+	"\x17mgmt_address_candidates\x18\r \x03(\tR\x15mgmtAddressCandidates\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"p\n" +
@@ -12654,7 +12663,7 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\x16DeleteAlertRuleRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"3\n" +
 	"\x17DeleteAlertRuleResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xe7\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xc6\x02\n" +
 	"\tAlertRule\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1f\n" +
@@ -12669,7 +12678,13 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\aenabled\x18\a \x01(\bR\aenabled\x12\x1e\n" +
 	"\n" +
 	"recipients\x18\b \x01(\tR\n" +
-	"recipients\"^\n" +
+	"recipients\x12!\n" +
+	"\fcooldown_sec\x18\t \x01(\x05R\vcooldownSec\x12\x1a\n" +
+	"\bseverity\x18\n" +
+	" \x01(\tR\bseverity\x12\x1e\n" +
+	"\n" +
+	"conditions\x18\v \x01(\tR\n" +
+	"conditions\"^\n" +
 	"\vExecRequest\x12\x1f\n" +
 	"\vinstance_id\x18\x01 \x01(\tR\n" +
 	"instanceId\x12\x14\n" +

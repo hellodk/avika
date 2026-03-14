@@ -58,6 +58,16 @@ export GATEWAY_SERVERS="gateway1.example.com:5020,gateway2.example.com:5020"
 ./nginx-agent
 ```
 
+### Management address and multiple network interfaces
+
+When the gateway needs to **dial back** to the agent (e.g. for config push, terminal, logs), it must use an IP and port that are reachable from the gateway. Servers often have multiple interfaces (K8s CNI, Vagrant NAT, multi-NIC).
+
+- **Agent behaviour:** The agent sends **all** non-loopback IPv4 addresses (with the management port) in each heartbeat as **candidate addresses**. It does not guess which IP is “correct.”
+- **Gateway behaviour:** The gateway **probes** each candidate with a short TCP dial. It picks a reachable address using: (1) prefer the **connection peer** (the IP the agent used to connect) if it is in the list and reachable; (2) otherwise the **first reachable** candidate.
+- **Override:** You can still set **`AVIKA_MGMT_ADVERTISE`** (or **`MGMT_ADVERTISE`**) to a single `host` or `host:port`; the agent will then send only that address as a candidate.
+
+This works for Vagrant, K8s, and any environment with multiple interfaces without environment-specific heuristics on the agent.
+
 ### Priority Order
 
 Configuration is resolved in this order (first match wins):

@@ -80,9 +80,15 @@ func (s *server) getAgentConfigClient(agentID string) (pb.AgentConfigServiceClie
 	session := val.(*AgentSession)
 
 	var target string
-	if session.mgmtAddress != "" {
+	if len(session.mgmtCandidates) > 0 {
+		if t := s.pickReachableMgmtTarget(session); t != "" {
+			target = t
+		}
+	}
+	if target == "" && session.mgmtAddress != "" {
 		target = session.mgmtAddress
-	} else {
+	}
+	if target == "" {
 		targetIP := session.ip
 		if session.isPod && session.podIP != "" {
 			targetIP = session.podIP
@@ -95,6 +101,10 @@ func (s *server) getAgentConfigClient(agentID string) (pb.AgentConfigServiceClie
 			agentPort = config.DefaultAgentPort
 		}
 		target = fmt.Sprintf("%s:%d", targetIP, agentPort)
+	}
+
+	if target == "" {
+		return nil, nil, fmt.Errorf("agent %s: no reachable mgmt address", agentID)
 	}
 
 	var dialOpts []grpc.DialOption

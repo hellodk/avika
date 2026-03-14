@@ -104,7 +104,8 @@ type AgentSession struct {
 	instancesCount   int
 	uptime           string
 	ip               string
-	mgmtAddress      string // Optional host:port from agent heartbeat for dial-back (correct-IP)
+	mgmtAddress      string   // Optional host:port from agent heartbeat for dial-back (correct-IP)
+	mgmtCandidates   []string // All candidate host:port from heartbeat; gateway probes to pick reachable one
 	stream           pb.Commander_ConnectServer
 	logChans         map[string]chan *pb.LogEntry // subscription_id -> channel
 	mu               sync.Mutex
@@ -222,6 +223,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 					lastActive:       time.Now(),
 					ip:               ip,
 					mgmtAddress:      hb.GetMgmtAddress(),
+					mgmtCandidates:   hb.GetMgmtAddressCandidates(),
 					isPod:            isPod,
 					podIP:            hb.PodIp,
 					pskAuthenticated: pskAuthenticated,
@@ -249,6 +251,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				currentSession.hostname = hb.Hostname
 				currentSession.ip = ip
 				currentSession.mgmtAddress = hb.GetMgmtAddress()
+				currentSession.mgmtCandidates = hb.GetMgmtAddressCandidates()
 				currentSession.version = nginxVersion
 				currentSession.agentVersion = agentVer
 				currentSession.buildDate = hb.BuildDate
@@ -820,6 +823,46 @@ func (s *server) GetRecommendations(ctx context.Context, req *pb.RecommendationR
 	return &pb.RecommendationResponse{Recommendations: recs}, nil
 }
 
+// probeMgmtReachable tries a short TCP dial to addr; returns true if reachable.
+const mgmtProbeTimeout = 2 * time.Second
+
+func probeMgmtReachable(addr string) bool {
+	conn, err := net.DialTimeout("tcp", addr, mgmtProbeTimeout)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
+}
+
+// pickReachableMgmtTarget returns the best reachable address from session.mgmtCandidates.
+// Prefer connection peer (candidate whose host equals session.ip) if reachable; else first reachable candidate.
+func (s *server) pickReachableMgmtTarget(session *AgentSession) string {
+	candidates := session.mgmtCandidates
+	if len(candidates) == 0 {
+		return ""
+	}
+	// 1. Prefer connection peer: candidate whose host is session.ip (agent connected from that IP)
+	if session.ip != "" {
+		for _, addr := range candidates {
+			host, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				host = strings.TrimSpace(addr)
+			}
+			if host == session.ip && probeMgmtReachable(addr) {
+				return addr
+			}
+		}
+	}
+	// 2. Else first reachable candidate
+	for _, addr := range candidates {
+		if probeMgmtReachable(addr) {
+			return addr
+		}
+	}
+	return ""
+}
+
 func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.ClientConn, error) {
 	val, ok := s.sessions.Load(agentID)
 	if !ok {
@@ -828,54 +871,61 @@ func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.Cl
 	}
 	session := val.(*AgentSession)
 
-	// Prefer agent-reported mgmt_address when it matches the connection peer (so we trust it).
-	// If the agent reported a different host (e.g. VirtualBox NAT 10.0.2.15) but connected from
-	// session.ip (e.g. 192.168.1.10), prefer connection peer for dialing - that's reachable.
 	var target string
-	if session.mgmtAddress != "" {
-		mgmtHost, mgmtPortStr, err := net.SplitHostPort(session.mgmtAddress)
-		if err != nil {
-			mgmtHost = strings.TrimSpace(session.mgmtAddress)
-			mgmtPortStr = ""
+	// If agent sent candidate list, probe and pick reachable address
+	if len(session.mgmtCandidates) > 0 {
+		if t := s.pickReachableMgmtTarget(session); t != "" {
+			target = t
+			log.Printf("Using probed mgmt address %s for agent %s (from %d candidates)", target, agentID, len(session.mgmtCandidates))
 		}
-		useConnectionIP := session.ip != "" && mgmtHost != "" && mgmtHost != session.ip
-		if useConnectionIP {
-			port := mgmtPortStr
-			if port == "" {
-				port = strconv.Itoa(s.config.Agent.MgmtPort)
-				if port == "0" {
-					port = strconv.Itoa(config.DefaultAgentPort)
-				}
+	}
+	// Fallback: existing single mgmt_address / connection peer logic
+	if target == "" {
+		if session.mgmtAddress != "" {
+			mgmtHost, mgmtPortStr, err := net.SplitHostPort(session.mgmtAddress)
+			if err != nil {
+				mgmtHost = strings.TrimSpace(session.mgmtAddress)
+				mgmtPortStr = ""
 			}
-			target = net.JoinHostPort(session.ip, port)
-			log.Printf("Using connection peer %s for agent %s (mgmt_address %s differs, peer is reachable)", target, agentID, session.mgmtAddress)
-		} else {
-			if mgmtPortStr != "" {
-				target = session.mgmtAddress
+			useConnectionIP := session.ip != "" && mgmtHost != "" && mgmtHost != session.ip
+			if useConnectionIP {
+				port := mgmtPortStr
+				if port == "" {
+					port = strconv.Itoa(s.config.Agent.MgmtPort)
+					if port == "0" {
+						port = strconv.Itoa(config.DefaultAgentPort)
+					}
+				}
+				target = net.JoinHostPort(session.ip, port)
+				log.Printf("Using connection peer %s for agent %s (mgmt_address %s differs, peer is reachable)", target, agentID, session.mgmtAddress)
 			} else {
-				port := s.config.Agent.MgmtPort
-				if port == 0 {
-					port = config.DefaultAgentPort
+				if mgmtPortStr != "" {
+					target = session.mgmtAddress
+				} else {
+					port := s.config.Agent.MgmtPort
+					if port == 0 {
+						port = config.DefaultAgentPort
+					}
+					target = net.JoinHostPort(mgmtHost, strconv.Itoa(port))
 				}
-				target = net.JoinHostPort(mgmtHost, strconv.Itoa(port))
+				log.Printf("Using mgmt_address %s for agent %s", target, agentID)
 			}
-			log.Printf("Using mgmt_address %s for agent %s", target, agentID)
+		} else {
+			targetIP := session.ip
+			if session.isPod && session.podIP != "" {
+				targetIP = session.podIP
+				log.Printf("Using podIP %s for pod agent %s (connection IP was %s)", targetIP, agentID, session.ip)
+			}
+			if targetIP == "" {
+				log.Printf("Agent %s has no IP (isPod: %v, podIP: %s, ip: %s)", agentID, session.isPod, session.podIP, session.ip)
+				return nil, nil, fmt.Errorf("agent %s has no IP", agentID)
+			}
+			agentPort := s.config.Agent.MgmtPort
+			if agentPort == 0 {
+				agentPort = config.DefaultAgentPort
+			}
+			target = fmt.Sprintf("%s:%d", targetIP, agentPort)
 		}
-	} else {
-		targetIP := session.ip
-		if session.isPod && session.podIP != "" {
-			targetIP = session.podIP
-			log.Printf("Using podIP %s for pod agent %s (connection IP was %s)", targetIP, agentID, session.ip)
-		}
-		if targetIP == "" {
-			log.Printf("Agent %s has no IP (isPod: %v, podIP: %s, ip: %s)", agentID, session.isPod, session.podIP, session.ip)
-			return nil, nil, fmt.Errorf("agent %s has no IP", agentID)
-		}
-		agentPort := s.config.Agent.MgmtPort
-		if agentPort == 0 {
-			agentPort = config.DefaultAgentPort
-		}
-		target = fmt.Sprintf("%s:%d", targetIP, agentPort)
 	}
 	log.Printf("Found session for %s, dialing %s", agentID, target)
 
@@ -1540,6 +1590,26 @@ func updatesHandlerForDir(dir string) http.Handler {
 			}
 			w.Header().Set("Content-Type", "application/x-sh")
 			http.ServeContent(w, r, "deploy-agent.sh", info.ModTime(), f)
+			f.Close()
+			return
+		}
+		if path == "avika-agent.service" {
+			f, err := os.Open(dir + "/avika-agent.service")
+			if err != nil {
+				f, err = os.Open("deploy/systemd/avika-agent.service")
+				if err != nil {
+					http.NotFound(w, r)
+					return
+				}
+			}
+			info, err := f.Stat()
+			if err != nil || info.IsDir() {
+				f.Close()
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "text/plain")
+			http.ServeContent(w, r, "avika-agent.service", info.ModTime(), f)
 			f.Close()
 			return
 		}

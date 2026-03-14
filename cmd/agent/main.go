@@ -652,7 +652,8 @@ func main() {
 								}
 								return m
 							}(), // Labels for auto-assignment
-							MgmtAddress: getChosenMgmtAddress(), // host:port for gateway dial-back
+							MgmtAddress:           getChosenMgmtAddress(),   // host:port for gateway dial-back (backward compat)
+							MgmtAddressCandidates: getAllCandidateMgmtAddresses(), // all candidate host:port for gateway to probe
 						},
 					},
 				}
@@ -957,6 +958,39 @@ func getChosenMgmtAddress() string {
 	return net.JoinHostPort(ip, strconv.Itoa(*mgmtPort))
 }
 
+// getAllCandidateMgmtAddresses returns all non-loopback IPv4 host:port for the agent's mgmt port.
+// The gateway can probe these to pick a reachable address (K8s CNI, multi-NIC, Vagrant, etc.).
+func getAllCandidateMgmtAddresses() []string {
+	port := strconv.Itoa(*mgmtPort)
+	if *mgmtAdvertise != "" {
+		host, _, err := net.SplitHostPort(*mgmtAdvertise)
+		if err != nil {
+			host = strings.TrimSpace(*mgmtAdvertise)
+		}
+		if host != "" {
+			return []string{net.JoinHostPort(host, port)}
+		}
+	}
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil
+	}
+	var out []string
+	seen := make(map[string]bool)
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipv4 := ipnet.IP.To4(); ipv4 != nil {
+				ipStr := ipv4.String()
+				if !seen[ipStr] {
+					seen[ipStr] = true
+					out = append(out, net.JoinHostPort(ipStr, port))
+				}
+			}
+		}
+	}
+	return out
+}
+
 func getOrGenerateAgentID() string {
 	idFile := filepath.Join(*bufferDir, "agent_id")
 
@@ -1174,10 +1208,11 @@ func buildBootstrapHeartbeat(agentID string) *pb.AgentMessage {
 				Instances:    nil,
 				IsPod:        isPod,
 				PodIp:        podIP,
-				BuildDate:    BuildDate,
-				GitCommit:    GitCommit,
-				GitBranch:    GitBranch,
-				MgmtAddress:  getChosenMgmtAddress(),
+				BuildDate:             BuildDate,
+				GitCommit:             GitCommit,
+				GitBranch:             GitBranch,
+				MgmtAddress:           getChosenMgmtAddress(),
+				MgmtAddressCandidates: getAllCandidateMgmtAddresses(),
 			},
 		},
 	}
