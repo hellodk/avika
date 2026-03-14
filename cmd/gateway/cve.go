@@ -52,9 +52,11 @@ func (srv *server) handleGetNginxCVEs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"version": cleanVersion,
 		"cves":    foundCVEs,
 		"count":   len(foundCVEs),
-	})
+	}); err != nil {
+		http.Error(w, `{"error":"failed to encode CVE response"}`, http.StatusInternalServerError)
+	}
 }

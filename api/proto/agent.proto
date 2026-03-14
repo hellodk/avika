@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package nginx.agent.v1;
 
+import "api/proto/agent_config.proto";
+
 option go_package = "github.com/avika-ai/avika/internal/common/proto/agent";
 
 service Commander {
@@ -101,6 +103,7 @@ message Heartbeat {
   string git_branch = 10;      // Git branch name
   map<string, string> labels = 11;  // Agent labels for auto-assignment (project, environment, etc.)
   string mgmt_address = 12;   // Optional host:port the gateway should use to dial this agent (e.g. 10.0.2.15:5025)
+  repeated string mgmt_address_candidates = 13;  // All non-loopback host:port the gateway can probe to find a reachable address (K8s CNI, multi-NIC, Vagrant, etc.)
 }
 
 message NginxInstance {
@@ -304,10 +307,13 @@ message AlertRule {
   string name = 2;
   string metric_type = 3; // "cpu", "memory", "rps", "error_rate"
   float threshold = 4;
-  string comparison = 5; // "gt", "lt"
+  string comparison = 5; // "gt", "lt", "eq", "gte", "lte", "rate_increase", "rate_decrease"
   int32 window_sec = 6;
   bool enabled = 7;
   string recipients = 8; // comma-separated emails or webhooks
+  int32 cooldown_sec = 9;
+  string severity = 10; // "info", "warning", "critical"
+  string conditions = 11; // JSON-encoded multi-condition rule
 }
 
 message ExecRequest {
@@ -542,6 +548,8 @@ message AnalyticsRequest {
   int64 from_timestamp = 5; // Optional: absolute start time (milliseconds)
   int64 to_timestamp = 6; // Optional: absolute end time (milliseconds)
   string timezone = 7; // Optional: client timezone for formatting
+  string url_filter = 8; // Optional: filter by specific URL
+  string status_code_filter = 9; // Optional: filter by specific status code or class (e.g., "4xx")
 }
 
 message AnalyticsResponse {
@@ -649,6 +657,10 @@ message AnalyticsSummary {
   float requests_delta = 5;
   float latency_delta = 6;
   float error_rate_delta = 7;
+  int64 requests_2xx = 8;
+  int64 requests_3xx = 9;
+  int64 requests_4xx = 10;
+  int64 requests_5xx = 11;
 }
 
 message LatencyBucket {
@@ -846,7 +858,15 @@ message AgentConfig {
   bool enable_vts_metrics = 17;
   bool enable_log_streaming = 18;
   bool auto_apply_config = 19;
+  
+  // Log Management Extensions
+  LogRotateConfig log_rotation = 20;
+  SyslogConfig syslog = 21;
 }
+
+
+
+
 
 message AgentConfigUpdateResult {
   bool success = 1;

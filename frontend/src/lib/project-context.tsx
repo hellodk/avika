@@ -57,11 +57,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         credentials: "include",
       });
       if (!response.ok) {
-        throw new Error("Failed to fetch projects");
+        setProjects([]);
+        setError(response.status === 401 ? null : "Failed to fetch projects");
+        return;
       }
       const data = await response.json();
       setProjects(data || []);
-      
+      setError(null);
+
       // Try to restore selected project from localStorage
       const savedProjectId = localStorage.getItem("selectedProjectId");
       if (savedProjectId && data?.length > 0) {
@@ -72,6 +75,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       }
     } catch (err) {
       console.error("Failed to fetch projects:", err);
+      setProjects([]);
       setError(err instanceof Error ? err.message : "Failed to fetch projects");
     }
   }, []);
@@ -88,7 +92,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         credentials: "include",
       });
       if (!response.ok) {
-        throw new Error("Failed to fetch environments");
+        setEnvironments([]);
+        setSelectedEnvironment(null);
+        return;
       }
       const data = await response.json();
       setEnvironments(data || []);

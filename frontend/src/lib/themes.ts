@@ -33,12 +33,26 @@ export const themes = {
         error: "220 38 38",
         border: "209 213 219",
     },
+    rocker: {
+        name: "Rocker",
+        background: "7 13 14",    // #070d0e - Deep Blue-Black
+        surface: "18 24 26",       // #12181a - Card Background
+        surfaceLight: "28 36 39",
+        text: "248 250 252",       // Off-white
+        textMuted: "148 163 184",
+        textDim: "100 116 139",
+        primary: "0 140 255",      // #008cff - Electric Blue
+        success: "21 202 32",      // #15ca20 - Success Green
+        warning: "255 193 7",      // #ffc107 - Warning Orange
+        error: "253 53 80",        // #fd3550 - Danger Red
+        border: "32 44 48",
+    }
 } as const;
 
 export type ThemeName = keyof typeof themes;
 
 /** Ordered list of theme ids for the UI dropdown. */
-export const THEME_IDS: ThemeName[] = ["dark", "light"];
+export const THEME_IDS: ThemeName[] = ["dark", "light", "rocker"];
 
 export function getThemeColors(themeName: ThemeName) {
     return themes[themeName];

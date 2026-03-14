@@ -35,7 +35,11 @@ const APP_VERSION = getAppVersion();
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  
+
+  // Allow dev requests from 127.0.0.1 / localhost (e.g. when using basePath /avika)
+  // https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
+
   // Expose version to client-side
   env: {
     NEXT_PUBLIC_APP_VERSION: APP_VERSION,
@@ -120,6 +124,7 @@ const nextConfig: NextConfig = {
       { source: '/waf', destination: '/settings/waf', permanent: false },
       { source: '/visitors', destination: '/analytics/visitors', permanent: false },
       { source: '/geo', destination: '/analytics/geo', permanent: false },
+      { source: '/servers', destination: '/inventory', permanent: false },
     ];
   },
 };

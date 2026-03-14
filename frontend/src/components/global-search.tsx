@@ -147,14 +147,7 @@ export function GlobalSearch({ onOpenChange, "aria-label": ariaLabel }: GlobalSe
   }, [open, fetchInstances]);
 
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    // Esc is still handled by panel
   }, []);
 
   useEffect(() => {
@@ -264,7 +257,7 @@ export function GlobalSearch({ onOpenChange, "aria-label": ariaLabel }: GlobalSe
             color: "rgb(var(--theme-text-muted))",
           }}
           aria-label="Search"
-          title="Search (⌘K to focus)"
+          title="Search"
         >
           <Search className="h-4 w-4" />
         </button>

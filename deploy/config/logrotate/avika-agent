@@ -1,0 +1,13 @@
+/var/log/avika-agent/*.log {
+    daily
+    missingok
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    create 0640 agent agent
+    sharedscripts
+    postrotate
+        systemctl reload avika-agent > /dev/null 2>/dev/null || true
+    endscript
+}

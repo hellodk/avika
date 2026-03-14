@@ -63,7 +63,7 @@ func (p *LDAPProvider) connect() (*ldap.Conn, error) {
 	var l *ldap.Conn
 
 	if parsedURL.Scheme == "ldaps" {
-		l, err = ldap.DialTLS("tcp", parsedURL.Host, &tls.Config{InsecureSkipVerify: true})
+		l, err = ldap.DialURL(p.config.URL, ldap.DialWithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
 	} else {
 		l, err = ldap.DialURL(p.config.URL)
 	}

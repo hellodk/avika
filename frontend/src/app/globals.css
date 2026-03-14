@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -272,5 +273,34 @@
   .status-info {
     color: rgb(var(--theme-primary));
   }
+
+  /* Rocker "Super" Widget Styles */
+  .rocker-widget {
+    border-radius: 10px !important;
+    box-shadow: rgba(0, 0, 0, 0.2) 0px 1.6px 11.2px 0px !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .rocker-widget:hover {
+    transform: translateY(-2px);
+    box-shadow: rgba(0, 0, 0, 0.3) 0px 4px 20px 0px !important;
+  }
+
+  .rocker-gradient-2xx {
+    background: linear-gradient(135deg, rgba(21, 202, 32, 0.15), rgba(21, 202, 32, 0.02)) !important;
+  }
+  .rocker-gradient-3xx {
+    background: linear-gradient(135deg, rgba(0, 140, 255, 0.15), rgba(0, 140, 255, 0.02)) !important;
+  }
+  .rocker-gradient-4xx {
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.15), rgba(255, 193, 7, 0.02)) !important;
+  }
+  .rocker-gradient-5xx {
+    background: linear-gradient(135deg, rgba(253, 53, 80, 0.15), rgba(253, 53, 80, 0.02)) !important;
+  }
+}
+
+[data-theme="rocker"] {
+  --font-sans: 'Roboto', sans-serif;
+  --radius: 10px;
 }
 

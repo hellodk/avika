@@ -4,8 +4,7 @@
 **/.vscode
 **/.DS_Store
 
-# Go
-bin/
+# Go (keep bin/ for nginx-agent Dockerfile COPY)
 *.exe
 *.test
 *.prof
@@ -33,7 +32,7 @@ docker/clickhouse-data
 docker/postgres-data
 docker/redpanda-data
 
-# Build artifacts
+# Build artifacts (keep bin/ and nginx-agent/ for nginx-agent Dockerfile)
 dist/
 build/
 output/
@@ -42,7 +41,5 @@ temp/
 coverage/
 test-results/
 playwright-report/
-bin/
-nginx-agent/
 frontend/node_modules/
 frontend/.next/
