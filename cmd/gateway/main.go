@@ -1461,6 +1461,7 @@ func connectToClickHouse(cfg *config.Config) (*ClickHouseDB, error) {
 }
 
 // ensureUpdatesDir creates updates dir and bin/, writes version.json if missing, copies agent binaries from repo bin/ when present.
+// It always (re)generates .sha256 from the actual binary on disk so checksums stay in sync when you deploy a new binary or restart the gateway.
 func ensureUpdatesDir(dir string) {
 	_ = os.MkdirAll(dir, 0755)
 	binDir := dir + "/bin"
