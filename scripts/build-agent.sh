@@ -106,15 +106,25 @@ mkdir -p "$BIN_DIR"
 
 echo "Building Agent ${VERSION}..."
 
-# Build for Linux AMD64
-echo "Building for linux/amd64..."
-GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o "$BIN_DIR/${BINARY_NAME}-linux-amd64" ./cmd/agent
-sha256sum "$BIN_DIR/${BINARY_NAME}-linux-amd64" | awk '{print $1}' > "$BIN_DIR/${BINARY_NAME}-linux-amd64.sha256"
+# Build only the platform(s) in BUILD_PLATFORMS (when AMD64_ONLY=1 or BUILD_PLATFORMS=linux/amd64, skip arm64 for speed)
+BUILD_AMD64=false
+BUILD_ARM64=false
+case "${BUILD_PLATFORMS}" in
+    *amd64*) BUILD_AMD64=true ;;
+    *arm64*) BUILD_ARM64=true ;;
+    *)       BUILD_AMD64=true; BUILD_ARM64=true ;;
+esac
 
-# Build for Linux ARM64
-echo "Building for linux/arm64..."
-GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o "$BIN_DIR/${BINARY_NAME}-linux-arm64" ./cmd/agent
-sha256sum "$BIN_DIR/${BINARY_NAME}-linux-arm64" | awk '{print $1}' > "$BIN_DIR/${BINARY_NAME}-linux-arm64.sha256"
+if [ "$BUILD_AMD64" = true ]; then
+    echo "Building for linux/amd64..."
+    GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o "$BIN_DIR/${BINARY_NAME}-linux-amd64" ./cmd/agent
+    sha256sum "$BIN_DIR/${BINARY_NAME}-linux-amd64" | awk '{print $1}' > "$BIN_DIR/${BINARY_NAME}-linux-amd64.sha256"
+fi
+if [ "$BUILD_ARM64" = true ]; then
+    echo "Building for linux/arm64..."
+    GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o "$BIN_DIR/${BINARY_NAME}-linux-arm64" ./cmd/agent
+    sha256sum "$BIN_DIR/${BINARY_NAME}-linux-arm64" | awk '{print $1}' > "$BIN_DIR/${BINARY_NAME}-linux-arm64.sha256"
+fi
 
 echo "Build complete. Artifacts in $BIN_DIR/"
 ls -lh "$BIN_DIR"
