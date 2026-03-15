@@ -32,14 +32,18 @@ export async function PATCH(
   try {
     const { id: rawId } = await params;
     const id = normalizeServerId(rawId);
-    const sessionCookie = request.cookies.get("avika_session")?.value;
     const body = await request.json();
     const encodedId = encodeURIComponent(id);
+    const sessionCookie = request.cookies.get("avika_session")?.value;
+    const cookieHeader =
+      sessionCookie != null
+        ? `avika_session=${sessionCookie}`
+        : request.headers.get("cookie") ?? undefined;
     const gatewayResponse = await fetch(`${GATEWAY_URL}/api/agents/${encodedId}/config`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        ...(sessionCookie ? { Cookie: `avika_session=${sessionCookie}` } : {}),
+        ...(cookieHeader ? { Cookie: cookieHeader } : {}),
       },
       body: JSON.stringify(body),
     });

@@ -1944,6 +1944,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.Handle("PUT /api/servers/{agentId}/tags", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateServerTags)))
 	mux.Handle("GET /api/servers/{agentId}/drift", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetServerDrift)))
 	mux.Handle("GET /api/servers/{agentId}/realtime-stats", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleServerRealtimeStats)))
+	mux.Handle("GET /api/servers/{agentId}/logs", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleServerLogsStream)))
 	mux.Handle("GET /api/projects/{id}/drift/compare", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCompareDrift)))
 	mux.Handle("GET /api/groups/{id}/logs/stream", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGroupLogsStream)))
 	mux.Handle("GET /api/groups/{id}/realtime-stats", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGroupRealtimeStats)))
@@ -2160,6 +2161,128 @@ func (srv *server) handleServerRealtimeStats(w http.ResponseWriter, r *http.Requ
 	stats := srv.realtimeAggregator.Stats(agentID, windowSec)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(stats)
+}
+
+// handleServerLogsStream streams logs for a single server (agent) as SSE. Used by the server detail Logs tab.
+func (srv *server) handleServerLogsStream(w http.ResponseWriter, r *http.Request) {
+	agentID := r.PathValue("agentId")
+	if agentID == "" {
+		http.Error(w, `{"error":"agent id required"}`, http.StatusBadRequest)
+		return
+	}
+	resolved, ok := srv.resolveAgentID(agentID)
+	if !ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"agent not found"}`))
+		return
+	}
+	val, ok := srv.sessions.Load(resolved)
+	if !ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"agent not connected"}`))
+		return
+	}
+	session := val.(*AgentSession)
+	session.mu.Lock()
+	if session.stream == nil || session.status != "online" {
+		session.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte(`{"error":"agent offline or stream lost"}`))
+		return
+	}
+	tailStr := r.URL.Query().Get("tail")
+	if tailStr == "" {
+		tailStr = "200"
+	}
+	tail, _ := strconv.Atoi(tailStr)
+	if tail <= 0 || tail > 1000 {
+		tail = 200
+	}
+	logType := r.URL.Query().Get("log_type")
+	if logType == "" {
+		logType = "access"
+	}
+	follow := r.URL.Query().Get("follow") != "0"
+
+	subID := fmt.Sprintf("server-%s-%d", resolved, time.Now().UnixNano())
+	logChan := make(chan *pb.LogEntry, 100)
+	session.logChans[subID] = logChan
+	stream := session.stream
+	session.mu.Unlock()
+
+	defer func() {
+		session.mu.Lock()
+		delete(session.logChans, subID)
+		session.mu.Unlock()
+		close(logChan)
+	}()
+
+	req := &pb.LogRequest{
+		InstanceId: resolved,
+		LogType:    logType,
+		TailLines:  int32(tail),
+		Follow:     follow,
+	}
+	if err := stream.Send(&pb.ServerCommand{
+		CommandId: fmt.Sprintf("log-%s", subID),
+		Payload:   &pb.ServerCommand_LogRequest{LogRequest: req},
+	}); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"failed to send log request to agent"}`))
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache, no-transform")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	flusher, _ := w.(http.Flusher)
+	if flusher != nil {
+		flusher.Flush()
+	}
+	sseEvent := func(ev string, data interface{}) {
+		payload, _ := json.Marshal(data)
+		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", ev, payload)
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}
+	sseEvent("connected", map[string]interface{}{"agent_id": resolved, "log_type": logType, "tail": tail, "follow": follow})
+
+	ctx := r.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			sseEvent("end", map[string]string{"reason": "client_disconnect"})
+			return
+		case entry, ok := <-logChan:
+			if !ok {
+				sseEvent("end", map[string]string{"reason": "stream_end"})
+				return
+			}
+			payload := map[string]interface{}{
+				"timestamp":       entry.Timestamp,
+				"content":        entry.Content,
+				"status":         entry.Status,
+				"log_type":       entry.LogType,
+				"remote_addr":    entry.RemoteAddr,
+				"request_method": entry.RequestMethod,
+				"request_uri":    entry.RequestUri,
+				"body_bytes_sent": entry.BodyBytesSent,
+				"request_time":   entry.RequestTime,
+				"request_id":     entry.RequestId,
+				"upstream_addr":  entry.UpstreamAddr,
+				"upstream_status": entry.UpstreamStatus,
+				"referer":        entry.Referer,
+				"user_agent":     entry.UserAgent,
+			}
+			sseEvent("log", payload)
+		}
+	}
 }
 
 // handleGroupRealtimeStats returns sliding-window real-time stats for a group (merged from all agents).

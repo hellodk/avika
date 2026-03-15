@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { FileCode, Save, RotateCcw, CheckCircle2, AlertTriangle, ArrowRightCircle, AlertCircle, Shield, FileText, RefreshCw, Play, Square, RotateCcwIcon, Construction, Plus, Trash2, BarChart3, Activity, Terminal, Copy, Check, Settings, Server, Network, Zap, Globe, Info, GitCompare, Download, Search, X, Loader2 } from "lucide-react";
 import { RefreshButton } from "@/components/ui/refresh-button";
 import Link from "next/link";
@@ -64,6 +65,85 @@ const nginxMonarch = {
         ]
     }
 };
+
+/** Serialize agent config to avika-agent.conf-style key=value text (like /etc/avika/avika-agent.conf). */
+function agentConfigToConfText(c: {
+    gateway_addresses?: string[];
+    nginx_status_url?: string;
+    access_log_path?: string;
+    error_log_path?: string;
+    nginx_config_path?: string;
+    log_format?: string;
+    log_level?: string;
+    health_port?: number;
+    mgmt_port?: number;
+    update_server?: string;
+    update_interval_seconds?: number;
+    buffer_dir?: string;
+    log_file?: string;
+}): string {
+    const addrs = (c.gateway_addresses || []).filter(Boolean);
+    const gateways = addrs.length ? addrs.join(",") : "";
+    const updateIntervalSec = c.update_interval_seconds ?? 604800;
+    const updateInterval = updateIntervalSec >= 86400
+        ? `${Math.floor(updateIntervalSec / 86400)}d`
+        : updateIntervalSec >= 3600
+            ? `${Math.floor(updateIntervalSec / 3600)}h`
+            : `${updateIntervalSec}s`;
+    const lines = [
+        "# Avika Agent Configuration",
+        "# Edit and Save to apply (same format as /etc/avika/avika-agent.conf)",
+        "",
+        "# Gateway Server(s) - comma-separated for multi-gateway",
+        `GATEWAYS="${gateways}"`,
+        "",
+        "# Agent Identity (leave empty for auto-detection: hostname-ip)",
+        'AGENT_ID=""',
+        "",
+        `HEALTH_PORT=${c.health_port ?? 8080}`,
+        `MGMT_PORT=${c.mgmt_port ?? 5025}`,
+        "",
+        "# Self-Update",
+        `UPDATE_SERVER="${(c.update_server || "").replace(/"/g, '\\"')}"`,
+        `UPDATE_INTERVAL="${updateInterval}"`,
+        "",
+        "# NGINX",
+        `NGINX_STATUS_URL="${(c.nginx_status_url || "http://127.0.0.1/nginx_status").replace(/"/g, '\\"')}"`,
+        `NGINX_CONFIG_PATH="${(c.nginx_config_path || "/etc/nginx/nginx.conf").replace(/"/g, '\\"')}"`,
+        `ACCESS_LOG_PATH="${(c.access_log_path || "/var/log/nginx/access.log").replace(/"/g, '\\"')}"`,
+        `ERROR_LOG_PATH="${(c.error_log_path || "/var/log/nginx/error.log").replace(/"/g, '\\"')}"`,
+        `LOG_FORMAT="${c.log_format || "combined"}"`,
+        "",
+        `BUFFER_DIR="${(c.buffer_dir || "/var/lib/avika-agent/").replace(/"/g, '\\"')}"`,
+        `LOG_LEVEL="${c.log_level || "info"}"`,
+        `LOG_FILE="${(c.log_file || "/var/log/avika-agent/agent.log").replace(/"/g, '\\"')}"`,
+    ];
+    return lines.join("\n");
+}
+
+/** Parse avika-agent.conf-style text into key-value updates for the agent config API. */
+function parseAgentConfText(text: string): Record<string, string> {
+    const updates: Record<string, string> = {};
+    const keyOrder = [
+        "GATEWAYS", "AGENT_ID", "HEALTH_PORT", "MGMT_PORT", "UPDATE_SERVER", "UPDATE_INTERVAL",
+        "NGINX_STATUS_URL", "NGINX_CONFIG_PATH", "ACCESS_LOG_PATH", "ERROR_LOG_PATH", "LOG_FORMAT",
+        "BUFFER_DIR", "LOG_LEVEL", "LOG_FILE",
+    ];
+    const seen = new Set<string>();
+    for (const line of text.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eq = trimmed.indexOf("=");
+        if (eq <= 0) continue;
+        const key = trimmed.slice(0, eq).trim();
+        let value = trimmed.slice(eq + 1).trim();
+        if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1).replace(/\\"/g, '"');
+        if (!key || !/^[A-Z_][A-Z0-9_]*$/i.test(key)) continue;
+        updates[key] = value;
+        seen.add(key);
+    }
+    return updates;
+}
 
 export default function ServerDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id: rawId } = use(params);
@@ -141,6 +221,11 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     const [configBackups, setConfigBackups] = useState<{ name: string; created_at: number }[]>([]);
     const [configBackupsLoading, setConfigBackupsLoading] = useState(false);
     const [restoreLoading, setRestoreLoading] = useState(false);
+    // Agent config as file content (avika-agent.conf style) for the Settings tab
+    const [agentConfigFileContent, setAgentConfigFileContent] = useState("");
+    const [agentConfigFileDirty, setAgentConfigFileDirty] = useState(false);
+    const agentConfigFileDirtyRef = useRef(false);
+    agentConfigFileDirtyRef.current = agentConfigFileDirty;
 
     // NGINX Config Backups State
     const [nginxBackups, setNginxBackups] = useState<{ id: number; backup_type: string; created_at: string }[]>([]);
@@ -315,11 +400,14 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
             const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}/config`);
             if (res.ok) {
                 const data = await res.json();
-                setAgentConfig(prev => ({
-                    ...prev,
+                const next = {
                     ...data,
                     gateway_addresses: data.gateway_addresses?.length ? data.gateway_addresses : [''],
-                }));
+                };
+                setAgentConfig(prev => ({ ...prev, ...next }));
+                if (!agentConfigFileDirtyRef.current) {
+                    setAgentConfigFileContent(agentConfigToConfText({ ...prev, ...next }));
+                }
             }
         } catch (err) {
             console.error("Failed to fetch agent config", err);
@@ -524,26 +612,40 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         }
     };
 
-    const addGatewayAddress = () => {
-        setAgentConfig(prev => ({
-            ...prev,
-            gateway_addresses: [...prev.gateway_addresses, '']
-        }));
+    const saveAgentConfigFromFile = async () => {
+        setIsSavingConfig(true);
+        try {
+            const updates = parseAgentConfText(agentConfigFileContent);
+            const res = await apiFetch(`/api/agents/${encodeURIComponent(id)}/config`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ updates, persist: true, hot_reload: true }),
+            });
+            const data = await res.json();
+            if (!res.ok || data?.success === false) {
+                if (res.status === 401) {
+                    toast.error("Session expired or not signed in", {
+                        description: "Please sign in again and try saving.",
+                        action: { label: "Go to login", onClick: () => router.push(`${BASE_PATH || ""}/login`) },
+                    });
+                    return;
+                }
+                throw new Error(data?.error || data?.message || "Update failed");
+            }
+            setAgentConfigFileDirty(false);
+            toast.success("Agent config updated", {
+                description: data?.requires_restart ? "Some changes may require an agent restart." : "Applied successfully.",
+            });
+            await fetchAgentConfig();
+        } catch (err: unknown) {
+            toast.error("Failed to save agent config", {
+                description: err instanceof Error ? err.message : String(err),
+            });
+        } finally {
+            setIsSavingConfig(false);
+        }
     };
 
-    const removeGatewayAddress = (index: number) => {
-        setAgentConfig(prev => ({
-            ...prev,
-            gateway_addresses: prev.gateway_addresses.filter((_, i) => i !== index)
-        }));
-    };
-
-    const updateGatewayAddress = (index: number, value: string) => {
-        setAgentConfig(prev => ({
-            ...prev,
-            gateway_addresses: prev.gateway_addresses.map((addr, i) => i === index ? value : addr)
-        }));
-    };
 
     const handleSync = () => {
         setIsSyncing(true);
@@ -616,6 +718,12 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
             setIsSettingMaintenance(false);
         }
     };
+
+    useEffect(() => {
+        if (activeTab === "settings" && !agentConfigFileDirtyRef.current && agentConfig.gateway_addresses?.length !== undefined) {
+            setAgentConfigFileContent(agentConfigToConfText(agentConfig));
+        }
+    }, [activeTab, agentConfig]);
 
     useEffect(() => {
         fetchDetails();
@@ -1088,22 +1196,51 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                 Stop
                             </Button>
 
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                    const isPod = serverInfo?.is_pod;
-                                    if (isPod) {
-                                        setIsExecDialogOpen(true);
-                                    } else {
-                                        window.location.href = `ssh://${serverInfo?.ip}`;
-                                    }
-                                }}
-                                className="border-primary/50 hover:bg-primary/10 text-primary"
-                            >
-                                <Terminal className="h-4 w-4 mr-2" />
-                                {serverInfo?.is_pod ? 'Exec' : 'SSH'}
-                            </Button>
+                            {serverInfo?.is_pod ? (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setIsExecDialogOpen(true)}
+                                    className="border-primary/50 hover:bg-primary/10 text-primary"
+                                >
+                                    <Terminal className="h-4 w-4 mr-2" />
+                                    Exec
+                                </Button>
+                            ) : (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="border-primary/50 hover:bg-primary/10 text-primary"
+                                        >
+                                            <Terminal className="h-4 w-4 mr-2" />
+                                            SSH
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem
+                                            onClick={() => {
+                                                if (serverInfo?.ip) window.location.href = `ssh://${serverInfo.ip}`;
+                                            }}
+                                        >
+                                            Open SSH link
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            onClick={async () => {
+                                                const cmd = serverInfo?.ip ? `ssh root@${serverInfo.ip}` : "";
+                                                if (cmd) {
+                                                    await navigator.clipboard.writeText(cmd);
+                                                    toast.success("SSH command copied", { description: "Paste in a terminal to connect." });
+                                                }
+                                            }}
+                                        >
+                                            <Copy className="h-4 w-4 mr-2" />
+                                            Copy SSH command
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            )}
                         </div>
 
                         <Button
@@ -2100,257 +2237,46 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
 
                 <TabsContent value="settings">
                     <div className="space-y-6">
-                        <div className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900/50 px-4 py-3">
-                            <p className="text-sm text-neutral-400">
-                                Edit labels, config file path, backups, and more in the full agent config page.
-                            </p>
-                            <Button variant="outline" size="sm" asChild className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10">
-                                <Link href={`/agents/${encodeURIComponent(serverIdForDisplay(id))}/config`}>
-                                    <Settings className="h-4 w-4 mr-2" />
-                                    Edit agent config
-                                </Link>
-                            </Button>
-                        </div>
-                        {/* Multi-Gateway Configuration */}
-                        <Card className="bg-neutral-900 border-neutral-800">
+                        <Card className="bg-neutral-900 border-neutral-800 mb-6">
                             <CardHeader>
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <CardTitle className="text-white flex items-center gap-2">
-                                            <Network className="h-5 w-5 text-blue-400" />
-                                            Gateway Configuration
-                                        </CardTitle>
+                                        <CardTitle className="text-white">avika-agent.conf</CardTitle>
                                         <CardDescription className="text-neutral-400 mt-1">
-                                            Configure gateway addresses for telemetry and command streaming
+                                            Same format as /etc/avika/avika-agent.conf. Edit key=value pairs and Save to apply (persist + hot-reload). Labels and advanced options: full agent config page.
                                         </CardDescription>
                                     </div>
-                                    <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20">
-                                        {agentConfig.multi_gateway_mode ? 'Multi-Gateway' : 'Single Gateway'}
-                                    </Badge>
+                                    <Button variant="outline" size="sm" asChild className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10 shrink-0 ml-2">
+                                        <Link href={`/agents/${encodeURIComponent(serverIdForDisplay(id))}/config`}>
+                                            <Settings className="h-4 w-4 mr-2" />
+                                            Full agent config
+                                        </Link>
+                                    </Button>
                                 </div>
                             </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="flex items-center justify-between p-3 rounded-lg bg-neutral-950 border border-neutral-800">
-                                    <div className="flex items-center gap-3">
-                                        <Globe className="h-5 w-5 text-blue-400" />
-                                        <div>
-                                            <Label className="text-white">Multi-Gateway Mode</Label>
-                                            <p className="text-xs text-neutral-500">Send telemetry to multiple gateways for redundancy</p>
-                                        </div>
-                                    </div>
-                                    <Switch
-                                        checked={agentConfig.multi_gateway_mode}
-                                        onCheckedChange={(checked) => setAgentConfig(prev => ({ ...prev, multi_gateway_mode: checked }))}
+                            <CardContent className="p-0 border-t border-neutral-800">
+                                <div className="h-[420px] w-full bg-neutral-950 overflow-hidden">
+                                    <Editor
+                                        height="100%"
+                                        defaultLanguage="plaintext"
+                                        value={agentConfigFileContent}
+                                        theme="vs-dark"
+                                        onChange={(value) => {
+                                            setAgentConfigFileContent(value || "");
+                                            setAgentConfigFileDirty(true);
+                                        }}
+                                        options={{
+                                            readOnly: false,
+                                            minimap: { enabled: true },
+                                            fontSize: 14,
+                                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                            scrollBeyondLastLine: false,
+                                            wordWrap: "on",
+                                            automaticLayout: true,
+                                            lineNumbers: "on",
+                                            renderWhitespace: "selection",
+                                        }}
                                     />
-                                </div>
-
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <Label className="text-white">Gateway Addresses</Label>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={addGatewayAddress}
-                                            className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
-                                        >
-                                            <Plus className="h-4 w-4 mr-2" />
-                                            Add Gateway
-                                        </Button>
-                                    </div>
-                                    {agentConfig.gateway_addresses.map((addr, index) => (
-                                        <div key={index} className="flex items-center gap-2">
-                                            <div className="flex-1 relative">
-                                                <Server className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
-                                                <Input
-                                                    value={addr}
-                                                    onChange={(e) => updateGatewayAddress(index, e.target.value)}
-                                                    placeholder="gateway.example.com:5020"
-                                                    className="pl-10 bg-neutral-950 border-neutral-800 text-white"
-                                                />
-                                            </div>
-                                            {agentConfig.gateway_addresses.length > 1 && (
-                                                <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    onClick={() => removeGatewayAddress(index)}
-                                                    className="text-red-400 hover:bg-red-500/10"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            )}
-                                        </div>
-                                    ))}
-                                    <p className="text-xs text-neutral-500 flex items-center gap-1">
-                                        <Info className="h-3 w-3" />
-                                        {agentConfig.multi_gateway_mode 
-                                            ? "Agent will send data to ALL configured gateways simultaneously"
-                                            : "Agent will use the first gateway address only"}
-                                    </p>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* NGINX Configuration */}
-                        <Card className="bg-neutral-900 border-neutral-800">
-                            <CardHeader>
-                                <CardTitle className="text-white flex items-center gap-2">
-                                    <FileCode className="h-5 w-5 text-green-400" />
-                                    NGINX Settings
-                                </CardTitle>
-                                <CardDescription className="text-neutral-400">
-                                    Configure NGINX paths and monitoring endpoints
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label className="text-neutral-300">Status URL</Label>
-                                        <Input
-                                            value={agentConfig.nginx_status_url}
-                                            onChange={(e) => setAgentConfig(prev => ({ ...prev, nginx_status_url: e.target.value }))}
-                                            placeholder="http://127.0.0.1/nginx_status"
-                                            className="bg-neutral-950 border-neutral-800 text-white"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-neutral-300">Config Path</Label>
-                                        <Input
-                                            value={agentConfig.nginx_config_path}
-                                            onChange={(e) => setAgentConfig(prev => ({ ...prev, nginx_config_path: e.target.value }))}
-                                            placeholder="/etc/nginx/nginx.conf"
-                                            className="bg-neutral-950 border-neutral-800 text-white"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-neutral-300">Access Log Path</Label>
-                                        <Input
-                                            value={agentConfig.access_log_path}
-                                            onChange={(e) => setAgentConfig(prev => ({ ...prev, access_log_path: e.target.value }))}
-                                            placeholder="/var/log/nginx/access.log"
-                                            className="bg-neutral-950 border-neutral-800 text-white"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-neutral-300">Error Log Path</Label>
-                                        <Input
-                                            value={agentConfig.error_log_path}
-                                            onChange={(e) => setAgentConfig(prev => ({ ...prev, error_log_path: e.target.value }))}
-                                            placeholder="/var/log/nginx/error.log"
-                                            className="bg-neutral-950 border-neutral-800 text-white"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-neutral-300">Log Format</Label>
-                                    <Select
-                                        value={agentConfig.log_format}
-                                        onValueChange={(value) => setAgentConfig(prev => ({ ...prev, log_format: value }))}
-                                    >
-                                        <SelectTrigger className="bg-neutral-950 border-neutral-800 text-white">
-                                            <SelectValue placeholder="Select log format" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="combined">Combined (Apache/NGINX Standard)</SelectItem>
-                                            <SelectItem value="json">JSON (Structured)</SelectItem>
-                                            <SelectItem value="custom">Custom</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Telemetry Settings */}
-                        <Card className="bg-neutral-900 border-neutral-800">
-                            <CardHeader>
-                                <CardTitle className="text-white flex items-center gap-2">
-                                    <Zap className="h-5 w-5 text-amber-400" />
-                                    Telemetry & Updates
-                                </CardTitle>
-                                <CardDescription className="text-neutral-400">
-                                    Configure metrics collection and automatic updates
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label className="text-neutral-300">Metrics Interval (seconds)</Label>
-                                        <Input
-                                            type="number"
-                                            min={1}
-                                            value={agentConfig.metrics_interval_seconds}
-                                            onChange={(e) => setAgentConfig(prev => ({ ...prev, metrics_interval_seconds: parseInt(e.target.value) || 1 }))}
-                                            className="bg-neutral-950 border-neutral-800 text-white"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-neutral-300">Heartbeat Interval (seconds)</Label>
-                                        <Input
-                                            type="number"
-                                            min={1}
-                                            value={agentConfig.heartbeat_interval_seconds}
-                                            onChange={(e) => setAgentConfig(prev => ({ ...prev, heartbeat_interval_seconds: parseInt(e.target.value) || 1 }))}
-                                            className="bg-neutral-950 border-neutral-800 text-white"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-neutral-300">Update Server URL</Label>
-                                        <Input
-                                            value={agentConfig.update_server}
-                                            onChange={(e) => setAgentConfig(prev => ({ ...prev, update_server: e.target.value }))}
-                                            placeholder="http://update.example.com:8090"
-                                            className="bg-neutral-950 border-neutral-800 text-white"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-neutral-300">Log Level</Label>
-                                        <Select
-                                            value={agentConfig.log_level}
-                                            onValueChange={(value) => setAgentConfig(prev => ({ ...prev, log_level: value }))}
-                                        >
-                                            <SelectTrigger className="bg-neutral-950 border-neutral-800 text-white">
-                                                <SelectValue placeholder="Select log level" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="debug">Debug</SelectItem>
-                                                <SelectItem value="info">Info</SelectItem>
-                                                <SelectItem value="warn">Warning</SelectItem>
-                                                <SelectItem value="error">Error</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-neutral-800">
-                                    <div className="flex items-center justify-between p-3 rounded-lg bg-neutral-950 border border-neutral-800">
-                                        <div>
-                                            <Label className="text-white text-sm">VTS Metrics</Label>
-                                            <p className="text-xs text-neutral-500">Enhanced NGINX metrics</p>
-                                        </div>
-                                        <Switch
-                                            checked={agentConfig.enable_vts_metrics}
-                                            onCheckedChange={(checked) => setAgentConfig(prev => ({ ...prev, enable_vts_metrics: checked }))}
-                                        />
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 rounded-lg bg-neutral-950 border border-neutral-800">
-                                        <div>
-                                            <Label className="text-white text-sm">Log Streaming</Label>
-                                            <p className="text-xs text-neutral-500">Real-time log forwarding</p>
-                                        </div>
-                                        <Switch
-                                            checked={agentConfig.enable_log_streaming}
-                                            onCheckedChange={(checked) => setAgentConfig(prev => ({ ...prev, enable_log_streaming: checked }))}
-                                        />
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 rounded-lg bg-neutral-950 border border-neutral-800">
-                                        <div>
-                                            <Label className="text-white text-sm">Auto-Apply Config</Label>
-                                            <p className="text-xs text-neutral-500">Apply changes automatically</p>
-                                        </div>
-                                        <Switch
-                                            checked={agentConfig.auto_apply_config}
-                                            onCheckedChange={(checked) => setAgentConfig(prev => ({ ...prev, auto_apply_config: checked }))}
-                                        />
-                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
@@ -2401,20 +2327,22 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                             </CardContent>
                         </Card>
 
-                        {/* Save Button */}
                         <div className="flex justify-end gap-3">
                             <Button
                                 variant="outline"
-                                onClick={fetchAgentConfig}
+                                onClick={() => {
+                                    setAgentConfigFileDirty(false);
+                                    fetchAgentConfig();
+                                }}
                                 className="border-neutral-700 text-white hover:bg-neutral-800"
                                 disabled={configLoading}
                             >
-                                <RotateCcw className={`h-4 w-4 mr-2 ${configLoading ? 'animate-spin' : ''}`} />
+                                <RotateCcw className={`h-4 w-4 mr-2 ${configLoading ? "animate-spin" : ""}`} />
                                 Reset
                             </Button>
                             <Button
-                                onClick={saveAgentConfig}
-                                disabled={isSavingConfig}
+                                onClick={saveAgentConfigFromFile}
+                                disabled={isSavingConfig || !agentConfigFileDirty}
                                 className="bg-blue-600 hover:bg-blue-700"
                             >
                                 {isSavingConfig ? (
@@ -2425,7 +2353,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                 ) : (
                                     <>
                                         <Save className="h-4 w-4 mr-2" />
-                                        Save Configuration
+                                        Save
                                     </>
                                 )}
                             </Button>
