@@ -50,7 +50,7 @@ AGENT_USER="${AGENT_USER:-root}"
 # Validate required configuration
 if [ -z "$UPDATE_SERVER" ]; then
     log_error "UPDATE_SERVER environment variable is required"
-    log_error "Example: curl -fsSL http://<GATEWAY_HOST>:5021/deploy-agent.sh | UPDATE_SERVER=http://<GATEWAY_HOST>:5021 GATEWAY_SERVER=<GATEWAY_HOST>:5020 sudo -E bash"
+    log_error "Example: curl -fsSL http://<GATEWAY_HOST>:5021/updates/deploy-agent.sh | UPDATE_SERVER=http://<GATEWAY_HOST>:5021/updates GATEWAY_SERVER=<GATEWAY_HOST>:5020 sudo -E bash"
     exit 1
 fi
 

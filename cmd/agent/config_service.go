@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -29,6 +30,11 @@ var (
 	updaterLoopMu     sync.Mutex
 	updaterLoopCancel context.CancelFunc
 	updaterParentCtx  context.Context
+
+	// Log rotation and syslog config (updated via UpdateAgentConfig)
+	currentLogRotation *pb.LogRotateConfig
+	currentSyslog      *pb.SyslogConfig
+	logConfigMu        sync.RWMutex
 )
 
 func (s *agentConfigServer) GetAgentConfig(ctx context.Context, _ *emptypb.Empty) (*pb.GetAgentConfigResponse, error) {
@@ -157,6 +163,11 @@ func currentAgentConfigResponse() *pb.GetAgentConfigResponse {
 	}
 	agentLabelsMu.RUnlock()
 
+	logConfigMu.RLock()
+	lr := currentLogRotation
+	sl := currentSyslog
+	logConfigMu.RUnlock()
+
 	return &pb.GetAgentConfigResponse{
 		GatewayAddress:  getGatewayAddressString(),
 		AgentId:         *agentID,
@@ -176,6 +187,8 @@ func currentAgentConfigResponse() *pb.GetAgentConfigResponse {
 		ConfigFilePath:  *configFile,
 		MgmtAdvertise:   *mgmtAdvertise,
 		MgmtNatCidr:     *mgmtNatCIDR,
+		LogRotation:     lr,
+		Syslog:          sl,
 	}
 }
 
@@ -294,6 +307,25 @@ func applyAgentUpdates(updates map[string]string, hotReload bool) (changed []str
 			*mgmtNatCIDR = val
 			addChanged("AVIKA_MGMT_NAT_CIDR")
 			requiresRestart = true
+		case "LOG_ROTATION":
+			var lr pb.LogRotateConfig
+			if jsonErr := json.Unmarshal([]byte(val), &lr); jsonErr != nil {
+				return nil, false, fmt.Errorf("invalid LOG_ROTATION JSON: %w", jsonErr)
+			}
+			logConfigMu.Lock()
+			currentLogRotation = &lr
+			logConfigMu.Unlock()
+			addChanged("LOG_ROTATION")
+		case "SYSLOG":
+			var sc pb.SyslogConfig
+			if jsonErr := json.Unmarshal([]byte(val), &sc); jsonErr != nil {
+				return nil, false, fmt.Errorf("invalid SYSLOG JSON: %w", jsonErr)
+			}
+			logConfigMu.Lock()
+			currentSyslog = &sc
+			logConfigMu.Unlock()
+			addChanged("SYSLOG")
+			requiresRestart = true // Syslog forwarder is created at startup
 		default:
 			return nil, false, fmt.Errorf("unsupported config key: %s", key)
 		}

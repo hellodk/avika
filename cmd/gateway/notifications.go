@@ -185,3 +185,61 @@ func SendPagerDutyEvent(ctx context.Context, webhookURL, summary, source, severi
 
 	return nil
 }
+
+// OpsGeniePayload represents the payload for the OpsGenie Alerts API v2
+type OpsGeniePayload struct {
+	Message     string `json:"message"`
+	Description string `json:"description"`
+	Priority    string `json:"priority"`
+}
+
+// SendOpsGenieAlert sends an alert to the OpsGenie v2 Alerts API.
+// URL should be like: https://api.opsgenie.com/v2/alerts?apiKey=YOUR_API_KEY
+func SendOpsGenieAlert(ctx context.Context, webhookURL, message, description, severity string) error {
+	reqURL, err := http.NewRequest("POST", webhookURL, nil)
+	if err != nil {
+		return err
+	}
+	apiKey := reqURL.URL.Query().Get("apiKey")
+	if apiKey == "" {
+		return fmt.Errorf("opsgenie apiKey query parameter is missing")
+	}
+
+	priority := "P3" // Warning
+	if severity == "critical" {
+		priority = "P1"
+	} else if severity == "info" {
+		priority = "P5"
+	}
+
+	payload := OpsGeniePayload{
+		Message:     message,
+		Description: description,
+		Priority:    priority,
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.opsgenie.com/v2/alerts", bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "GenieKey "+apiKey)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("opsgenie returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}

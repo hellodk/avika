@@ -30,7 +30,6 @@ data:
         '"ts":"$time_iso8601",'
         '"req_id":"$req_id",'
         '"client":"$remote_addr",'
-        '"xff":"$http_x_forwarded_for",'
         '"method":"$request_method",'
         '"path":"$uri",'
         '"status":$status,'
@@ -55,26 +54,19 @@ data:
         keepalive 64;
       }
 
-      # ---------- Process-level metrics (stub_status) ----------
+      # ---------- Process-level metrics ----------
       server {
-        listen 8080;
-        server_name localhost;
+        listen 80;
 
-        location /nginx_status {
+        location /stub_status {
           stub_status;
           allow all;
-        }
-
-        location /health {
-          return 200 'OK';
-          add_header Content-Type text/plain;
         }
       }
 
       # ---------- Application traffic ----------
       server {
-        listen 80 default_server;
-        server_name _;
+        listen 80;
 
         location / {
           proxy_http_version 1.1;
@@ -96,6 +88,7 @@ data:
       }
     }
 
+
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -115,7 +108,7 @@ spec:
       containers:
       - name: backend
         image: hashicorp/http-echo
-        args: ["-listen=:8080", "-text=OK"]
+        args: ["-listen=:8080","-text=OK"]
         env:
         - name: TZ
           value: Asia/Kolkata
@@ -151,40 +144,31 @@ spec:
         app: nginx
     spec:
       containers:
+
+      # ======================
+      # NGINX CONTAINER
+      # ======================
       - name: nginx
         image: docker.io/hellodk/avika-agent:latest
         env:
         - name: TZ
           value: Asia/Kolkata
         - name: AVIKA_STUB_STATUS_URL
-          value: "http://127.0.0.1:8080/nginx_status"
+          value: "http://127.0.0.1/stub_status"
         - name: AVIKA_GATEWAY_ADDR
-          value: "avika-gateway.avika.svc.cluster.local:5030"
+          value: "avika-gateway.avika.svc.cluster.local:5020"
+        - name: AVIKA_LABEL_PROJECT
+          value: "default"
+        - name: AVIKA_LABEL_ENVIRONMENT
+          value: "production"
         ports:
         - containerPort: 80
-          name: http
-        - containerPort: 8080
-          name: status
-        - containerPort: 5025
-          name: mgmt
-        - containerPort: 5026
-          name: health
         volumeMounts:
         - name: nginx-config
           mountPath: /etc/nginx/nginx.conf
           subPath: nginx.conf
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 3
-          periodSeconds: 5
+
+
       volumes:
       - name: nginx-config
         configMap:
@@ -228,7 +212,7 @@ spec:
         env:
         - name: TZ
           value: Asia/Kolkata
-        command: ["/bin/sh", "-c"]
+        command: ["/bin/sh","-c"]
         args:
           - |
             while true; do
@@ -239,7 +223,6 @@ spec:
               done;
               sleep 0.2;
             done
-
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -258,53 +241,39 @@ spec:
     spec:
       containers:
       - name: traffic
-        image: alpine:latest
+        image: curlimages/curl:latest
         env:
         - name: TZ
           value: Asia/Kolkata
-        command: ["/bin/sh", "-c"]
+        command: ["/bin/sh","-c"]
         args:
           - |
-            apk add --no-cache curl
-            
-            # Global IPs for geo diversity testing
-            set -- 8.8.8.8 1.1.1.1 52.95.110.1 13.107.21.200 91.198.174.192 203.0.113.10 185.199.108.153 34.117.59.81 151.101.1.69 104.16.132.229 139.130.4.5 177.54.144.106 41.203.65.114 103.21.244.0 202.12.29.205 196.216.2.1
-            IPS="$@"
-            NUM_IPS=$#
-            
+            IPS="\
+            8.8.8.8 1.1.1.1 52.95.110.1 13.107.21.200 \
+            91.198.174.192 203.0.113.10 185.199.108.153 \
+            34.117.59.81 151.101.1.69 104.16.132.229"
+
+            METHODS="GET POST PUT DELETE PATCH"
+            PATHS="/ /api/orders /api/users /login /checkout /health"
+
+            rand() { echo $((RANDOM % $1)); }
+
             while true; do
-              # Pick random IP
-              IDX=$(($(od -An -tu4 -N4 /dev/urandom | tr -d ' ') % NUM_IPS + 1))
-              IP=$(echo $IPS | cut -d' ' -f$IDX)
-              
-              # Pick random method
-              case $(($(od -An -tu4 -N4 /dev/urandom | tr -d ' ') % 5)) in
-                0) METHOD="GET" ;;
-                1) METHOD="POST" ;;
-                2) METHOD="PUT" ;;
-                3) METHOD="DELETE" ;;
-                4) METHOD="PATCH" ;;
-              esac
-              
-              # Pick random path
-              case $(($(od -An -tu4 -N4 /dev/urandom | tr -d ' ') % 8)) in
-                0) ENDPOINT="/" ;;
-                1) ENDPOINT="/api/orders" ;;
-                2) ENDPOINT="/api/users" ;;
-                3) ENDPOINT="/login" ;;
-                4) ENDPOINT="/checkout" ;;
-                5) ENDPOINT="/health" ;;
-                6) ENDPOINT="/api/products" ;;
-                7) ENDPOINT="/api/cart" ;;
-              esac
-              
+              IP=$(echo $IPS | tr ' ' '\n' | sed -n "$(( $(rand 10) + 1 ))p")
+              METHOD=$(echo $METHODS | tr ' ' '\n' | sed -n "$(( $(rand 5) + 1 ))p")
+              PATH=$(echo $PATHS | tr ' ' '\n' | sed -n "$(( $(rand 6) + 1 ))p")
+
               PAYLOAD="{\"id\":$RANDOM,\"amount\":$((RANDOM%5000)),\"user\":\"u$RANDOM\"}"
-              
+
               if [ "$METHOD" = "GET" ]; then
-                curl -s http://nginx$ENDPOINT -H "X-Forwarded-For: $IP" > /dev/null 2>&1
+                curl -s http://nginx$PATH \
+                  -H "X-Forwarded-For: $IP" > /dev/null
               else
-                curl -s -X $METHOD http://nginx$ENDPOINT -H "X-Forwarded-For: $IP" -H "Content-Type: application/json" -d "$PAYLOAD" > /dev/null 2>&1
+                curl -s -X $METHOD http://nginx$PATH \
+                  -H "X-Forwarded-For: $IP" \
+                  -H "Content-Type: application/json" \
+                  -d "$PAYLOAD" > /dev/null
               fi
-              
-              sleep 0.1
+
+              sleep 0.05
             done

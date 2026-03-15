@@ -1,9 +1,11 @@
-
 import { NextResponse } from 'next/server';
 import { getAgentServiceClient } from '@/lib/grpc-client';
 import { normalizeServerId } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
+
+// gRPC status code NOT_FOUND (grpc-js)
+const GRPC_NOT_FOUND = 5;
 
 export async function GET(
     request: Request,
@@ -11,25 +13,61 @@ export async function GET(
 ) {
     const { id: rawId } = await params;
     const id = normalizeServerId(rawId);
-    const client = getAgentServiceClient();
+    if (!id) {
+        return NextResponse.json({ error: 'Agent ID required' }, { status: 400 });
+    }
+
+    let client;
+    try {
+        client = getAgentServiceClient();
+    } catch (e) {
+        console.error('GetAgentServiceClient failed:', e);
+        return NextResponse.json(
+            { error: 'Agent service unavailable' },
+            { status: 503 }
+        );
+    }
+
     console.log(`GET /api/servers/${id} - extracting details`);
 
     return new Promise<NextResponse>((resolve) => {
-        // Fetch basic agent info
         client.GetAgent({ agent_id: id }, (err: any, agent: any) => {
             if (err) {
                 console.error('gRPC GetAgent Error:', err);
+                const isNotFound =
+                    err.code === GRPC_NOT_FOUND ||
+                    (typeof err.message === 'string' && /not found|unknown agent/i.test(err.message));
                 return resolve(
-                    NextResponse.json({ error: 'Failed to fetch agent info' }, { status: 500 })
+                    NextResponse.json(
+                        { error: isNotFound ? 'Agent not found' : 'Failed to fetch agent info' },
+                        { status: isNotFound ? 404 : 500 }
+                    )
+                );
+            }
+            if (!agent) {
+                return resolve(
+                    NextResponse.json({ error: 'Agent not found' }, { status: 404 })
                 );
             }
 
-            // Also fetch config and certificates in parallel or return them as sub-resources
-            // For now, let's fetch config and certs to provide a full "details" view
+            // Fetch config and certificates
             client.GetConfig({ instance_id: id }, (configErr: any, config: any) => {
                 client.ListCertificates({ instance_id: id }, (certErr: any, certs: any) => {
+                    const normalizedAgent = {
+                        ...(agent || {}),
+                        agent_id: agent?.agentId || agent?.agent_id || agent?.id,
+                        agent_version: agent?.agentVersion || agent?.agent_version,
+                        instances_count: agent?.instancesCount || agent?.instances_count,
+                        last_seen: agent?.lastSeen || agent?.last_seen,
+                        is_pod: agent?.isPod || agent?.is_pod,
+                        pod_ip: agent?.podIp || agent?.pod_ip,
+                        psk_authenticated: agent?.pskAuthenticated || agent?.psk_authenticated,
+                        build_date: agent?.buildDate || agent?.build_date,
+                        git_commit: agent?.gitCommit || agent?.git_commit,
+                        git_branch: agent?.gitBranch || agent?.git_branch,
+                    };
                     resolve(NextResponse.json({
-                        ...agent,
+                        ...normalizedAgent,
                         config: config?.config || null,
                         certificates: certs?.certificates || [],
                         configError: configErr?.message || null,

@@ -3,9 +3,10 @@
 
 set -e
 
-# Configuration
+# Configuration (all binaries go to repo root bin/)
 VERSION_FILE="VERSION"
 DIST_DIR="dist"
+BIN_DIR="bin"
 
 # Server URL - can be set via environment variable or deploy/.env
 # Default: empty (will prompt if not set)
@@ -68,13 +69,13 @@ fi
 
 echo -e "${BLUE}📦 Starting Local Release Process (v${VERSION})${NC}"
 
-# Create dist directory
-mkdir -p "$DIST_DIR/bin"
+# Create repo root bin directory for all agent binaries
+mkdir -p "$BIN_DIR"
 
 build_agent() {
     local os=$1
     local arch=$2
-    local target="$DIST_DIR/bin/agent-${os}-${arch}"
+    local target="$BIN_DIR/agent-${os}-${arch}"
     
     echo -e "  🛠️  Building for ${os}/${arch}..."
     
@@ -93,7 +94,7 @@ build_agent() {
 build_agent "linux" "amd64"
 build_agent "linux" "arm64"
 
-# Create version.json
+# Create version.json (binaries are always under .../bin/; use SERVER_URL = gateway updates base e.g. http://gateway:5021/updates)
 echo -e "${BLUE}📝 Generating manifest...${NC}"
 
 cat <<EOF > "$DIST_DIR/version.json"
@@ -103,11 +104,11 @@ cat <<EOF > "$DIST_DIR/version.json"
   "binaries": {
     "linux-amd64": {
       "url": "${SERVER_URL}/bin/agent-linux-amd64",
-      "sha256": "$(cat $DIST_DIR/bin/agent-linux-amd64.sha256)"
+      "sha256": "$(cat $BIN_DIR/agent-linux-amd64.sha256)"
     },
     "linux-arm64": {
       "url": "${SERVER_URL}/bin/agent-linux-arm64",
-      "sha256": "$(cat $DIST_DIR/bin/agent-linux-arm64.sha256)"
+      "sha256": "$(cat $BIN_DIR/agent-linux-arm64.sha256)"
     }
   }
 }
@@ -135,12 +136,12 @@ chmod +x "$DIST_DIR/deploy-agent.sh"
 echo ""
 echo -e "${GREEN}✅ Local release prepared in ./${DIST_DIR}${NC}"
 echo -e "  - Manifest: ./${DIST_DIR}/version.json"
-echo -e "  - Binaries: ./${DIST_DIR}/bin/"
+echo -e "  - Binaries: ./${BIN_DIR}/"
 echo -e "  - Service: ./${DIST_DIR}/avika-agent.service"
 echo -e "  - Deployment: ./${DIST_DIR}/deploy-agent.sh"
 echo ""
 echo -e "${YELLOW}To start the update server, run:${NC}"
 echo -e "  go run cmd/update-server/main.go"
 echo ""
-echo -e "${YELLOW}To deploy on a remote host:${NC}"
+echo -e "${YELLOW}To deploy on a remote host (SERVER_URL = updates base, e.g. http://gateway:5021/updates):${NC}"
 echo -e "  curl -fsSL $SERVER_URL/deploy-agent.sh | sudo bash"

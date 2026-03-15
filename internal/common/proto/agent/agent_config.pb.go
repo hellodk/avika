@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v3.21.12
-// source: agent_config.proto
+// source: api/proto/agent_config.proto
 
 package agent
 
@@ -42,13 +42,15 @@ type GetAgentConfigResponse struct {
 	ConfigFilePath  string                 `protobuf:"bytes,16,opt,name=config_file_path,json=configFilePath,proto3" json:"config_file_path,omitempty"` // Path to avika-agent.conf
 	MgmtAdvertise   string                 `protobuf:"bytes,17,opt,name=mgmt_advertise,json=mgmtAdvertise,proto3" json:"mgmt_advertise,omitempty"`      // AVIKA_MGMT_ADVERTISE: IP or host:port for gateway dial-back
 	MgmtNatCidr     string                 `protobuf:"bytes,18,opt,name=mgmt_nat_cidr,json=mgmtNatCidr,proto3" json:"mgmt_nat_cidr,omitempty"`          // AVIKA_MGMT_NAT_CIDR: CIDR to avoid when choosing mgmt IP (e.g. 10.0.2.0/24)
+	LogRotation     *LogRotateConfig       `protobuf:"bytes,19,opt,name=log_rotation,json=logRotation,proto3" json:"log_rotation,omitempty"`
+	Syslog          *SyslogConfig          `protobuf:"bytes,20,opt,name=syslog,proto3" json:"syslog,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
 
 func (x *GetAgentConfigResponse) Reset() {
 	*x = GetAgentConfigResponse{}
-	mi := &file_agent_config_proto_msgTypes[0]
+	mi := &file_api_proto_agent_config_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60,7 +62,7 @@ func (x *GetAgentConfigResponse) String() string {
 func (*GetAgentConfigResponse) ProtoMessage() {}
 
 func (x *GetAgentConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_config_proto_msgTypes[0]
+	mi := &file_api_proto_agent_config_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -73,7 +75,7 @@ func (x *GetAgentConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAgentConfigResponse.ProtoReflect.Descriptor instead.
 func (*GetAgentConfigResponse) Descriptor() ([]byte, []int) {
-	return file_agent_config_proto_rawDescGZIP(), []int{0}
+	return file_api_proto_agent_config_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *GetAgentConfigResponse) GetGatewayAddress() string {
@@ -202,6 +204,164 @@ func (x *GetAgentConfigResponse) GetMgmtNatCidr() string {
 	return ""
 }
 
+func (x *GetAgentConfigResponse) GetLogRotation() *LogRotateConfig {
+	if x != nil {
+		return x.LogRotation
+	}
+	return nil
+}
+
+func (x *GetAgentConfigResponse) GetSyslog() *SyslogConfig {
+	if x != nil {
+		return x.Syslog
+	}
+	return nil
+}
+
+type LogRotateConfig struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Schedule      string                 `protobuf:"bytes,2,opt,name=schedule,proto3" json:"schedule,omitempty"`                           // "daily", "weekly", "size-based"
+	MaxSize       string                 `protobuf:"bytes,3,opt,name=max_size,json=maxSize,proto3" json:"max_size,omitempty"`              // e.g., "100M"
+	RetainCount   int32                  `protobuf:"varint,4,opt,name=retain_count,json=retainCount,proto3" json:"retain_count,omitempty"` // Number of archived logs to keep
+	Compress      bool                   `protobuf:"varint,5,opt,name=compress,proto3" json:"compress,omitempty"`                          // gzip archived logs
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LogRotateConfig) Reset() {
+	*x = LogRotateConfig{}
+	mi := &file_api_proto_agent_config_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LogRotateConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LogRotateConfig) ProtoMessage() {}
+
+func (x *LogRotateConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_config_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LogRotateConfig.ProtoReflect.Descriptor instead.
+func (*LogRotateConfig) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_config_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *LogRotateConfig) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *LogRotateConfig) GetSchedule() string {
+	if x != nil {
+		return x.Schedule
+	}
+	return ""
+}
+
+func (x *LogRotateConfig) GetMaxSize() string {
+	if x != nil {
+		return x.MaxSize
+	}
+	return ""
+}
+
+func (x *LogRotateConfig) GetRetainCount() int32 {
+	if x != nil {
+		return x.RetainCount
+	}
+	return 0
+}
+
+func (x *LogRotateConfig) GetCompress() bool {
+	if x != nil {
+		return x.Compress
+	}
+	return false
+}
+
+type SyslogConfig struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	TargetAddress string                 `protobuf:"bytes,2,opt,name=target_address,json=targetAddress,proto3" json:"target_address,omitempty"` // e.g., "udp://10.0.0.1:514"
+	Facility      string                 `protobuf:"bytes,3,opt,name=facility,proto3" json:"facility,omitempty"`                                // "local7"
+	Severity      string                 `protobuf:"bytes,4,opt,name=severity,proto3" json:"severity,omitempty"`                                // "info"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyslogConfig) Reset() {
+	*x = SyslogConfig{}
+	mi := &file_api_proto_agent_config_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyslogConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyslogConfig) ProtoMessage() {}
+
+func (x *SyslogConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_config_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyslogConfig.ProtoReflect.Descriptor instead.
+func (*SyslogConfig) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_config_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SyslogConfig) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *SyslogConfig) GetTargetAddress() string {
+	if x != nil {
+		return x.TargetAddress
+	}
+	return ""
+}
+
+func (x *SyslogConfig) GetFacility() string {
+	if x != nil {
+		return x.Facility
+	}
+	return ""
+}
+
+func (x *SyslogConfig) GetSeverity() string {
+	if x != nil {
+		return x.Severity
+	}
+	return ""
+}
+
 type AgentConfigUpdate struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Updates       map[string]string      `protobuf:"bytes,1,rep,name=updates,proto3" json:"updates,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // key=value updates (config keys and LABEL_* supported)
@@ -213,7 +373,7 @@ type AgentConfigUpdate struct {
 
 func (x *AgentConfigUpdate) Reset() {
 	*x = AgentConfigUpdate{}
-	mi := &file_agent_config_proto_msgTypes[1]
+	mi := &file_api_proto_agent_config_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -225,7 +385,7 @@ func (x *AgentConfigUpdate) String() string {
 func (*AgentConfigUpdate) ProtoMessage() {}
 
 func (x *AgentConfigUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_config_proto_msgTypes[1]
+	mi := &file_api_proto_agent_config_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -238,7 +398,7 @@ func (x *AgentConfigUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentConfigUpdate.ProtoReflect.Descriptor instead.
 func (*AgentConfigUpdate) Descriptor() ([]byte, []int) {
-	return file_agent_config_proto_rawDescGZIP(), []int{1}
+	return file_api_proto_agent_config_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *AgentConfigUpdate) GetUpdates() map[string]string {
@@ -274,7 +434,7 @@ type AgentConfigUpdateResponse struct {
 
 func (x *AgentConfigUpdateResponse) Reset() {
 	*x = AgentConfigUpdateResponse{}
-	mi := &file_agent_config_proto_msgTypes[2]
+	mi := &file_api_proto_agent_config_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -286,7 +446,7 @@ func (x *AgentConfigUpdateResponse) String() string {
 func (*AgentConfigUpdateResponse) ProtoMessage() {}
 
 func (x *AgentConfigUpdateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_config_proto_msgTypes[2]
+	mi := &file_api_proto_agent_config_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -299,7 +459,7 @@ func (x *AgentConfigUpdateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentConfigUpdateResponse.ProtoReflect.Descriptor instead.
 func (*AgentConfigUpdateResponse) Descriptor() ([]byte, []int) {
-	return file_agent_config_proto_rawDescGZIP(), []int{2}
+	return file_api_proto_agent_config_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *AgentConfigUpdateResponse) GetSuccess() bool {
@@ -342,7 +502,7 @@ type ConnectionTestRequest struct {
 
 func (x *ConnectionTestRequest) Reset() {
 	*x = ConnectionTestRequest{}
-	mi := &file_agent_config_proto_msgTypes[3]
+	mi := &file_api_proto_agent_config_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -354,7 +514,7 @@ func (x *ConnectionTestRequest) String() string {
 func (*ConnectionTestRequest) ProtoMessage() {}
 
 func (x *ConnectionTestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_config_proto_msgTypes[3]
+	mi := &file_api_proto_agent_config_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -367,7 +527,7 @@ func (x *ConnectionTestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionTestRequest.ProtoReflect.Descriptor instead.
 func (*ConnectionTestRequest) Descriptor() ([]byte, []int) {
-	return file_agent_config_proto_rawDescGZIP(), []int{3}
+	return file_api_proto_agent_config_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ConnectionTestRequest) GetTestType() string {
@@ -396,7 +556,7 @@ type ConnectionTestResponse struct {
 
 func (x *ConnectionTestResponse) Reset() {
 	*x = ConnectionTestResponse{}
-	mi := &file_agent_config_proto_msgTypes[4]
+	mi := &file_api_proto_agent_config_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -408,7 +568,7 @@ func (x *ConnectionTestResponse) String() string {
 func (*ConnectionTestResponse) ProtoMessage() {}
 
 func (x *ConnectionTestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_config_proto_msgTypes[4]
+	mi := &file_api_proto_agent_config_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -421,7 +581,7 @@ func (x *ConnectionTestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionTestResponse.ProtoReflect.Descriptor instead.
 func (*ConnectionTestResponse) Descriptor() ([]byte, []int) {
-	return file_agent_config_proto_rawDescGZIP(), []int{4}
+	return file_api_proto_agent_config_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ConnectionTestResponse) GetSuccess() bool {
@@ -461,7 +621,7 @@ type ListConfigBackupsResponse struct {
 
 func (x *ListConfigBackupsResponse) Reset() {
 	*x = ListConfigBackupsResponse{}
-	mi := &file_agent_config_proto_msgTypes[5]
+	mi := &file_api_proto_agent_config_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -473,7 +633,7 @@ func (x *ListConfigBackupsResponse) String() string {
 func (*ListConfigBackupsResponse) ProtoMessage() {}
 
 func (x *ListConfigBackupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_config_proto_msgTypes[5]
+	mi := &file_api_proto_agent_config_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -486,7 +646,7 @@ func (x *ListConfigBackupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListConfigBackupsResponse.ProtoReflect.Descriptor instead.
 func (*ListConfigBackupsResponse) Descriptor() ([]byte, []int) {
-	return file_agent_config_proto_rawDescGZIP(), []int{5}
+	return file_api_proto_agent_config_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListConfigBackupsResponse) GetBackups() []*ConfigBackupEntry {
@@ -506,7 +666,7 @@ type ConfigBackupEntry struct {
 
 func (x *ConfigBackupEntry) Reset() {
 	*x = ConfigBackupEntry{}
-	mi := &file_agent_config_proto_msgTypes[6]
+	mi := &file_api_proto_agent_config_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -518,7 +678,7 @@ func (x *ConfigBackupEntry) String() string {
 func (*ConfigBackupEntry) ProtoMessage() {}
 
 func (x *ConfigBackupEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_config_proto_msgTypes[6]
+	mi := &file_api_proto_agent_config_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -531,7 +691,7 @@ func (x *ConfigBackupEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigBackupEntry.ProtoReflect.Descriptor instead.
 func (*ConfigBackupEntry) Descriptor() ([]byte, []int) {
-	return file_agent_config_proto_rawDescGZIP(), []int{6}
+	return file_api_proto_agent_config_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ConfigBackupEntry) GetName() string {
@@ -557,7 +717,7 @@ type RestoreConfigBackupRequest struct {
 
 func (x *RestoreConfigBackupRequest) Reset() {
 	*x = RestoreConfigBackupRequest{}
-	mi := &file_agent_config_proto_msgTypes[7]
+	mi := &file_api_proto_agent_config_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -569,7 +729,7 @@ func (x *RestoreConfigBackupRequest) String() string {
 func (*RestoreConfigBackupRequest) ProtoMessage() {}
 
 func (x *RestoreConfigBackupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_config_proto_msgTypes[7]
+	mi := &file_api_proto_agent_config_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -582,7 +742,7 @@ func (x *RestoreConfigBackupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestoreConfigBackupRequest.ProtoReflect.Descriptor instead.
 func (*RestoreConfigBackupRequest) Descriptor() ([]byte, []int) {
-	return file_agent_config_proto_rawDescGZIP(), []int{7}
+	return file_api_proto_agent_config_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *RestoreConfigBackupRequest) GetBackupName() string {
@@ -592,11 +752,11 @@ func (x *RestoreConfigBackupRequest) GetBackupName() string {
 	return ""
 }
 
-var File_agent_config_proto protoreflect.FileDescriptor
+var File_api_proto_agent_config_proto protoreflect.FileDescriptor
 
-const file_agent_config_proto_rawDesc = "" +
+const file_api_proto_agent_config_proto_rawDesc = "" +
 	"\n" +
-	"\x12agent_config.proto\x12\x0enginx.agent.v1\x1a\x1bgoogle/protobuf/empty.proto\"\xfe\x05\n" +
+	"\x1capi/proto/agent_config.proto\x12\x0enginx.agent.v1\x1a\x1bgoogle/protobuf/empty.proto\"\xf8\x06\n" +
 	"\x16GetAgentConfigResponse\x12'\n" +
 	"\x0fgateway_address\x18\x01 \x01(\tR\x0egatewayAddress\x12\x19\n" +
 	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12J\n" +
@@ -619,10 +779,23 @@ const file_agent_config_proto_rawDesc = "" +
 	"\blog_file\x18\x0f \x01(\tR\alogFile\x12(\n" +
 	"\x10config_file_path\x18\x10 \x01(\tR\x0econfigFilePath\x12%\n" +
 	"\x0emgmt_advertise\x18\x11 \x01(\tR\rmgmtAdvertise\x12\"\n" +
-	"\rmgmt_nat_cidr\x18\x12 \x01(\tR\vmgmtNatCidr\x1a9\n" +
+	"\rmgmt_nat_cidr\x18\x12 \x01(\tR\vmgmtNatCidr\x12B\n" +
+	"\flog_rotation\x18\x13 \x01(\v2\x1f.nginx.agent.v1.LogRotateConfigR\vlogRotation\x124\n" +
+	"\x06syslog\x18\x14 \x01(\v2\x1c.nginx.agent.v1.SyslogConfigR\x06syslog\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd2\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa1\x01\n" +
+	"\x0fLogRotateConfig\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1a\n" +
+	"\bschedule\x18\x02 \x01(\tR\bschedule\x12\x19\n" +
+	"\bmax_size\x18\x03 \x01(\tR\amaxSize\x12!\n" +
+	"\fretain_count\x18\x04 \x01(\x05R\vretainCount\x12\x1a\n" +
+	"\bcompress\x18\x05 \x01(\bR\bcompress\"\x87\x01\n" +
+	"\fSyslogConfig\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12%\n" +
+	"\x0etarget_address\x18\x02 \x01(\tR\rtargetAddress\x12\x1a\n" +
+	"\bfacility\x18\x03 \x01(\tR\bfacility\x12\x1a\n" +
+	"\bseverity\x18\x04 \x01(\tR\bseverity\"\xd2\x01\n" +
 	"\x11AgentConfigUpdate\x12H\n" +
 	"\aupdates\x18\x01 \x03(\v2..nginx.agent.v1.AgentConfigUpdate.UpdatesEntryR\aupdates\x12\x18\n" +
 	"\apersist\x18\x02 \x01(\bR\apersist\x12\x1d\n" +
@@ -665,74 +838,78 @@ const file_agent_config_proto_rawDesc = "" +
 	"\x13RestoreConfigBackup\x12*.nginx.agent.v1.RestoreConfigBackupRequest\x1a).nginx.agent.v1.AgentConfigUpdateResponseB7Z5github.com/avika-ai/avika/internal/common/proto/agentb\x06proto3"
 
 var (
-	file_agent_config_proto_rawDescOnce sync.Once
-	file_agent_config_proto_rawDescData []byte
+	file_api_proto_agent_config_proto_rawDescOnce sync.Once
+	file_api_proto_agent_config_proto_rawDescData []byte
 )
 
-func file_agent_config_proto_rawDescGZIP() []byte {
-	file_agent_config_proto_rawDescOnce.Do(func() {
-		file_agent_config_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_agent_config_proto_rawDesc), len(file_agent_config_proto_rawDesc)))
+func file_api_proto_agent_config_proto_rawDescGZIP() []byte {
+	file_api_proto_agent_config_proto_rawDescOnce.Do(func() {
+		file_api_proto_agent_config_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_proto_agent_config_proto_rawDesc), len(file_api_proto_agent_config_proto_rawDesc)))
 	})
-	return file_agent_config_proto_rawDescData
+	return file_api_proto_agent_config_proto_rawDescData
 }
 
-var file_agent_config_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
-var file_agent_config_proto_goTypes = []any{
+var file_api_proto_agent_config_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_api_proto_agent_config_proto_goTypes = []any{
 	(*GetAgentConfigResponse)(nil),     // 0: nginx.agent.v1.GetAgentConfigResponse
-	(*AgentConfigUpdate)(nil),          // 1: nginx.agent.v1.AgentConfigUpdate
-	(*AgentConfigUpdateResponse)(nil),  // 2: nginx.agent.v1.AgentConfigUpdateResponse
-	(*ConnectionTestRequest)(nil),      // 3: nginx.agent.v1.ConnectionTestRequest
-	(*ConnectionTestResponse)(nil),     // 4: nginx.agent.v1.ConnectionTestResponse
-	(*ListConfigBackupsResponse)(nil),  // 5: nginx.agent.v1.ListConfigBackupsResponse
-	(*ConfigBackupEntry)(nil),          // 6: nginx.agent.v1.ConfigBackupEntry
-	(*RestoreConfigBackupRequest)(nil), // 7: nginx.agent.v1.RestoreConfigBackupRequest
-	nil,                                // 8: nginx.agent.v1.GetAgentConfigResponse.LabelsEntry
-	nil,                                // 9: nginx.agent.v1.AgentConfigUpdate.UpdatesEntry
-	nil,                                // 10: nginx.agent.v1.ConnectionTestResponse.DetailsEntry
-	(*emptypb.Empty)(nil),              // 11: google.protobuf.Empty
+	(*LogRotateConfig)(nil),            // 1: nginx.agent.v1.LogRotateConfig
+	(*SyslogConfig)(nil),               // 2: nginx.agent.v1.SyslogConfig
+	(*AgentConfigUpdate)(nil),          // 3: nginx.agent.v1.AgentConfigUpdate
+	(*AgentConfigUpdateResponse)(nil),  // 4: nginx.agent.v1.AgentConfigUpdateResponse
+	(*ConnectionTestRequest)(nil),      // 5: nginx.agent.v1.ConnectionTestRequest
+	(*ConnectionTestResponse)(nil),     // 6: nginx.agent.v1.ConnectionTestResponse
+	(*ListConfigBackupsResponse)(nil),  // 7: nginx.agent.v1.ListConfigBackupsResponse
+	(*ConfigBackupEntry)(nil),          // 8: nginx.agent.v1.ConfigBackupEntry
+	(*RestoreConfigBackupRequest)(nil), // 9: nginx.agent.v1.RestoreConfigBackupRequest
+	nil,                                // 10: nginx.agent.v1.GetAgentConfigResponse.LabelsEntry
+	nil,                                // 11: nginx.agent.v1.AgentConfigUpdate.UpdatesEntry
+	nil,                                // 12: nginx.agent.v1.ConnectionTestResponse.DetailsEntry
+	(*emptypb.Empty)(nil),              // 13: google.protobuf.Empty
 }
-var file_agent_config_proto_depIdxs = []int32{
-	8,  // 0: nginx.agent.v1.GetAgentConfigResponse.labels:type_name -> nginx.agent.v1.GetAgentConfigResponse.LabelsEntry
-	9,  // 1: nginx.agent.v1.AgentConfigUpdate.updates:type_name -> nginx.agent.v1.AgentConfigUpdate.UpdatesEntry
-	10, // 2: nginx.agent.v1.ConnectionTestResponse.details:type_name -> nginx.agent.v1.ConnectionTestResponse.DetailsEntry
-	6,  // 3: nginx.agent.v1.ListConfigBackupsResponse.backups:type_name -> nginx.agent.v1.ConfigBackupEntry
-	11, // 4: nginx.agent.v1.AgentConfigService.GetAgentConfig:input_type -> google.protobuf.Empty
-	1,  // 5: nginx.agent.v1.AgentConfigService.UpdateAgentConfig:input_type -> nginx.agent.v1.AgentConfigUpdate
-	3,  // 6: nginx.agent.v1.AgentConfigService.TestConnection:input_type -> nginx.agent.v1.ConnectionTestRequest
-	11, // 7: nginx.agent.v1.AgentConfigService.ListConfigBackups:input_type -> google.protobuf.Empty
-	7,  // 8: nginx.agent.v1.AgentConfigService.RestoreConfigBackup:input_type -> nginx.agent.v1.RestoreConfigBackupRequest
-	0,  // 9: nginx.agent.v1.AgentConfigService.GetAgentConfig:output_type -> nginx.agent.v1.GetAgentConfigResponse
-	2,  // 10: nginx.agent.v1.AgentConfigService.UpdateAgentConfig:output_type -> nginx.agent.v1.AgentConfigUpdateResponse
-	4,  // 11: nginx.agent.v1.AgentConfigService.TestConnection:output_type -> nginx.agent.v1.ConnectionTestResponse
-	5,  // 12: nginx.agent.v1.AgentConfigService.ListConfigBackups:output_type -> nginx.agent.v1.ListConfigBackupsResponse
-	2,  // 13: nginx.agent.v1.AgentConfigService.RestoreConfigBackup:output_type -> nginx.agent.v1.AgentConfigUpdateResponse
-	9,  // [9:14] is the sub-list for method output_type
-	4,  // [4:9] is the sub-list for method input_type
-	4,  // [4:4] is the sub-list for extension type_name
-	4,  // [4:4] is the sub-list for extension extendee
-	0,  // [0:4] is the sub-list for field type_name
+var file_api_proto_agent_config_proto_depIdxs = []int32{
+	10, // 0: nginx.agent.v1.GetAgentConfigResponse.labels:type_name -> nginx.agent.v1.GetAgentConfigResponse.LabelsEntry
+	1,  // 1: nginx.agent.v1.GetAgentConfigResponse.log_rotation:type_name -> nginx.agent.v1.LogRotateConfig
+	2,  // 2: nginx.agent.v1.GetAgentConfigResponse.syslog:type_name -> nginx.agent.v1.SyslogConfig
+	11, // 3: nginx.agent.v1.AgentConfigUpdate.updates:type_name -> nginx.agent.v1.AgentConfigUpdate.UpdatesEntry
+	12, // 4: nginx.agent.v1.ConnectionTestResponse.details:type_name -> nginx.agent.v1.ConnectionTestResponse.DetailsEntry
+	8,  // 5: nginx.agent.v1.ListConfigBackupsResponse.backups:type_name -> nginx.agent.v1.ConfigBackupEntry
+	13, // 6: nginx.agent.v1.AgentConfigService.GetAgentConfig:input_type -> google.protobuf.Empty
+	3,  // 7: nginx.agent.v1.AgentConfigService.UpdateAgentConfig:input_type -> nginx.agent.v1.AgentConfigUpdate
+	5,  // 8: nginx.agent.v1.AgentConfigService.TestConnection:input_type -> nginx.agent.v1.ConnectionTestRequest
+	13, // 9: nginx.agent.v1.AgentConfigService.ListConfigBackups:input_type -> google.protobuf.Empty
+	9,  // 10: nginx.agent.v1.AgentConfigService.RestoreConfigBackup:input_type -> nginx.agent.v1.RestoreConfigBackupRequest
+	0,  // 11: nginx.agent.v1.AgentConfigService.GetAgentConfig:output_type -> nginx.agent.v1.GetAgentConfigResponse
+	4,  // 12: nginx.agent.v1.AgentConfigService.UpdateAgentConfig:output_type -> nginx.agent.v1.AgentConfigUpdateResponse
+	6,  // 13: nginx.agent.v1.AgentConfigService.TestConnection:output_type -> nginx.agent.v1.ConnectionTestResponse
+	7,  // 14: nginx.agent.v1.AgentConfigService.ListConfigBackups:output_type -> nginx.agent.v1.ListConfigBackupsResponse
+	4,  // 15: nginx.agent.v1.AgentConfigService.RestoreConfigBackup:output_type -> nginx.agent.v1.AgentConfigUpdateResponse
+	11, // [11:16] is the sub-list for method output_type
+	6,  // [6:11] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
-func init() { file_agent_config_proto_init() }
-func file_agent_config_proto_init() {
-	if File_agent_config_proto != nil {
+func init() { file_api_proto_agent_config_proto_init() }
+func file_api_proto_agent_config_proto_init() {
+	if File_api_proto_agent_config_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_agent_config_proto_rawDesc), len(file_agent_config_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_agent_config_proto_rawDesc), len(file_api_proto_agent_config_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_agent_config_proto_goTypes,
-		DependencyIndexes: file_agent_config_proto_depIdxs,
-		MessageInfos:      file_agent_config_proto_msgTypes,
+		GoTypes:           file_api_proto_agent_config_proto_goTypes,
+		DependencyIndexes: file_api_proto_agent_config_proto_depIdxs,
+		MessageInfos:      file_api_proto_agent_config_proto_msgTypes,
 	}.Build()
-	File_agent_config_proto = out.File
-	file_agent_config_proto_goTypes = nil
-	file_agent_config_proto_depIdxs = nil
+	File_api_proto_agent_config_proto = out.File
+	file_api_proto_agent_config_proto_goTypes = nil
+	file_api_proto_agent_config_proto_depIdxs = nil
 }

@@ -54,13 +54,6 @@ func (db *DB) GetVersion() string {
 	return version
 }
 
-// migrate is deprecated - migrations are now handled by embedded SQL files in migrations/
-// This function is kept for backwards compatibility but does nothing
-func (db *DB) migrate() error {
-	// Migrations are now handled by migrations.Runner
-	// See cmd/gateway/migrations/*.sql for schema definitions
-	return nil
-}
 
 // GetSetting retrieves a setting value by key
 func (db *DB) GetSetting(key string) (string, error) {
@@ -191,6 +184,14 @@ func (db *DB) UpdateAgentStatus(agentID string, status string, lastSeen int64) e
 }
 
 func (db *DB) RemoveAgent(agentID string) error {
+	// Backup before deleting
+	insertQuery := `
+	INSERT INTO historical_agents (agent_id, hostname, ip)
+	SELECT agent_id, hostname, ip FROM agents WHERE agent_id = $1
+	ON CONFLICT (agent_id) DO NOTHING;
+	`
+	_, _ = db.conn.Exec(insertQuery, agentID)
+
 	query := `DELETE FROM agents WHERE agent_id = $1`
 	_, err := db.conn.Exec(query, agentID)
 	return err
@@ -249,6 +250,14 @@ func (db *DB) PruneStaleAgents(maxAge time.Duration) ([]string, error) {
 			}
 		}
 	}
+
+	// Backup before deleting
+	insertQuery := `
+	INSERT INTO historical_agents (agent_id, hostname, ip)
+	SELECT agent_id, hostname, ip FROM agents WHERE status = 'offline' AND last_seen < $1
+	ON CONFLICT (agent_id) DO NOTHING;
+	`
+	_, _ = db.conn.Exec(insertQuery, threshold)
 
 	query := `DELETE FROM agents WHERE status = 'offline' AND last_seen < $1`
 	_, err = db.conn.Exec(query, threshold)

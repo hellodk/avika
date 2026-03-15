@@ -8,7 +8,7 @@
 # =============================================================================
 
 # -- Global Settings --
-nameOverride: ""
+nameOverride: "avika"
 fullnameOverride: ""
 timezone: UTC
 
@@ -606,7 +606,7 @@ grafana:
   temporary:
     enabled: false
     # Set when enabling (e.g. --set grafana.temporary.adminPass=yourpass). Do not commit real secrets.
-    adminPass: "REPLACE_ME"
+    adminPass: "promoperator"
     image:
       repository: grafana/grafana
       tag: "11.5.0"
