@@ -20,7 +20,7 @@ Analysis and Playwright coverage of the **Inventory** page (`/inventory`) and it
 - **Table sort**: column headers Agent, IP Address, Version, Last Seen (URL `?sort=&dir=`)
 
 ### Row actions (per agent)
-- **Server detail**: link on hostname and ExternalLink icon → `/servers/[id]` (id in display form, e.g. `zabbix-10.0.2.15`)
+- **Server detail**: link on hostname and ExternalLink icon → `/servers/[id]` (id in display form, e.g. `hostname-10-0-2-15`)
 - **Terminal**: icon button – for pods opens "Access Pod Terminal" dialog (kubectl command + Web Terminal); for non-pods sets `window.location.href = ssh://${agent.ip}`
 - **Drift**: link → `/servers/[id]?tab=drift`
 - **Agent config**: link → `/agents/[id]/config`

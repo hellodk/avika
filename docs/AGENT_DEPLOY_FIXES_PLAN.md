@@ -27,19 +27,19 @@ This document analyses the four issues reported after running the deploy one-lin
 **Current behaviour**
 
 - In `cmd/agent/main.go`, `getOrGenerateAgentID()` builds the ID as:
-  - `hostname + "+" + chosenIP` (e.g. `zabbix2+10.0.2.15`).
+  - `hostname + "+" + chosenIP` (e.g. `node1+10.0.2.15`).
 - So we use **`+`** as delimiter and **`.`** in the IP. This can be problematic in IDs (e.g. URLs, log indexing, UI).
 
 **Agreed direction**
 
 - Use **`-`** instead of `+` for the delimiter.
-- Avoid **`.`** in the agent name (e.g. replace dots in the IP with `-`: `10-0-2-15` → ID like `zabbix2-10-0-2-15`).
+- Avoid **`.`** in the agent name (e.g. replace dots in the IP with `-`: `10-0-2-15` → ID like `hostname-192-168-1-100`).
 
 **Plan**
 
 | Item | Action |
 |------|--------|
-| 2.1 | In `getOrGenerateAgentID()`: build ID as `hostname + "-" + sanitizedIP` where `sanitizedIP = strings.ReplaceAll(chosenIP, ".", "-")` (e.g. `zabbix2-10-0-2-15`). |
+| 2.1 | In `getOrGenerateAgentID()`: build ID as `hostname + "-" + sanitizedIP` where `sanitizedIP = strings.ReplaceAll(chosenIP, ".", "-")` (e.g. `hostname-192-168-1-100`). |
 | 2.2 | Add a small helper, e.g. `sanitizeAgentIDSuffix(ip string) string`, so the rule is in one place. |
 | 2.3 | **Existing persisted IDs:** If `agent_id` file already exists, keep returning it (no change in behaviour for existing installs). Only **new** IDs use the new format. Optional: document that renaming (e.g. remove `agent_id` and restart) will switch to the new format. |
 | 2.4 | Update `cmd/agent/agent_test.go`: `TestAgentIDGeneration` already expects `hostname + "-" + ip`; align the test with the new format (hostname + "-" + IP with dots replaced by `-`) so the test passes. |
@@ -111,8 +111,19 @@ This document analyses the four issues reported after running the deploy one-lin
 | # | Issue | Cause | Fix (short) |
 |---|--------|--------|-------------|
 | 1 | Version 0.1.0-dev | Binary built with old gateway image (no VERSION in ldflags) | Rebuild gateway; optional deploy warning |
-| 2 | Agent ID `zabbix2+10.0.2.15` | Code uses `+` and raw IP with `.` | Use `hostname-IP-with-dashes` (e.g. `zabbix2-10-0-2-15`) for new IDs |
+| 2 | Agent ID `node1+10.0.2.15` | Code uses `+` and raw IP with `.` | Use `hostname-IP-with-dashes` (e.g. `hostname-192-168-1-100`) for new IDs |
 | 3 | “Correct IP” with multiple NICs | Logic exists but may need CIDR or docs | Document AVIKA_MGMT_*; optional AVIKA_MGMT_NAT_CIDR in deploy template |
 | 4 | Agent uses localhost:5020 | Default config path is `/etc/avika-agent/...`, deploy writes `/etc/avika/...` | Default config `/etc/avika/avika-agent.conf` + systemd `-config=...` |
 
 Once you’re happy with this plan, we can implement the code and config changes in that order.
+
+---
+
+## Implementation status (done)
+
+- **4.1** Agent default config path set to `/etc/avika/avika-agent.conf` in `cmd/agent/main.go`.
+- **4.2** Systemd unit `deploy/systemd/avika-agent.service` uses `ExecStart=... -config=/etc/avika/avika-agent.conf`.
+- **2.1–2.3** `getOrGenerateAgentID()` uses `hostname + "-" + sanitizeAgentIDSuffix(chosenIP)` (dots in IP replaced by `-`); existing persisted ID unchanged.
+- **2.4** `cmd/agent/agent_test.go`: `TestAgentIDGeneration` updated for format `hostname-192-168-1-100`.
+- **2.5** `cmd/agent/README.md`: `-id` description updated to mention `hostname-IP-with-dashes`.
+- **1.3** Deploy script warns when installed version ≠ latest version (rebuild gateway hint). Agent logs a warning at startup when Version is 0.1.0-dev (binary not built with repo VERSION; rebuild gateway and reinstall/self-update).

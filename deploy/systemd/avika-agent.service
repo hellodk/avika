@@ -10,7 +10,7 @@ User=root
 Group=root
 
 # Run the agent binary (configuration loaded from /etc/avika/avika-agent.conf)
-ExecStart=/usr/local/bin/avika-agent
+ExecStart=/usr/local/bin/avika-agent -config=/etc/avika/avika-agent.conf
 
 # Restart policy - always restart to handle self-updates
 Restart=always

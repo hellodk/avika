@@ -31,13 +31,13 @@
 
 ### 2.1 Agent ID and URL format
 
-- **Q1:** Today, server URL is `/servers/zabbix1+10.0.2.15`. Is `agent_id` **always** `hostname+ip` (e.g. from agent config or `.agent_id`), or can it be just hostname? If it can be both, we need a single canonical id (e.g. always use `agent_id` from ListAgents) for logs, exec, and config.
+- **Q1:** Today, server URL is `/servers/node1+10.0.2.15`. Is `agent_id` **always** `hostname+ip` (e.g. from agent config or `.agent_id`), or can it be just hostname? If it can be both, we need a single canonical id (e.g. always use `agent_id` from ListAgents) for logs, exec, and config.
 - **Q2:** When multiple nodes share the same hostname (e.g. in different networks), do you want to keep `hostname+ip` as the canonical `agent_id`, or is there another scheme (e.g. env var `AGENT_ID` per node)?
 
 ### 2.2 Correct interface for gateway → agent
 
 - **Q3:** For “figure out the correct interface on the nodes”: should the **agent** report the **address:port** the gateway must use to reach it (e.g. from config or from the interface that has the default route / a specific label), and the gateway **always** use that for dialing? Or should the gateway try multiple strategies (e.g. connection peer IP, then agent-reported mgmt address)?
-- **Q4:** Is the failure for `zabbix1+10.0.2.15` that (a) the gateway cannot reach 10.0.2.15 (e.g. different VLAN), or (b) the agent is listening on another interface (e.g. eth1), or (c) something else (e.g. agent_id mismatch)?
+- **Q4:** Is the failure for `node1+10.0.2.15` that (a) the gateway cannot reach 10.0.2.15 (e.g. different VLAN), or (b) the agent is listening on another interface (e.g. eth1), or (c) something else (e.g. agent_id mismatch)?
 
 ### 2.3 SSH vs gRPC-only
 

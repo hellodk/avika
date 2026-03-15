@@ -29,16 +29,35 @@ func TestAddressProtocolStripping(t *testing.T) {
 	}
 }
 
-// TestAgentIDGeneration tests agent ID generation from hostname and IP
+// TestAgentIDGeneration tests agent ID format: hostname + "-" + IP with dots replaced by dashes.
 func TestAgentIDGeneration(t *testing.T) {
-	// This tests the concept - actual implementation uses system hostname
 	hostname := "test-node"
 	ip := "192.168.1.100"
-	
-	agentID := hostname + "-" + ip
-	
-	if agentID != "test-node-192.168.1.100" {
-		t.Errorf("Unexpected agent ID format: %s", agentID)
+	sanitized := strings.ReplaceAll(ip, ".", "-") // 192-168-1-100
+	agentID := hostname + "-" + sanitized
+	if agentID != "test-node-192-168-1-100" {
+		t.Errorf("Unexpected agent ID format: %s (expected hostname-IP with dashes)", agentID)
+	}
+}
+
+// TestMigrateAgentIDToNewFormat tests migration of old-format IDs to hostname-IP-with-dashes.
+func TestMigrateAgentIDToNewFormat(t *testing.T) {
+	tests := []struct {
+		id       string
+		expected string
+	}{
+		{"node1+10.0.2.15", "node1-10-0-2-15"},
+		{"host-10+192.168.1.1", "host-10-192-168-1-1"},
+		{"already-new-10-0-2-15", ""},           // no +, no migration
+		{"", ""},
+		{"noplus", ""},
+		{"only+", ""}, // hostname "only", ip "" -> empty ip so return ""
+	}
+	for _, tt := range tests {
+		got := migrateAgentIDToNewFormat(tt.id)
+		if got != tt.expected {
+			t.Errorf("migrateAgentIDToNewFormat(%q) = %q, want %q", tt.id, got, tt.expected)
+		}
 	}
 }
 
