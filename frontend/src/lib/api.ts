@@ -56,12 +56,12 @@ export function normalizeServerId(id: string): string {
 }
 
 /**
- * Format server/agent ID for display and URLs: use "-" instead of "+" (e.g. zabbix-10.0.2.15).
+ * Format server/agent ID for display and URLs: use "-" instead of "+", and dashes instead of dots in the IP segment (e.g. hostname-10-0-2-15).
  * Use this when building /servers/... or /agents/... links and when showing the id in the UI.
  */
 export function serverIdForDisplay(id: string): string {
   if (!id) return "";
-  return id.replace(/\+/g, "-");
+  return id.replace(/\+/g, "-").replace(/\./g, "-");
 }
 
 /**

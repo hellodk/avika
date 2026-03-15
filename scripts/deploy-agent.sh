@@ -139,6 +139,9 @@ mv "$TMP_BINARY" "$INSTALL_DIR/avika-agent"
 # Verify installation
 INSTALLED_VERSION=$("$INSTALL_DIR/avika-agent" -version | grep "Version:" | awk '{print $2}')
 log_success "Installed version: $INSTALLED_VERSION"
+if [ "$INSTALLED_VERSION" != "$LATEST_VERSION" ]; then
+    log_warn "Installed version ($INSTALLED_VERSION) differs from latest ($LATEST_VERSION). You may be running an older gateway; rebuild/redeploy the gateway to serve binaries with the correct version."
+fi
 
 # Create configuration file
 log_info "Creating configuration file..."

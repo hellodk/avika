@@ -39,11 +39,11 @@ Added build metadata fields to `AgentInfo`:
 - `git_commit` - Git commit hash  
 - `git_branch` - Git branch name
 
-### 5. **Local Build Script** (`scripts/docker-build.sh`)
+### 5. **Local Build Script** (`scripts/build-agent.sh`)
 
 Interactive script for local development:
 ```bash
-./scripts/docker-build.sh
+./scripts/build-agent.sh
 ```
 
 Features:
@@ -97,7 +97,7 @@ BREAKING CHANGE: API endpoints have changed structure"
 
 ```bash
 # Build locally with version info
-./scripts/docker-build.sh
+./scripts/build-agent.sh
 
 # Or manually:
 docker build \
@@ -171,7 +171,7 @@ The pipeline runs on:
 .github/workflows/agent-build.yml  # CI/CD pipeline
 VERSION                            # Current version (0.1.0)
 cmd/agent/Dockerfile               # Enhanced multi-stage build
-scripts/docker-build.sh            # Local build script
+scripts/build-agent.sh            # Local agent build (and Docker image)
 docs/DOCKER_CONFIG.md              # Detailed documentation
 ```
 

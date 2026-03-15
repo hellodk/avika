@@ -563,10 +563,11 @@ func (s *server) ListAgents(ctx context.Context, req *pb.ListAgentsRequest) (*pb
 }
 
 func (s *server) GetAgent(ctx context.Context, req *pb.GetAgentRequest) (*pb.AgentInfo, error) {
-	val, ok := s.sessions.Load(req.AgentId)
+	resolved, ok := s.resolveAgentID(req.AgentId)
 	if !ok {
 		return nil, fmt.Errorf("agent %s not found", req.AgentId)
 	}
+	val, _ := s.sessions.Load(resolved)
 	session := val.(*AgentSession)
 
 	return &pb.AgentInfo{
@@ -586,26 +587,25 @@ func (s *server) GetAgent(ctx context.Context, req *pb.GetAgentRequest) (*pb.Age
 }
 
 func (s *server) RemoveAgent(ctx context.Context, req *pb.RemoveAgentRequest) (*pb.RemoveAgentResponse, error) {
-	if _, ok := s.sessions.Load(req.AgentId); ok {
-		s.sessions.Delete(req.AgentId)
-
-		// Remove from DB
-		if err := s.db.RemoveAgent(req.AgentId); err != nil {
-			gatewayLog.Warn().Err(err).Str("agent_id", req.AgentId).Msg("Failed to remove agent from DB")
-			return &pb.RemoveAgentResponse{Success: false}, nil
-		}
-
-		gatewayLog.Info().Str("agent_id", req.AgentId).Msg("Agent manually removed from inventory")
-		return &pb.RemoveAgentResponse{Success: true}, nil
+	resolved, ok := s.resolveAgentID(req.AgentId)
+	if !ok {
+		return &pb.RemoveAgentResponse{Success: false}, nil
 	}
-	return &pb.RemoveAgentResponse{Success: false}, nil
+	s.sessions.Delete(resolved)
+	if err := s.db.RemoveAgent(resolved); err != nil {
+		gatewayLog.Warn().Err(err).Str("agent_id", resolved).Msg("Failed to remove agent from DB")
+		return &pb.RemoveAgentResponse{Success: false}, nil
+	}
+	gatewayLog.Info().Str("agent_id", resolved).Msg("Agent manually removed from inventory")
+	return &pb.RemoveAgentResponse{Success: true}, nil
 }
 
 func (s *server) UpdateAgent(ctx context.Context, req *pb.UpdateAgentRequest) (*pb.UpdateAgentResponse, error) {
-	val, ok := s.sessions.Load(req.AgentId)
+	resolved, ok := s.resolveAgentID(req.AgentId)
 	if !ok {
 		return nil, fmt.Errorf("agent %s not found", req.AgentId)
 	}
+	val, _ := s.sessions.Load(resolved)
 	session := val.(*AgentSession)
 
 	session.mu.Lock()
@@ -835,6 +835,34 @@ func probeMgmtReachable(addr string) bool {
 	return true
 }
 
+// normalizeAgentID normalizes an agent ID for comparison: replace "+" with "-" and "." with "-"
+// so that "zabbix2+10.0.2.15" and "zabbix2-10-0-2-15" match.
+func normalizeAgentID(id string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(id, "+", "-"), ".", "-")
+}
+
+// resolveAgentID returns the actual session key for a given id from the client (path or query).
+// Clients may send normalized ids (e.g. zabbix2-10-0-2-15); sessions are keyed by what the agent sent (e.g. zabbix2+10.0.2.15).
+// So we try exact match first, then match by normalized form.
+func (s *server) resolveAgentID(requestedID string) (actualKey string, ok bool) {
+	if requestedID == "" {
+		return "", false
+	}
+	if _, ok := s.sessions.Load(requestedID); ok {
+		return requestedID, true
+	}
+	var found string
+	s.sessions.Range(func(k, _ interface{}) bool {
+		key := k.(string)
+		if normalizeAgentID(key) == normalizeAgentID(requestedID) {
+			found = key
+			return false
+		}
+		return true
+	})
+	return found, found != ""
+}
+
 // pickReachableMgmtTarget returns the best reachable address from session.mgmtCandidates.
 // Prefer connection peer (candidate whose host equals session.ip) if reachable; else first reachable candidate.
 func (s *server) pickReachableMgmtTarget(session *AgentSession) string {
@@ -864,11 +892,12 @@ func (s *server) pickReachableMgmtTarget(session *AgentSession) string {
 }
 
 func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.ClientConn, error) {
-	val, ok := s.sessions.Load(agentID)
+	resolved, ok := s.resolveAgentID(agentID)
 	if !ok {
 		log.Printf("Agent lookup failed for ID: %s", agentID)
 		return nil, nil, fmt.Errorf("agent %s not found", agentID)
 	}
+	val, _ := s.sessions.Load(resolved)
 	session := val.(*AgentSession)
 
 	var target string
@@ -2325,8 +2354,13 @@ func (srv *server) handleTerminal(w http.ResponseWriter, r *http.Request, upgrad
 		http.Error(w, "agent_id is required", http.StatusBadRequest)
 		return
 	}
+	resolved, ok := srv.resolveAgentID(agentID)
+	if !ok {
+		http.Error(w, "Agent not found", http.StatusNotFound)
+		return
+	}
 
-	// RBAC: Check if user has access to this agent
+	// RBAC: Check if user has access to this agent (visible agents use actual session keys)
 	user := middleware.GetUserFromContext(r.Context())
 	if user != nil {
 		visibleAgents, err := srv.db.GetVisibleAgentIDs(user.Username)
@@ -2335,10 +2369,9 @@ func (srv *server) handleTerminal(w http.ResponseWriter, r *http.Request, upgrad
 			http.Error(w, "Failed to check access permissions", http.StatusInternalServerError)
 			return
 		}
-		// Check if agentID is in visible agents list
 		hasAccess := false
 		for _, a := range visibleAgents {
-			if a == agentID {
+			if a == resolved {
 				hasAccess = true
 				break
 			}

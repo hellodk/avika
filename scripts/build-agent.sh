@@ -106,41 +106,59 @@ mkdir -p "$BIN_DIR"
 
 echo "Building Agent ${VERSION}..."
 
-# Build for Linux AMD64
-echo "Building for linux/amd64..."
-GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o "$BIN_DIR/${BINARY_NAME}-linux-amd64" ./cmd/agent
+# Build only the platform(s) in BUILD_PLATFORMS (when AMD64_ONLY=1 or BUILD_PLATFORMS=linux/amd64, skip arm64 for speed)
+BUILD_AMD64=false
+BUILD_ARM64=false
+case "${BUILD_PLATFORMS}" in
+    *amd64*) BUILD_AMD64=true ;;
+    *arm64*) BUILD_ARM64=true ;;
+    *)       BUILD_AMD64=true; BUILD_ARM64=true ;;
+esac
 
-# Build for Linux ARM64
-echo "Building for linux/arm64..."
-GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o "$BIN_DIR/${BINARY_NAME}-linux-arm64" ./cmd/agent
+if [ "$BUILD_AMD64" = true ]; then
+    echo "Building for linux/amd64..."
+    GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o "$BIN_DIR/${BINARY_NAME}-linux-amd64" ./cmd/agent
+    sha256sum "$BIN_DIR/${BINARY_NAME}-linux-amd64" | awk '{print $1}' > "$BIN_DIR/${BINARY_NAME}-linux-amd64.sha256"
+fi
+if [ "$BUILD_ARM64" = true ]; then
+    echo "Building for linux/arm64..."
+    GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o "$BIN_DIR/${BINARY_NAME}-linux-arm64" ./cmd/agent
+    sha256sum "$BIN_DIR/${BINARY_NAME}-linux-arm64" | awk '{print $1}' > "$BIN_DIR/${BINARY_NAME}-linux-arm64.sha256"
+fi
 
 echo "Build complete. Artifacts in $BIN_DIR/"
 ls -lh "$BIN_DIR"
 
-# Build and push multi-arch Docker image (context = repo root so COPY bin/ and nginx-agent/ work)
-echo ""
-echo -e "${BLUE}🐳 Building multi-arch Docker image ${REPO}/avika-agent:${VERSION}...${NC}"
-docker buildx build --platform "${BUILD_PLATFORMS}" \
-    --build-arg VERSION="${VERSION}" \
-    --build-arg BUILD_DATE="${BUILD_DATE}" \
-    --build-arg GIT_COMMIT="${GIT_COMMIT}" \
-    --build-arg GIT_BRANCH="${GIT_BRANCH}" \
-    -t "${REPO}/avika-agent:${VERSION}" \
-    -t "${REPO}/avika-agent:latest" \
-    -f nginx-agent/Dockerfile \
-    --push . || echo -e "${YELLOW}⚠️  Docker buildx failed (non-fatal)${NC}"
-
-# Deploy to Kubernetes (non-fatal, optional)
-if [ "${K8S_DEPLOY_ENABLED}" = "true" ] && [ -n "${AGENT_K8S_MANIFEST}" ] && [ -f "${AGENT_K8S_MANIFEST}" ]; then
+# Docker build and K8s deploy (skip when SKIP_DOCKER=1, e.g. when called from release-local.sh)
+if [ "${SKIP_DOCKER}" != "1" ]; then
+    # Build and push multi-arch Docker image (context = repo root so COPY bin/ and nginx-agent/ work)
     echo ""
-    echo -e "${BLUE}☸️  Applying Kubernetes manifest (tag: ${VERSION})...${NC}"
-    export IMAGE_TAG="${VERSION}"
-    envsubst '${IMAGE_TAG}' < "${AGENT_K8S_MANIFEST}" | kubectl apply -f - \
-        || echo -e "${YELLOW}⚠️  kubectl apply failed (non-fatal)${NC}"
-elif [ -n "${AGENT_K8S_MANIFEST}" ] && [ ! -f "${AGENT_K8S_MANIFEST}" ]; then
-    echo -e "${YELLOW}⚠️  AGENT_K8S_MANIFEST set but file not found: ${AGENT_K8S_MANIFEST}${NC}"
-fi
+    echo -e "${BLUE}🐳 Building multi-arch Docker image ${REPO}/avika-agent:${VERSION}...${NC}"
+    docker buildx build --platform "${BUILD_PLATFORMS}" \
+        --build-arg VERSION="${VERSION}" \
+        --build-arg BUILD_DATE="${BUILD_DATE}" \
+        --build-arg GIT_COMMIT="${GIT_COMMIT}" \
+        --build-arg GIT_BRANCH="${GIT_BRANCH}" \
+        -t "${REPO}/avika-agent:${VERSION}" \
+        -t "${REPO}/avika-agent:latest" \
+        -f nginx-agent/Dockerfile \
+        --push . || echo -e "${YELLOW}⚠️  Docker buildx failed (non-fatal)${NC}"
 
-echo ""
-echo -e "${GREEN}✅ Done!${NC}"
-echo "Image: ${REPO}/avika-agent:${VERSION}"
+    # Deploy to Kubernetes (non-fatal, optional)
+    if [ "${K8S_DEPLOY_ENABLED}" = "true" ] && [ -n "${AGENT_K8S_MANIFEST}" ] && [ -f "${AGENT_K8S_MANIFEST}" ]; then
+        echo ""
+        echo -e "${BLUE}☸️  Applying Kubernetes manifest (tag: ${VERSION})...${NC}"
+        export IMAGE_TAG="${VERSION}"
+        envsubst '${IMAGE_TAG}' < "${AGENT_K8S_MANIFEST}" | kubectl apply -f - \
+            || echo -e "${YELLOW}⚠️  kubectl apply failed (non-fatal)${NC}"
+    elif [ -n "${AGENT_K8S_MANIFEST}" ] && [ ! -f "${AGENT_K8S_MANIFEST}" ]; then
+        echo -e "${YELLOW}⚠️  AGENT_K8S_MANIFEST set but file not found: ${AGENT_K8S_MANIFEST}${NC}"
+    fi
+
+    echo ""
+    echo -e "${GREEN}✅ Done!${NC}"
+    echo "Image: ${REPO}/avika-agent:${VERSION}"
+else
+    echo ""
+    echo -e "${GREEN}✅ Binaries and .sha256 built (Docker skipped).${NC}"
+fi
