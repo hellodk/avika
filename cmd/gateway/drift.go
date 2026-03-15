@@ -527,10 +527,16 @@ func (s *server) getAgentConfigHash(ctx context.Context, agentID, checkType stri
 }
 
 func (s *server) getAgentSession(agentID string) (*AgentSession, bool) {
-	if val, ok := s.sessions.Load(agentID); ok {
-		if session, ok := val.(*AgentSession); ok {
-			return session, true
-		}
+	resolved, ok := s.resolveAgentID(agentID)
+	if !ok {
+		return nil, false
+	}
+	val, ok := s.sessions.Load(resolved)
+	if !ok {
+		return nil, false
+	}
+	if session, ok := val.(*AgentSession); ok {
+		return session, true
 	}
 	return nil, false
 }

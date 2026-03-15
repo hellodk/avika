@@ -73,10 +73,11 @@ func (s *server) UpdateAgentConfig(ctx context.Context, cfg *pb.AgentConfig) (*p
 }
 
 func (s *server) getAgentConfigClient(agentID string) (pb.AgentConfigServiceClient, *grpc.ClientConn, error) {
-	val, ok := s.sessions.Load(agentID)
+	resolved, ok := s.resolveAgentID(agentID)
 	if !ok {
 		return nil, nil, fmt.Errorf("agent %s not found", agentID)
 	}
+	val, _ := s.sessions.Load(resolved)
 	session := val.(*AgentSession)
 
 	var target string
@@ -144,13 +145,18 @@ func (srv *server) handleGetAgentRuntimeConfig(w http.ResponseWriter, r *http.Re
 		http.Error(w, `{"error":"agent id required"}`, http.StatusBadRequest)
 		return
 	}
+	resolved, ok := srv.resolveAgentID(agentID)
+	if !ok {
+		http.Error(w, `{"error":"agent not found"}`, http.StatusNotFound)
+		return
+	}
 
 	user := middleware.GetUserFromContext(r.Context())
 	if user == nil {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	if !srv.canUserAccessAgent(user.Username, agentID) {
+	if !srv.canUserAccessAgent(user.Username, resolved) {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -158,7 +164,7 @@ func (srv *server) handleGetAgentRuntimeConfig(w http.ResponseWriter, r *http.Re
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
 
-	client, conn, err := srv.getAgentConfigClient(agentID)
+	client, conn, err := srv.getAgentConfigClient(resolved)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusNotFound)
 		return
@@ -171,12 +177,12 @@ func (srv *server) handleGetAgentRuntimeConfig(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if srv.db != nil {
-		_ = srv.db.UpsertAgentConfigCache(ctx, agentID, cfg)
+		_ = srv.db.UpsertAgentConfigCache(ctx, resolved, cfg)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(cfg); err != nil {
-		log.Printf("handleGetAgentRuntimeConfig: failed to encode response for agent %s: %v", agentID, err)
+		log.Printf("handleGetAgentRuntimeConfig: failed to encode response for agent %s: %v", resolved, err)
 	}
 }
 
@@ -187,13 +193,18 @@ func (srv *server) handleUpdateAgentRuntimeConfig(w http.ResponseWriter, r *http
 		http.Error(w, `{"error":"agent id required"}`, http.StatusBadRequest)
 		return
 	}
+	resolved, ok := srv.resolveAgentID(agentID)
+	if !ok {
+		http.Error(w, `{"error":"agent not found"}`, http.StatusNotFound)
+		return
+	}
 
 	user := middleware.GetUserFromContext(r.Context())
 	if user == nil {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	if !srv.canUserAccessAgent(user.Username, agentID) {
+	if !srv.canUserAccessAgent(user.Username, resolved) {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -208,13 +219,13 @@ func (srv *server) handleUpdateAgentRuntimeConfig(w http.ResponseWriter, r *http
 		return
 	}
 	if body.Config != nil {
-		body.Config.AgentId = agentID
+		body.Config.AgentId = resolved
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
 	defer cancel()
 
-	client, conn, err := srv.getAgentConfigClient(agentID)
+	client, conn, err := srv.getAgentConfigClient(resolved)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusNotFound)
 		return
@@ -246,13 +257,13 @@ func (srv *server) handleUpdateAgentRuntimeConfig(w http.ResponseWriter, r *http
 			"hot_reload": body.HotReload,
 			"updates":    updates,
 		}); err != nil {
-			log.Printf("handleUpdateAgentRuntimeConfig: failed to create audit log for user %s agent %s: %v", user.Username, agentID, err)
+			log.Printf("handleUpdateAgentRuntimeConfig: failed to create audit log for user %s agent %s: %v", user.Username, resolved, err)
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("handleUpdateAgentRuntimeConfig: failed to encode response for agent %s: %v", agentID, err)
+		log.Printf("handleUpdateAgentRuntimeConfig: failed to encode response for agent %s: %v", resolved, err)
 	}
 }
 
@@ -263,18 +274,23 @@ func (srv *server) handleListAgentConfigBackups(w http.ResponseWriter, r *http.R
 		http.Error(w, `{"error":"agent id required"}`, http.StatusBadRequest)
 		return
 	}
+	resolved, ok := srv.resolveAgentID(agentID)
+	if !ok {
+		http.Error(w, `{"error":"agent not found"}`, http.StatusNotFound)
+		return
+	}
 	user := middleware.GetUserFromContext(r.Context())
 	if user == nil {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	if !srv.canUserAccessAgent(user.Username, agentID) {
+	if !srv.canUserAccessAgent(user.Username, resolved) {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	client, conn, err := srv.getAgentConfigClient(agentID)
+	client, conn, err := srv.getAgentConfigClient(resolved)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusNotFound)
 		return
@@ -296,12 +312,17 @@ func (srv *server) handleRestoreAgentConfigBackup(w http.ResponseWriter, r *http
 		http.Error(w, `{"error":"agent id required"}`, http.StatusBadRequest)
 		return
 	}
+	resolved, ok := srv.resolveAgentID(agentID)
+	if !ok {
+		http.Error(w, `{"error":"agent not found"}`, http.StatusNotFound)
+		return
+	}
 	user := middleware.GetUserFromContext(r.Context())
 	if user == nil {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	if !srv.canUserAccessAgent(user.Username, agentID) {
+	if !srv.canUserAccessAgent(user.Username, resolved) {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -318,7 +339,7 @@ func (srv *server) handleRestoreAgentConfigBackup(w http.ResponseWriter, r *http
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
-	client, conn, err := srv.getAgentConfigClient(agentID)
+	client, conn, err := srv.getAgentConfigClient(resolved)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusNotFound)
 		return
@@ -330,15 +351,15 @@ func (srv *server) handleRestoreAgentConfigBackup(w http.ResponseWriter, r *http
 		return
 	}
 	if srv.db != nil {
-		if err := srv.db.CreateAuditLog(user.Username, "restore_agent_config_backup", "agent", agentID, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
+		if err := srv.db.CreateAuditLog(user.Username, "restore_agent_config_backup", "agent", resolved, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
 			"backup_name": body.BackupName,
 		}); err != nil {
-			log.Printf("handleRestoreAgentConfigBackup: failed to create audit log for user %s agent %s: %v", user.Username, agentID, err)
+			log.Printf("handleRestoreAgentConfigBackup: failed to create audit log for user %s agent %s: %v", user.Username, resolved, err)
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("handleRestoreAgentConfigBackup: failed to encode response for agent %s: %v", agentID, err)
+		log.Printf("handleRestoreAgentConfigBackup: failed to encode response for agent %s: %v", resolved, err)
 	}
 }
 
@@ -349,13 +370,18 @@ func (srv *server) handleTestAgentConfigConnection(w http.ResponseWriter, r *htt
 		http.Error(w, `{"error":"agent id required"}`, http.StatusBadRequest)
 		return
 	}
+	resolved, ok := srv.resolveAgentID(agentID)
+	if !ok {
+		http.Error(w, `{"error":"agent not found"}`, http.StatusNotFound)
+		return
+	}
 
 	user := middleware.GetUserFromContext(r.Context())
 	if user == nil {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	if !srv.canUserAccessAgent(user.Username, agentID) {
+	if !srv.canUserAccessAgent(user.Username, resolved) {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -369,7 +395,7 @@ func (srv *server) handleTestAgentConfigConnection(w http.ResponseWriter, r *htt
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	client, conn, err := srv.getAgentConfigClient(agentID)
+	client, conn, err := srv.getAgentConfigClient(resolved)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusNotFound)
 		return

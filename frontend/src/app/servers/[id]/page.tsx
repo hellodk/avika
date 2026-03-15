@@ -18,7 +18,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip } from "recharts";
 import { TerminalOverlay } from "@/components/TerminalOverlay";
-import { apiFetch, apiUrl, normalizeServerId, serverIdForDisplay } from "@/lib/api";
+import { apiFetch, apiUrl, BASE_PATH, normalizeServerId, serverIdForDisplay } from "@/lib/api";
 import Editor, { loader } from "@monaco-editor/react";
 import { useProject } from "@/lib/project-context";
 
@@ -163,6 +163,18 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     const [assignmentProjectId, setAssignmentProjectId] = useState<string | null>(null);
     const [assignmentEnvironmentId, setAssignmentEnvironmentId] = useState<string | null>(null);
     const [isSavingAssignment, setIsSavingAssignment] = useState(false);
+
+    // Redirect old-format URLs (e.g. zabbix1+10.0.2.15) to normalized form (zabbix1-10-0-2-15) so address bar and breadcrumbs stay clean
+    useEffect(() => {
+        if (!id) return;
+        const normalized = serverIdForDisplay(id);
+        if (normalized && id !== normalized) {
+            const base = typeof window !== "undefined" && window.location.pathname.startsWith("/avika") ? "/avika" : BASE_PATH || "";
+            const newPath = `${base}/servers/${encodeURIComponent(normalized)}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+            router.replace(newPath);
+            return;
+        }
+    }, [id, router, searchParams]);
 
     // Drift (per-group status for this server)
     const [driftGroups, setDriftGroups] = useState<{ group_id: string; group_name: string; report_id: string; status: string; baseline_type: string; diff_summary?: string; error_message?: string; created_at: number }[]>([]);

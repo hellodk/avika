@@ -21,10 +21,10 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w \
     -X main.GitCommit=${GIT_COMMIT}" \
     -o gateway .
 
-# Build agent binaries (use repo VERSION file so deployed agent shows correct version)
+# Build agent binaries: prefer build-arg VERSION (set by build-stack.sh) so agent never reports 0.1.0-dev
 WORKDIR /app
 RUN set -e && \
-  AGENT_VERSION="$(cat VERSION 2>/dev/null || echo "${VERSION}")" && \
+  if [ -n "$VERSION" ] && [ "$VERSION" != "dev" ]; then AGENT_VERSION="$VERSION"; else AGENT_VERSION="$(cat VERSION 2>/dev/null || echo "${VERSION}")"; fi && \
   cd cmd/agent && \
   CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w \
     -X main.Version=${AGENT_VERSION} \

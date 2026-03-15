@@ -21,6 +21,11 @@ func (srv *server) handleListNginxConfigBackups(w http.ResponseWriter, r *http.R
 		http.Error(w, `{"error":"agent id required"}`, http.StatusBadRequest)
 		return
 	}
+	resolved, ok := srv.resolveAgentID(agentID)
+	if !ok {
+		http.Error(w, `{"error":"agent not found"}`, http.StatusNotFound)
+		return
+	}
 
 	user := middleware.GetUserFromContext(r.Context())
 	if user == nil {
@@ -28,7 +33,7 @@ func (srv *server) handleListNginxConfigBackups(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if !srv.canUserAccessAgent(user.Username, agentID) {
+	if !srv.canUserAccessAgent(user.Username, resolved) {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -48,9 +53,9 @@ func (srv *server) handleListNginxConfigBackups(w http.ResponseWriter, r *http.R
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	backups, err := srv.db.ListConfigBackups(ctx, agentID, limit)
+	backups, err := srv.db.ListConfigBackups(ctx, resolved, limit)
 	if err != nil {
-		log.Printf("Failed to list config backups for %s: %v", agentID, err)
+		log.Printf("Failed to list config backups for %s: %v", resolved, err)
 		http.Error(w, `{"error":"failed to fetch backups from database"}`, http.StatusInternalServerError)
 		return
 	}
@@ -69,9 +74,14 @@ func (srv *server) handleRestoreNginxConfigBackup(w http.ResponseWriter, r *http
 		http.Error(w, `{"error":"agent id required"}`, http.StatusBadRequest)
 		return
 	}
+	resolved, ok := srv.resolveAgentID(agentID)
+	if !ok {
+		http.Error(w, `{"error":"agent not found"}`, http.StatusNotFound)
+		return
+	}
 
 	user := middleware.GetUserFromContext(r.Context())
-	if user == nil || !srv.canUserAccessAgent(user.Username, agentID) {
+	if user == nil || !srv.canUserAccessAgent(user.Username, resolved) {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -108,13 +118,13 @@ func (srv *server) handleRestoreNginxConfigBackup(w http.ResponseWriter, r *http
 		return
 	}
 
-	if backup.AgentID != agentID {
+	if backup.AgentID != resolved {
 		http.Error(w, `{"error":"backup does not belong to this agent"}`, http.StatusForbidden)
 		return
 	}
 
 	// Call UpdateConfig on Agent with the old content
-	client, conn, connErr := srv.getAgentClient(agentID)
+	client, conn, connErr := srv.getAgentClient(resolved)
 	if connErr != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"agent offline: %s"}`, escapeJSON(connErr.Error())), http.StatusBadGateway)
 		return
@@ -122,7 +132,7 @@ func (srv *server) handleRestoreNginxConfigBackup(w http.ResponseWriter, r *http
 	defer conn.Close()
 
 	updateReq := &pb.ConfigUpdate{
-		InstanceId: agentID,
+		InstanceId: resolved,
 		ConfigPath: reqBody.ConfigPath,
 		NewContent: backup.ConfigContent,
 		Backup:     true, // backup the current before restoring
@@ -135,7 +145,7 @@ func (srv *server) handleRestoreNginxConfigBackup(w http.ResponseWriter, r *http
 	}
 
 	if srv.db != nil {
-		_ = srv.db.CreateAuditLog(user.Username, "restore_nginx_config_backup", "agent", agentID, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
+		_ = srv.db.CreateAuditLog(user.Username, "restore_nginx_config_backup", "agent", resolved, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
 			"backup_id":   reqBody.BackupID,
 			"config_path": reqBody.ConfigPath,
 			"success":     updateResp.Success,
