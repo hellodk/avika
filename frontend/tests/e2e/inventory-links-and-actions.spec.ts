@@ -8,7 +8,40 @@ import { installBasePath, withBase, loginIfNeeded } from './helpers';
 const INV = withBase('/inventory');
 const BASE = process.env.BASE_PATH || process.env.NEXT_PUBLIC_BASE_PATH || '';
 
+const MOCK_AGENTS = {
+    agents: [
+        {
+            agent_id: 'alpha-node',
+            hostname: 'alpha-node',
+            ip: '10.0.0.1',
+            agent_version: '0.1.0',
+            last_seen: Math.floor(Date.now() / 1000) - 60,
+            version: '1.24.0',
+            is_pod: false,
+        },
+        {
+            agent_id: 'bravo-node',
+            hostname: 'bravo-node',
+            ip: '10.0.0.2',
+            agent_version: '0.0.9', // Needs update
+            last_seen: Math.floor(Date.now() / 1000) - 3600, // Offline
+            version: '1.24.0',
+            is_pod: true,
+        },
+    ],
+    system_version: '0.1.0',
+};
+
 async function gotoInventory(page: import('@playwright/test').Page) {
+    // Mock the agents API
+    await page.route('**/api/servers**', (route) => {
+        return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(MOCK_AGENTS),
+        });
+    });
+
     installBasePath(page);
     await page.goto('/inventory');
     await loginIfNeeded(page);
@@ -108,22 +141,38 @@ test.describe('Inventory Page - Links and Functionality', () => {
         await expect(table.getByRole('columnheader', { name: /actions/i })).toBeVisible();
     });
 
-    test('sort by Agent toggles URL params', async ({ page }) => {
-        await page.waitForLoadState('networkidle');
-        const agentHeader = page.locator('table').first().getByRole('button', { name: /agent/i });
-        await agentHeader.click();
-        await expect(page).toHaveURL(new RegExp(`.*sort=hostname`));
-        await agentHeader.click();
-        await expect(page).toHaveURL(new RegExp(`.*dir=desc`));
-    });
-
     test('when no agents: empty state message shown', async ({ page }) => {
+        // We need to override the mock for this specific test
+        await page.route('**/api/servers**', (route) => {
+            return route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ agents: [] }),
+            });
+        });
+        await page.reload();
         await page.waitForLoadState('networkidle');
         const noAgents = page.getByText('No agents found matching your filters.');
-        const hasRows = await page.locator('table tbody tr').count() > 0;
-        const hasEmptyState = await noAgents.isVisible().catch(() => false);
-        const hasLoadingSkeleton = await page.locator('table tbody tr').filter({ has: page.locator('.animate-pulse') }).count() > 0;
-        expect(hasRows && !hasLoadingSkeleton || hasEmptyState).toBeTruthy();
+        await expect(noAgents).toBeVisible();
+    });
+
+    test('functional filtering: searching "alpha" shows only alpha-node', async ({ page }) => {
+        const search = page.getByPlaceholder('Search agents...');
+        await search.fill('alpha');
+        await expect(page.getByRole('cell', { name: 'alpha-node' })).toBeVisible();
+        await expect(page.getByRole('cell', { name: 'bravo-node' })).not.toBeVisible();
+    });
+
+    test('functional sorting: clicking Agent header toggles order', async ({ page }) => {
+        const agentHeader = page.getByRole('columnheader', { name: /agent/i }).getByRole('button');
+        
+        // Initial state (by status usually, but let's force hostname sort)
+        await agentHeader.click(); // Sort by hostname asc
+        let rows = page.locator('table tbody tr');
+        await expect(rows.first().getByText('alpha-node')).toBeVisible();
+        
+        await agentHeader.click(); // Sort by hostname desc
+        await expect(rows.first().getByText('bravo-node')).toBeVisible();
     });
 });
 
@@ -193,17 +242,26 @@ test.describe('Inventory Page - Links (when agents exist)', () => {
         await expect(page.getByRole('button', { name: /remove/i }).filter({ hasText: 'Remove' })).toBeVisible();
     });
 
-    test('delete button opens confirmation dialog', async ({ page }) => {
-        const deleteBtn = page.locator('table tbody tr').first().locator('button').filter({ has: page.locator('svg') }).last();
-        if (await deleteBtn.count() === 0) {
-            test.skip();
-            return;
-        }
+    test('delete button opens confirmation dialog and execution works', async ({ page }) => {
+        const deleteBtn = page.locator('table tbody tr').first().locator('button').filter({ has: page.locator('svg[class*="lucide-trash2"]') });
         await deleteBtn.click();
-        await expect(page.getByRole('dialog').getByText('Remove Agent')).toBeVisible();
-        await expect(page.getByRole('dialog').getByText(/Are you sure/)).toBeVisible();
-        await page.getByRole('button', { name: 'Cancel' }).click();
-        await expect(page.getByRole('dialog')).not.toBeVisible();
+        
+        const dialog = page.getByRole('dialog');
+        await expect(dialog.getByText('Remove Agent')).toBeVisible();
+        
+        // Mock the DELETE call
+        await page.route('**/api/servers/**', (route) => {
+            if (route.request().method() === 'DELETE') {
+                return route.fulfill({ status: 200 });
+            }
+            return route.continue();
+        });
+
+        const confirmBtn = dialog.getByRole('button', { name: /Remove Agent/i });
+        await confirmBtn.click();
+        
+        await expect(dialog).not.toBeVisible();
+        await expect(page.getByText('Agent removed successfully')).toBeVisible();
     });
 
     test('terminal button on pod opens Access Pod Terminal dialog', async ({ page }) => {
