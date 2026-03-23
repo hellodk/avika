@@ -21,7 +21,8 @@ export default async function globalSetup(config: FullConfig) {
   }
 
   const browser = await chromium.launch();
-  const page = await browser.newPage();
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  const page = await context.newPage();
 
   // Navigate to login under basePath (e.g. /avika/login in K8s)
   const loginURL = new URL(withBase("/login"), baseURL).toString();

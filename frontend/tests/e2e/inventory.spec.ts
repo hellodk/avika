@@ -65,8 +65,8 @@ test.describe('Inventory Page', () => {
         const pageContent = await page.content();
         
         // Agent Fleet section should always be present
-        expect(pageContent).toContain('Agent Fleet');
-        expect(pageContent).toContain('agents shown');
+        expect(pageContent).toContain('agent fleet');
+        expect(pageContent).toContain('Total Agents');
         await expect(page).toHaveURL(INV);
     });
 
@@ -99,7 +99,7 @@ test.describe('Inventory Page', () => {
         const pageContent = await page.content();
         
         // Controls section should always be present
-        expect(pageContent).toContain('Agent Fleet');
+        expect(pageContent).toContain('agent fleet');
         expect(pageContent).toContain('Refresh');
         expect(pageContent).toContain('Export');
     });

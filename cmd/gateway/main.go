@@ -122,18 +122,21 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 	defer func() {
 		if currentSession != nil {
 			currentSession.mu.Lock()
-			currentSession.status = "offline"
-			currentSession.lastActive = time.Now()
-			currentSession.stream = nil // Clear stream
+			// Only mark offline if this is still the active stream for this session.
+			// This prevents stale/reconnecting goroutines from marking a new, healthy stream as offline.
+			if currentSession.stream == stream {
+				currentSession.status = "offline"
+				currentSession.lastActive = time.Now()
+				currentSession.stream = nil // Clear stream
 
-			agentLog := logging.WithAgent(gatewayLog, currentSession.id, currentSession.hostname, currentSession.ip)
-			// Persist offline status
-			if err := s.db.UpsertAgent(currentSession); err != nil {
-				agentLog.Warn().Err(err).Msg("Failed to update agent status in DB")
+				agentLog := logging.WithAgent(gatewayLog, currentSession.id, currentSession.hostname, currentSession.ip)
+				// Persist offline status
+				if err := s.db.UpsertAgent(currentSession); err != nil {
+					agentLog.Warn().Err(err).Msg("Failed to update agent status in DB")
+				}
+				agentLog.Info().Msg("Agent disconnected (marked offline)")
 			}
-
 			currentSession.mu.Unlock()
-			agentLog.Info().Msg("Agent disconnected (marked offline)")
 		}
 	}()
 
@@ -1133,6 +1136,36 @@ func (srv *server) startBackgroundPruning() {
 	}()
 }
 
+func (srv *server) startHeartbeatMonitoring() {
+	go func() {
+		gatewayLog.Info().Msg("Starting heartbeat monitoring background service")
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+
+		// If an agent hasn't sent a heartbeat in 5 minutes, mark it offline.
+		// In a production environment, this threshold should be configurable.
+		timeout := 5 * time.Minute
+
+		monitor := func() {
+			count, err := srv.db.MarkStaleAgentsOffline(timeout)
+			if err != nil {
+				gatewayLog.Error().Err(err).Msg("Heartbeat monitor failed")
+				return
+			}
+			if count > 0 {
+				gatewayLog.Info().Int64("count", count).Msg("Marked stale agents as offline")
+			}
+		}
+
+		for {
+			select {
+			case <-ticker.C:
+				monitor()
+			}
+		}
+	}()
+}
+
 var (
 	configFile  = flag.String("config", "gateway.yaml", "Path to configuration file")
 	versionFlag = flag.Bool("version", false, "Display version and exit")
@@ -1299,6 +1332,7 @@ func main() {
 		srv.startRecommendationConsumer()
 	}
 	srv.startBackgroundPruning()
+	srv.startHeartbeatMonitoring()
 	srv.startGatewayMonitoring()
 	srv.alerts.Start()
 
@@ -1638,6 +1672,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 
 	// Server Assignment API
 	mux.Handle("GET /api/server-assignments", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListServerAssignments)))
+	mux.Handle("GET /api/servers", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListAgents)))
 	mux.Handle("GET /api/servers/unassigned", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListUnassignedServers)))
 	mux.Handle("POST /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAssignServer)))
 	mux.Handle("DELETE /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUnassignServer)))
@@ -2459,6 +2494,18 @@ type visitorAnalyticsFrontendShape struct {
 	StaticFiles      []map[string]interface{} `json:"static_files"`
 	RequestedURLs    []map[string]interface{} `json:"requested_urls"`
 	StatusCodes      []map[string]interface{} `json:"status_codes"`
+}
+
+// handleListAgents handles GET /api/servers
+func (srv *server) handleListAgents(w http.ResponseWriter, r *http.Request) {
+	resp, err := srv.ListAgents(r.Context(), &pb.ListAgentsRequest{})
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request) {

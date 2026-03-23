@@ -2,10 +2,10 @@
   "cookies": [
     {
       "name": "avika_session",
-      "value": "MWWnakPiGgqmCNbZM5-jJ6i-yCa2tudsU95rFFNFQIs=",
-      "domain": "localhost",
+      "value": "QdUAl1eHyZueMlY7DmdkKwNSZnZR7hf3i-f16er0_VA=",
+      "domain": "ncn112.com",
       "path": "/",
-      "expires": 1772868221.372404,
+      "expires": 1774237077.53137,
       "httpOnly": true,
       "secure": false,
       "sameSite": "Lax"
@@ -13,11 +13,11 @@
   ],
   "origins": [
     {
-      "origin": "http://localhost:3000",
+      "origin": "https://ncn112.com",
       "localStorage": [
         {
           "name": "avika-user-settings",
-          "value": "{\"integrations\":{\"grafanaUrl\":\"http://monitoring-grafana.monitoring.svc.cluster.local\",\"clickhouseUrl\":\"\",\"prometheusUrl\":\"\"},\"display\":{\"defaultTimeRange\":\"now-1h\",\"refreshInterval\":\"30s\",\"timezone\":\"browser\"},\"telemetry\":{\"collectionInterval\":\"10\",\"retentionDays\":\"30\"},\"aiEngine\":{\"anomalyThreshold\":\"0.8\",\"windowSize\":\"200\"}}"
+          "value": "{\"integrations\":{\"grafanaUrl\":\"http://monitoring-grafana.monitoring.svc.cluster.local\",\"prometheusUrl\":\"http://monitoring-prometheus.monitoring.svc.cluster.local:9090\",\"clickhouseUrl\":\"http://avika-clickhouse-0.avika-clickhouse.avika.svc.cluster.local:8123\"},\"display\":{\"defaultTimeRange\":\"now-1h\",\"refreshInterval\":\"30s\",\"timezone\":\"browser\"},\"telemetry\":{\"collectionInterval\":\"10\",\"retentionDays\":\"30\"},\"aiEngine\":{\"anomalyThreshold\":\"0.8\",\"windowSize\":\"200\"}}"
         },
         {
           "name": "theme",

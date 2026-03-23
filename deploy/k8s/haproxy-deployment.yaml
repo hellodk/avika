@@ -1,0 +1,162 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: haproxy-config
+  namespace: avika
+data:
+  haproxy.cfg: |
+    # Avika HAProxy config for ncnhap.com (compatible with 2.8+)
+    global
+        log stdout format raw local0 info
+        maxconn 50000
+        daemon
+
+    defaults
+        log     global
+        mode    http
+        option  httplog
+        option  dontlognull
+        timeout connect 5s
+        timeout client  50s
+        timeout server  50s
+        timeout tunnel  1h  # Required for long-lived WebSockets
+
+    # =========================================================
+    # Frontend: HTTPS/HTTP [Port 8080/8443]
+    # =========================================================
+    frontend avika_https
+        bind *:8080
+        bind *:8443 ssl crt /etc/haproxy/certs/avika.pem alpn h2,http/1.1
+        mode http
+
+        # Standard HTTP logging
+        option httplog
+
+        # Routing for Avika (https://ncnhap.com/avika)
+        acl is_root path /
+        http-request redirect location /avika if is_root
+
+        # Routing ACLs
+        acl is_avika_api path_beg /avika/api/
+        acl is_avika_updates path_beg /avika/updates/
+        acl is_avika_terminal path_beg /avika/terminal
+        acl is_avika path_beg /avika
+        acl is_grpc path_beg /nginx.agent.v1. /grpc.health.v1.
+
+        # Mark backends before path rewrites
+        http-request set-var(txn.route) str(api) if is_avika_api
+        http-request set-var(txn.route) str(updates) if is_avika_updates
+        http-request set-var(txn.route) str(terminal) if is_avika_terminal
+        http-request set-var(txn.route) str(grpc) if is_grpc
+        http-request set-var(txn.route) str(ui) if is_avika !is_avika_api !is_avika_updates !is_avika_terminal
+
+        # Rewrites for API and Terminal (match gateway expectations)
+        http-request set-path %[path,regsub(^/avika/api/,/api/)] if is_avika_api
+        http-request set-path %[path,regsub(^/avika/updates/,/updates/)] if is_avika_updates
+        http-request set-path %[path,regsub(^/avika/terminal,/terminal)] if is_avika_terminal
+
+        # Backend selection based on marked route
+        use_backend avika_grpc_backend if { var(txn.route) -m str grpc }
+        use_backend avika_gateway_backend if { var(txn.route) -m str api } || { var(txn.route) -m str updates } || { var(txn.route) -m str terminal }
+        use_backend avika_frontend_backend if { var(txn.route) -m str ui }
+
+        default_backend avika_frontend_backend
+
+    # =========================================================
+    # Backends
+    # =========================================================
+
+    # Frontend Next.js Backend
+    backend avika_frontend_backend
+        mode http
+        balance roundrobin
+        server frontend avika-frontend.avika.svc.cluster.local:443 check resolvers k8s
+
+    # Gateway API Backend
+    backend avika_gateway_backend
+        mode http
+        balance roundrobin
+        server gateway avika-gateway.avika.svc.cluster.local:443 check resolvers k8s
+
+    # gRPC Backend (Agent to Gateway)
+    backend avika_grpc_backend
+        mode http
+        balance leastconn
+        server gateway avika-gateway.avika.svc.cluster.local:8443 proto h2 check resolvers k8s
+
+    # =========================================================
+    # Resolvers (For Kubernetes Dynamic IP Discovery)
+    # =========================================================
+    resolvers k8s
+        nameserver coredns 10.96.0.10:53
+        resolve_retries 3
+        timeout retry   1s
+        hold valid      10s
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: haproxy
+  namespace: avika
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: haproxy
+  template:
+    metadata:
+      labels:
+        app: haproxy
+    spec:
+      initContainers:
+      - name: combine-certs
+        image: busybox
+        command: ['sh', '-c', 'cat /certs/tls.crt /certs/tls.key > /combined/avika.pem']
+        volumeMounts:
+        - name: certs-raw
+          mountPath: /certs
+          readOnly: true
+        - name: certs-combined
+          mountPath: /combined
+      containers:
+      - name: haproxy
+        image: haproxy:2.8-alpine
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 8443
+          name: https
+        volumeMounts:
+        - name: config
+          mountPath: /usr/local/etc/haproxy/haproxy.cfg
+          subPath: haproxy.cfg
+        - name: certs-combined
+          mountPath: /etc/haproxy/certs
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: haproxy-config
+      - name: certs-raw
+        secret:
+          secretName: avika-nginx-tls
+      - name: certs-combined
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: haproxy
+  namespace: avika
+spec:
+  type: LoadBalancer
+  selector:
+    app: haproxy
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+  - name: https
+    port: 443
+    targetPort: 8443
