@@ -584,19 +584,17 @@ func (s *server) GetAgent(ctx context.Context, req *pb.GetAgentRequest) (*pb.Age
 }
 
 func (s *server) RemoveAgent(ctx context.Context, req *pb.RemoveAgentRequest) (*pb.RemoveAgentResponse, error) {
-	if _, ok := s.sessions.Load(req.AgentId); ok {
-		s.sessions.Delete(req.AgentId)
+	// Always remove from session if it exists
+	s.sessions.Delete(req.AgentId)
 
-		// Remove from DB
-		if err := s.db.RemoveAgent(req.AgentId); err != nil {
-			gatewayLog.Warn().Err(err).Str("agent_id", req.AgentId).Msg("Failed to remove agent from DB")
-			return &pb.RemoveAgentResponse{Success: false}, nil
-		}
-
-		gatewayLog.Info().Str("agent_id", req.AgentId).Msg("Agent manually removed from inventory")
-		return &pb.RemoveAgentResponse{Success: true}, nil
+	// Remove from DB (always, even if offline)
+	if err := s.db.RemoveAgent(req.AgentId); err != nil {
+		gatewayLog.Warn().Err(err).Str("agent_id", req.AgentId).Msg("Failed to remove agent from DB")
+		return &pb.RemoveAgentResponse{Success: false}, nil
 	}
-	return &pb.RemoveAgentResponse{Success: false}, nil
+
+	gatewayLog.Info().Str("agent_id", req.AgentId).Msg("Agent manually removed from inventory")
+	return &pb.RemoveAgentResponse{Success: true}, nil
 }
 
 func (s *server) UpdateAgent(ctx context.Context, req *pb.UpdateAgentRequest) (*pb.UpdateAgentResponse, error) {
