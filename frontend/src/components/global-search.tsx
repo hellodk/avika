@@ -67,7 +67,9 @@ function getSuggestionLabel(s: Suggestion): string {
 function getSuggestionHref(s: Suggestion): string {
   if (s.type === "page") return s.href;
   if (s.type === "settings") return `/settings?q=${encodeURIComponent(s.q)}`;
-  return `/inventory?q=${encodeURIComponent(s.agent_id)}`;
+  // Link directly to server detail with normalized ID (no + or dots in URL)
+  const base = typeof window !== "undefined" && window.location.pathname.startsWith("/avika") ? "/avika" : "";
+  return `${base}/servers/${encodeURIComponent(serverIdForDisplay(s.agent_id || ""))}`;
 }
 
 const PAGE_ICONS: Record<string, React.ReactNode> = {
@@ -147,14 +149,7 @@ export function GlobalSearch({ onOpenChange, "aria-label": ariaLabel }: GlobalSe
   }, [open, fetchInstances]);
 
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    // Esc is still handled by panel
   }, []);
 
   useEffect(() => {
@@ -264,7 +259,7 @@ export function GlobalSearch({ onOpenChange, "aria-label": ariaLabel }: GlobalSe
             color: "rgb(var(--theme-text-muted))",
           }}
           aria-label="Search"
-          title="Search (⌘K to focus)"
+          title="Search"
         >
           <Search className="h-4 w-4" />
         </button>

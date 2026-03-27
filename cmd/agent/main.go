@@ -51,8 +51,8 @@ var (
 	gatewayAddr   = flag.String("gateway", "", "Gateway address(es) - comma-separated for multi-gateway (e.g., 'gw1:5020,gw2:5020')")
 	agentID       = flag.String("id", "", "The agent ID (default: hostname)")
 	logLevel      = flag.String("log-level", "info", "Log level (debug, info, warn, error). Set via LOG_LEVEL env for dynamic override.")
-	logFile       = flag.String("log-file", "", "Path to log file. If empty, logs to stdout")
-	bufferDir     = flag.String("buffer-dir", "./", "Directory to store the persistent buffer")
+	logFile       = flag.String("log-file", "/var/log/avika-agent/agent.log", "Path to log file. If empty, logs to stdout")
+	bufferDir     = flag.String("buffer-dir", "/var/lib/avika-agent/data", "Directory to store the persistent buffer")
 	version       = flag.Bool("version", false, "Display version and exit")
 	healthPort    = flag.Int("health-port", DefaultHealthPort, "Port for health check endpoints")
 	mgmtPort      = flag.Int("mgmt-port", DefaultMgmtPort, "Port for management gRPC server")
@@ -83,6 +83,11 @@ var (
 	// Optional CIDR to avoid for mgmt (e.g. VirtualBox NAT 10.0.2.0/24). When set, prefer an interface outside this CIDR.
 	// Leave unset in Class A–only enterprise; only the default-route vs 192.168.x heuristic runs when unset.
 	mgmtNatCIDR = flag.String("mgmt-nat-cidr", "", "CIDR to avoid when choosing mgmt IP (e.g. 10.0.2.0/24). Env: AVIKA_MGMT_NAT_CIDR.")
+	// Syslog SIEM Fan-out
+	syslogEnabled  = flag.Bool("syslog-enabled", false, "Enable syslog fan-out for SIEM")
+	syslogTarget   = flag.String("syslog-target", "", "Syslog server target (e.g., 'udp://10.0.0.1:514')")
+	syslogFacility = flag.String("syslog-facility", "local7", "Syslog facility")
+	syslogSeverity = flag.String("syslog-severity", "info", "Syslog severity")
 )
 
 // Version information - set at build time via -ldflags
@@ -95,6 +100,9 @@ var (
 
 var (
 	globalUpdater *updater.Updater
+	currentHostname, _ = os.Hostname()
+	currentIP       = getChosenIP()
+
 	startTime     = time.Now()
 	agentLabels   = make(map[string]string) // Labels for auto-assignment (project, environment, etc.)
 )
@@ -223,6 +231,22 @@ func loadConfig(path string) error {
 			if !setFlags["mgmt-nat-cidr"] {
 				*mgmtNatCIDR = val
 			}
+		case "SYSLOG_ENABLED":
+			if !setFlags["syslog-enabled"] {
+				*syslogEnabled = val == "true" || val == "1"
+			}
+		case "SYSLOG_TARGET":
+			if !setFlags["syslog-target"] {
+				*syslogTarget = val
+			}
+		case "SYSLOG_FACILITY":
+			if !setFlags["syslog-facility"] {
+				*syslogFacility = val
+			}
+		case "SYSLOG_SEVERITY":
+			if !setFlags["syslog-severity"] {
+				*syslogSeverity = val
+			}
 		default:
 			// Parse labels with LABEL_ prefix: LABEL_project=myproject
 			if strings.HasPrefix(key, "LABEL_") {
@@ -287,6 +311,10 @@ func loadEnv() {
 		{"AVIKA_TLS", "tls", func(val string) { *enableTLS = val == "true" || val == "1" }},
 		{"TLS_INSECURE", "tls-insecure", func(val string) { *tlsInsecure = val == "true" || val == "1" }},
 		{"AVIKA_TLS_INSECURE", "tls-insecure", func(val string) { *tlsInsecure = val == "true" || val == "1" }},
+		{"SYSLOG_ENABLED", "syslog-enabled", func(val string) { *syslogEnabled = val == "true" || val == "1" }},
+		{"SYSLOG_TARGET", "syslog-target", func(val string) { *syslogTarget = val }},
+		{"SYSLOG_FACILITY", "syslog-facility", func(val string) { *syslogFacility = val }},
+		{"SYSLOG_SEVERITY", "syslog-severity", func(val string) { *syslogSeverity = val }},
 	}
 
 	for _, m := range envMappings {
@@ -437,7 +465,16 @@ func main() {
 		*agentID = getOrGenerateAgentID()
 	}
 
-	agentInfo("Starting agent id=%s version=%s gateways=%s", *agentID, Version, *gatewayAddr)
+	agentInfo("=== Avika Agent Starting ===")
+	agentInfo("Agent ID:  %s", *agentID)
+	agentInfo("Agent IP:  %s", currentIP)
+	agentInfo("Version:   %s", Version)
+	if Version == "0.1.0-dev" {
+		agentWarn("Binary reports 0.1.0-dev; it was likely built without the repo VERSION. Rebuild the gateway image and reinstall or self-update the agent to get the correct version.")
+	}
+	agentInfo("Buffer:    %s", *bufferDir)
+	agentInfo("Gateways:  %s", *gatewayAddr)
+	agentInfo("============================")
 	agentLabelsMu.RLock()
 	if len(agentLabels) > 0 {
 		labelsCopy := make(map[string]string, len(agentLabels))
@@ -512,6 +549,12 @@ func main() {
 		"localhost:4317", // OTel OTLP gRPC endpoint
 		*agentID,
 		currentHostname,
+		logs.LogSyslogConfig{
+			Enabled:       *syslogEnabled,
+			TargetAddress: *syslogTarget,
+			Facility:      *syslogFacility,
+			Severity:      *syslogSeverity,
+		},
 	)
 	collector.Start()
 	defer collector.Stop()
@@ -624,7 +667,8 @@ func main() {
 								}
 								return m
 							}(), // Labels for auto-assignment
-							MgmtAddress: getChosenMgmtAddress(), // host:port for gateway dial-back
+							MgmtAddress:           getChosenMgmtAddress(),   // host:port for gateway dial-back (backward compat)
+							MgmtAddressCandidates: getAllCandidateMgmtAddresses(), // all candidate host:port for gateway to probe
 						},
 					},
 				}
@@ -929,19 +973,59 @@ func getChosenMgmtAddress() string {
 	return net.JoinHostPort(ip, strconv.Itoa(*mgmtPort))
 }
 
+// getAllCandidateMgmtAddresses returns all non-loopback IPv4 host:port for the agent's mgmt port.
+// The gateway can probe these to pick a reachable address (K8s CNI, multi-NIC, Vagrant, etc.).
+func getAllCandidateMgmtAddresses() []string {
+	port := strconv.Itoa(*mgmtPort)
+	if *mgmtAdvertise != "" {
+		host, _, err := net.SplitHostPort(*mgmtAdvertise)
+		if err != nil {
+			host = strings.TrimSpace(*mgmtAdvertise)
+		}
+		if host != "" {
+			return []string{net.JoinHostPort(host, port)}
+		}
+	}
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil
+	}
+	var out []string
+	seen := make(map[string]bool)
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipv4 := ipnet.IP.To4(); ipv4 != nil {
+				ipStr := ipv4.String()
+				if !seen[ipStr] {
+					seen[ipStr] = true
+					out = append(out, net.JoinHostPort(ipStr, port))
+				}
+			}
+		}
+	}
+	return out
+}
+
 func getOrGenerateAgentID() string {
-	const idFile = ".agent_id"
+	idFile := filepath.Join(*bufferDir, "agent_id")
 
 	// 1. Try reading from file (stable across restarts)
 	data, err := os.ReadFile(idFile)
 	if err == nil {
 		id := strings.TrimSpace(string(data))
 		if id != "" {
+			// Migrate old-format ID (hostname+10.0.2.15) to new format (hostname-10-0-2-15) so UI and URLs are consistent
+			if migrated := migrateAgentIDToNewFormat(id); migrated != "" {
+				if writeErr := os.WriteFile(idFile, []byte(migrated), 0644); writeErr != nil {
+					agentWarn("Failed to persist migrated agent ID: %v", writeErr)
+				}
+				return migrated
+			}
 			return id
 		}
 	}
 
-	// 2. Generate agent_id = hostname + "+" + chosen_ip (plan: standardize on hostname+ip everywhere)
+	// 2. Generate agent_id = hostname + "-" + sanitizedIP (no "+" or "." in ID; e.g. hostname-192-168-1-100)
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "unknown"
@@ -951,7 +1035,7 @@ func getOrGenerateAgentID() string {
 	chosenIP := getChosenIP()
 	var agentID string
 	if chosenIP != "" {
-		agentID = hostname + "+" + chosenIP
+		agentID = hostname + "-" + sanitizeAgentIDSuffix(chosenIP)
 	} else {
 		agentID = hostname
 	}
@@ -962,6 +1046,27 @@ func getOrGenerateAgentID() string {
 	}
 
 	return agentID
+}
+
+// sanitizeAgentIDSuffix replaces "." with "-" in the IP so agent IDs are safe in URLs/logs (e.g. 10.0.2.15 -> 10-0-2-15).
+func sanitizeAgentIDSuffix(ip string) string {
+	return strings.ReplaceAll(ip, ".", "-")
+}
+
+// migrateAgentIDToNewFormat converts old-format agent ID (hostname+10.0.2.15) to new format (hostname-10-0-2-15).
+// Returns the new ID if migration applied, or "" if id is already in new format or not recognisable.
+func migrateAgentIDToNewFormat(id string) string {
+	if id == "" || !strings.Contains(id, "+") {
+		return ""
+	}
+	parts := strings.SplitN(id, "+", 2)
+	hostname := strings.TrimSpace(parts[0])
+	ip := strings.TrimSpace(parts[1])
+	if hostname == "" || ip == "" {
+		return ""
+	}
+	hostname = strings.ReplaceAll(hostname, " ", "-")
+	return hostname + "-" + sanitizeAgentIDSuffix(ip)
 }
 
 func writeToBuffer(wal *buffer.FileBuffer, msg *pb.AgentMessage) {
@@ -1146,10 +1251,11 @@ func buildBootstrapHeartbeat(agentID string) *pb.AgentMessage {
 				Instances:    nil,
 				IsPod:        isPod,
 				PodIp:        podIP,
-				BuildDate:    BuildDate,
-				GitCommit:    GitCommit,
-				GitBranch:    GitBranch,
-				MgmtAddress:  getChosenMgmtAddress(),
+				BuildDate:             BuildDate,
+				GitCommit:             GitCommit,
+				GitBranch:             GitBranch,
+				MgmtAddress:           getChosenMgmtAddress(),
+				MgmtAddressCandidates: getAllCandidateMgmtAddresses(),
 			},
 		},
 	}
@@ -1234,7 +1340,7 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 				}
 			}
 			ss.SetStream(stream)
-			agentInfo("Connected to Gateway")
+			agentInfo("Connected to Gateway %s", targetAddr)
 
 			// Send one heartbeat immediately so the gateway registers this agent (session) even if the WAL is corrupt.
 			if err := ss.Send(buildBootstrapHeartbeat(agentID)); err != nil {
@@ -1283,9 +1389,12 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 		if err != nil {
 			log.Printf("Buffer read error: %v", err)
 			if strings.Contains(err.Error(), "suspiciously large message length") {
-				log.Printf("Corruption detected at offset %d, attempting to skip...", offset)
+				agentWarn("CRITICAL: Buffer corruption detected at offset %d. Message length reported as huge. This usually means the WAL file is corrupted.", offset)
+				agentWarn("Attempting to skip the corrupted length header (4 bytes) to realign...")
 				if skipErr := wal.SkipCorrupt(offset); skipErr != nil {
-					log.Printf("Failed to skip corrupt message: %v", skipErr)
+					agentError("Failed to skip corrupt message: %v", skipErr)
+				} else {
+					agentInfo("Successfully advanced read offset past corruption.")
 				}
 			}
 			select {

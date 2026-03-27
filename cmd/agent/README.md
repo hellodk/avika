@@ -48,7 +48,7 @@ This builds binaries for `amd64` and `arm64`, calculates checksums, and updates 
 
 | Flag | Description | Default |
 | :--- | :--- | :--- |
-| `-id` | Unique ID for the agent (defaults to hostname-ip). | `""` |
+| `-id` | Unique ID for the agent (defaults to hostname-IP-with-dashes, e.g. `node1-192-168-1-10`). | `""` |
 | `-server` | Gateway gRPC address. | `localhost:50051` |
 | `-nginx-status-url` | URL for NGINX stub_status. | `http://127.0.0.1/nginx_status` |
 | `-access-log-path` | Path to NGINX access log. | `/var/log/nginx/access.log` |

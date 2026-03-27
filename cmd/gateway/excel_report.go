@@ -17,7 +17,7 @@ func GenerateExcelReport(report *pb.ReportResponse, start, end time.Time) ([]byt
 	// Sheet1: Summary
 	sheetSummary := "Summary"
 	if f.GetSheetName(0) != sheetSummary {
-		f.SetSheetName(f.GetSheetName(0), sheetSummary)
+		_ = f.SetSheetName(f.GetSheetName(0), sheetSummary)
 	}
 	_ = f.SetCellValue(sheetSummary, "A1", "Avika Report — Executive Summary")
 	_ = f.SetCellValue(sheetSummary, "A2", fmt.Sprintf("Period: %s — %s", start.Format("2006-01-02"), end.Format("2006-01-02")))

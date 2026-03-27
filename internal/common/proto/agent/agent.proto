@@ -459,6 +459,8 @@ message AnalyticsRequest {
   string timezone = 5; // Client timezone for formatting (e.g., "UTC", "America/New_York")
   string environment_id = 6; // Optional: filter by environment
   string project_id = 7; // Optional: filter by project (all environments)
+  string url_filter = 8; // Optional: filter by specific URL
+  string status_code_filter = 9; // Optional: filter by specific status code or class (e.g., "4xx")
 }
 
 message AnalyticsResponse {
@@ -566,6 +568,10 @@ message AnalyticsSummary {
   float requests_delta = 5;
   float latency_delta = 6;
   float error_rate_delta = 7;
+  int64 requests_2xx = 8;
+  int64 requests_3xx = 9;
+  int64 requests_4xx = 10;
+  int64 requests_5xx = 11;
 }
 
 message LatencyBucket {

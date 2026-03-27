@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
+	"log"
 	"strings"
 	"time"
 
@@ -345,7 +344,9 @@ func (s *server) GetDriftReport(ctx context.Context, req *pb.GetDriftReportReque
 	if baselineAgentID.Valid {
 		report.BaselineAgentID = &baselineAgentID.String
 	}
-	json.Unmarshal(itemsJSON, &report.Items)
+	if err := json.Unmarshal(itemsJSON, &report.Items); err != nil {
+		log.Printf("Failed to unmarshal items for report %s: %v", report.ID, err)
+	}
 
 	return driftReportToProto(&report), nil
 }
@@ -392,7 +393,9 @@ func (s *server) ListDriftReports(ctx context.Context, req *pb.ListDriftReportsR
 		if baselineAgentID.Valid {
 			report.BaselineAgentID = &baselineAgentID.String
 		}
-		json.Unmarshal(itemsJSON, &report.Items)
+		if err := json.Unmarshal(itemsJSON, &report.Items); err != nil {
+			log.Printf("Failed to unmarshal items for report %s: %v", report.ID, err)
+		}
 
 		reports = append(reports, driftReportToProto(&report))
 	}
@@ -524,10 +527,16 @@ func (s *server) getAgentConfigHash(ctx context.Context, agentID, checkType stri
 }
 
 func (s *server) getAgentSession(agentID string) (*AgentSession, bool) {
-	if val, ok := s.sessions.Load(agentID); ok {
-		if session, ok := val.(*AgentSession); ok {
-			return session, true
-		}
+	resolved, ok := s.resolveAgentID(agentID)
+	if !ok {
+		return nil, false
+	}
+	val, ok := s.sessions.Load(resolved)
+	if !ok {
+		return nil, false
+	}
+	if session, ok := val.(*AgentSession); ok {
+		return session, true
 	}
 	return nil, false
 }
@@ -718,10 +727,6 @@ func summarizeDiff(diff string) string {
 	return fmt.Sprintf("+%d lines, -%d lines", added, removed)
 }
 
-func computeConfigHash(content string) string {
-	hash := sha256.Sum256([]byte(content))
-	return hex.EncodeToString(hash[:])
-}
 
 // DriftForAgentGroupItem is the drift status of one agent in one group (for GET /api/servers/:id/drift).
 type DriftForAgentGroupItem struct {

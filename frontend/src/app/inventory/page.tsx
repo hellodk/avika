@@ -1,7 +1,7 @@
 "use client";
 
 import { TerminalOverlay } from "@/components/TerminalOverlay";
-import { useState, useEffect, Suspense, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useProject } from "@/lib/project-context";
 import { AgentFleetTable } from "@/components/agent-fleet-table";
 import { apiFetch, serverIdForDisplay } from "@/lib/api";
@@ -40,21 +40,29 @@ function InventoryPageContent() {
     const [agentToDelete, setAgentToDelete] = useState<any>(null);
     const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
 
-    const fetchAgents = async () => {
+    const fetchAgents = useCallback(async () => {
         try {
             const res = await apiFetch('/api/servers');
-            if (!res.ok) throw new Error('Failed to fetch agents');
-            const data = await res.json();
-            setInstances(Array.isArray(data?.agents) ? data.agents : []);
-            setError(null);
+            const data = await res.json().catch(() => ({}));
+            const raw = Array.isArray(data?.agents) ? data.agents : Array.isArray(data) ? data : [];
+            const normalized = raw.map((a: any) => ({
+                ...a,
+                agent_id: a.agent_id ?? a.agentId ?? a.id,
+            }));
+            setInstances(normalized);
+            if (!res.ok) {
+                setError(data?.error ?? 'Failed to fetch agents');
+            } else {
+                setError(null);
+            }
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : "Failed to load inventory");
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
-    const fetchServerAssignments = async () => {
+    const fetchServerAssignments = useCallback(async () => {
         try {
             const res = await apiFetch('/api/server-assignments');
             if (!res.ok) return;
@@ -69,9 +77,9 @@ function InventoryPageContent() {
         } catch (error) {
             console.error('Failed to fetch server assignments:', error);
         }
-    };
+    }, []);
 
-    const fetchLatestAgentVersion = async () => {
+    const fetchLatestAgentVersion = useCallback(async () => {
         try {
             const res = await apiFetch('/api/updates/version');
             if (res.ok) {
@@ -81,7 +89,7 @@ function InventoryPageContent() {
         } catch (error) {
             console.error('Failed to fetch latest agent version:', error);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchAgents();
@@ -93,13 +101,18 @@ function InventoryPageContent() {
             fetchLatestAgentVersion();
         }, 15000);
         return () => clearInterval(interval);
-    }, []);
+    }, [fetchAgents, fetchServerAssignments, fetchLatestAgentVersion]);
 
     const deleteAgent = async (agentId: string) => {
         try {
             const res = await apiFetch(`/api/servers/${encodeURIComponent(agentId)}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Failed to delete');
             setInstances(prev => prev.filter(i => i.agent_id !== agentId));
+            setServerAssignments(prev => {
+                const next = { ...prev };
+                delete next[agentId];
+                return next;
+            });
             toast.success("Agent removed successfully");
         } catch (error: any) {
             toast.error("Failed to remove agent", { description: error.message });
@@ -131,51 +144,62 @@ function InventoryPageContent() {
         if (selectedAgents.size === 0) return;
         setBulkDeleteDialogOpen(false);
         setLoading(true);
-        let successCount = 0;
-        let failCount = 0;
         const toDelete = Array.from(selectedAgents);
         setSelectedAgents(new Set());
 
-        for (const agentId of toDelete) {
-            try {
-                const res = await apiFetch(`/api/servers/${encodeURIComponent(agentId)}`, { method: 'DELETE' });
-                if (res.ok) successCount++;
-                else failCount++;
-            } catch (error) {
-                failCount++;
-            }
+        try {
+            const results = await Promise.all(
+                toDelete.map(async (agentId) => {
+                    try {
+                        const res = await apiFetch(`/api/servers/${encodeURIComponent(agentId)}`, { method: 'DELETE' });
+                        return res.ok ? "success" : "fail";
+                    } catch {
+                        return "fail";
+                    }
+                })
+            );
+            const successCount = results.filter(r => r === "success").length;
+            const failCount = results.length - successCount;
+            toast.success(`Bulk remove completed`, {
+                description: `Successfully removed ${successCount} agents. ${failCount} failed.`
+            });
+            await fetchAgents();
+        } finally {
+            setLoading(false);
         }
-
-        toast.success(`Bulk remove completed`, {
-            description: `Successfully removed ${successCount} agents. ${failCount} failed.`
-        });
-
-        fetchAgents();
     };
 
     const handleBulkUpdate = async () => {
         if (selectedAgents.size === 0) return;
 
         setLoading(true);
-        let successCount = 0;
-        let failCount = 0;
-
-        for (const agentId of Array.from(selectedAgents)) {
-            try {
-                const res = await apiFetch(`/api/servers/${encodeURIComponent(agentId)}/update`, { method: 'POST' });
-                if (res.ok) successCount++;
-                else failCount++;
-            } catch (error) {
-                failCount++;
-            }
-        }
-
-        toast.success(`Bulk update triggered`, {
-            description: `Successfully triggered updates for ${successCount} agents. ${failCount} failed.`
-        });
-
+        const toUpdate = Array.from(selectedAgents);
         setSelectedAgents(new Set());
+
+        try {
+            const results = await Promise.all(
+                toUpdate.map(async (agentId) => {
+                    try {
+                        const res = await apiFetch(`/api/servers/${encodeURIComponent(agentId)}/update`, { method: 'POST' });
+                        return res.ok ? "success" : "fail";
+                    } catch {
+                        return "fail";
+                    }
+                })
+            );
+            const successCount = results.filter(r => r === "success").length;
+            const failCount = results.length - successCount;
+            toast.success(`Bulk update triggered`, {
+                description: `Successfully triggered updates for ${successCount} agents. ${failCount} failed.`
+            });
+        } finally {
+            setLoading(false);
+        }
     };
+
+    if (loading && instances.length === 0 && !error) {
+        return <InventoryPageSkeleton />;
+    }
 
     if (error && instances.length === 0) {
         return (
@@ -344,18 +368,7 @@ function InventoryPageContent() {
     );
 }
 
-function formatLastSeen(lastSeen: string | number) {
-    const timestamp = typeof lastSeen === 'string' ? parseInt(lastSeen) : lastSeen;
-    const now = Math.floor(Date.now() / 1000);
-    const diff = now - timestamp;
-
-    if (diff < 60) return `${diff}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return new Date(timestamp * 1000).toLocaleDateString();
-}
-
-// Loading skeleton for Suspense fallback
+// Loading skeleton for initial load (client fetches in useEffect)
 function InventoryPageSkeleton() {
     return (
         <div className="space-y-6">
@@ -386,9 +399,5 @@ function InventoryPageSkeleton() {
 }
 
 export default function InventoryPage() {
-    return (
-        <Suspense fallback={<InventoryPageSkeleton />}>
-            <InventoryPageContent />
-        </Suspense>
-    );
+    return <InventoryPageContent />;
 }

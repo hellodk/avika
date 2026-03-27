@@ -28,6 +28,12 @@ if [ -f "$LOCAL_CONFIG" ]; then
     source "$LOCAL_CONFIG"
 fi
 
+# Quick dev: build only linux/amd64 (faster, no arm64)
+if [ "${AMD64_ONLY}" = "1" ]; then
+    BUILD_PLATFORMS="linux/amd64"
+    echo -e "${YELLOW}⚡ AMD64_ONLY=1: building linux/amd64 only (faster)${NC}"
+fi
+
 # Computed values
 REPO="${DOCKER_REPO}"
 VERSION_FILE="VERSION"
@@ -42,7 +48,7 @@ NC='\033[0m'
 
 echo -e "${BLUE}🏗️  Avika - Full Stack Build System${NC}"
 echo "========================================"
-echo -e "${BLUE}Config: DOCKER_REPO=${DOCKER_REPO}, K8S_NAMESPACE=${K8S_NAMESPACE}${NC}"
+echo -e "${BLUE}Config: DOCKER_REPO=${DOCKER_REPO}, K8S_NAMESPACE=${K8S_NAMESPACE}, BUILD_PLATFORMS=${BUILD_PLATFORMS}${NC}"
 
 # --- Pre-Build Check: Block build if uncommitted changes ---
 echo -e "\n${BLUE}🔍 Pre-build check: Verifying git status...${NC}"
@@ -177,7 +183,7 @@ fi
 
 # --- 3. Build Agent (via build-agent.sh) ---
 echo -e "\n${BLUE}📦 Building Agent (nginx + agent bundled image)...${NC}"
-BUMP=none CALLED_FROM_BUILD_STACK=1 ./scripts/build-agent.sh || {
+BUILD_PLATFORMS="${BUILD_PLATFORMS}" BUMP=none CALLED_FROM_BUILD_STACK=1 ./scripts/build-agent.sh || {
     echo -e "${RED}❌ Agent build failed${NC}"
     exit 1
 }

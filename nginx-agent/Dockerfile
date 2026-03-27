@@ -21,20 +21,20 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 # Install dependencies
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
-# Architecture-specific agent binary
+# Architecture-specific agent binary (from repo root bin/)
 ARG TARGETARCH
-COPY agent-linux-${TARGETARCH} /usr/local/bin/avika-agent
+COPY bin/agent-linux-${TARGETARCH} /usr/local/bin/avika-agent
 RUN chmod +x /usr/local/bin/avika-agent
 
-# Startup script
-COPY start.sh /start.sh
+# Startup script and config (from nginx-agent/ when context is repo root)
+COPY nginx-agent/start.sh /start.sh
 RUN chmod +x /start.sh
 
 # Create directories for agent data and copy default config
 # /var/lib/avika/ - WAL buffer and config backups (matches avika-agent.conf)
 # /var/log/avika/ - Agent logs (if not using stdout)
 RUN mkdir -p /etc/avika /var/lib/avika /var/lib/avika/backups /var/log/avika
-COPY avika-agent.conf /etc/avika/avika-agent.conf
+COPY nginx-agent/avika-agent.conf /etc/avika/avika-agent.conf
 
 # Expose ports
 # 80: NGINX HTTP

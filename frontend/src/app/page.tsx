@@ -21,6 +21,9 @@ import Link from "next/link";
 import { TimeRangePicker, TimeRange } from "@/components/ui/time-range-picker";
 import { useProject } from "@/lib/project-context";
 import { Skeleton } from "@/components/ui/skeleton";
+import { OnboardingWizard } from "@/components/OnboardingWizard";
+import { DashboardBuilderButton, useDashboardWidgets } from "@/components/DashboardBuilder";
+
 
 // Convert time range value to API window parameter
 function getWindowParam(timeRange: TimeRange): string {
@@ -52,7 +55,9 @@ function getPreviousPeriodLabel(timeRange: TimeRange): string {
 
 export default function Home() {
     const { selectedProject, selectedEnvironment } = useProject();
+    const { widgets, pinnedWidgets, togglePin } = useDashboardWidgets();
     const [loading, setLoading] = useState(true);
+
     const [refreshing, setRefreshing] = useState(false);
     const [agentCount, setAgentCount] = useState<number>(0);
     const [onlineAgents, setOnlineAgents] = useState<number>(0);
@@ -240,6 +245,7 @@ export default function Home() {
 
     return (
         <div className="space-y-6">
+            <OnboardingWizard />
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
@@ -251,6 +257,7 @@ export default function Home() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <DashboardBuilderButton widgets={widgets} onTogglePin={togglePin} />
                     <TimeRangePicker
                         value={timeRange}
                         onChange={setTimeRange}
@@ -289,6 +296,7 @@ export default function Home() {
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {pinnedWidgets.some(w => w.id === 'total_requests') && (
                 <KPICard
                     title="Total Requests"
                     value={stats.totalRequests.toLocaleString()}
@@ -300,7 +308,8 @@ export default function Home() {
                     trend={trends.requests}
                     trendLabel={getPreviousPeriodLabel(timeRange)}
                     trendPositiveIsGood={true}
-                />
+                />)}
+                {pinnedWidgets.some(w => w.id === 'request_rate') && (
                 <KPICard
                     title="Request Rate"
                     value={`${stats.requestRate}/s`}
@@ -312,7 +321,8 @@ export default function Home() {
                     trend={trends.requestRate}
                     trendLabel={getPreviousPeriodLabel(timeRange)}
                     trendPositiveIsGood={true}
-                />
+                />)}
+                {pinnedWidgets.some(w => w.id === 'error_rate') && (
                 <KPICard
                     title="Error Rate"
                     value={`${stats.errorRate}%`}
@@ -327,7 +337,8 @@ export default function Home() {
                     trendPositiveIsGood={false}
                     trendIsAbsolute={true}
                     infoTooltip="This may include expected 4xx responses (auth failures, 404s, etc). Thresholds can be adjusted in Settings."
-                />
+                />)}
+                {pinnedWidgets.some(w => w.id === 'avg_latency') && (
                 <KPICard
                     title="Avg Latency"
                     value={`${stats.avgLatency}ms`}
@@ -340,7 +351,19 @@ export default function Home() {
                     trend={trends.latency}
                     trendLabel={getPreviousPeriodLabel(timeRange)}
                     trendPositiveIsGood={false}
-                />
+                />)}
+                {pinnedWidgets.some(w => w.id === 'agent_count') && (
+                <KPICard
+                    title="Active Agents"
+                    value={`${onlineAgents}/${agentCount}`}
+                    subValue="agents online"
+                    icon={<Activity className="h-5 w-5" />}
+                    iconBg="bg-teal-500/10"
+                    iconColor="text-teal-500"
+                    loading={loading}
+                    trendLabel=""
+                    trendPositiveIsGood={true}
+                />)}
             </div>
 
             {/* Charts Row */}

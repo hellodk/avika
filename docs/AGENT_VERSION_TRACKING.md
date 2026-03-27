@@ -151,7 +151,7 @@ The GitHub Actions workflow automatically:
 echo "0.2.0" > VERSION
 
 # Build with version
-./scripts/docker-build.sh
+./scripts/build-agent.sh
 ```
 
 ### Automatic (CI/CD)
@@ -196,7 +196,7 @@ pkill -9 -f "./agent"
 **Solution**: Use the build script which sets it automatically:
 
 ```bash
-./scripts/docker-build.sh
+./scripts/build-agent.sh
 ```
 
 ## ✅ Verification

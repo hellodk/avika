@@ -604,7 +604,7 @@ func (am *AuthManager) sendUnauthorized(w http.ResponseWriter, r *http.Request, 
 	if strings.HasPrefix(r.URL.Path, "/api/") || r.Header.Get("Accept") == "application/json" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"error":   "unauthorized",
 			"message": message,
 		})

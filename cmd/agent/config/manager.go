@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -82,8 +84,10 @@ func (m *Manager) Reload() error {
 	// First test the config
 	output, err := m.runCommand("nginx", "-t")
 	if err != nil {
+		log.Printf("NGINX config test failed: %s", string(output))
 		return fmt.Errorf("config test failed: %s", string(output))
 	}
+	log.Printf("NGINX config test successful: %s", string(output))
 
 	// Prefer systemctl reload if available
 	if m.hasSystemd() {
@@ -104,8 +108,10 @@ func (m *Manager) Reload() error {
 func (m *Manager) TestConfig() error {
 	output, err := m.runCommand("nginx", "-t")
 	if err != nil {
+		log.Printf("NGINX config test (explicit) failed: %s", string(output))
 		return fmt.Errorf("config test failed: %s", string(output))
 	}
+	log.Printf("NGINX config test (explicit) successful: %s", string(output))
 	return nil
 }
 

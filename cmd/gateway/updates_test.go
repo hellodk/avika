@@ -1,0 +1,109 @@
+package main
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+// TestUpdatesVersionJSON ensures GET /updates/version.json returns 200 and valid JSON (deploy-agent.sh flow).
+func TestUpdatesVersionJSON(t *testing.T) {
+	dir := t.TempDir()
+	ensureUpdatesDir(dir)
+
+	handler := updatesHandlerForDir(dir)
+	req := httptest.NewRequest("GET", "http://test/updates/version.json", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("GET /updates/version.json: expected 200, got %d", w.Code)
+	}
+	var out struct {
+		Version string `json:"version"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&out); err != nil {
+		t.Fatalf("GET /updates/version.json: invalid JSON: %v", err)
+	}
+	if out.Version == "" {
+		t.Error("GET /updates/version.json: version field empty")
+	}
+}
+
+// TestUpdatesBinaryServed ensures GET /updates/bin/agent-linux-amd64 returns 200 when file exists.
+func TestUpdatesBinaryServed(t *testing.T) {
+	dir := t.TempDir()
+	binDir := filepath.Join(dir, "bin")
+	_ = os.MkdirAll(binDir, 0755)
+	fakeBinary := filepath.Join(binDir, "agent-linux-amd64")
+	_ = os.WriteFile(fakeBinary, []byte("fake-binary"), 0755)
+	_ = os.WriteFile(fakeBinary+".sha256", []byte("abc123"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "version.json"), []byte(`{"version":"1.0.0"}`), 0644)
+
+	handler := updatesHandlerForDir(dir)
+	req := httptest.NewRequest("GET", "http://test/updates/bin/agent-linux-amd64", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("GET /updates/bin/agent-linux-amd64: expected 200, got %d", w.Code)
+	}
+	if w.Body.String() != "fake-binary" {
+		t.Errorf("GET /updates/bin/agent-linux-amd64: body mismatch")
+	}
+}
+
+// TestUpdatesChecksumMatchesBinary ensures ensureUpdatesDir writes .sha256 that matches the binary (deploy script verification).
+func TestUpdatesChecksumMatchesBinary(t *testing.T) {
+	dir := t.TempDir()
+	binDir := filepath.Join(dir, "bin")
+	_ = os.MkdirAll(binDir, 0755)
+	binaryPath := filepath.Join(binDir, "agent-linux-amd64")
+	content := []byte("fake-binary-content")
+	_ = os.WriteFile(binaryPath, content, 0755)
+	// ensureUpdatesDir only copies from repo bin/ if dst missing; here we pre-seeded the binary, so it will only (re)gen .sha256
+	ensureUpdatesDir(dir)
+	shaPath := binaryPath + ".sha256"
+	shaBody, err := os.ReadFile(shaPath)
+	if err != nil {
+		t.Fatalf("expected .sha256 file: %v", err)
+	}
+	expectedSum, err := sha256SumFile(binaryPath)
+	if err != nil {
+		t.Fatalf("sha256SumFile: %v", err)
+	}
+	got := strings.TrimSpace(string(shaBody))
+	if got != expectedSum {
+		t.Errorf("checksum file mismatch: got %q, expected %q", got, expectedSum)
+	}
+}
+
+// TestUpdatesChecksumServedOnTheFly ensures GET /updates/bin/agent-linux-amd64.sha256 returns hash of the binary (deploy script verification).
+func TestUpdatesChecksumServedOnTheFly(t *testing.T) {
+	dir := t.TempDir()
+	binDir := filepath.Join(dir, "bin")
+	_ = os.MkdirAll(binDir, 0755)
+	content := []byte("binary-content-for-checksum-test")
+	_ = os.WriteFile(filepath.Join(binDir, "agent-linux-amd64"), content, 0755)
+	h := sha256.Sum256(content)
+	expectedSum := hex.EncodeToString(h[:])
+
+	handler := updatesHandlerForDir(dir)
+	req := httptest.NewRequest("GET", "http://test/updates/bin/agent-linux-amd64.sha256", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("GET /updates/bin/agent-linux-amd64.sha256: expected 200, got %d", w.Code)
+	}
+	got := strings.TrimSpace(w.Body.String())
+	if got != expectedSum {
+		t.Errorf("checksum response mismatch: got %q, expected %q", got, expectedSum)
+	}
+}

@@ -311,7 +311,15 @@ jobs:
           submodules: recursive
 
       - name: Set image registry (single source .github/IMAGE_REGISTRY)
-        run: echo "IMAGE_REGISTRY=$(cat .github/IMAGE_REGISTRY | tr -d '\n')" >> $GITHUB_ENV
+        run: |
+          REG="$(cat .github/IMAGE_REGISTRY 2>/dev/null | tr -d '\n\r' || true)"
+          if [ -z "$REG" ]; then
+            echo "IMAGE_REGISTRY=docker.io/hellodk" >> $GITHUB_ENV
+            echo "Using default IMAGE_REGISTRY=docker.io/hellodk ( .github/IMAGE_REGISTRY missing or empty)"
+          else
+            echo "IMAGE_REGISTRY=$REG" >> $GITHUB_ENV
+            echo "Using IMAGE_REGISTRY=$REG"
+          fi
 
       - name: Get build metadata
         id: meta
@@ -404,7 +412,15 @@ jobs:
           fetch-depth: 0
 
       - name: Set image registry (single source .github/IMAGE_REGISTRY)
-        run: echo "IMAGE_REGISTRY=$(cat .github/IMAGE_REGISTRY | tr -d '\n')" >> $GITHUB_ENV
+        run: |
+          REG="$(cat .github/IMAGE_REGISTRY 2>/dev/null | tr -d '\n\r' || true)"
+          if [ -z "$REG" ]; then
+            echo "IMAGE_REGISTRY=docker.io/hellodk" >> $GITHUB_ENV
+            echo "Using default IMAGE_REGISTRY=docker.io/hellodk ( .github/IMAGE_REGISTRY missing or empty)"
+          else
+            echo "IMAGE_REGISTRY=$REG" >> $GITHUB_ENV
+            echo "Using IMAGE_REGISTRY=$REG"
+          fi
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4

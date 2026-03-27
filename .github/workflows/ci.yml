@@ -15,7 +15,7 @@ concurrency:
 env:
   GO_VERSION: '1.24'
   NODE_VERSION: '20'
-  # Image registry: single source is .github/IMAGE_REGISTRY (CI/Release set it in job steps)
+  DOCKERHUB_USERNAME: hellodk
 
 jobs:
   lint:
@@ -119,7 +119,15 @@ jobs:
           fetch-depth: 0
 
       - name: Set image registry (single source .github/IMAGE_REGISTRY)
-        run: echo "IMAGE_REGISTRY=$(cat .github/IMAGE_REGISTRY | tr -d '\n')" >> $GITHUB_ENV
+        run: |
+          REG="$(cat .github/IMAGE_REGISTRY 2>/dev/null | tr -d '\n\r' || true)"
+          if [ -z "$REG" ]; then
+            echo "IMAGE_REGISTRY=docker.io/hellodk" >> $GITHUB_ENV
+            echo "Using default IMAGE_REGISTRY=docker.io/hellodk ( .github/IMAGE_REGISTRY missing or empty)"
+          else
+            echo "IMAGE_REGISTRY=$REG" >> $GITHUB_ENV
+            echo "Using IMAGE_REGISTRY=$REG"
+          fi
 
       - name: Set image tags
         id: meta

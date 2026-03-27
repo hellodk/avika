@@ -1,16 +1,21 @@
 #!/bin/bash
 # Local Release Script for NGINX Manager Agent
+# Builds agent binaries via build-agent.sh (SKIP_DOCKER), then prepares dist/ with version.json, service file, and deploy script.
 
 set -e
 
-# Configuration
-VERSION_FILE="VERSION"
-DIST_DIR="dist"
+# Run from project root
+cd "$(dirname "$0")/.."
+PROJECT_ROOT=$(pwd)
+
+# Configuration (all binaries go to repo root bin/)
+VERSION_FILE="$PROJECT_ROOT/VERSION"
+DIST_DIR="$PROJECT_ROOT/dist"
+BIN_DIR="$PROJECT_ROOT/bin"
 
 # Server URL - can be set via environment variable or deploy/.env
-# Default: empty (will prompt if not set)
-if [ -f "deploy/.env" ]; then
-    source deploy/.env
+if [ -f "$PROJECT_ROOT/deploy/.env" ]; then
+    source "$PROJECT_ROOT/deploy/.env"
 fi
 SERVER_URL="${SERVER_URL:-${EXTERNAL_GATEWAY_HTTP:-}}"
 
@@ -27,73 +32,18 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Get Version
-if [ ! -f "$VERSION_FILE" ]; then
-    echo "0.1.0" > "$VERSION_FILE"
-fi
-CURRENT_VERSION=$(cat "$VERSION_FILE")
+# Build agent binaries (no version bump by default; no Docker)
+# User can set BUMP=patch|minor|major to bump before building
+BUMP="${BUMP:-none}"
+echo -e "${BLUE}📦 Building agent binaries (BUMP=${BUMP}, SKIP_DOCKER=1)...${NC}"
+SKIP_GIT_CHECK=1 SKIP_DOCKER=1 BUMP="$BUMP" "$PROJECT_ROOT/scripts/build-agent.sh"
 
-# Auto-bump version (default: patch)
-BUMP_TYPE=${BUMP:-patch}
+VERSION=$(cat "$VERSION_FILE")
+echo -e "${BLUE}📦 Preparing dist for v${VERSION}...${NC}"
 
-if [ "$BUMP_TYPE" != "none" ]; then
-    IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
-    
-    case "$BUMP_TYPE" in
-        major)
-            MAJOR=$((MAJOR + 1))
-            MINOR=0
-            PATCH=0
-            ;;
-        minor)
-            MINOR=$((MINOR + 1))
-            PATCH=0
-            ;;
-        patch)
-            PATCH=$((PATCH + 1))
-            ;;
-        *)
-            echo -e "${YELLOW}⚠️  Invalid BUMP type: $BUMP_TYPE (use: major, minor, patch, none)${NC}"
-            exit 1
-            ;;
-    esac
-    
-    VERSION="$MAJOR.$MINOR.$PATCH"
-    echo "$VERSION" > "$VERSION_FILE"
-    echo -e "${GREEN}📈 Version bumped: $CURRENT_VERSION → $VERSION${NC}"
-else
-    VERSION="$CURRENT_VERSION"
-    echo -e "${YELLOW}📌 Version unchanged: $VERSION${NC}"
-fi
+mkdir -p "$DIST_DIR"
 
-echo -e "${BLUE}📦 Starting Local Release Process (v${VERSION})${NC}"
-
-# Create dist directory
-mkdir -p "$DIST_DIR/bin"
-
-build_agent() {
-    local os=$1
-    local arch=$2
-    local target="$DIST_DIR/bin/agent-${os}-${arch}"
-    
-    echo -e "  🛠️  Building for ${os}/${arch}..."
-    
-    GOOS=$os GOARCH=$arch go build -ldflags="-w -s \
-        -X 'main.Version=${VERSION}' \
-        -X 'main.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)' \
-        -X 'main.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")' \
-        -X 'main.GitBranch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")'" \
-        -o "$target" ./cmd/agent
-        
-    # Generate SHA256
-    sha256sum "$target" | awk '{print $1}' > "${target}.sha256"
-}
-
-# Build for supported platforms
-build_agent "linux" "amd64"
-build_agent "linux" "arm64"
-
-# Create version.json
+# Create version.json (binaries under .../bin/; SERVER_URL = gateway updates base e.g. http://gateway:5021/updates)
 echo -e "${BLUE}📝 Generating manifest...${NC}"
 
 cat <<EOF > "$DIST_DIR/version.json"
@@ -103,11 +53,11 @@ cat <<EOF > "$DIST_DIR/version.json"
   "binaries": {
     "linux-amd64": {
       "url": "${SERVER_URL}/bin/agent-linux-amd64",
-      "sha256": "$(cat $DIST_DIR/bin/agent-linux-amd64.sha256)"
+      "sha256": "$(cat $BIN_DIR/agent-linux-amd64.sha256)"
     },
     "linux-arm64": {
       "url": "${SERVER_URL}/bin/agent-linux-arm64",
-      "sha256": "$(cat $DIST_DIR/bin/agent-linux-arm64.sha256)"
+      "sha256": "$(cat $BIN_DIR/agent-linux-arm64.sha256)"
     }
   }
 }
@@ -115,11 +65,11 @@ EOF
 
 # Copy systemd service file
 echo "📦 Copying systemd service..."
-cp deploy/systemd/avika-agent.service "$DIST_DIR/"
+cp "$PROJECT_ROOT/deploy/systemd/avika-agent.service" "$DIST_DIR/"
 
 # Copy and customize deployment script with SERVER_URL
 echo "📦 Preparing deployment script..."
-cp scripts/deploy-agent.sh "$DIST_DIR/deploy-agent.sh"
+cp "$PROJECT_ROOT/scripts/deploy-agent.sh" "$DIST_DIR/deploy-agent.sh"
 
 # Extract host from SERVER_URL (remove protocol and port)
 # e.g., http://gateway.example.com:5021 -> gateway.example.com
@@ -135,12 +85,12 @@ chmod +x "$DIST_DIR/deploy-agent.sh"
 echo ""
 echo -e "${GREEN}✅ Local release prepared in ./${DIST_DIR}${NC}"
 echo -e "  - Manifest: ./${DIST_DIR}/version.json"
-echo -e "  - Binaries: ./${DIST_DIR}/bin/"
+echo -e "  - Binaries: ./${BIN_DIR}/"
 echo -e "  - Service: ./${DIST_DIR}/avika-agent.service"
 echo -e "  - Deployment: ./${DIST_DIR}/deploy-agent.sh"
 echo ""
 echo -e "${YELLOW}To start the update server, run:${NC}"
 echo -e "  go run cmd/update-server/main.go"
 echo ""
-echo -e "${YELLOW}To deploy on a remote host:${NC}"
+echo -e "${YELLOW}To deploy on a remote host (SERVER_URL = updates base, e.g. http://gateway:5021/updates):${NC}"
 echo -e "  curl -fsSL $SERVER_URL/deploy-agent.sh | sudo bash"

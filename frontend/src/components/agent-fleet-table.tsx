@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow
@@ -161,14 +161,35 @@ export function AgentFleetTable({
         return result;
     }, [instances, searchQuery, filterStatus, sortField, sortDirection, selectedProject, selectedEnvironment, environments, serverAssignments]);
 
-    // Stats - computed from filtered instances
+    // Fleet for stats: same project/env and status filter as table, but NOT search (so header cards show global fleet health)
+    const instancesForStats = useMemo(() => {
+        let result = instances.filter(instance => {
+            if (selectedEnvironment) {
+                const assignment = serverAssignments[instance.agent_id];
+                if (!assignment || assignment.environment_id !== selectedEnvironment.id) return false;
+            } else if (selectedProject) {
+                const assignment = serverAssignments[instance.agent_id];
+                if (!assignment) return false;
+                const envBelongsToProject = environments.some(env => env.id === assignment.environment_id);
+                if (!envBelongsToProject) return false;
+            }
+            if (filterStatus === "all") return true;
+            const status = getAgentStatus(instance.last_seen);
+            if (filterStatus === "online") return status.label === "Online";
+            if (filterStatus === "offline") return status.label !== "Online";
+            return true;
+        });
+        return result;
+    }, [instances, filterStatus, selectedProject, selectedEnvironment, environments, serverAssignments]);
+
+    // Stats - from fleet (no search) so header cards don't change when typing in search
     const stats = useMemo(() => {
-        const total = filteredInstances.length;
-        const online = filteredInstances.filter(i => getAgentStatus(i.last_seen).label === "Online").length;
+        const total = instancesForStats.length;
+        const online = instancesForStats.filter(i => getAgentStatus(i.last_seen).label === "Online").length;
         const offline = total - online;
-        const needsUpdate = filteredInstances.filter(i => i.agent_version !== latestVersion).length;
+        const needsUpdate = instancesForStats.filter(i => i.agent_version && i.agent_version !== latestVersion).length;
         return { total, online, offline, needsUpdate };
-    }, [filteredInstances, latestVersion]);
+    }, [instancesForStats, latestVersion]);
 
     const handleSort = (field: SortField) => {
         if (sortField === field) {
@@ -439,6 +460,7 @@ export function AgentFleetTable({
                         </TableRow>
                     </TableHeader>
                     <TableBody>
+                        <React.Fragment key={loading ? "skeleton" : filteredInstances.length === 0 ? "empty" : "rows"}>
                         {loading ? (
                             Array.from({ length: 5 }).map((_, i) => (
                                 <TableRow key={i}>
@@ -448,7 +470,7 @@ export function AgentFleetTable({
                                 </TableRow>
                             ))
                         ) : filteredInstances.length === 0 ? (
-                            <TableRow>
+                            <TableRow key="empty-state">
                                 <TableCell colSpan={8} className="h-40 text-center" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                     <div className="flex flex-col items-center justify-center gap-2">
                                         <Server className="h-8 w-8 opacity-20" />
@@ -457,14 +479,26 @@ export function AgentFleetTable({
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            filteredInstances.map((instance) => {
+                            filteredInstances.map((instance, index) => {
                                 const statusInfo = getAgentStatus(instance.last_seen);
-                                const needsUpdate = instance.agent_version !== latestVersion;
+                                const needsUpdate = instance.agent_version && instance.agent_version !== latestVersion;
                                 const isSelected = selectedAgents.has(instance.agent_id);
+                                const agentKey = `${instance.agent_id ?? `agent-${index}`}-${index}`;
+                                // Use normalized id in URL (no + or dots) so URLs are stable and readable.
+                                const serverHref = `/servers/${encodeURIComponent(serverIdForDisplay(instance.agent_id || ""))}`;
 
                                 return (
-                                    <TableRow key={instance.agent_id} className={`hover:opacity-95 ${isSelected ? 'bg-blue-500/5' : ''}`} style={{ borderColor: 'rgb(var(--theme-border))' }}>
-                                        <TableCell>
+                                    <TableRow
+                                        key={agentKey}
+                                        className={`cursor-pointer hover:opacity-95 ${isSelected ? 'bg-blue-500/5' : ''}`}
+                                        style={{ borderColor: 'rgb(var(--theme-border))' }}
+                                        onClick={(e) => {
+                                            const target = e.target as HTMLElement;
+                                            if (target.closest('button') || target.closest('a') || target.closest('input[type="checkbox"]')) return;
+                                            router.push(serverHref);
+                                        }}
+                                    >
+                                        <TableCell onClick={(e) => e.stopPropagation()}>
                                             <input
                                                 type="checkbox"
                                                 checked={isSelected}
@@ -479,9 +513,16 @@ export function AgentFleetTable({
                                                 </div>
                                                 <div>
                                                     <div className="flex items-center gap-2">
-                                                        <Link href={`/servers/${encodeURIComponent(serverIdForDisplay(instance.agent_id))}`} className="font-medium link-theme transition-colors hover:underline">
+                                                        <button
+                                                            type="button"
+                                                            className="font-medium link-theme transition-colors hover:underline text-left bg-transparent border-none p-0 cursor-pointer"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                router.push(serverHref);
+                                                            }}
+                                                        >
                                                             {instance.hostname || "Unknown"}
-                                                        </Link>
+                                                        </button>
                                                         {instance.psk_authenticated && (
                                                             <Shield className="h-3.5 w-3.5 text-emerald-500" />
                                                         )}
@@ -491,7 +532,7 @@ export function AgentFleetTable({
                                                             </Badge>
                                                         )}
                                                     </div>
-                                                    <div className="flex items-center gap-1 group">
+                                                    <div className="flex items-center gap-1 group" onClick={(e) => e.stopPropagation()}>
                                                         <button
                                                             onClick={() => copyAgentId(instance.agent_id)}
                                                             className="text-[10px] font-mono transition-colors hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }}
@@ -526,10 +567,10 @@ export function AgentFleetTable({
                                         <TableCell className="text-xs" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                             {instance.last_seen ? formatLastSeen(instance.last_seen) : "N/A"}
                                         </TableCell>
-                                        <TableCell className="text-right">
+                                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex items-center justify-end gap-0.5">
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }} asChild>
-                                                    <Link href={`/servers/${encodeURIComponent(serverIdForDisplay(instance.agent_id))}`}>
+                                                    <Link href={`/servers/${encodeURIComponent(serverIdForDisplay(instance.agent_id || ""))}`}>
                                                         <ExternalLink className="h-4 w-4" />
                                                     </Link>
                                                 </Button>
@@ -542,12 +583,12 @@ export function AgentFleetTable({
                                                     <Terminal className="h-4 w-4" />
                                                 </Button>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }} asChild>
-                                                    <Link href={`/servers/${encodeURIComponent(serverIdForDisplay(instance.agent_id))}?tab=drift`}>
+                                                    <Link href={`/servers/${encodeURIComponent(serverIdForDisplay(instance.agent_id || ""))}?tab=drift`}>
                                                         <GitCompare className="h-4 w-4" />
                                                     </Link>
                                                 </Button>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }} asChild title="Edit agent config">
-                                                    <Link href={`/agents/${encodeURIComponent(serverIdForDisplay(instance.agent_id))}/config`}>
+                                                    <Link href={`/agents/${encodeURIComponent(serverIdForDisplay(instance.agent_id || ""))}/config`}>
                                                         <Settings className="h-4 w-4" />
                                                     </Link>
                                                 </Button>
@@ -567,6 +608,7 @@ export function AgentFleetTable({
                                 );
                             })
                         )}
+                        </React.Fragment>
                     </TableBody>
                 </Table>
             </div>

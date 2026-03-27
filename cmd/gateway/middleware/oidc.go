@@ -494,7 +494,7 @@ func (p *OIDCProvider) CallbackHandler() http.HandlerFunc {
 func (p *OIDCProvider) StatusHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"enabled":      p.config.Enabled,
 			"provider_url": p.config.ProviderURL,
 		})
