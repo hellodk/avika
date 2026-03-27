@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -19,6 +20,20 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
+
+// allowedShells is the whitelist of shells permitted for Execute sessions.
+var allowedShells = map[string]bool{
+	"/bin/sh":   true,
+	"/bin/bash": true,
+	"/bin/ash":  true,
+	"/bin/zsh":  true,
+}
+
+// allowedNginxConfigPaths are base directories allowed for config operations.
+var allowedNginxConfigPaths = []string{
+	"/etc/nginx",
+	"/opt/bitnami/nginx/conf",
+}
 
 type mgmtServer struct {
 	pb.UnimplementedAgentServiceServer
@@ -34,18 +49,41 @@ func newMgmtServer(configPath string) *mgmtServer {
 }
 
 func (s *mgmtServer) GetConfig(ctx context.Context, req *pb.ConfigRequest) (*pb.ConfigResponse, error) {
-	parser := config.NewParser(req.ConfigPath)
-	if req.ConfigPath == "" {
+	configPath := req.ConfigPath
+	if configPath == "" {
 		// Try a few common paths
 		if _, err := os.Stat("/etc/nginx/nginx.conf"); err == nil {
-			parser = config.NewParser("/etc/nginx/nginx.conf")
+			configPath = "/etc/nginx/nginx.conf"
 		} else if _, err := os.Stat("/opt/bitnami/nginx/conf/nginx.conf"); err == nil {
-			parser = config.NewParser("/opt/bitnami/nginx/conf/nginx.conf")
+			configPath = "/opt/bitnami/nginx/conf/nginx.conf"
 		} else {
-			// Fallback to primary detected instance path if available
-			parser = config.NewParser("/etc/nginx/nginx.conf")
+			configPath = "/etc/nginx/nginx.conf"
 		}
 	}
+
+	// Validate config path is within allowed directories to prevent path traversal
+	absPath, err := filepath.Abs(configPath)
+	if err != nil {
+		return &pb.ConfigResponse{
+			InstanceId: req.InstanceId,
+			Error:      "invalid config path",
+		}, nil
+	}
+	allowed := false
+	for _, base := range allowedNginxConfigPaths {
+		if strings.HasPrefix(absPath, base) {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return &pb.ConfigResponse{
+			InstanceId: req.InstanceId,
+			Error:      fmt.Sprintf("config path %q is outside allowed directories", configPath),
+		}, nil
+	}
+
+	parser := config.NewParser(configPath)
 
 	nginxConfig, err := parser.Parse()
 	if err != nil {
@@ -261,21 +299,21 @@ func (s *mgmtServer) Execute(stream pb.AgentService_ExecuteServer) error {
 
 		if cmd == nil {
 			// Start process on first message with a PTY for interactive shell support
+			// Only allow whitelisted shells to prevent command injection
 			shell := req.Command
 			if shell == "" {
-				// Use Lens-style shell fallback: try bash, then ash, then sh
-				// This ensures compatibility with all container images (Alpine, Debian, etc.)
-				shell = "/bin/sh -c '(bash || ash || sh)'"
+				shell = "/bin/sh"
+			}
+
+			// Validate shell against whitelist
+			if !allowedShells[shell] {
+				errMsg := fmt.Sprintf("shell %q is not in the allowed list", shell)
+				log.Printf("Execute rejected: %s for instance: %s", errMsg, req.InstanceId)
+				return stream.Send(&pb.ExecResponse{Error: errMsg})
 			}
 			log.Printf("Starting shell with PTY: %s for instance: %s", shell, req.InstanceId)
 
-			// Parse command - if it contains spaces, use sh -c to execute
-			var cmdArgs []string
-			if strings.Contains(shell, " ") {
-				cmdArgs = []string{"/bin/sh", "-c", shell}
-			} else {
-				cmdArgs = []string{shell}
-			}
+			cmdArgs := []string{shell}
 
 			cmd = exec.Command(cmdArgs[0], cmdArgs[1:]...)
 			cmd.Env = append(os.Environ(), "TERM=xterm-256color")
