@@ -119,8 +119,10 @@ test.describe('Inventory Page', () => {
         
         // Verify page loads with inventory table section (Total Agents, search, table)
         const pageContent = await page.content();
+        
+        // Agent Fleet section should always be present
+        expect(pageContent).toContain('agent fleet');
         expect(pageContent).toContain('Total Agents');
-        expect(pageContent).toContain('Search agents...');
         await expect(page).toHaveURL(INV);
     });
 
@@ -149,6 +151,13 @@ test.describe('Inventory Page', () => {
         // Wait for React hydration
         await page.waitForSelector('h1:has-text("Inventory")', { timeout: 10000 });
         
+        // Verify the page loads with inventory controls
+        const pageContent = await page.content();
+        
+        // Controls section should always be present
+        expect(pageContent).toContain('agent fleet');
+        expect(pageContent).toContain('Refresh');
+        expect(pageContent).toContain('Export');
         // Verify the page loads with inventory controls (search, Export, Refresh via button)
         await expect(page.getByPlaceholder('Search agents...')).toBeVisible();
         await expect(page.getByRole('button', { name: /export/i })).toBeVisible();

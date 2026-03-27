@@ -125,18 +125,21 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 	defer func() {
 		if currentSession != nil {
 			currentSession.mu.Lock()
-			currentSession.status = "offline"
-			currentSession.lastActive = time.Now()
-			currentSession.stream = nil // Clear stream
+			// Only mark offline if this is still the active stream for this session.
+			// This prevents stale/reconnecting goroutines from marking a new, healthy stream as offline.
+			if currentSession.stream == stream {
+				currentSession.status = "offline"
+				currentSession.lastActive = time.Now()
+				currentSession.stream = nil // Clear stream
 
-			agentLog := logging.WithAgent(gatewayLog, currentSession.id, currentSession.hostname, currentSession.ip)
-			// Persist offline status
-			if err := s.db.UpsertAgent(currentSession); err != nil {
-				agentLog.Warn().Err(err).Msg("Failed to update agent status in DB")
+				agentLog := logging.WithAgent(gatewayLog, currentSession.id, currentSession.hostname, currentSession.ip)
+				// Persist offline status
+				if err := s.db.UpsertAgent(currentSession); err != nil {
+					agentLog.Warn().Err(err).Msg("Failed to update agent status in DB")
+				}
+				agentLog.Info().Msg("Agent disconnected (marked offline)")
 			}
-
 			currentSession.mu.Unlock()
-			agentLog.Info().Msg("Agent disconnected (marked offline)")
 		}
 	}()
 
@@ -587,6 +590,16 @@ func (s *server) GetAgent(ctx context.Context, req *pb.GetAgentRequest) (*pb.Age
 }
 
 func (s *server) RemoveAgent(ctx context.Context, req *pb.RemoveAgentRequest) (*pb.RemoveAgentResponse, error) {
+	// Always remove from session if it exists
+	s.sessions.Delete(req.AgentId)
+
+	// Remove from DB (always, even if offline)
+	if err := s.db.RemoveAgent(req.AgentId); err != nil {
+		gatewayLog.Warn().Err(err).Str("agent_id", req.AgentId).Msg("Failed to remove agent from DB")
+		return &pb.RemoveAgentResponse{Success: false}, nil
+	}
+
+	gatewayLog.Info().Str("agent_id", req.AgentId).Msg("Agent manually removed from inventory")
 	resolved, ok := s.resolveAgentID(req.AgentId)
 	if !ok {
 		return &pb.RemoveAgentResponse{Success: false}, nil
@@ -1258,6 +1271,36 @@ func (srv *server) startBackgroundPruning() {
 	}()
 }
 
+func (srv *server) startHeartbeatMonitoring() {
+	go func() {
+		gatewayLog.Info().Msg("Starting heartbeat monitoring background service")
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+
+		// If an agent hasn't sent a heartbeat in 5 minutes, mark it offline.
+		// In a production environment, this threshold should be configurable.
+		timeout := 5 * time.Minute
+
+		monitor := func() {
+			count, err := srv.db.MarkStaleAgentsOffline(timeout)
+			if err != nil {
+				gatewayLog.Error().Err(err).Msg("Heartbeat monitor failed")
+				return
+			}
+			if count > 0 {
+				gatewayLog.Info().Int64("count", count).Msg("Marked stale agents as offline")
+			}
+		}
+
+		for {
+			select {
+			case <-ticker.C:
+				monitor()
+			}
+		}
+	}()
+}
+
 var (
 	configFile  = flag.String("config", "gateway.yaml", "Path to configuration file")
 	versionFlag = flag.Bool("version", false, "Display version and exit")
@@ -1424,6 +1467,7 @@ func main() {
 		srv.startRecommendationConsumer()
 	}
 	srv.startBackgroundPruning()
+	srv.startHeartbeatMonitoring()
 	srv.startGatewayMonitoring()
 	srv.alerts.Start()
 
@@ -1938,6 +1982,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 
 	// Server Assignment API
 	mux.Handle("GET /api/server-assignments", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListServerAssignments)))
+	mux.Handle("GET /api/servers", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListAgents)))
 	mux.Handle("GET /api/servers/unassigned", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListUnassignedServers)))
 	mux.Handle("POST /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAssignServer)))
 	mux.Handle("DELETE /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUnassignServer)))
@@ -2121,12 +2166,21 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		log.Printf("AI Error Analysis API routes registered")
 	}
 	handler := metricsAndLogMiddleware(gatewayLog, false)(mux)
+
+	// Wrap with a global request body size limiter (10MB) to prevent DoS via large payloads.
+	// Streaming endpoints (SSE, WebSocket) are not affected as they use different read patterns.
+	limitedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024) // 10MB
+		handler.ServeHTTP(w, r)
+	})
+
 	return &http.Server{
-		Addr:         cfg.GetHTTPAddress(),
-		Handler:      handler,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		Addr:           cfg.GetHTTPAddress(),
+		Handler:        limitedHandler,
+		ReadTimeout:    30 * time.Second,
+		WriteTimeout:   30 * time.Second,
+		IdleTimeout:    120 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1MB max header size
 	}
 }
 
@@ -2782,6 +2836,15 @@ type visitorAnalyticsFrontendShape struct {
 	StatusCodes      []map[string]interface{} `json:"status_codes"`
 }
 
+// handleListAgents handles GET /api/servers
+func (srv *server) handleListAgents(w http.ResponseWriter, r *http.Request) {
+	resp, err := srv.ListAgents(r.Context(), &pb.ListAgentsRequest{})
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 func (srv *server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 

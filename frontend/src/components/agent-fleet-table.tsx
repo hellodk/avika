@@ -73,6 +73,8 @@ function formatLastSeen(lastSeen: string | number) {
     if (diff < 60) return `${diff}s ago`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    const days = Math.floor(diff / 86400);
+    if (days < 30) return `${days}d ago`;
     return new Date(timestamp * 1000).toLocaleDateString();
 }
 

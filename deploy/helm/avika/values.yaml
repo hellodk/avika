@@ -194,12 +194,18 @@ gatewayExternalUrl: ""  # e.g. "https://avika.example.com" or "http://avika.exam
 #   replicaCount: number of replicas
 #   image: {repository, tag, pullPolicy}  # Use values here; avoid --set components.*.image.tag when deploying.
 #   ports: {name: {containerPort, servicePort}}
+#   image: {repository, tag, pullPolicy}  # Use values here; avoid --set components.*.image.tag when deploying.
+#   ports: {name: {containerPort, servicePort}}
 #   env: environment variables
 #   livenessProbe / readinessProbe: health checks
 #   resources: CPU/memory limits
 #   service: {type, annotations}
 #   persistence: (StatefulSet only) {size, storageClass}
 # =============================================================================
+
+# NGINX Configuration (Custom Template)
+nginx:
+  enabled: true
 
 components:
 
@@ -212,17 +218,20 @@ components:
     image:
       useGlobalRegistry: true
       repository: avika-gateway
-      tag: "latest"
+      tag: "1.109.4"
       pullPolicy: Always
     terminationGracePeriodSeconds: 35
     
     ports:
       grpc:
         containerPort: 5020
+        servicePort: 8443
       http:
         containerPort: 5021
+        servicePort: 443
       metrics:
         containerPort: 5022
+        servicePort: 9443
     
     service:
       type: ClusterIP
@@ -303,6 +312,7 @@ components:
     ports:
       http:
         containerPort: 5031
+        servicePort: 443
     
     service:
       type: ClusterIP

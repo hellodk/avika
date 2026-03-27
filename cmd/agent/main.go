@@ -61,6 +61,7 @@ var (
 	tlsKeyFile    = flag.String("tls-key", "", "Path to TLS client key file")
 	tlsCACertFile = flag.String("tls-ca", "", "Path to TLS CA certificate file")
 	enableTLS     = flag.Bool("tls", false, "Enable TLS/mTLS for gateway connection")
+	tlsInsecure   = flag.Bool("tls-insecure", false, "Allow insecure TLS connections (skip certificate verification)")
 
 	// NGINX configuration
 	nginxStatusURL  = flag.String("nginx-status-url", "http://127.0.0.1/nginx_status", "URL for NGINX stub_status")
@@ -179,6 +180,10 @@ func loadConfig(path string) error {
 		case "TLS_CA":
 			if !setFlags["tls-ca"] {
 				*tlsCACertFile = val
+			}
+		case "TLS_INSECURE":
+			if !setFlags["tls-insecure"] {
+				*tlsInsecure = val == "true" || val == "1"
 			}
 		case "ACCESS_LOG_PATH":
 			if !setFlags["access-log-path"] {
@@ -302,6 +307,10 @@ func loadEnv() {
 		{"MGMT_ADVERTISE", "mgmt-advertise", func(val string) { *mgmtAdvertise = val }},
 		{"AVIKA_MGMT_NAT_CIDR", "mgmt-nat-cidr", func(val string) { *mgmtNatCIDR = val }},
 		{"MGMT_NAT_CIDR", "mgmt-nat-cidr", func(val string) { *mgmtNatCIDR = val }},
+		{"TLS", "tls", func(val string) { *enableTLS = val == "true" || val == "1" }},
+		{"AVIKA_TLS", "tls", func(val string) { *enableTLS = val == "true" || val == "1" }},
+		{"TLS_INSECURE", "tls-insecure", func(val string) { *tlsInsecure = val == "true" || val == "1" }},
+		{"AVIKA_TLS_INSECURE", "tls-insecure", func(val string) { *tlsInsecure = val == "true" || val == "1" }},
 		{"SYSLOG_ENABLED", "syslog-enabled", func(val string) { *syslogEnabled = val == "true" || val == "1" }},
 		{"SYSLOG_TARGET", "syslog-target", func(val string) { *syslogTarget = val }},
 		{"SYSLOG_FACILITY", "syslog-facility", func(val string) { *syslogFacility = val }},
@@ -340,6 +349,9 @@ func getGatewayAddresses() []string {
 	if *gatewayAddr != "" {
 		for _, addr := range strings.Split(*gatewayAddr, ",") {
 			addr = strings.TrimSpace(addr)
+			if strings.HasPrefix(addr, "https://") {
+				*enableTLS = true
+			}
 			addr = strings.TrimPrefix(addr, "http://")
 			addr = strings.TrimPrefix(addr, "https://")
 			if addr != "" {
@@ -1412,7 +1424,8 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 		}
 
 		// Send
-		log.Printf("Sending message from buffer: type %T", msg.Payload)
+		ptype := getPayloadType(&msg)
+		agentDebug("[%s] Sending message from buffer: type %s (%d bytes) at offset %d", gatewayAddr, ptype, len(data), offset)
 		if err := ss.Send(&msg); err != nil {
 			log.Printf("Failed to send: %v. Reconnecting...", err)
 			ss.SetStream(nil)
@@ -1426,13 +1439,26 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 				continue // Retry loop will handle reconnection
 			}
 		}
-		log.Printf("Successfully sent message")
+		agentInfo("[%s] Successfully sent message type %s (%d bytes)", gatewayAddr, getPayloadType(&msg), len(data))
 
 		// Success -> Ack
 		if err := wal.Ack(offset); err != nil {
 			log.Printf("Failed to ack offset: %v", err)
 		}
 	}
+}
+
+// getPayloadType returns a human-readable name for the message payload
+func getPayloadType(msg *pb.AgentMessage) string {
+	if msg == nil || msg.Payload == nil {
+		return "Empty"
+	}
+	typeName := fmt.Sprintf("%T", msg.Payload)
+	// Example: *pb.AgentMessage_Heartbeat -> Heartbeat
+	if lastDot := strings.LastIndex(typeName, "_"); lastDot != -1 {
+		return typeName[lastDot+1:]
+	}
+	return typeName
 }
 
 // isRunningInContainer detects if running inside a container
@@ -1507,17 +1533,26 @@ func setupLogging() error {
 		logDir := filepath.Dir(*logFile)
 		if logDir != "" && logDir != "." {
 			if err := os.MkdirAll(logDir, 0755); err != nil {
-				return fmt.Errorf("error creating log directory %s: %w", logDir, err)
+				// Fallback to stdout if directory creation fails (e.g. permission denied)
+				fmt.Printf("Warning: failed to create log directory %s: %v. Falling back to stdout logging.\n", logDir, err)
+				*logFile = ""
 			}
 		}
 
-		f, err := os.OpenFile(*logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-		if err != nil {
-			return fmt.Errorf("error opening log file: %w", err)
+		if *logFile != "" {
+			f, err := os.OpenFile(*logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+			if err != nil {
+				// Fallback to stdout if file open fails
+				fmt.Printf("Warning: failed to open log file %s: %v. Falling back to stdout logging.\n", *logFile, err)
+				*logFile = ""
+			} else {
+				log.SetOutput(f)
+				agentInfo("Logging to file: %s", *logFile)
+			}
 		}
-		log.SetOutput(f)
-		agentInfo("Logging to file: %s", *logFile)
-	} else {
+	}
+	
+	if *logFile == "" {
 		// Log to stdout - provide context about where logs will go
 		if isRunningInContainer() {
 			agentInfo("Logging to stdout (container mode - use 'kubectl logs' or container runtime to view)")
@@ -1598,8 +1633,9 @@ func loadAgentTLSCredentials() (credentials.TransportCredentials, error) {
 	}
 
 	config := &tls.Config{
-		Certificates: certificates,
-		RootCAs:      certPool,
+		Certificates:       certificates,
+		RootCAs:            certPool,
+		InsecureSkipVerify: *tlsInsecure,
 	}
 
 	return credentials.NewTLS(config), nil

@@ -270,6 +270,13 @@ func (pm *PSKManager) UnaryPSKInterceptor() grpc.UnaryServerInterceptor {
 			return handler(ctx, req)
 		}
 
+		// Only enforce PSK for agent-facing methods.
+		// BFF calls (AgentService) are handled by session cookies in the HTTP gateway
+		// or are internal calls from Next.js that don't have PSK.
+		if !strings.HasPrefix(info.FullMethod, "/nginx.agent.v1.Commander/") {
+			return handler(ctx, req)
+		}
+
 		// Extract metadata
 		md, ok := metadata.FromIncomingContext(ctx)
 		if !ok {
@@ -305,6 +312,12 @@ func (pm *PSKManager) StreamPSKInterceptor() grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		if !pm.IsEnabled() {
 			// PSK disabled - pass through without authentication marker
+			return handler(srv, ss)
+		}
+
+		// Only enforce PSK for the agent control stream.
+		// Other streams (like Analytics) are for the UI/BFF and don't use PSK.
+		if info.FullMethod != "/nginx.agent.v1.Commander/Connect" {
 			return handler(srv, ss)
 		}
 

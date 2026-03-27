@@ -22,6 +22,7 @@ export default defineConfig({
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
         video: 'retain-on-failure',
+        ignoreHTTPSErrors: true,
     },
     expect: {
         timeout: 10000,
