@@ -7,7 +7,7 @@
 - **Agent config (avika-agent.conf)**: Persist to file per agent; all keys editable; apply at group level; backup mandatory (keep last 5), restore.
 - **Drift for node**: Show on server detail (Drift tab) and inventory (per-row status); drift vs every group the node belongs to.
 - **Log streaming**: Live logs + filters (time range, HTTP status, IP/subnet/CIDR, header).
-- **SSH/terminal**: VM with multiple interfaces — use correct IP for SSH; in-browser terminal option; fix agent_id encoding (e.g. `zabbix1+10.0.2.15`).
+- **SSH/terminal**: VM with multiple interfaces — use correct IP for SSH; in-browser terminal option; fix agent_id encoding (e.g. `node1+10.0.2.15`).
 - **NGINX start/stop**: Validate config (`nginx -t`) before restart; only restart if valid; wire UI to gateway RestartNginx/StopNginx.
 
 ---

@@ -1,13 +1,23 @@
 #!/bin/bash
+# DEPRECATED: Use ./scripts/build-agent.sh instead.
+# This script used cmd/agent/Dockerfile and old image naming.
+# build-agent.sh uses nginx-agent/Dockerfile and produces hellodk/avika-agent (multi-arch, config via build.conf).
+# To build agent Docker image: ./scripts/build-agent.sh   (or BUMP=none ./scripts/build-agent.sh to skip version bump)
 set -e
 
 # Colors for output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}🐳 NGINX Manager Agent - Docker Build${NC}"
+echo -e "${RED}⚠ DEPRECATED: docker-build.sh is deprecated. Use: ./scripts/build-agent.sh${NC}"
+echo -e "${YELLOW}  Continuing with legacy build in 3s (Ctrl+C to cancel)...${NC}"
+sleep 3
+echo ""
+
+echo -e "${BLUE}🐳 NGINX Manager Agent - Docker Build (legacy)${NC}"
 echo ""
 
 # Get version from VERSION file or default

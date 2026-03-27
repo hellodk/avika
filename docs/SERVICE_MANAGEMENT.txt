@@ -26,7 +26,7 @@ scripts/stop.sh           Stop all services gracefully
 scripts/restart.sh        Restart all services
 scripts/status.sh         Check status of all services
 scripts/build-agent.sh    Build agent binary
-scripts/docker-build.sh   Build and push Docker image
+scripts/build-agent.sh   Build agent and Docker image (see scripts/README.md)
 scripts/safe-push.sh      Push code to GitHub with security checks
 
 

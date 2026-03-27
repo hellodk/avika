@@ -103,6 +103,7 @@ message Heartbeat {
   string git_branch = 10;      // Git branch name
   map<string, string> labels = 11;  // Agent labels for auto-assignment (project, environment, etc.)
   string mgmt_address = 12;   // Optional host:port the gateway should use to dial this agent (e.g. 10.0.2.15:5025)
+  repeated string mgmt_address_candidates = 13;  // All non-loopback host:port the gateway can probe to find a reachable address (K8s CNI, multi-NIC, Vagrant, etc.)
 }
 
 message NginxInstance {

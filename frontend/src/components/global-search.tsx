@@ -67,7 +67,9 @@ function getSuggestionLabel(s: Suggestion): string {
 function getSuggestionHref(s: Suggestion): string {
   if (s.type === "page") return s.href;
   if (s.type === "settings") return `/settings?q=${encodeURIComponent(s.q)}`;
-  return `/inventory?q=${encodeURIComponent(s.agent_id)}`;
+  // Link directly to server detail with normalized ID (no + or dots in URL)
+  const base = typeof window !== "undefined" && window.location.pathname.startsWith("/avika") ? "/avika" : "";
+  return `${base}/servers/${encodeURIComponent(serverIdForDisplay(s.agent_id || ""))}`;
 }
 
 const PAGE_ICONS: Record<string, React.ReactNode> = {

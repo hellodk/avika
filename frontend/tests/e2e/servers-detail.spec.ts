@@ -1,5 +1,5 @@
 /**
- * Server detail page E2E: /servers/[id] with IP dots as dashes (e.g. /avika/servers/zabbix1-10-0-2-15).
+ * Server detail page E2E: /servers/[id] with IP dots as dashes (e.g. /avika/servers/node1-10-0-2-15).
  * Asserts page loads, tabs and main structure; tests links from Inventory UI.
  */
 import { test, expect } from '@playwright/test';
@@ -21,9 +21,9 @@ async function gotoServerDetail(page: import('@playwright/test').Page, serverId:
 
 test.describe('Server detail page', () => {
     // URL format: dots in IP replaced by dashes (10.0.2.15 -> 10-0-2-15)
-    const SERVER_ID_NEW = 'zabbix1-10-0-2-15';
+    const SERVER_ID_NEW = 'node1-10-0-2-15';
 
-    test('loads /servers/zabbix1-10-0-2-15 and URL is correct', async ({ page }) => {
+    test('loads /servers/node1-10-0-2-15 and URL is correct', async ({ page }) => {
         await gotoServerDetail(page, SERVER_ID_NEW);
 
         await expect(page).toHaveURL(new RegExp(`/servers/${SERVER_ID_NEW.replace(/\./g, '\\.')}(?:\\?|$)`));
@@ -56,7 +56,7 @@ test.describe('Server detail page', () => {
         expect(href).toMatch(/\/servers\/[^/?#]+/);
         const idSegment = (href!.match(/\/servers\/([^/?#]+)/) || [])[1];
         const decoded = decodeURIComponent(idSegment);
-        expect(decoded).not.toMatch(/^\S*\.\d+\.\d+\.\d+$/); // should not be like "zabbix1.10.0.2.15" or "zabbix1-10.0.2.15"
+        expect(decoded).not.toMatch(/^\S*\.\d+\.\d+\.\d+$/); // should not be like "node1.10.0.2.15" or "node1-10.0.2.15"
         expect(decoded).toMatch(/-/); // at least one dash (host-ip or ip octets)
 
         await serverLink.click();

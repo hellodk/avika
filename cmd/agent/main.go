@@ -74,7 +74,7 @@ var (
 	updateInterval = flag.Duration("update-interval", 168*time.Hour, "Interval between update checks (default: 1 week)")
 
 	// Config File
-	configFile = flag.String("config", "/etc/avika-agent/avika-agent.conf", "Path to configuration file")
+	configFile = flag.String("config", "/etc/avika/avika-agent.conf", "Path to configuration file")
 
 	// Management address advertisement: host or host:port the gateway should use to dial this agent (Option A - correct IP)
 	mgmtAdvertise = flag.String("mgmt-advertise", "", "Address to advertise for gateway dial-back (e.g. 10.0.2.15 or 10.0.2.15:5025). Also set via AVIKA_MGMT_ADVERTISE.")
@@ -457,6 +457,9 @@ func main() {
 	agentInfo("Agent ID:  %s", *agentID)
 	agentInfo("Agent IP:  %s", currentIP)
 	agentInfo("Version:   %s", Version)
+	if Version == "0.1.0-dev" {
+		agentWarn("Binary reports 0.1.0-dev; it was likely built without the repo VERSION. Rebuild the gateway image and reinstall or self-update the agent to get the correct version.")
+	}
 	agentInfo("Buffer:    %s", *bufferDir)
 	agentInfo("Gateways:  %s", *gatewayAddr)
 	agentInfo("============================")
@@ -652,7 +655,8 @@ func main() {
 								}
 								return m
 							}(), // Labels for auto-assignment
-							MgmtAddress: getChosenMgmtAddress(), // host:port for gateway dial-back
+							MgmtAddress:           getChosenMgmtAddress(),   // host:port for gateway dial-back (backward compat)
+							MgmtAddressCandidates: getAllCandidateMgmtAddresses(), // all candidate host:port for gateway to probe
 						},
 					},
 				}
@@ -957,6 +961,39 @@ func getChosenMgmtAddress() string {
 	return net.JoinHostPort(ip, strconv.Itoa(*mgmtPort))
 }
 
+// getAllCandidateMgmtAddresses returns all non-loopback IPv4 host:port for the agent's mgmt port.
+// The gateway can probe these to pick a reachable address (K8s CNI, multi-NIC, Vagrant, etc.).
+func getAllCandidateMgmtAddresses() []string {
+	port := strconv.Itoa(*mgmtPort)
+	if *mgmtAdvertise != "" {
+		host, _, err := net.SplitHostPort(*mgmtAdvertise)
+		if err != nil {
+			host = strings.TrimSpace(*mgmtAdvertise)
+		}
+		if host != "" {
+			return []string{net.JoinHostPort(host, port)}
+		}
+	}
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil
+	}
+	var out []string
+	seen := make(map[string]bool)
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipv4 := ipnet.IP.To4(); ipv4 != nil {
+				ipStr := ipv4.String()
+				if !seen[ipStr] {
+					seen[ipStr] = true
+					out = append(out, net.JoinHostPort(ipStr, port))
+				}
+			}
+		}
+	}
+	return out
+}
+
 func getOrGenerateAgentID() string {
 	idFile := filepath.Join(*bufferDir, "agent_id")
 
@@ -965,11 +1002,18 @@ func getOrGenerateAgentID() string {
 	if err == nil {
 		id := strings.TrimSpace(string(data))
 		if id != "" {
+			// Migrate old-format ID (hostname+10.0.2.15) to new format (hostname-10-0-2-15) so UI and URLs are consistent
+			if migrated := migrateAgentIDToNewFormat(id); migrated != "" {
+				if writeErr := os.WriteFile(idFile, []byte(migrated), 0644); writeErr != nil {
+					agentWarn("Failed to persist migrated agent ID: %v", writeErr)
+				}
+				return migrated
+			}
 			return id
 		}
 	}
 
-	// 2. Generate agent_id = hostname + "+" + chosen_ip (plan: standardize on hostname+ip everywhere)
+	// 2. Generate agent_id = hostname + "-" + sanitizedIP (no "+" or "." in ID; e.g. hostname-192-168-1-100)
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "unknown"
@@ -979,7 +1023,7 @@ func getOrGenerateAgentID() string {
 	chosenIP := getChosenIP()
 	var agentID string
 	if chosenIP != "" {
-		agentID = hostname + "+" + chosenIP
+		agentID = hostname + "-" + sanitizeAgentIDSuffix(chosenIP)
 	} else {
 		agentID = hostname
 	}
@@ -990,6 +1034,27 @@ func getOrGenerateAgentID() string {
 	}
 
 	return agentID
+}
+
+// sanitizeAgentIDSuffix replaces "." with "-" in the IP so agent IDs are safe in URLs/logs (e.g. 10.0.2.15 -> 10-0-2-15).
+func sanitizeAgentIDSuffix(ip string) string {
+	return strings.ReplaceAll(ip, ".", "-")
+}
+
+// migrateAgentIDToNewFormat converts old-format agent ID (hostname+10.0.2.15) to new format (hostname-10-0-2-15).
+// Returns the new ID if migration applied, or "" if id is already in new format or not recognisable.
+func migrateAgentIDToNewFormat(id string) string {
+	if id == "" || !strings.Contains(id, "+") {
+		return ""
+	}
+	parts := strings.SplitN(id, "+", 2)
+	hostname := strings.TrimSpace(parts[0])
+	ip := strings.TrimSpace(parts[1])
+	if hostname == "" || ip == "" {
+		return ""
+	}
+	hostname = strings.ReplaceAll(hostname, " ", "-")
+	return hostname + "-" + sanitizeAgentIDSuffix(ip)
 }
 
 func writeToBuffer(wal *buffer.FileBuffer, msg *pb.AgentMessage) {
@@ -1174,10 +1239,11 @@ func buildBootstrapHeartbeat(agentID string) *pb.AgentMessage {
 				Instances:    nil,
 				IsPod:        isPod,
 				PodIp:        podIP,
-				BuildDate:    BuildDate,
-				GitCommit:    GitCommit,
-				GitBranch:    GitBranch,
-				MgmtAddress:  getChosenMgmtAddress(),
+				BuildDate:             BuildDate,
+				GitCommit:             GitCommit,
+				GitBranch:             GitBranch,
+				MgmtAddress:           getChosenMgmtAddress(),
+				MgmtAddressCandidates: getAllCandidateMgmtAddresses(),
 			},
 		},
 	}

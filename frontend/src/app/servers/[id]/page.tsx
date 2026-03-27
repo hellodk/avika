@@ -18,8 +18,9 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip } from "recharts";
 import { TerminalOverlay } from "@/components/TerminalOverlay";
-import { apiFetch, apiUrl, normalizeServerId, serverIdForDisplay } from "@/lib/api";
+import { apiFetch, apiUrl, BASE_PATH, normalizeServerId, serverIdForDisplay } from "@/lib/api";
 import Editor, { loader } from "@monaco-editor/react";
+import { useProject } from "@/lib/project-context";
 
 interface LogEntry {
     timestamp?: number | string;
@@ -157,6 +158,24 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     const [isSettingMaintenance, setIsSettingMaintenance] = useState(false);
     const [templates, setTemplates] = useState<any[]>([]);
 
+    // Project / environment assignment state
+    const { projects, environments, selectedProject, selectedEnvironment, selectProject, selectEnvironment } = useProject();
+    const [assignmentProjectId, setAssignmentProjectId] = useState<string | null>(null);
+    const [assignmentEnvironmentId, setAssignmentEnvironmentId] = useState<string | null>(null);
+    const [isSavingAssignment, setIsSavingAssignment] = useState(false);
+
+    // Redirect old-format URLs (e.g. zabbix1+10.0.2.15) to normalized form (zabbix1-10-0-2-15) so address bar and breadcrumbs stay clean
+    useEffect(() => {
+        if (!id) return;
+        const normalized = serverIdForDisplay(id);
+        if (normalized && id !== normalized) {
+            const base = typeof window !== "undefined" && window.location.pathname.startsWith("/avika") ? "/avika" : BASE_PATH || "";
+            const newPath = `${base}/servers/${encodeURIComponent(normalized)}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+            router.replace(newPath);
+            return;
+        }
+    }, [id, router, searchParams]);
+
     // Drift (per-group status for this server)
     const [driftGroups, setDriftGroups] = useState<{ group_id: string; group_name: string; report_id: string; status: string; baseline_type: string; diff_summary?: string; error_message?: string; created_at: number }[]>([]);
     const [driftLoading, setDriftLoading] = useState(false);
@@ -218,6 +237,36 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
             setServerInfo({ error: "Network or client error" });
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleSaveAssignment = async () => {
+        if (!assignmentEnvironmentId) {
+            toast.error("Please select an environment");
+            return;
+        }
+        setIsSavingAssignment(true);
+        try {
+            const res = await apiFetch(`/api/servers/${encodeURIComponent(id)}/assign`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ environment_id: assignmentEnvironmentId }),
+            });
+            const result = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                toast.error("Failed to assign agent", {
+                    description: result?.error || res.statusText,
+                });
+                return;
+            }
+            toast.success("Agent assignment updated");
+            fetchDetails();
+        } catch (err: any) {
+            toast.error("Failed to assign agent", {
+                description: err?.message || String(err),
+            });
+        } finally {
+            setIsSavingAssignment(false);
         }
     };
 
@@ -739,6 +788,19 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
         return (ipN & mask) === (subN & mask);
     }
 
+    // Initialize assignment defaults from project context
+    useEffect(() => {
+        if (!assignmentProjectId && (selectedProject || projects[0])) {
+            setAssignmentProjectId((selectedProject || projects[0])?.id ?? null);
+        }
+    }, [assignmentProjectId, projects, selectedProject]);
+
+    useEffect(() => {
+        if (!assignmentEnvironmentId && (selectedEnvironment || environments[0])) {
+            setAssignmentEnvironmentId((selectedEnvironment || environments[0])?.id ?? null);
+        }
+    }, [assignmentEnvironmentId, environments, selectedEnvironment]);
+
     if (isLoading && !serverInfo) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
@@ -765,6 +827,84 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
 
     return (
         <div className="space-y-6">
+            {projects.length > 0 && environments.length > 0 && (
+                <Card className="border border-amber-500/40 bg-amber-500/5">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                            <AlertCircle className="h-4 w-4 text-amber-500" />
+                            Assign project and environment
+                        </CardTitle>
+                        <CardDescription className="text-xs text-neutral-400">
+                            Choose where this agent belongs so it can inherit the correct configuration and policies. You can change this later.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-3 md:flex-row md:items-end">
+                        <div className="flex-1 space-y-1">
+                            <Label className="text-xs">Project</Label>
+                            <Select
+                                value={assignmentProjectId ?? ""}
+                                onValueChange={(value) => {
+                                    setAssignmentProjectId(value);
+                                    // Also drive global selection so environment tabs stay in sync
+                                    const proj = projects.find((p: any) => p.id === value) || null;
+                                    if (proj) {
+                                        selectProject(proj);
+                                    }
+                                    setAssignmentEnvironmentId(null);
+                                }}
+                            >
+                                <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue placeholder="Select project" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {projects.map((p: any) => (
+                                        <SelectItem key={p.id} value={p.id}>
+                                            {p.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="flex-1 space-y-1">
+                            <Label className="text-xs">Environment</Label>
+                            <Select
+                                value={assignmentEnvironmentId ?? ""}
+                                onValueChange={(value) => {
+                                    setAssignmentEnvironmentId(value);
+                                    const env = environments.find((e: any) => e.id === value) || null;
+                                    if (env) {
+                                        selectEnvironment(env);
+                                    }
+                                }}
+                            >
+                                <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue placeholder="Select environment" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {environments.map((e: any) => (
+                                        <SelectItem key={e.id} value={e.id}>
+                                            {e.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="flex-none">
+                            <Button
+                                size="sm"
+                                className="mt-4 md:mt-0"
+                                disabled={isSavingAssignment || !assignmentEnvironmentId}
+                                onClick={handleSaveAssignment}
+                            >
+                                {isSavingAssignment && (
+                                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                )}
+                                Save &amp; apply
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
             {isTerminalOpen && (
                 <TerminalOverlay
                     agentId={id}

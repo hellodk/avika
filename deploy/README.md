@@ -15,7 +15,7 @@ curl -fsSL http://<MANAGER_IP>:8090/deploy-agent.sh | \
 
 **Example (replace with your gateway IP):**
 ```bash
-curl -fsSL http://your-gateway:5021/deploy-agent.sh | \
+curl -fsSL http://your-gateway:5021/updates/deploy-agent.sh | \
   GATEWAY_SERVER=your-gateway:5020 \
   UPDATE_SERVER=http://your-gateway:5021 \
   sudo -E bash

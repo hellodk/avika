@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -102,7 +104,8 @@ type AgentSession struct {
 	instancesCount   int
 	uptime           string
 	ip               string
-	mgmtAddress      string // Optional host:port from agent heartbeat for dial-back (correct-IP)
+	mgmtAddress      string   // Optional host:port from agent heartbeat for dial-back (correct-IP)
+	mgmtCandidates   []string // All candidate host:port from heartbeat; gateway probes to pick reachable one
 	stream           pb.Commander_ConnectServer
 	logChans         map[string]chan *pb.LogEntry // subscription_id -> channel
 	mu               sync.Mutex
@@ -220,6 +223,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 					lastActive:       time.Now(),
 					ip:               ip,
 					mgmtAddress:      hb.GetMgmtAddress(),
+					mgmtCandidates:   hb.GetMgmtAddressCandidates(),
 					isPod:            isPod,
 					podIP:            hb.PodIp,
 					pskAuthenticated: pskAuthenticated,
@@ -247,6 +251,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 				currentSession.hostname = hb.Hostname
 				currentSession.ip = ip
 				currentSession.mgmtAddress = hb.GetMgmtAddress()
+				currentSession.mgmtCandidates = hb.GetMgmtAddressCandidates()
 				currentSession.version = nginxVersion
 				currentSession.agentVersion = agentVer
 				currentSession.buildDate = hb.BuildDate
@@ -558,10 +563,11 @@ func (s *server) ListAgents(ctx context.Context, req *pb.ListAgentsRequest) (*pb
 }
 
 func (s *server) GetAgent(ctx context.Context, req *pb.GetAgentRequest) (*pb.AgentInfo, error) {
-	val, ok := s.sessions.Load(req.AgentId)
+	resolved, ok := s.resolveAgentID(req.AgentId)
 	if !ok {
 		return nil, fmt.Errorf("agent %s not found", req.AgentId)
 	}
+	val, _ := s.sessions.Load(resolved)
 	session := val.(*AgentSession)
 
 	return &pb.AgentInfo{
@@ -581,26 +587,25 @@ func (s *server) GetAgent(ctx context.Context, req *pb.GetAgentRequest) (*pb.Age
 }
 
 func (s *server) RemoveAgent(ctx context.Context, req *pb.RemoveAgentRequest) (*pb.RemoveAgentResponse, error) {
-	if _, ok := s.sessions.Load(req.AgentId); ok {
-		s.sessions.Delete(req.AgentId)
-
-		// Remove from DB
-		if err := s.db.RemoveAgent(req.AgentId); err != nil {
-			gatewayLog.Warn().Err(err).Str("agent_id", req.AgentId).Msg("Failed to remove agent from DB")
-			return &pb.RemoveAgentResponse{Success: false}, nil
-		}
-
-		gatewayLog.Info().Str("agent_id", req.AgentId).Msg("Agent manually removed from inventory")
-		return &pb.RemoveAgentResponse{Success: true}, nil
+	resolved, ok := s.resolveAgentID(req.AgentId)
+	if !ok {
+		return &pb.RemoveAgentResponse{Success: false}, nil
 	}
-	return &pb.RemoveAgentResponse{Success: false}, nil
+	s.sessions.Delete(resolved)
+	if err := s.db.RemoveAgent(resolved); err != nil {
+		gatewayLog.Warn().Err(err).Str("agent_id", resolved).Msg("Failed to remove agent from DB")
+		return &pb.RemoveAgentResponse{Success: false}, nil
+	}
+	gatewayLog.Info().Str("agent_id", resolved).Msg("Agent manually removed from inventory")
+	return &pb.RemoveAgentResponse{Success: true}, nil
 }
 
 func (s *server) UpdateAgent(ctx context.Context, req *pb.UpdateAgentRequest) (*pb.UpdateAgentResponse, error) {
-	val, ok := s.sessions.Load(req.AgentId)
+	resolved, ok := s.resolveAgentID(req.AgentId)
 	if !ok {
 		return nil, fmt.Errorf("agent %s not found", req.AgentId)
 	}
+	val, _ := s.sessions.Load(resolved)
 	session := val.(*AgentSession)
 
 	session.mu.Lock()
@@ -818,62 +823,138 @@ func (s *server) GetRecommendations(ctx context.Context, req *pb.RecommendationR
 	return &pb.RecommendationResponse{Recommendations: recs}, nil
 }
 
+// probeMgmtReachable tries a short TCP dial to addr; returns true if reachable.
+const mgmtProbeTimeout = 2 * time.Second
+
+func probeMgmtReachable(addr string) bool {
+	conn, err := net.DialTimeout("tcp", addr, mgmtProbeTimeout)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
+}
+
+// normalizeAgentID normalizes an agent ID for comparison: replace "+" with "-" and "." with "-"
+// so that "zabbix2+10.0.2.15" and "zabbix2-10-0-2-15" match.
+func normalizeAgentID(id string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(id, "+", "-"), ".", "-")
+}
+
+// resolveAgentID returns the actual session key for a given id from the client (path or query).
+// Clients may send normalized ids (e.g. zabbix2-10-0-2-15); sessions are keyed by what the agent sent (e.g. zabbix2+10.0.2.15).
+// So we try exact match first, then match by normalized form.
+func (s *server) resolveAgentID(requestedID string) (actualKey string, ok bool) {
+	if requestedID == "" {
+		return "", false
+	}
+	if _, ok := s.sessions.Load(requestedID); ok {
+		return requestedID, true
+	}
+	var found string
+	s.sessions.Range(func(k, _ interface{}) bool {
+		key := k.(string)
+		if normalizeAgentID(key) == normalizeAgentID(requestedID) {
+			found = key
+			return false
+		}
+		return true
+	})
+	return found, found != ""
+}
+
+// pickReachableMgmtTarget returns the best reachable address from session.mgmtCandidates.
+// Prefer connection peer (candidate whose host equals session.ip) if reachable; else first reachable candidate.
+func (s *server) pickReachableMgmtTarget(session *AgentSession) string {
+	candidates := session.mgmtCandidates
+	if len(candidates) == 0 {
+		return ""
+	}
+	// 1. Prefer connection peer: candidate whose host is session.ip (agent connected from that IP)
+	if session.ip != "" {
+		for _, addr := range candidates {
+			host, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				host = strings.TrimSpace(addr)
+			}
+			if host == session.ip && probeMgmtReachable(addr) {
+				return addr
+			}
+		}
+	}
+	// 2. Else first reachable candidate
+	for _, addr := range candidates {
+		if probeMgmtReachable(addr) {
+			return addr
+		}
+	}
+	return ""
+}
+
 func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.ClientConn, error) {
-	val, ok := s.sessions.Load(agentID)
+	resolved, ok := s.resolveAgentID(agentID)
 	if !ok {
 		log.Printf("Agent lookup failed for ID: %s", agentID)
 		return nil, nil, fmt.Errorf("agent %s not found", agentID)
 	}
+	val, _ := s.sessions.Load(resolved)
 	session := val.(*AgentSession)
 
-	// Prefer agent-reported mgmt_address when it matches the connection peer (so we trust it).
-	// If the agent reported a different host (e.g. VirtualBox NAT 10.0.2.15) but connected from
-	// session.ip (e.g. 192.168.1.10), prefer connection peer for dialing - that's reachable.
 	var target string
-	if session.mgmtAddress != "" {
-		mgmtHost, mgmtPortStr, err := net.SplitHostPort(session.mgmtAddress)
-		if err != nil {
-			mgmtHost = strings.TrimSpace(session.mgmtAddress)
-			mgmtPortStr = ""
+	// If agent sent candidate list, probe and pick reachable address
+	if len(session.mgmtCandidates) > 0 {
+		if t := s.pickReachableMgmtTarget(session); t != "" {
+			target = t
+			log.Printf("Using probed mgmt address %s for agent %s (from %d candidates)", target, agentID, len(session.mgmtCandidates))
 		}
-		useConnectionIP := session.ip != "" && mgmtHost != "" && mgmtHost != session.ip
-		if useConnectionIP {
-			port := mgmtPortStr
-			if port == "" {
-				port = strconv.Itoa(s.config.Agent.MgmtPort)
-				if port == "0" {
-					port = strconv.Itoa(config.DefaultAgentPort)
-				}
+	}
+	// Fallback: existing single mgmt_address / connection peer logic
+	if target == "" {
+		if session.mgmtAddress != "" {
+			mgmtHost, mgmtPortStr, err := net.SplitHostPort(session.mgmtAddress)
+			if err != nil {
+				mgmtHost = strings.TrimSpace(session.mgmtAddress)
+				mgmtPortStr = ""
 			}
-			target = net.JoinHostPort(session.ip, port)
-			log.Printf("Using connection peer %s for agent %s (mgmt_address %s differs, peer is reachable)", target, agentID, session.mgmtAddress)
-		} else {
-			if mgmtPortStr != "" {
-				target = session.mgmtAddress
+			useConnectionIP := session.ip != "" && mgmtHost != "" && mgmtHost != session.ip
+			if useConnectionIP {
+				port := mgmtPortStr
+				if port == "" {
+					port = strconv.Itoa(s.config.Agent.MgmtPort)
+					if port == "0" {
+						port = strconv.Itoa(config.DefaultAgentPort)
+					}
+				}
+				target = net.JoinHostPort(session.ip, port)
+				log.Printf("Using connection peer %s for agent %s (mgmt_address %s differs, peer is reachable)", target, agentID, session.mgmtAddress)
 			} else {
-				port := s.config.Agent.MgmtPort
-				if port == 0 {
-					port = config.DefaultAgentPort
+				if mgmtPortStr != "" {
+					target = session.mgmtAddress
+				} else {
+					port := s.config.Agent.MgmtPort
+					if port == 0 {
+						port = config.DefaultAgentPort
+					}
+					target = net.JoinHostPort(mgmtHost, strconv.Itoa(port))
 				}
-				target = net.JoinHostPort(mgmtHost, strconv.Itoa(port))
+				log.Printf("Using mgmt_address %s for agent %s", target, agentID)
 			}
-			log.Printf("Using mgmt_address %s for agent %s", target, agentID)
+		} else {
+			targetIP := session.ip
+			if session.isPod && session.podIP != "" {
+				targetIP = session.podIP
+				log.Printf("Using podIP %s for pod agent %s (connection IP was %s)", targetIP, agentID, session.ip)
+			}
+			if targetIP == "" {
+				log.Printf("Agent %s has no IP (isPod: %v, podIP: %s, ip: %s)", agentID, session.isPod, session.podIP, session.ip)
+				return nil, nil, fmt.Errorf("agent %s has no IP", agentID)
+			}
+			agentPort := s.config.Agent.MgmtPort
+			if agentPort == 0 {
+				agentPort = config.DefaultAgentPort
+			}
+			target = fmt.Sprintf("%s:%d", targetIP, agentPort)
 		}
-	} else {
-		targetIP := session.ip
-		if session.isPod && session.podIP != "" {
-			targetIP = session.podIP
-			log.Printf("Using podIP %s for pod agent %s (connection IP was %s)", targetIP, agentID, session.ip)
-		}
-		if targetIP == "" {
-			log.Printf("Agent %s has no IP (isPod: %v, podIP: %s, ip: %s)", agentID, session.isPod, session.podIP, session.ip)
-			return nil, nil, fmt.Errorf("agent %s has no IP", agentID)
-		}
-		agentPort := s.config.Agent.MgmtPort
-		if agentPort == 0 {
-			agentPort = config.DefaultAgentPort
-		}
-		target = fmt.Sprintf("%s:%d", targetIP, agentPort)
 	}
 	log.Printf("Found session for %s, dialing %s", agentID, target)
 
@@ -1458,6 +1539,178 @@ func connectToClickHouse(cfg *config.Config) (*ClickHouseDB, error) {
 	return chDB, nil
 }
 
+// ensureUpdatesDir creates updates dir and bin/, writes version.json if missing, copies agent binaries from repo bin/ when present.
+// It always (re)generates .sha256 from the actual binary on disk so checksums stay in sync when you deploy a new binary or restart the gateway.
+func ensureUpdatesDir(dir string) {
+	_ = os.MkdirAll(dir, 0755)
+	binDir := dir + "/bin"
+	_ = os.MkdirAll(binDir, 0755)
+	versionPath := dir + "/version.json"
+	if _, err := os.Stat(versionPath); os.IsNotExist(err) {
+		v := "0.0.0"
+		for _, p := range []string{dir + "/../VERSION", "VERSION", "./VERSION"} {
+			if b, e := os.ReadFile(p); e == nil {
+				v = strings.TrimSpace(string(b))
+				break
+			}
+		}
+		_ = os.WriteFile(versionPath, []byte(fmt.Sprintf(`{"version":%q,"build_date":"","git_commit":""}`, v)), 0644)
+		log.Printf("Wrote %s (version %s)", versionPath, v)
+	}
+	for _, name := range []string{"agent-linux-amd64", "agent-linux-arm64"} {
+		dst := binDir + "/" + name
+		if _, err := os.Stat(dst); os.IsNotExist(err) {
+			src := "bin/" + name
+			data, err := os.ReadFile(src)
+			if err != nil {
+				continue
+			}
+			if err := os.WriteFile(dst, data, 0755); err != nil {
+				continue
+			}
+			log.Printf("Copied %s -> %s", src, dst)
+		}
+		// Always (re)generate .sha256 from the binary we serve so checksum never gets out of sync
+		sum, err := sha256SumFile(dst)
+		if err != nil {
+			continue
+		}
+		shaPath := dst + ".sha256"
+		if err := os.WriteFile(shaPath, []byte(sum+"\n"), 0644); err != nil {
+			continue
+		}
+		log.Printf("Wrote %s (sha256 of %s)", shaPath, name)
+	}
+}
+
+// sha256SumFile returns the hex-encoded SHA256 of the file at path (format expected by deploy script: awk '{print $1}').
+func sha256SumFile(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	h := sha256.Sum256(data)
+	return hex.EncodeToString(h[:]), nil
+}
+
+// updatesHandlerForDir serves deploy-agent.sh from scripts/, binaries from dir/bin/, version.json from dir (or synthetic).
+func updatesHandlerForDir(dir string) http.Handler {
+	fsRoot := http.StripPrefix("/updates/", http.FileServer(http.Dir(dir)))
+	binDir := dir + "/bin"
+	fsBin := http.StripPrefix("/updates/bin/", http.FileServer(http.Dir(binDir)))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		path := strings.TrimPrefix(r.URL.Path, "/updates/")
+		path = strings.TrimPrefix(path, "/")
+		if path == "deploy-agent.sh" {
+			f, err := os.Open("scripts/deploy-agent.sh")
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			info, err := f.Stat()
+			if err != nil || info.IsDir() {
+				f.Close()
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/x-sh")
+			http.ServeContent(w, r, "deploy-agent.sh", info.ModTime(), f)
+			f.Close()
+			return
+		}
+		if path == "avika-agent.service" {
+			f, err := os.Open(dir + "/avika-agent.service")
+			if err != nil {
+				f, err = os.Open("deploy/systemd/avika-agent.service")
+				if err != nil {
+					http.NotFound(w, r)
+					return
+				}
+			}
+			info, err := f.Stat()
+			if err != nil || info.IsDir() {
+				f.Close()
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "text/plain")
+			http.ServeContent(w, r, "avika-agent.service", info.ModTime(), f)
+			f.Close()
+			return
+		}
+		// Serve .sha256 by computing from the binary on the fly so it always matches the binary we serve
+		if path == "bin/agent-linux-amd64.sha256" || path == "bin/agent-linux-arm64.sha256" ||
+			path == "agent-linux-amd64.sha256" || path == "agent-linux-arm64.sha256" {
+			base := strings.TrimPrefix(path, "bin/")
+			base = strings.TrimSuffix(base, ".sha256")
+			binPath := binDir + "/" + base
+			sum, err := sha256SumFile(binPath)
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(sum + "\n"))
+			return
+		}
+		if path == "agent-linux-amd64" || path == "agent-linux-arm64" ||
+			path == "bin/agent-linux-amd64" || path == "bin/agent-linux-arm64" {
+			base := strings.TrimPrefix(path, "bin/")
+			binPath := binDir + "/" + base
+			f, err := os.Open(binPath)
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			info, err := f.Stat()
+			if err != nil || info.IsDir() {
+				f.Close()
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/octet-stream")
+			http.ServeContent(w, r, base, info.ModTime(), f)
+			f.Close()
+			return
+		}
+		if strings.HasPrefix(path, "bin/") {
+			fsBin.ServeHTTP(w, r)
+			return
+		}
+		if path == "version.json" {
+			versionPath := dir + "/version.json"
+			f, err := os.Open(versionPath)
+			if err == nil {
+				info, err := f.Stat()
+				if err == nil && !info.IsDir() {
+					w.Header().Set("Content-Type", "application/json")
+					http.ServeContent(w, r, "version.json", info.ModTime(), f)
+					f.Close()
+					return
+				}
+				f.Close()
+			}
+			v := "0.0.0"
+			for _, p := range []string{dir + "/../VERSION", "VERSION", "./VERSION"} {
+				if b, err := os.ReadFile(p); err == nil {
+					v = strings.TrimSpace(string(b))
+					break
+				}
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"version":%q,"build_date":"","git_commit":""}`, v)))
+			return
+		}
+		fsRoot.ServeHTTP(w, r)
+	})
+}
+
 // createHTTPServer creates the HTTP server for WebSocket and reports
 func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux := http.NewServeMux()
@@ -1849,27 +2102,13 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.HandleFunc("/metrics", srv.handleMetrics)
 
 	// Agent update distribution endpoint
-	// Serves agent binaries and version.json from the updates directory.
-	// When running as a process on a VM, create the directory if missing so update serving is enabled.
 	updatesDir := cfg.Server.UpdatesDir
 	if updatesDir == "" {
-		updatesDir = "./updates" // Default directory
+		updatesDir = "./updates"
 	}
-	if _, err := os.Stat(updatesDir); err != nil {
-		if os.IsNotExist(err) {
-			if mkErr := os.MkdirAll(updatesDir, 0755); mkErr == nil {
-				log.Printf("Serving agent updates from %s on /updates/ (directory created)", updatesDir)
-				mux.Handle("/updates/", http.StripPrefix("/updates/", http.FileServer(http.Dir(updatesDir))))
-			} else {
-				log.Printf("Updates directory not found (%s), update serving disabled: %v", updatesDir, mkErr)
-			}
-		} else {
-			log.Printf("Updates directory not found (%s), update serving disabled: %v", updatesDir, err)
-		}
-	} else {
-		log.Printf("Serving agent updates from %s on /updates/", updatesDir)
-		mux.Handle("/updates/", http.StripPrefix("/updates/", http.FileServer(http.Dir(updatesDir))))
-	}
+	ensureUpdatesDir(updatesDir)
+	mux.Handle("/updates/", updatesHandlerForDir(updatesDir))
+	log.Printf("Serving agent updates from %s on /updates/", updatesDir)
 
 	// AI Error Analysis API (LLM-powered)
 	if srv.errorAnalysisAPI != nil {
@@ -2115,8 +2354,13 @@ func (srv *server) handleTerminal(w http.ResponseWriter, r *http.Request, upgrad
 		http.Error(w, "agent_id is required", http.StatusBadRequest)
 		return
 	}
+	resolved, ok := srv.resolveAgentID(agentID)
+	if !ok {
+		http.Error(w, "Agent not found", http.StatusNotFound)
+		return
+	}
 
-	// RBAC: Check if user has access to this agent
+	// RBAC: Check if user has access to this agent (visible agents use actual session keys)
 	user := middleware.GetUserFromContext(r.Context())
 	if user != nil {
 		visibleAgents, err := srv.db.GetVisibleAgentIDs(user.Username)
@@ -2125,10 +2369,9 @@ func (srv *server) handleTerminal(w http.ResponseWriter, r *http.Request, upgrad
 			http.Error(w, "Failed to check access permissions", http.StatusInternalServerError)
 			return
 		}
-		// Check if agentID is in visible agents list
 		hasAccess := false
 		for _, a := range visibleAgents {
-			if a == agentID {
+			if a == resolved {
 				hasAccess = true
 				break
 			}

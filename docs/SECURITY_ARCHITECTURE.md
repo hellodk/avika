@@ -124,7 +124,7 @@ auth:
 
 ### Overview
 
-Pre-Shared Key (PSK) authentication prevents unauthorized agents from connecting to the gateway. This is similar to how Zabbix authenticates its agents.
+Pre-Shared Key (PSK) authentication prevents unauthorized agents from connecting to the gateway. This is similar to how many monitoring systems authenticate agents.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐

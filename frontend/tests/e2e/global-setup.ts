@@ -25,7 +25,28 @@ export default async function globalSetup(config: FullConfig) {
 
   // Navigate to login under basePath (e.g. /avika/login in K8s)
   const loginURL = new URL(withBase("/login"), baseURL).toString();
-  await page.goto(loginURL, { waitUntil: "domcontentloaded" });
+  
+  // Mock login and auth APIs to allow testing without a running backend gateway
+  await page.route("**/api/auth/sso-config", (route) => {
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ oidc_enabled: false }),
+    });
+  });
+
+  await page.route("**/api/auth/login", (route) => {
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true }),
+      headers: {
+        "set-cookie": "avika_session=mock-session-cookie; Path=/; HttpOnly",
+      },
+    });
+  });
+
+  await page.goto(loginURL, { waitUntil: "networkidle" });
 
   await page.fill('input[id="username"]', E2E_LOGIN_USERNAME);
   await page.fill('input[id="password"]', E2E_LOGIN_PASSWORD);
