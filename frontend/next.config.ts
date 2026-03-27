@@ -107,6 +107,23 @@ const nextConfig: NextConfig = {
     ];
   },
   
+  // Rewrites - proxy health/ready endpoints to gateway so K8s probes work
+  async rewrites() {
+    const gatewayUrl = process.env.GATEWAY_HTTP_URL || "http://localhost:5021";
+    return [
+      {
+        source: '/health',
+        destination: `${gatewayUrl}/health`,
+        basePath: false,
+      },
+      {
+        source: '/ready',
+        destination: `${gatewayUrl}/ready`,
+        basePath: false,
+      },
+    ];
+  },
+
   // Redirects - redirect root to basePath; legacy routes to new locations
   async redirects() {
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "/avika";
