@@ -325,7 +325,10 @@ func (c *OpenAIClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("OpenAI API error: %d - %s", resp.StatusCode, string(respBody))
@@ -404,7 +407,10 @@ func (c *OpenAIClient) GenerateRecommendation(ctx context.Context, req *Recommen
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("OpenAI API error: %d - %s", resp.StatusCode, string(respBody))
@@ -509,7 +515,10 @@ func (c *ClaudeClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("Claude API error: %d - %s", resp.StatusCode, string(respBody))
@@ -580,7 +589,10 @@ func (c *ClaudeClient) GenerateRecommendation(ctx context.Context, req *Recommen
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("Claude API error: %d - %s", resp.StatusCode, string(respBody))
@@ -693,7 +705,10 @@ func (c *OllamaClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("Ollama API error: %d - %s", resp.StatusCode, string(respBody))
@@ -750,7 +765,10 @@ func (c *OllamaClient) GenerateRecommendation(ctx context.Context, req *Recommen
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("Ollama API error: %d - %s", resp.StatusCode, string(respBody))

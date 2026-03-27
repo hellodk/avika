@@ -294,8 +294,11 @@ export default function LoginPage() {
               </>
             )}
 
-            {/* Security Note */}
-            <div className="mt-6 pt-6 border-t border-slate-700/50 text-center">
+            {/* Footer Links */}
+            <div className="mt-6 pt-6 border-t border-slate-700/50 text-center space-y-3">
+              <p className="text-xs text-slate-500">
+                Forgot your password? Contact your system administrator.
+              </p>
               <div className="flex items-center justify-center gap-4 text-xs text-slate-500">
                 <div className="flex items-center gap-1.5">
                   <Lock className="h-3.5 w-3.5" />

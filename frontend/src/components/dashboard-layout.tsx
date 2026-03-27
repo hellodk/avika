@@ -272,14 +272,15 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                         </button>
 
                         {/* Notifications */}
-                        <button
+                        <Link
+                            href="/alerts"
                             className="p-2 rounded-lg hover-surface relative"
                             style={{ color: "rgb(var(--theme-text-muted))" }}
-                            title="Notifications"
-                            aria-label="Notifications"
+                            title="Alerts"
+                            aria-label="View alerts"
                         >
                             <Bell className="h-5 w-5" aria-hidden="true" />
-                        </button>
+                        </Link>
 
                         {/* Divider */}
                         <div className="w-px h-8 mx-2" style={{ background: "rgb(var(--theme-border))" }} />

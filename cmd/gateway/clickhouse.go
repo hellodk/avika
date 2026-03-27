@@ -114,12 +114,8 @@ func NewClickHouseDB(addr, username, password string) (*ClickHouseDB, error) {
 		logBufferSize, spanBufferSize, sysBufferSize, nginxBufferSize, gwBufferSize,
 		logBatchSize, spanBatchSize, maxOpenConns, maxIdleConns)
 
-	// Debug: log connection parameters (password masked)
-	pwMask := "***"
-	if len(password) > 0 {
-		pwMask = password[:3] + "***" + password[len(password)-3:]
-	}
-	log.Printf("ClickHouse connecting to: %s user=%s password=%s", addr, username, pwMask)
+	// Debug: log connection parameters (password redacted)
+	log.Printf("ClickHouse connecting to: %s user=%s password=***REDACTED***", addr, username)
 
 	// Use defaults if not provided
 	if username == "" {
@@ -1460,6 +1456,7 @@ func (db *ClickHouseDB) DeleteAgentData(agentID string) error {
 
 	for _, table := range tables {
 		// ClickHouse DELETE is an asynchronous mutation (ALTER TABLE ... DELETE)
+		// Note: table names are hardcoded above — never use user input here.
 		query := fmt.Sprintf("ALTER TABLE %s DELETE WHERE instance_id = ?", table)
 		if err := db.conn.Exec(ctx, query, agentID); err != nil {
 			return fmt.Errorf("failed to delete from %s: %w", table, err)

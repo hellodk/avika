@@ -32,6 +32,9 @@ func (srv *server) handleListIntegrations(w http.ResponseWriter, r *http.Request
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
 		return
 	}
+	if rows == nil {
+		rows = []IntegrationConfigRow{}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(rows)
 }

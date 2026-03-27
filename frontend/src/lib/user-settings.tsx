@@ -35,9 +35,9 @@ export type UserSettings = {
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   integrations: {
-    grafanaUrl: "http://monitoring-grafana.monitoring.svc.cluster.local",
-    prometheusUrl: "http://monitoring-prometheus.monitoring.svc.cluster.local:9090",
-    clickhouseUrl: "http://avika-clickhouse-0.avika-clickhouse.avika.svc.cluster.local:8123",
+    grafanaUrl: "",
+    prometheusUrl: "",
+    clickhouseUrl: "",
   },
   display: {
     defaultTimeRange: "now-1h",

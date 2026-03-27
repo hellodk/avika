@@ -1843,12 +1843,21 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		log.Printf("AI Error Analysis API routes registered")
 	}
 	handler := metricsAndLogMiddleware(gatewayLog, false)(mux)
+
+	// Wrap with a global request body size limiter (10MB) to prevent DoS via large payloads.
+	// Streaming endpoints (SSE, WebSocket) are not affected as they use different read patterns.
+	limitedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024) // 10MB
+		handler.ServeHTTP(w, r)
+	})
+
 	return &http.Server{
-		Addr:         cfg.GetHTTPAddress(),
-		Handler:      handler,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		Addr:           cfg.GetHTTPAddress(),
+		Handler:        limitedHandler,
+		ReadTimeout:    30 * time.Second,
+		WriteTimeout:   30 * time.Second,
+		IdleTimeout:    120 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1MB max header size
 	}
 }
 
