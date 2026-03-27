@@ -1,0 +1,50 @@
+Feb 13 07:59:48 cylon systemd[1]: [0;1;39m[0;1;31m[0;1;39mcloudflared.service: Main process exited, code=exited, status=1/FAILURE[0m
+Feb 13 07:59:48 cylon systemd[1]: [0;1;38;5;185m[0;1;39m[0;1;38;5;185mcloudflared.service: Failed with result 'exit-code'.[0m
+Feb 13 07:59:53 cylon systemd[1]: cloudflared.service: Scheduled restart job, restart counter is at 35.
+Feb 13 07:59:53 cylon systemd[1]: Started cloudflared.service - Cloudflare Tunnel.
+Feb 13 07:59:54 cylon cloudflared[3187676]: 2026-02-13T02:29:54Z ERR Cannot determine default origin certificate path. No file cert.pem in [~/.cloudflared ~/.cloudflare-warp ~/cloudflare-warp /etc/cloudflared /usr/local/etc/cloudflared]. You need to specify the origin certificate path by specifying the origincert option in the configuration file, or set TUNNEL_ORIGIN_CERT environment variable originCertPath=
+Feb 13 07:59:54 cylon cloudflared[3187676]: error parsing tunnel ID: Error locating origin cert: client didn't specify origincert path
+Feb 13 07:59:54 cylon systemd[1]: [0;1;39m[0;1;31m[0;1;39mcloudflared.service: Main process exited, code=exited, status=1/FAILURE[0m
+Feb 13 07:59:54 cylon systemd[1]: [0;1;38;5;185m[0;1;39m[0;1;38;5;185mcloudflared.service: Failed with result 'exit-code'.[0m
+Feb 13 07:59:59 cylon systemd[1]: cloudflared.service: Scheduled restart job, restart counter is at 36.
+Feb 13 07:59:59 cylon systemd[1]: Started cloudflared.service - Cloudflare Tunnel.
+Feb 13 07:59:59 cylon cloudflared[3188336]: 2026-02-13T02:29:59Z ERR Cannot determine default origin certificate path. No file cert.pem in [~/.cloudflared ~/.cloudflare-warp ~/cloudflare-warp /etc/cloudflared /usr/local/etc/cloudflared]. You need to specify the origin certificate path by specifying the origincert option in the configuration file, or set TUNNEL_ORIGIN_CERT environment variable originCertPath=
+Feb 13 07:59:59 cylon cloudflared[3188336]: error parsing tunnel ID: Error locating origin cert: client didn't specify origincert path
+Feb 13 07:59:59 cylon systemd[1]: [0;1;39m[0;1;31m[0;1;39mcloudflared.service: Main process exited, code=exited, status=1/FAILURE[0m
+Feb 13 07:59:59 cylon systemd[1]: [0;1;38;5;185m[0;1;39m[0;1;38;5;185mcloudflared.service: Failed with result 'exit-code'.[0m
+Feb 13 08:00:04 cylon systemd[1]: cloudflared.service: Scheduled restart job, restart counter is at 37.
+Feb 13 08:00:04 cylon systemd[1]: Started cloudflared.service - Cloudflare Tunnel.
+Feb 13 08:00:04 cylon cloudflared[3189176]: 2026-02-13T02:30:04Z ERR Cannot determine default origin certificate path. No file cert.pem in [~/.cloudflared ~/.cloudflare-warp ~/cloudflare-warp /etc/cloudflared /usr/local/etc/cloudflared]. You need to specify the origin certificate path by specifying the origincert option in the configuration file, or set TUNNEL_ORIGIN_CERT environment variable originCertPath=
+Feb 13 08:00:04 cylon cloudflared[3189176]: error parsing tunnel ID: Error locating origin cert: client didn't specify origincert path
+Feb 13 08:00:04 cylon systemd[1]: [0;1;39m[0;1;31m[0;1;39mcloudflared.service: Main process exited, code=exited, status=1/FAILURE[0m
+Feb 13 08:00:04 cylon systemd[1]: [0;1;38;5;185m[0;1;39m[0;1;38;5;185mcloudflared.service: Failed with result 'exit-code'.[0m
+Feb 13 08:00:09 cylon systemd[1]: cloudflared.service: Scheduled restart job, restart counter is at 38.
+Feb 13 08:00:09 cylon systemd[1]: Started cloudflared.service - Cloudflare Tunnel.
+Feb 13 08:00:09 cylon cloudflared[3190463]: 2026-02-13T02:30:09Z ERR Cannot determine default origin certificate path. No file cert.pem in [~/.cloudflared ~/.cloudflare-warp ~/cloudflare-warp /etc/cloudflared /usr/local/etc/cloudflared]. You need to specify the origin certificate path by specifying the origincert option in the configuration file, or set TUNNEL_ORIGIN_CERT environment variable originCertPath=
+Feb 13 08:00:09 cylon cloudflared[3190463]: error parsing tunnel ID: Error locating origin cert: client didn't specify origincert path
+Feb 13 08:00:09 cylon systemd[1]: [0;1;39m[0;1;31m[0;1;39mcloudflared.service: Main process exited, code=exited, status=1/FAILURE[0m
+Feb 13 08:00:09 cylon systemd[1]: [0;1;38;5;185m[0;1;39m[0;1;38;5;185mcloudflared.service: Failed with result 'exit-code'.[0m
+Feb 13 08:00:14 cylon systemd[1]: cloudflared.service: Scheduled restart job, restart counter is at 39.
+Feb 13 08:00:14 cylon systemd[1]: Started cloudflared.service - Cloudflare Tunnel.
+Feb 13 08:00:14 cylon cloudflared[3191370]: 2026-02-13T02:30:14Z ERR Cannot determine default origin certificate path. No file cert.pem in [~/.cloudflared ~/.cloudflare-warp ~/cloudflare-warp /etc/cloudflared /usr/local/etc/cloudflared]. You need to specify the origin certificate path by specifying the origincert option in the configuration file, or set TUNNEL_ORIGIN_CERT environment variable originCertPath=
+Feb 13 08:00:14 cylon cloudflared[3191370]: error parsing tunnel ID: Error locating origin cert: client didn't specify origincert path
+Feb 13 08:00:14 cylon systemd[1]: [0;1;39m[0;1;31m[0;1;39mcloudflared.service: Main process exited, code=exited, status=1/FAILURE[0m
+Feb 13 08:00:14 cylon systemd[1]: [0;1;38;5;185m[0;1;39m[0;1;38;5;185mcloudflared.service: Failed with result 'exit-code'.[0m
+Feb 13 08:00:18 cylon systemd[1]: Stopped cloudflared.service - Cloudflare Tunnel.
+Feb 13 08:00:18 cylon systemd[1]: Started cloudflared.service - Cloudflare Tunnel.
+Feb 13 08:00:18 cylon cloudflared[3191964]: 2026-02-13T02:30:18Z ERR Cannot determine default origin certificate path. No file cert.pem in [~/.cloudflared ~/.cloudflare-warp ~/cloudflare-warp /etc/cloudflared /usr/local/etc/cloudflared]. You need to specify the origin certificate path by specifying the origincert option in the configuration file, or set TUNNEL_ORIGIN_CERT environment variable originCertPath=
+Feb 13 08:00:18 cylon cloudflared[3191964]: error parsing tunnel ID: Error locating origin cert: client didn't specify origincert path
+Feb 13 08:00:18 cylon systemd[1]: [0;1;39m[0;1;31m[0;1;39mcloudflared.service: Main process exited, code=exited, status=1/FAILURE[0m
+Feb 13 08:00:18 cylon systemd[1]: [0;1;38;5;185m[0;1;39m[0;1;38;5;185mcloudflared.service: Failed with result 'exit-code'.[0m
+Feb 13 08:00:23 cylon systemd[1]: cloudflared.service: Scheduled restart job, restart counter is at 40.
+Feb 13 08:00:23 cylon systemd[1]: Started cloudflared.service - Cloudflare Tunnel.
+Feb 13 08:00:23 cylon cloudflared[3192739]: 2026-02-13T02:30:23Z ERR Cannot determine default origin certificate path. No file cert.pem in [~/.cloudflared ~/.cloudflare-warp ~/cloudflare-warp /etc/cloudflared /usr/local/etc/cloudflared]. You need to specify the origin certificate path by specifying the origincert option in the configuration file, or set TUNNEL_ORIGIN_CERT environment variable originCertPath=
+Feb 13 08:00:23 cylon cloudflared[3192739]: error parsing tunnel ID: Error locating origin cert: client didn't specify origincert path
+Feb 13 08:00:23 cylon systemd[1]: [0;1;39m[0;1;31m[0;1;39mcloudflared.service: Main process exited, code=exited, status=1/FAILURE[0m
+Feb 13 08:00:23 cylon systemd[1]: [0;1;38;5;185m[0;1;39m[0;1;38;5;185mcloudflared.service: Failed with result 'exit-code'.[0m
+Feb 13 08:00:28 cylon systemd[1]: cloudflared.service: Scheduled restart job, restart counter is at 41.
+Feb 13 08:00:28 cylon systemd[1]: Started cloudflared.service - Cloudflare Tunnel.
+Feb 13 08:00:28 cylon cloudflared[3193631]: 2026-02-13T02:30:28Z ERR Cannot determine default origin certificate path. No file cert.pem in [~/.cloudflared ~/.cloudflare-warp ~/cloudflare-warp /etc/cloudflared /usr/local/etc/cloudflared]. You need to specify the origin certificate path by specifying the origincert option in the configuration file, or set TUNNEL_ORIGIN_CERT environment variable originCertPath=
+Feb 13 08:00:28 cylon cloudflared[3193631]: error parsing tunnel ID: Error locating origin cert: client didn't specify origincert path
+Feb 13 08:00:28 cylon systemd[1]: [0;1;39m[0;1;31m[0;1;39mcloudflared.service: Main process exited, code=exited, status=1/FAILURE[0m
+Feb 13 08:00:28 cylon systemd[1]: [0;1;38;5;185m[0;1;39m[0;1;38;5;185mcloudflared.service: Failed with result 'exit-code'.[0m

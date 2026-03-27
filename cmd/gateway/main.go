@@ -1354,19 +1354,33 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 
-	// Connect to DB with retries
+	// ── PostgreSQL ──────────────────────────────────────────────────────
+	gatewayLog.Info().
+		Str("dsn", maskDSN(cfg.Database.DSN)).
+		Int("max_retries", cfg.Database.MaxRetries).
+		Msg("Connecting to PostgreSQL...")
 	db, err := connectToDatabase(cfg)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		gatewayLog.Fatal().Err(err).
+			Str("dsn", maskDSN(cfg.Database.DSN)).
+			Msg("PostgreSQL is required but unreachable. Ensure the database is running and the DSN is correct. " +
+				"If running in Kubernetes, check that the init container 'wait-for-postgres' completed successfully.")
 	}
-	gatewayLog.Info().Msg("Connected to PostgreSQL database")
+	gatewayLog.Info().Msg("PostgreSQL connected and migrations applied")
 
-	// Connect to ClickHouse
+	// ── ClickHouse ──────────────────────────────────────────────────────
+	gatewayLog.Info().
+		Str("address", cfg.ClickHouse.Address).
+		Msg("Connecting to ClickHouse...")
 	chDB, err := connectToClickHouse(cfg)
 	if err != nil {
-		gatewayLog.Warn().Err(err).Msg("ClickHouse not available; analytics will be in-memory only")
+		gatewayLog.Warn().Err(err).
+			Str("address", cfg.ClickHouse.Address).
+			Msg("ClickHouse is not available. Analytics, visitor stats, and geo data will be unavailable. " +
+				"The gateway will continue to operate for agent management and configuration. " +
+				"To enable analytics, ensure ClickHouse is running and accessible.")
 	} else {
-		gatewayLog.Info().Msg("Connected to ClickHouse database")
+		gatewayLog.Info().Str("address", cfg.ClickHouse.Address).Msg("ClickHouse connected")
 	}
 
 	// Kafka configuration
@@ -1397,10 +1411,14 @@ func main() {
 	if cfg.Security.EnableTLS {
 		tlsConfig, err := loadServerTLSConfig(cfg)
 		if err != nil {
-			log.Fatalf("Failed to load TLS configuration: %v", err)
+			gatewayLog.Fatal().Err(err).
+				Str("cert", cfg.Security.TLSCertFile).
+				Str("key", cfg.Security.TLSKeyFile).
+				Msg("TLS is enabled but certificate/key could not be loaded. " +
+					"Ensure the cert and key files exist and are readable.")
 		}
 		grpcOpts = append(grpcOpts, grpc.Creds(credentials.NewTLS(tlsConfig)))
-		log.Printf("TLS enabled for gRPC (mTLS: %v)", cfg.Security.RequireClientCert)
+		gatewayLog.Info().Bool("mtls", cfg.Security.RequireClientCert).Msg("TLS enabled for gRPC")
 	}
 
 	// Add PSK interceptors if enabled
@@ -1409,7 +1427,7 @@ func main() {
 			grpc.UnaryInterceptor(pskManager.UnaryPSKInterceptor()),
 			grpc.StreamInterceptor(pskManager.StreamPSKInterceptor()),
 		)
-		log.Printf("PSK authentication enabled for agent connections")
+		gatewayLog.Info().Msg("PSK authentication enabled for agent connections")
 	}
 	s := grpc.NewServer(grpcOpts...)
 
@@ -1429,10 +1447,9 @@ func main() {
 		realtimeAggregator: NewRealtimeAggregator(),
 	}
 
-	// Initialize AI Error Analysis (LLM-powered)
+	// ── AI / LLM ───────────────────────────────────────────────────────
 	if cfg.LLM.Enabled && chDB != nil {
 		llmConfig := LoadLLMConfigFromConfig(&cfg.LLM)
-		// Prefer DB-backed config if available
 		if srv.db != nil {
 			if dbLLM, err := srv.db.GetActiveLLMClientConfig(context.Background()); err == nil && dbLLM != nil {
 				llmConfig = dbLLM
@@ -1440,25 +1457,27 @@ func main() {
 		}
 		llmClient, err := NewLLMClient(llmConfig)
 		if err != nil {
-			log.Printf("Warning: Failed to initialize LLM client: %v (AI recommendations disabled)", err)
+			gatewayLog.Warn().Err(err).Msg("LLM client failed to initialize — AI recommendations disabled")
 		} else {
-			log.Printf("LLM client initialized: provider=%s model=%s", llmClient.GetProviderName(), llmClient.GetModelName())
+			gatewayLog.Info().Str("provider", llmClient.GetProviderName()).Str("model", llmClient.GetModelName()).Msg("LLM client initialized")
 			srv.errorAnalysisAPI = NewErrorAnalysisAPI(chDB, llmClient)
-			log.Printf("AI Error Analysis API initialized")
 		}
 	} else if !cfg.LLM.Enabled {
-		log.Printf("LLM/AI error analysis disabled (set llm.enabled=true in config to enable)")
+		gatewayLog.Info().Msg("AI error analysis disabled (set llm.enabled=true to enable)")
+	} else if chDB == nil {
+		gatewayLog.Info().Msg("AI error analysis disabled — requires ClickHouse")
 	}
-	// Load agents from DB
+
+	// ── Load agents ─────────────────────────────────────────────────────
 	if err := srv.db.LoadAgents(&srv.sessions); err != nil {
-		log.Printf("Failed to load agents from DB: %v", err)
+		gatewayLog.Warn().Err(err).Msg("Failed to load agents from database")
 	} else {
 		count := 0
 		srv.sessions.Range(func(k, v interface{}) bool {
 			count++
 			return true
 		})
-		log.Printf("Loaded %d agents from database", count)
+		gatewayLog.Info().Int("count", count).Msg("Loaded agents from database")
 	}
 
 	// Start background services
@@ -1471,18 +1490,18 @@ func main() {
 	srv.startGatewayMonitoring()
 	srv.alerts.Start()
 
-	// Start HTTP/WebSocket server
+	// ── HTTP server ─────────────────────────────────────────────────────
 	httpServer := srv.createHTTPServer(cfg)
 	go func() {
 		if cfg.Security.EnableTLS {
-			log.Printf("HTTPS/WebSocket server listening on %s", cfg.GetHTTPAddress())
+			gatewayLog.Info().Str("address", cfg.GetHTTPAddress()).Msg("HTTPS/WebSocket server listening")
 			if err := httpServer.ListenAndServeTLS(cfg.Security.TLSCertFile, cfg.Security.TLSKeyFile); err != nil && err != http.ErrServerClosed {
-				log.Printf("HTTPS server error: %v", err)
+				gatewayLog.Error().Err(err).Msg("HTTPS server error")
 			}
 		} else {
-			log.Printf("HTTP/WebSocket server listening on %s", cfg.GetHTTPAddress())
+			gatewayLog.Info().Str("address", cfg.GetHTTPAddress()).Msg("HTTP/WebSocket server listening")
 			if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				log.Printf("HTTP server error: %v", err)
+				gatewayLog.Error().Err(err).Msg("HTTP server error")
 			}
 		}
 	}()
@@ -1490,23 +1509,35 @@ func main() {
 	// Start gRPC server
 	lis, err := net.Listen("tcp", cfg.GetGRPCAddress())
 	if err != nil {
-		log.Fatalf("Failed to listen on %s: %v", cfg.GetGRPCAddress(), err)
+		gatewayLog.Fatal().Err(err).
+			Str("address", cfg.GetGRPCAddress()).
+			Msg("Cannot bind gRPC port. Check if another process is using this port or if you have permission.")
 	}
 
 	pb.RegisterCommanderServer(s, srv)
 	pb.RegisterAgentServiceServer(s, srv)
 
-	// Run gRPC server in goroutine
+	// ── gRPC server ─────────────────────────────────────────────────────
 	go func() {
-		log.Printf("gRPC server listening on %s", cfg.GetGRPCAddress())
+		gatewayLog.Info().Str("address", cfg.GetGRPCAddress()).Msg("gRPC server listening")
 		if err := s.Serve(lis); err != nil {
-			log.Printf("gRPC server error: %v", err)
+			gatewayLog.Error().Err(err).Msg("gRPC server error")
 		}
 	}()
 
+	gatewayLog.Info().
+		Str("version", Version).
+		Str("http", cfg.GetHTTPAddress()).
+		Str("grpc", cfg.GetGRPCAddress()).
+		Bool("tls", cfg.Security.EnableTLS).
+		Bool("psk", cfg.PSK.Enabled).
+		Bool("clickhouse", chDB != nil).
+		Bool("llm", cfg.LLM.Enabled).
+		Msg("Gateway started successfully — ready to accept connections")
+
 	// Wait for shutdown signal
 	sig := <-sigChan
-	log.Printf("Received signal %v, initiating graceful shutdown...", sig)
+	gatewayLog.Info().Str("signal", sig.String()).Msg("Received shutdown signal, initiating graceful shutdown...")
 
 	// Create shutdown context with timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, cfg.Security.ShutdownTimeout)
@@ -1550,21 +1581,27 @@ func connectToDatabase(cfg *config.Config) (*DB, error) {
 		if err == nil {
 			return db, nil
 		}
-		log.Printf("Database connection attempt %d/%d failed: %v", i+1, cfg.Database.MaxRetries, err)
+		gatewayLog.Warn().
+			Err(err).
+			Int("attempt", i+1).
+			Int("max_retries", cfg.Database.MaxRetries).
+			Dur("retry_in", cfg.Database.RetryInterval).
+			Msg("PostgreSQL connection attempt failed, retrying...")
 		time.Sleep(cfg.Database.RetryInterval)
 	}
 
 	// Try fallback using DB_DSN environment variable
 	fallbackDSN := os.Getenv("DB_DSN")
 	if fallbackDSN != "" {
-		log.Println("Trying fallback database connection from DB_DSN...")
+		gatewayLog.Info().Str("dsn", maskDSN(fallbackDSN)).Msg("Trying fallback PostgreSQL connection from DB_DSN env var...")
 		db, err = NewDB(fallbackDSN)
 		if err == nil {
 			return db, nil
 		}
 	}
-	return nil, fmt.Errorf("all connection attempts failed: %w", err)
+	return nil, fmt.Errorf("all %d connection attempts failed: %w", cfg.Database.MaxRetries, err)
 }
+
 
 // connectToClickHouse connects to ClickHouse with fallback
 func connectToClickHouse(cfg *config.Config) (*ClickHouseDB, error) {
@@ -2845,6 +2882,9 @@ func (srv *server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
 func (srv *server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 

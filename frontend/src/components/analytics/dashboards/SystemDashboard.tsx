@@ -89,7 +89,7 @@ export function SystemDashboard() {
                         <CardTitle className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text))' }}>Gateway EPS (Events/sec)</CardTitle>
                     </CardHeader>
                     <CardContent className="h-[250px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                             <AreaChart data={history}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
                                 <XAxis dataKey="time" hide />
@@ -115,7 +115,7 @@ export function SystemDashboard() {
                         <CardTitle className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text))' }}>CPU & Memory Usage (%)</CardTitle>
                     </CardHeader>
                     <CardContent className="h-[250px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                             <AreaChart data={history}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
                                 <XAxis dataKey="time" hide />
@@ -142,7 +142,7 @@ export function SystemDashboard() {
                         <CardTitle className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text))' }}>Network Throughput (KB/s)</CardTitle>
                     </CardHeader>
                     <CardContent className="h-[250px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                             <AreaChart data={history}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
                                 <XAxis dataKey="time" hide />

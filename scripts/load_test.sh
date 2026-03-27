@@ -26,8 +26,13 @@ if [ "${SIMPLE}" = "1" ]; then
         echo "Building simulator..."
         go build -o "$PROJECT_ROOT/bin/simulator" "$PROJECT_ROOT/cmd/simulator/main.go"
     fi
-    echo "Load test: ${TOTAL_RPS} RPS, ${AGENT_COUNT} agents, ${DURATION}"
-    exec "$PROJECT_ROOT/bin/simulator" --rps "$TOTAL_RPS" --agents "$AGENT_COUNT" --duration "$DURATION"
+    echo "Load test: ${TOTAL_RPS} RPS, ${AGENT_COUNT} agents, ${DURATION}, target: ${GATEWAY_TARGET}"
+    exec "$PROJECT_ROOT/bin/simulator" \
+        -target "$GATEWAY_TARGET" \
+        -rps "$TOTAL_RPS" \
+        -agents "$AGENT_COUNT" \
+        -duration "$DURATION" \
+        -batch "${BATCH_SIZE}"
 fi
 
 # Full harness from here
@@ -286,11 +291,11 @@ analyze_results() {
     # Analyze resource metrics
     if [ -f "$TEST_DIR/resource_metrics.csv" ]; then
         # Calculate averages (skip header)
-        AVG_SYSTEM_CPU=$(tail -n +2 "$TEST_DIR/resource_metrics.csv" | awk -F',' '{sum+=$2; count++} END {printf "%.1f", sum/count}')
+        AVG_SYSTEM_CPU=$(tail -n +2 "$TEST_DIR/resource_metrics.csv" | awk -F',' '{sum+=$2; count++} END {if(count>0) printf "%.1f", sum/count; else print "0"}')
         MAX_SYSTEM_CPU=$(tail -n +2 "$TEST_DIR/resource_metrics.csv" | awk -F',' 'BEGIN{max=0} {if($2>max)max=$2} END {printf "%.1f", max}')
-        AVG_GATEWAY_CPU=$(tail -n +2 "$TEST_DIR/resource_metrics.csv" | awk -F',' '{sum+=$4; count++} END {printf "%.1f", sum/count}')
+        AVG_GATEWAY_CPU=$(tail -n +2 "$TEST_DIR/resource_metrics.csv" | awk -F',' '{sum+=$4; count++} END {if(count>0) printf "%.1f", sum/count; else print "0"}')
         MAX_GATEWAY_CPU=$(tail -n +2 "$TEST_DIR/resource_metrics.csv" | awk -F',' 'BEGIN{max=0} {if($4>max)max=$4} END {printf "%.1f", max}')
-        AVG_GATEWAY_MEM=$(tail -n +2 "$TEST_DIR/resource_metrics.csv" | awk -F',' '{sum+=$6; count++} END {printf "%.0f", sum/count/1024}')
+        AVG_GATEWAY_MEM=$(tail -n +2 "$TEST_DIR/resource_metrics.csv" | awk -F',' '{sum+=$6; count++} END {if(count>0) printf "%.0f", sum/count/1024; else print "0"}')
         MAX_GATEWAY_MEM=$(tail -n +2 "$TEST_DIR/resource_metrics.csv" | awk -F',' 'BEGIN{max=0} {if($6>max)max=$6} END {printf "%.0f", max/1024}')
     fi
     

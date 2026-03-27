@@ -19,7 +19,6 @@ import (
 	"github.com/creack/pty"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"path/filepath"
 )
 
 // allowedShells is the whitelist of shells permitted for Execute sessions.
