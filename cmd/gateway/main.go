@@ -1292,11 +1292,8 @@ func (srv *server) startHeartbeatMonitoring() {
 			}
 		}
 
-		for {
-			select {
-			case <-ticker.C:
-				monitor()
-			}
+		for range ticker.C {
+			monitor()
 		}
 	}()
 }
@@ -2856,7 +2853,7 @@ func (srv *server) handleGeoData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 // visitorAnalyticsFrontendShape is the JSON shape expected by the frontend visitor analytics page.
@@ -2950,7 +2947,7 @@ func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request
 		}
 		data, _ := json.Marshal(empty)
 		w.WriteHeader(http.StatusOK)
-		w.Write(data)
+		_, _ = w.Write(data)
 		return
 	}
 
@@ -2973,7 +2970,7 @@ func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request
 		}
 		data, _ := json.Marshal(empty)
 		w.WriteHeader(http.StatusOK)
-		w.Write(data)
+		_, _ = w.Write(data)
 		return
 	}
 

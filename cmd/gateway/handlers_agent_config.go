@@ -302,7 +302,7 @@ func (srv *server) handleListAgentConfigBackups(w http.ResponseWriter, r *http.R
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // POST /api/agents/{id}/config/restore - Restore agent config from a backup
@@ -409,7 +409,7 @@ func (srv *server) handleTestAgentConfigConnection(w http.ResponseWriter, r *htt
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func (srv *server) canUserAccessAgent(username, agentID string) bool {

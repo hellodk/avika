@@ -243,7 +243,7 @@ func (srv *server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "delete", "project", projectID, r.RemoteAddr, r.UserAgent(), nil)
+	_ = srv.db.CreateAuditLog(user.Username, "delete", "project", projectID, r.RemoteAddr, r.UserAgent(), nil)
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
@@ -389,7 +389,7 @@ func (srv *server) handleCreateEnvironment(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "create", "environment", env.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(user.Username, "create", "environment", env.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"name":       req.Name,
 		"project_id": projectID,
 	})
@@ -445,7 +445,7 @@ func (srv *server) handleUpdateEnvironment(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "update", "environment", envID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(user.Username, "update", "environment", envID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"name": req.Name,
 	})
 
