@@ -391,7 +391,7 @@ export default function Home() {
                             {loading ? (
                                 <div className="h-full rounded animate-pulse" style={{ background: "rgb(var(--theme-border))" }} />
                             ) : stats.trafficHistory.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <AreaChart data={stats.trafficHistory}>
                                         <defs>
                                             <linearGradient id="colorRequests" x1="0" y1="0" x2="0" y2="1">

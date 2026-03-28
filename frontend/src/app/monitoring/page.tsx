@@ -522,7 +522,7 @@ function MonitoringPageContent() {
                                 <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>Traffic volume and error trends over time</CardDescription>
                             </CardHeader>
                             <CardContent className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <AreaChart data={data?.request_rate || []}>
                                         <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                         <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
@@ -545,7 +545,7 @@ function MonitoringPageContent() {
                             </CardHeader>
                             <CardContent className="h-[300px]">
                                 {connectionDistribution.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                         <PieChart>
                                             <Pie
                                                 data={connectionDistribution}
@@ -584,7 +584,7 @@ function MonitoringPageContent() {
                             <CardContent>
                                 <div className="h-[280px]">
                                     {statusChartData.length > 0 ? (
-                                        <ResponsiveContainer width="100%" height="100%">
+                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                             <PieChart>
                                                 <Pie
                                                     data={statusChartData}
@@ -673,7 +673,7 @@ function MonitoringPageContent() {
                             <CardTitle style={{ color: "rgb(var(--theme-text))" }}>Connection States Over Time</CardTitle>
                         </CardHeader>
                         <CardContent className="h-[400px]">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                 <LineChart data={data?.connections_history || []}>
                                     <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                     <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
@@ -700,7 +700,7 @@ function MonitoringPageContent() {
                                 <CardTitle style={{ color: "rgb(var(--theme-text))" }}>HTTP 2xx Success Rate</CardTitle>
                             </CardHeader>
                             <CardContent className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <AreaChart data={data?.http_status_metrics?.status_2xx_5min || []}>
                                         <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                         <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
@@ -717,7 +717,7 @@ function MonitoringPageContent() {
                                 <CardTitle style={{ color: "rgb(var(--theme-text))" }}>HTTP 4xx/5xx Errors</CardTitle>
                             </CardHeader>
                             <CardContent className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <LineChart data={data?.http_status_metrics?.status_4xx_5min || []}>
                                         <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                         <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
@@ -788,7 +788,7 @@ function MonitoringPageContent() {
                         </CardHeader>
                         <CardContent>
                             <div className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <AreaChart data={requestDataForErrors}>
                                         <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                         <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
@@ -999,7 +999,7 @@ function MonitoringPageContent() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <AreaChart data={data?.system_metrics || []}>
                                         <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                         <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
@@ -1031,7 +1031,7 @@ function MonitoringPageContent() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <AreaChart data={data?.system_metrics || []}>
                                         <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                         <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
@@ -1089,7 +1089,7 @@ function MonitoringPageContent() {
                         </CardHeader>
                         <CardContent>
                             <div className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <AreaChart data={data?.gateway_metrics || []}>
                                         <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                         <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
@@ -1108,7 +1108,7 @@ function MonitoringPageContent() {
                             </CardHeader>
                             <CardContent>
                                 <div className="h-[260px]">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                         <LineChart data={data?.gateway_metrics || []}>
                                             <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                             <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
@@ -1128,7 +1128,7 @@ function MonitoringPageContent() {
                             </CardHeader>
                             <CardContent>
                                 <div className="h-[260px]">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                         <LineChart data={data?.gateway_metrics || []}>
                                             <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                             <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
@@ -1152,7 +1152,7 @@ function MonitoringPageContent() {
                         </CardHeader>
                         <CardContent>
                             <div className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <LineChart data={data?.latency_trend || []}>
                                         <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                         <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
@@ -1173,7 +1173,7 @@ function MonitoringPageContent() {
                         </CardHeader>
                         <CardContent>
                             <div className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <BarChart data={data?.latency_distribution || []}>
                                         <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                         <XAxis dataKey="bucket" stroke={axisColor} fontSize={12} />
@@ -1244,7 +1244,7 @@ function MonitoringPageContent() {
                             </CardHeader>
                             <CardContent>
                                 <div className="h-[280px]">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                         <AreaChart data={data?.system_metrics || []}>
                                             <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                             <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
@@ -1262,7 +1262,7 @@ function MonitoringPageContent() {
                             </CardHeader>
                             <CardContent>
                                 <div className="h-[280px]">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                         <AreaChart data={data?.system_metrics || []}>
                                             <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                             <XAxis dataKey="time" stroke={axisColor} fontSize={12} />
@@ -1281,7 +1281,7 @@ function MonitoringPageContent() {
                         </CardHeader>
                         <CardContent>
                             <div className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <LineChart data={data?.system_metrics || []}>
                                         <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                         <XAxis dataKey="time" stroke={axisColor} fontSize={12} />

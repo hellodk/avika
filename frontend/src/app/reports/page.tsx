@@ -452,7 +452,7 @@ export default function ReportsPage() {
                         </CardHeader>
                         <CardContent>
                             <div className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <AreaChart data={reportData.trafficTrend}>
                                         <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                         <XAxis dataKey="time" stroke={axisColor} fontSize={12} />

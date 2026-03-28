@@ -1,0 +1,539 @@
+#!/usr/bin/env bash
+# ──────────────────────────────────────────────────────────────────────────────
+# avk — Unified CLI for the Avika NGINX Fleet Manager
+# ──────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# ── Colors ────────────────────────────────────────────────────────────────────
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+DIM='\033[2m'
+NC='\033[0m'
+
+info()    { echo -e "${BLUE}[info]${NC}  $*" >&2; }
+success() { echo -e "${GREEN}[ok]${NC}    $*" >&2; }
+warn()    { echo -e "${YELLOW}[warn]${NC}  $*" >&2; }
+error()   { echo -e "${RED}[error]${NC} $*" >&2; }
+header()  { echo -e "\n${BOLD}${CYAN}$*${NC}\n" >&2; }
+
+# ── Interactive helpers ────────────────────────────────────────────────────────
+VERSION_FILE="$ROOT_DIR/VERSION"
+version() { cat "$VERSION_FILE" 2>/dev/null || echo "unknown"; }
+
+# Global variable to hold the result of interactive prompts.
+# Using a global avoids all stdout/stderr capture issues with $().
+PROMPT_RESULT=""
+
+# _prompt_select "Title" "opt1" "opt2" ...
+# Sets PROMPT_RESULT to the selected option string.
+_prompt_select() {
+    local prompt="$1"; shift
+    local options=("$@")
+    echo -e "\n${BOLD}${prompt}${NC}" >&2
+    for i in "${!options[@]}"; do
+        echo -e "  ${CYAN}$((i+1)))${NC} ${options[$i]}" >&2
+    done
+    local choice
+    while true; do
+        echo -en "${DIM}  Select [1-${#options[@]}]:${NC} " >&2
+        read -r choice </dev/tty || true
+        if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#options[@]} )); then
+            echo -e "  ${GREEN}→${NC} ${options[$((choice-1))]}" >&2
+            PROMPT_RESULT="${options[$((choice-1))]}"
+            return
+        fi
+        echo -e "  ${RED}Invalid choice. Try again.${NC}" >&2
+    done
+}
+
+# _prompt_input "Label" "default"
+# Sets PROMPT_RESULT to the entered value (or default).
+_prompt_input() {
+    local prompt="$1"
+    local default="$2"
+    local value
+    echo -en "${DIM}  ${prompt} [${default}]:${NC} " >&2
+    read -r value </dev/tty || true
+    PROMPT_RESULT="${value:-$default}"
+}
+
+# prompt_confirm "Question?"
+# Returns 0 for yes, 1 for no.
+prompt_confirm() {
+    local prompt="$1"
+    local reply
+    echo -en "${BOLD}  ${prompt} (y/N):${NC} " >&2
+    read -r reply </dev/tty || true
+    [[ "$reply" =~ ^[Yy]$ ]]
+}
+
+# Normalize a duration value: bare numbers get "m" appended (e.g. "2" → "2m").
+# Values already containing a unit suffix (s, m, h) are left as-is.
+normalize_duration() {
+    local val="$1"
+    if [[ "$val" =~ ^[0-9]+$ ]]; then
+        echo "${val}m"
+    else
+        echo "$val"
+    fi
+}
+
+require_root_dir() {
+    cd "$ROOT_DIR"
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# COMMANDS
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── avk test ──────────────────────────────────────────────────────────────────
+cmd_test() {
+    local sub="${1:-}"
+    shift 2>/dev/null || true
+
+    if [[ -z "$sub" ]]; then
+        _prompt_select "What would you like to test?" \
+            "unit" "e2e" "integration" "regression" "load" "profile" "all"
+        sub="$PROMPT_RESULT"
+    fi
+
+    require_root_dir
+    case "$sub" in
+        unit)        cmd_test_unit "$@" ;;
+        e2e)         cmd_test_e2e "$@" ;;
+        integration) cmd_test_integration "$@" ;;
+        regression)  cmd_test_regression "$@" ;;
+        load)        cmd_test_load "$@" ;;
+        profile)     cmd_test_profile "$@" ;;
+        all)         cmd_test_all "$@" ;;
+        *)           error "Unknown test type: $sub"; exit 1 ;;
+    esac
+}
+
+cmd_test_unit() {
+    header "Running unit tests"
+
+    local skip_go=false skip_frontend=false
+    for arg in "$@"; do
+        case "$arg" in
+            --skip-go)       skip_go=true ;;
+            --skip-frontend) skip_frontend=true ;;
+        esac
+    done
+
+    if [[ "$skip_go" != true ]]; then
+        info "Go unit tests..."
+        go test ./cmd/gateway/... ./cmd/agent/... ./internal/... -count=1 -timeout 120s 2>&1 | tail -20
+        success "Go unit tests done"
+    fi
+
+    if [[ "$skip_frontend" != true ]]; then
+        info "Frontend unit tests..."
+        (cd frontend && npm run test:unit 2>&1 | tail -20)
+        success "Frontend unit tests done"
+    fi
+}
+
+cmd_test_e2e() {
+    header "Running E2E tests (Playwright)"
+    local base_url="${1:-}"
+
+    if [[ -z "$base_url" ]]; then
+        _prompt_input "Frontend base URL" "http://localhost:3000"
+        base_url="$PROMPT_RESULT"
+    fi
+
+    info "Base URL: $base_url"
+    (cd frontend && PLAYWRIGHT_BASE_URL="$base_url" npx playwright test)
+    success "E2E tests done"
+}
+
+cmd_test_integration() {
+    header "Running integration tests"
+    local dsn="${DB_DSN:-postgres://admin:testpassword@localhost:5432/avika_test?sslmode=disable}"
+    info "Using DSN: ${dsn%%@*}@***"
+    DB_DSN="$dsn" go test ./cmd/gateway/... -tags=integration -count=1 -timeout 180s -v 2>&1 | tail -30
+    success "Integration tests done"
+}
+
+cmd_test_regression() {
+    header "Running regression tests"
+    bash "$SCRIPT_DIR/regression_tests.sh" "$@"
+}
+
+cmd_test_load() {
+    header "Load Testing"
+
+    local rps duration agents mode gateway batch warmup simple
+
+    _prompt_select "Load test mode:" \
+        "Quick (simple, no harness)" \
+        "Full (baseline + monitoring + analysis)" \
+        "Custom"
+    mode="$PROMPT_RESULT"
+
+    case "$mode" in
+        "Quick (simple, no harness)")
+            _prompt_input "Requests per second" "50000"; rps="$PROMPT_RESULT"
+            _prompt_input "Simulated agents" "500"; agents="$PROMPT_RESULT"
+            _prompt_input "Duration (e.g. 2m, 30s, 1h)" "2m"; duration=$(normalize_duration "$PROMPT_RESULT")
+            info "Starting quick load test: ${rps} RPS, ${agents} agents, ${duration}"
+            RPS="$rps" AGENTS="$agents" DURATION="$duration" SIMPLE=1 \
+                bash "$SCRIPT_DIR/load_test.sh"
+            ;;
+        "Full (baseline + monitoring + analysis)")
+            _prompt_input "Requests per second" "50000"; rps="$PROMPT_RESULT"
+            _prompt_input "Simulated agents" "100"; agents="$PROMPT_RESULT"
+            _prompt_input "Duration (e.g. 5m, 30s, 1h)" "5m"; duration=$(normalize_duration "$PROMPT_RESULT")
+            info "Starting full load test: ${rps} RPS, ${agents} agents, ${duration}"
+            RPS="$rps" AGENTS="$agents" DURATION="$duration" SIMPLE=0 \
+                bash "$SCRIPT_DIR/load_test.sh"
+            ;;
+        "Custom")
+            _prompt_input "Requests per second" "10000"; rps="$PROMPT_RESULT"
+            _prompt_input "Simulated agents" "50"; agents="$PROMPT_RESULT"
+            _prompt_input "Duration (e.g. 1m, 30s, 1h)" "1m"; duration=$(normalize_duration "$PROMPT_RESULT")
+            _prompt_input "Gateway target" "localhost:5020"; gateway="$PROMPT_RESULT"
+            _prompt_input "Batch size" "100"; batch="$PROMPT_RESULT"
+            _prompt_input "Warmup duration (e.g. 30s)" "30s"; warmup=$(normalize_duration "$PROMPT_RESULT")
+            prompt_confirm "Enable full harness (baseline + monitoring)?" && simple=0 || simple=1
+            info "Starting custom load test..."
+            RPS="$rps" AGENTS="$agents" DURATION="$duration" \
+                GATEWAY_TARGET="$gateway" BATCH_SIZE="$batch" \
+                WARMUP_DURATION="$warmup" SIMPLE="$simple" \
+                bash "$SCRIPT_DIR/load_test.sh"
+            ;;
+    esac
+    success "Load test complete"
+}
+
+cmd_test_profile() {
+    header "Agent Profiling"
+    _prompt_input "Duration per phase (seconds)" "30"; local duration="$PROMPT_RESULT"
+    _prompt_input "Agent health port" "5026"; local port="$PROMPT_RESULT"
+    _prompt_input "Output directory" "./profiling_results"; local output="$PROMPT_RESULT"
+    local skip_build=""
+    prompt_confirm "Skip rebuilding agent?" && skip_build="--skip-build"
+    bash "$SCRIPT_DIR/profile_agent.sh" --duration "$duration" --port "$port" --output "$output" $skip_build
+}
+
+cmd_test_all() {
+    header "Running all test suites"
+
+    info "Phase 1/4: Go unit tests"
+    cmd_test_unit --skip-frontend || warn "Go unit tests had failures"
+
+    info "Phase 2/4: Frontend unit tests"
+    cmd_test_unit --skip-go || warn "Frontend unit tests had failures"
+
+    info "Phase 3/4: Integration tests"
+    cmd_test_integration || warn "Integration tests had failures"
+
+    info "Phase 4/4: Regression tests"
+    cmd_test_regression || warn "Regression tests had failures"
+
+    success "All test suites completed"
+}
+
+# ── avk build ─────────────────────────────────────────────────────────────────
+cmd_build() {
+    local sub="${1:-}"
+    shift 2>/dev/null || true
+
+    if [[ -z "$sub" ]]; then
+        _prompt_select "What would you like to build?" \
+            "gateway" "agent" "frontend" "docker" "stack" "all"
+        sub="$PROMPT_RESULT"
+    fi
+
+    require_root_dir
+    case "$sub" in
+        gateway)  cmd_build_gateway "$@" ;;
+        agent)    cmd_build_agent "$@" ;;
+        frontend) cmd_build_frontend "$@" ;;
+        docker)   cmd_build_docker "$@" ;;
+        stack)    cmd_build_stack "$@" ;;
+        all)      cmd_build_gateway && cmd_build_agent && cmd_build_frontend ;;
+        *)        error "Unknown build target: $sub"; exit 1 ;;
+    esac
+}
+
+cmd_build_gateway() {
+    header "Building gateway"
+    local v; v=$(version)
+    info "Version: $v"
+    go build -ldflags="-s -w -X main.Version=$v" -o bin/gateway ./cmd/gateway/
+    success "Gateway binary: bin/gateway"
+}
+
+cmd_build_agent() {
+    header "Building agent"
+    local v; v=$(version)
+    info "Version: $v"
+    go build -ldflags="-s -w -X main.Version=$v" -o bin/agent ./cmd/agent/
+    success "Agent binary: bin/agent"
+}
+
+cmd_build_frontend() {
+    header "Building frontend"
+    (cd frontend && npm run build)
+    success "Frontend built"
+}
+
+cmd_build_docker() {
+    header "Building Docker images"
+    _prompt_select "Which image(s)?" "gateway" "agent" "frontend" "all"
+    local target="$PROMPT_RESULT"
+
+    local v; v=$(version)
+    _prompt_input "Image tag" "$v"
+    local tag="$PROMPT_RESULT"
+    local tag_latest
+    prompt_confirm "Also tag as :latest?" && tag_latest=true || tag_latest=false
+
+    case "$target" in
+        gateway|all)
+            info "Building gateway image..."
+            make docker-gateway 2>&1 | tail -5
+            [[ "$tag_latest" == true ]] && docker tag "hellodk/avika-gateway:$v" "hellodk/avika-gateway:latest"
+            success "hellodk/avika-gateway:$tag"
+            ;;&
+        agent|all)
+            info "Building agent image..."
+            make docker-agent 2>&1 | tail -5
+            [[ "$tag_latest" == true ]] && docker tag "hellodk/avika-agent:$v" "hellodk/avika-agent:latest"
+            success "hellodk/avika-agent:$tag"
+            ;;&
+        frontend|all)
+            info "Building frontend image..."
+            make docker-frontend 2>&1 | tail -5
+            [[ "$tag_latest" == true ]] && docker tag "hellodk/avika-frontend:$v" "hellodk/avika-frontend:latest"
+            success "hellodk/avika-frontend:$tag"
+            ;;&
+    esac
+
+    if prompt_confirm "Push to Docker Hub?"; then
+        case "$target" in
+            gateway|all) docker push "hellodk/avika-gateway:$tag"; [[ "$tag_latest" == true ]] && docker push "hellodk/avika-gateway:latest" ;;&
+            agent|all)   docker push "hellodk/avika-agent:$tag";   [[ "$tag_latest" == true ]] && docker push "hellodk/avika-agent:latest" ;;&
+            frontend|all) docker push "hellodk/avika-frontend:$tag"; [[ "$tag_latest" == true ]] && docker push "hellodk/avika-frontend:latest" ;;&
+        esac
+        success "Images pushed"
+    fi
+}
+
+cmd_build_stack() {
+    header "Building full stack (multi-arch)"
+    bash "$SCRIPT_DIR/build-stack.sh" "$@"
+}
+
+# ── avk deploy ────────────────────────────────────────────────────────────────
+cmd_deploy() {
+    local sub="${1:-}"
+    shift 2>/dev/null || true
+
+    if [[ -z "$sub" ]]; then
+        _prompt_select "What would you like to deploy?" \
+            "agent" "gateway" "stack"
+        sub="$PROMPT_RESULT"
+    fi
+
+    require_root_dir
+    case "$sub" in
+        agent)   cmd_deploy_agent "$@" ;;
+        gateway) cmd_deploy_gateway "$@" ;;
+        stack)   cmd_deploy_stack "$@" ;;
+        *)       error "Unknown deploy target: $sub"; exit 1 ;;
+    esac
+}
+
+cmd_deploy_agent() {
+    header "Deploy Agent"
+    _prompt_input "Update server URL" "${UPDATE_SERVER:-http://localhost:5021/updates}"
+    local update_server="$PROMPT_RESULT"
+    _prompt_input "Gateway address (host:port)" "${GATEWAY_SERVER:-localhost:5020}"
+    local gateway_server="$PROMPT_RESULT"
+
+    if prompt_confirm "Deploy to remote host via SSH?"; then
+        _prompt_input "SSH target (user@host)" ""
+        local host="$PROMPT_RESULT"
+        info "Deploying agent to $host..."
+        ssh "$host" "curl -fsSL ${update_server}/deploy-agent.sh | UPDATE_SERVER=${update_server} GATEWAY_SERVER=${gateway_server} sudo -E bash"
+    else
+        info "Running local agent deployment..."
+        UPDATE_SERVER="$update_server" GATEWAY_SERVER="$gateway_server" \
+            bash "$SCRIPT_DIR/deploy-agent.sh"
+    fi
+    success "Agent deployed"
+}
+
+cmd_deploy_gateway() {
+    header "Deploy Gateway to Kubernetes"
+    _prompt_input "Kubernetes namespace" "avika"; local namespace="$PROMPT_RESULT"
+    _prompt_input "Gateway image" "docker.io/hellodk/avika-gateway:$(version)"; local image="$PROMPT_RESULT"
+
+    info "Updating gateway image to $image in namespace $namespace..."
+    kubectl set image deployment/avika-gateway gateway="$image" -n "$namespace" 2>/dev/null \
+        || kubectl set image deployment/gateway gateway="$image" -n "$namespace"
+    kubectl rollout status deployment/avika-gateway -n "$namespace" --timeout=120s 2>/dev/null \
+        || kubectl rollout status deployment/gateway -n "$namespace" --timeout=120s
+    success "Gateway deployed"
+}
+
+cmd_deploy_stack() {
+    header "Deploy full stack via Helm"
+    _prompt_input "Kubernetes namespace" "avika"; local namespace="$PROMPT_RESULT"
+    local v; v=$(version)
+
+    info "Deploying Avika v$v to namespace $namespace..."
+    helm upgrade --install avika deploy/helm/avika \
+        -n "$namespace" --create-namespace \
+        --set global.imageRegistry=docker.io/hellodk \
+        --set components.gateway.image.tag="$v" \
+        --set components.frontend.image.tag="$v" \
+        "$@"
+    success "Stack deployed"
+}
+
+# ── avk start / stop / status / restart ───────────────────────────────────────
+cmd_start() {
+    require_root_dir
+    bash "$SCRIPT_DIR/start.sh" "$@"
+}
+
+cmd_stop() {
+    require_root_dir
+    bash "$SCRIPT_DIR/stop.sh" "$@"
+}
+
+cmd_status() {
+    require_root_dir
+    bash "$SCRIPT_DIR/status.sh" "$@"
+}
+
+cmd_restart() {
+    require_root_dir
+    bash "$SCRIPT_DIR/restart.sh" "$@"
+}
+
+# ── avk release ───────────────────────────────────────────────────────────────
+cmd_release() {
+    header "Local Release"
+    require_root_dir
+
+    _prompt_select "Version bump type:" "patch" "minor" "major" "none"
+    local bump="$PROMPT_RESULT"
+
+    info "Building release with bump=$bump..."
+    BUMP="$bump" bash "$SCRIPT_DIR/release-local.sh" "$@"
+    success "Release built: dist/"
+}
+
+# ── avk setup ─────────────────────────────────────────────────────────────────
+cmd_setup() {
+    local sub="${1:-}"
+    shift 2>/dev/null || true
+
+    if [[ -z "$sub" ]]; then
+        _prompt_select "What would you like to set up?" \
+            "hooks" "grafana" "clickhouse-creds"
+        sub="$PROMPT_RESULT"
+    fi
+
+    require_root_dir
+    case "$sub" in
+        hooks)
+            header "Installing git hooks"
+            bash "$SCRIPT_DIR/install-git-hooks.sh"
+            success "Git hooks installed"
+            ;;
+        grafana)
+            header "Setting up Grafana dashboards"
+            bash "$SCRIPT_DIR/grafana-setup.sh" "$@"
+            success "Grafana configured"
+            ;;
+        clickhouse-creds)
+            header "Fetching ClickHouse credentials"
+            bash "$SCRIPT_DIR/get-clickhouse-credentials.sh" "$@"
+            ;;
+        *)
+            error "Unknown setup target: $sub"; exit 1 ;;
+    esac
+}
+
+# ── avk push ──────────────────────────────────────────────────────────────────
+cmd_push() {
+    require_root_dir
+    bash "$SCRIPT_DIR/safe-push.sh" "$@"
+}
+
+# ── avk version ───────────────────────────────────────────────────────────────
+cmd_version() {
+    echo -e "${BOLD}Avika${NC} v$(version)" >&2
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN
+# ══════════════════════════════════════════════════════════════════════════════
+usage() {
+    cat >&2 <<EOF
+
+${BOLD}avk${NC} — Avika CLI v$(version)
+
+${BOLD}Usage:${NC}  avk [command] [subcommand] [flags]
+
+${BOLD}Commands:${NC}
+  ${CYAN}test${NC}      Run tests (unit, e2e, integration, regression, load, profile)
+  ${CYAN}build${NC}     Build components (gateway, agent, frontend, docker, stack)
+  ${CYAN}deploy${NC}    Deploy to targets (agent, gateway, stack)
+  ${CYAN}start${NC}     Start local services
+  ${CYAN}stop${NC}      Stop local services
+  ${CYAN}status${NC}    Show service status
+  ${CYAN}restart${NC}   Restart local services
+  ${CYAN}release${NC}   Build a local release package
+  ${CYAN}setup${NC}     Configure tools (hooks, grafana, clickhouse-creds)
+  ${CYAN}push${NC}      Safe git push with security checks
+  ${CYAN}version${NC}   Show version
+
+Run ${BOLD}avk${NC} without arguments for interactive mode.
+
+EOF
+}
+
+main() {
+    local cmd="${1:-}"
+    shift 2>/dev/null || true
+
+    # If no command given, show banner and prompt interactively
+    if [[ -z "$cmd" ]]; then
+        echo -e "\n${BOLD}${CYAN}avk${NC} — Avika CLI v$(version)" >&2
+        _prompt_select "What would you like to do?" \
+            "test" "build" "deploy" "start" "stop" "status" "restart" "release" "setup" "push"
+        cmd="$PROMPT_RESULT"
+    fi
+
+    case "$cmd" in
+        test)       cmd_test "$@" ;;
+        build)      cmd_build "$@" ;;
+        deploy)     cmd_deploy "$@" ;;
+        start)      cmd_start "$@" ;;
+        stop)       cmd_stop "$@" ;;
+        status)     cmd_status "$@" ;;
+        restart)    cmd_restart "$@" ;;
+        release)    cmd_release "$@" ;;
+        setup)      cmd_setup "$@" ;;
+        push)       cmd_push "$@" ;;
+        version|-v|--version) cmd_version ;;
+        help|-h|--help) usage ;;
+        *)          error "Unknown command: $cmd"; usage; exit 1 ;;
+    esac
+}
+
+main "$@"

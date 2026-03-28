@@ -81,7 +81,7 @@ export function NginxCoreDashboard() {
                     <CardTitle className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text))' }}>Connection States (Real-time)</CardTitle>
                 </CardHeader>
                 <CardContent className="h-[400px]">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                         <BarChart data={history}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
                             <XAxis dataKey="time" hide />

@@ -95,6 +95,26 @@ spec:
             {{- end }}
             - name: TZ
               value: {{ $.Values.timezone | default "UTC" }}
+          {{- /* Startup Probe (gates liveness/readiness until container is ready) */ -}}
+          {{- if $component.startupProbe }}
+          startupProbe:
+            {{- if $component.startupProbe.httpGet }}
+            httpGet:
+              path: {{ $component.startupProbe.httpGet.path }}
+              port: {{ $component.startupProbe.httpGet.port }}
+            {{- else if $component.startupProbe.exec }}
+            exec:
+              command:
+                {{- toYaml $component.startupProbe.exec.command | nindent 16 }}
+            {{- else if $component.startupProbe.tcpSocket }}
+            tcpSocket:
+              port: {{ $component.startupProbe.tcpSocket.port }}
+            {{- end }}
+            initialDelaySeconds: {{ $component.startupProbe.initialDelaySeconds | default 10 }}
+            periodSeconds: {{ $component.startupProbe.periodSeconds | default 5 }}
+            timeoutSeconds: {{ $component.startupProbe.timeoutSeconds | default 5 }}
+            failureThreshold: {{ $component.startupProbe.failureThreshold | default 30 }}
+          {{- end }}
           {{- /* Liveness Probe */ -}}
           {{- if $component.livenessProbe }}
           livenessProbe:

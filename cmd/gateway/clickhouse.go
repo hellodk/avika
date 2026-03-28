@@ -186,9 +186,11 @@ func (db *ClickHouseDB) migrate() error {
 	ctx := context.Background()
 	queries := []string{
 		"CREATE DATABASE IF NOT EXISTS nginx_analytics",
+
+		// ── Core tables (with partitioning and optimized ORDER BY) ────────────
 		`CREATE TABLE IF NOT EXISTS nginx_analytics.gateway_metrics (
 			timestamp DateTime64(3),
-			gateway_id String,
+			gateway_id LowCardinality(String),
 			eps Float32,
 			active_connections UInt32,
 			cpu_usage Float32,
@@ -196,29 +198,40 @@ func (db *ClickHouseDB) migrate() error {
 			goroutines UInt32,
 			db_latency_ms Float32,
 			labels Map(String, String)
-		) ENGINE = MergeTree() ORDER BY (timestamp, gateway_id)`,
+		) ENGINE = MergeTree()
+		PARTITION BY toYYYYMM(toDateTime(timestamp))
+		ORDER BY (gateway_id, timestamp)
+		SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1`,
+
 		`CREATE TABLE IF NOT EXISTS nginx_analytics.access_logs (
 			timestamp DateTime64(3),
-			instance_id String,
+			instance_id LowCardinality(String),
 			remote_addr String,
-			request_method String,
+			request_method LowCardinality(String),
 			request_uri String,
 			status UInt16,
 			body_bytes_sent UInt64,
 			request_time Float32,
 			request_id String,
 			upstream_addr String,
-			upstream_status String,
+			upstream_status LowCardinality(String),
 			upstream_connect_time Float32,
 			upstream_header_time Float32,
 			upstream_response_time Float32,
 			user_agent String,
 			referer String,
-			labels Map(String, String)
-		) ENGINE = MergeTree() ORDER BY (timestamp, instance_id)`,
+			labels Map(String, String),
+			INDEX idx_status (status) TYPE minmax GRANULARITY 4,
+			INDEX idx_uri (request_uri) TYPE bloom_filter(0.01) GRANULARITY 4,
+			INDEX idx_client_ip (client_ip) TYPE bloom_filter(0.01) GRANULARITY 4
+		) ENGINE = MergeTree()
+		PARTITION BY toYYYYMM(toDateTime(timestamp))
+		ORDER BY (instance_id, timestamp)
+		SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1`,
+
 		`CREATE TABLE IF NOT EXISTS nginx_analytics.system_metrics (
 			timestamp DateTime64(3),
-			instance_id String,
+			instance_id LowCardinality(String),
 			cpu_usage Float32,
 			memory_usage Float32,
 			memory_total UInt64,
@@ -231,10 +244,14 @@ func (db *ClickHouseDB) migrate() error {
 			cpu_system Float32,
 			cpu_iowait Float32,
 			labels Map(String, String)
-		) ENGINE = MergeTree() ORDER BY (timestamp, instance_id)`,
+		) ENGINE = MergeTree()
+		PARTITION BY toYYYYMM(toDateTime(timestamp))
+		ORDER BY (instance_id, timestamp)
+		SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1`,
+
 		`CREATE TABLE IF NOT EXISTS nginx_analytics.nginx_metrics (
 			timestamp DateTime64(3),
-			instance_id String,
+			instance_id LowCardinality(String),
 			active_connections UInt32,
 			accepted_connections UInt64,
 			handled_connections UInt64,
@@ -250,7 +267,11 @@ func (db *ClickHouseDB) migrate() error {
 			bytes_in UInt64 DEFAULT 0,
 			bytes_out UInt64 DEFAULT 0,
 			labels Map(String, String)
-		) ENGINE = MergeTree() ORDER BY (timestamp, instance_id)`,
+		) ENGINE = MergeTree()
+		PARTITION BY toYYYYMM(toDateTime(timestamp))
+		ORDER BY (instance_id, timestamp)
+		SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1`,
+
 		`CREATE TABLE IF NOT EXISTS nginx_analytics.spans (
 			trace_id String,
 			span_id String,
@@ -259,20 +280,24 @@ func (db *ClickHouseDB) migrate() error {
 			start_time DateTime64(9),
 			end_time DateTime64(9),
 			attributes Map(String, String),
-			instance_id String
-		) ENGINE = MergeTree() ORDER BY (instance_id, trace_id, start_time)`,
+			instance_id LowCardinality(String)
+		) ENGINE = MergeTree()
+		PARTITION BY toYYYYMM(toDateTime(start_time))
+		ORDER BY (instance_id, trace_id, start_time)
+		SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1`,
+
+		// ── Column migrations (backward compat for existing tables) ──────────
 		"ALTER TABLE nginx_analytics.gateway_metrics ADD COLUMN IF NOT EXISTS labels Map(String, String)",
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS labels Map(String, String)",
 		"ALTER TABLE nginx_analytics.system_metrics ADD COLUMN IF NOT EXISTS labels Map(String, String)",
 		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS labels Map(String, String)",
-		// Phase 4b: VTS/Advanced – HttpStatus and bytes in/out (from nginx-module-vts or Advanced API)
 		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS status_2xx UInt64 DEFAULT 0",
 		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS status_3xx UInt64 DEFAULT 0",
 		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS status_4xx UInt64 DEFAULT 0",
 		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS status_5xx UInt64 DEFAULT 0",
 		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS bytes_in UInt64 DEFAULT 0",
 		"ALTER TABLE nginx_analytics.nginx_metrics ADD COLUMN IF NOT EXISTS bytes_out UInt64 DEFAULT 0",
-		// Phase 5: Geo columns for access_logs
+		// Geo columns
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS client_ip String DEFAULT ''",
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS country String DEFAULT ''",
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS country_code String DEFAULT ''",
@@ -282,19 +307,55 @@ func (db *ClickHouseDB) migrate() error {
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS longitude Float64 DEFAULT 0",
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS timezone String DEFAULT ''",
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS isp String DEFAULT ''",
-		// Phase 5b: Visitor analytics columns (parsed from user_agent/referer; optional)
+		// Visitor analytics columns
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS is_bot UInt8 DEFAULT 0",
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS browser_family String DEFAULT ''",
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS browser_version String DEFAULT ''",
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS os_family String DEFAULT ''",
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS os_version String DEFAULT ''",
 		"ALTER TABLE nginx_analytics.access_logs ADD COLUMN IF NOT EXISTS device_type String DEFAULT ''",
-		// Phase 6: Materialized view for geo aggregation (hourly)
+
+		// ── Pre-aggregation: 5-minute traffic rollup for dashboard ────────────
+		`CREATE TABLE IF NOT EXISTS nginx_analytics.traffic_5min (
+			ts DateTime,
+			instance_id LowCardinality(String),
+			requests UInt64,
+			errors UInt64,
+			s2xx UInt64,
+			s3xx UInt64,
+			s4xx UInt64,
+			s5xx UInt64,
+			total_bytes UInt64,
+			sum_latency Float64,
+			latency_count UInt64
+		) ENGINE = SummingMergeTree()
+		PARTITION BY toYYYYMM(ts)
+		ORDER BY (instance_id, ts)
+		TTL ts + INTERVAL 30 DAY`,
+
+		`CREATE MATERIALIZED VIEW IF NOT EXISTS nginx_analytics.traffic_5min_mv
+		TO nginx_analytics.traffic_5min AS
+		SELECT
+			toStartOfFiveMinutes(toDateTime(timestamp)) AS ts,
+			instance_id,
+			count() AS requests,
+			countIf(status >= 400) AS errors,
+			countIf(status >= 200 AND status < 300) AS s2xx,
+			countIf(status >= 300 AND status < 400) AS s3xx,
+			countIf(status >= 400 AND status < 500) AS s4xx,
+			countIf(status >= 500) AS s5xx,
+			sum(body_bytes_sent) AS total_bytes,
+			sum(request_time) AS sum_latency,
+			count() AS latency_count
+		FROM nginx_analytics.access_logs
+		GROUP BY ts, instance_id`,
+
+		// ── Geo aggregation (hourly) ─────────────────────────────────────────
 		`CREATE TABLE IF NOT EXISTS nginx_analytics.geo_requests_hourly (
 			hour DateTime,
-			country String,
-			country_code String,
-			city String,
+			country LowCardinality(String),
+			country_code LowCardinality(String),
+			city LowCardinality(String),
 			latitude Float64,
 			longitude Float64,
 			request_count UInt64,
@@ -302,9 +363,11 @@ func (db *ClickHouseDB) migrate() error {
 			total_bytes UInt64,
 			avg_latency Float64
 		) ENGINE = SummingMergeTree()
+		PARTITION BY toYYYYMM(hour)
 		ORDER BY (hour, country_code, city)
 		TTL hour + INTERVAL 90 DAY`,
-		// Phase 7: Retention Policies (using toDateTime() for DateTime64 compatibility)
+
+		// ── TTL policies ─────────────────────────────────────────────────────
 		"ALTER TABLE nginx_analytics.access_logs MODIFY TTL toDateTime(timestamp) + INTERVAL 7 DAY",
 		"ALTER TABLE nginx_analytics.spans MODIFY TTL toDateTime(start_time) + INTERVAL 7 DAY",
 		"ALTER TABLE nginx_analytics.system_metrics MODIFY TTL toDateTime(timestamp) + INTERVAL 30 DAY",
@@ -628,34 +691,7 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, req *pb
 		rows.Close()
 	}
 
-	// 2. Status Distribution (filter out invalid status codes like 0)
-	statusWhereClause := whereClause
-	if statusWhereClause == "" {
-		statusWhereClause = "WHERE status > 0"
-	} else {
-		statusWhereClause = statusWhereClause + " AND status > 0"
-	}
-	rows, err = db.conn.Query(ctx, fmt.Sprintf(`
-		SELECT
-			toString(status) as code,
-			count(*) as count
-		FROM nginx_analytics.access_logs
-		%s
-		GROUP BY code
-	`, statusWhereClause), args...)
-	if err == nil {
-		for rows.Next() {
-			var code string
-			var count uint64
-			if err := rows.Scan(&code, &count); err == nil {
-				resp.StatusDistribution = append(resp.StatusDistribution, &pb.StatusCount{
-					Code:  code,
-					Count: int64(count),
-				})
-			}
-		}
-		rows.Close()
-	}
+	// 2. Status Distribution — computed in the combined summary query below (section 5)
 
 	// 3. Top Endpoints with traffic calculation
 	rows, err = db.conn.Query(ctx, fmt.Sprintf(`
@@ -749,15 +785,59 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, req *pb
 		currStatsWhereClause = currStatsWhereClause + " AND status > 0"
 	}
 
+	// Combined summary: KPIs + status distribution + latency distribution in one scan
+	var currS2xx, currS3xx, currS4xx, currS5xx uint64
+	var ltBucket0, ltBucket1, ltBucket2, ltBucket3, ltBucket4 int64
 	err = db.conn.QueryRow(ctx, fmt.Sprintf(`
-		SELECT 
-			count(*), 
-			countIf(status >= 400), 
-			sum(body_bytes_sent), 
-			avg(request_time) 
-		FROM nginx_analytics.access_logs %s`, currStatsWhereClause), args...).Scan(&currReqs, &currErrors, &currBytes, &currLat)
+		SELECT
+			count(*),
+			countIf(status >= 400),
+			sum(body_bytes_sent),
+			avg(request_time),
+			countIf(status >= 200 AND status < 300),
+			countIf(status >= 300 AND status < 400),
+			countIf(status >= 400 AND status < 500),
+			countIf(status >= 500),
+			countIf(request_time < 0.05),
+			countIf(request_time >= 0.05 AND request_time < 0.1),
+			countIf(request_time >= 0.1 AND request_time < 0.2),
+			countIf(request_time >= 0.2 AND request_time < 0.5),
+			countIf(request_time >= 0.5)
+		FROM nginx_analytics.access_logs %s`, currStatsWhereClause), args...).Scan(
+		&currReqs, &currErrors, &currBytes, &currLat,
+		&currS2xx, &currS3xx, &currS4xx, &currS5xx,
+		&ltBucket0, &ltBucket1, &ltBucket2, &ltBucket3, &ltBucket4)
 	if err != nil {
 		return nil, err
+	}
+
+	// Populate status distribution from the combined query (avoids a separate scan)
+	if resp.StatusDistribution == nil {
+		for _, sc := range []struct {
+			code  string
+			count uint64
+		}{
+			{"2xx", currS2xx}, {"3xx", currS3xx}, {"4xx", currS4xx}, {"5xx", currS5xx},
+		} {
+			if sc.count > 0 {
+				resp.StatusDistribution = append(resp.StatusDistribution, &pb.StatusCount{Code: sc.code, Count: int64(sc.count)})
+			}
+		}
+	}
+
+	// Populate latency distribution from the combined query (avoids a separate scan)
+	if resp.LatencyDistribution == nil {
+		for _, lb := range []struct {
+			bucket string
+			count  int64
+		}{
+			{"0-50ms", ltBucket0}, {"50-100ms", ltBucket1}, {"100-200ms", ltBucket2},
+			{"200-500ms", ltBucket3}, {"500ms+", ltBucket4},
+		} {
+			if lb.count > 0 {
+				resp.LatencyDistribution = append(resp.LatencyDistribution, &pb.LatencyBucket{Bucket: lb.bucket, Count: lb.count})
+			}
+		}
 	}
 
 	// Deltas need a slightly different filter
@@ -804,31 +884,7 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, req *pb
 		ErrorRateDelta: float32(currErrRate - prevErrRate),
 	}
 
-	// 6. Latency Distribution
-	rows, err = db.conn.Query(ctx, fmt.Sprintf(`
-		SELECT 
-			multiIf(request_time < 0.05, '0-50ms', 
-					request_time < 0.1, '50-100ms', 
-					request_time < 0.2, '100-200ms', 
-					request_time < 0.5, '200-500ms', '500ms+') as label,
-			count(*) as count
-		FROM nginx_analytics.access_logs
-		%s
-		GROUP BY label
-	`, whereClause), args...)
-	if err == nil {
-		for rows.Next() {
-			var label string
-			var count int64
-			if err := rows.Scan(&label, &count); err == nil {
-				resp.LatencyDistribution = append(resp.LatencyDistribution, &pb.LatencyBucket{
-					Bucket: label,
-					Count:  count,
-				})
-			}
-		}
-		rows.Close()
-	}
+	// 6. Latency Distribution — computed in the combined summary query above (section 5)
 
 	// 7. Server Distribution (Show when viewing all agents or filtering by project/environment)
 	if agentID == "" || agentID == "all" || len(agentFilter) > 0 {
@@ -1543,7 +1599,7 @@ func (db *ClickHouseDB) QueryMetricAverageOffset(ctx context.Context, metricType
 	return avg, nil
 }
 func (db *ClickHouseDB) runLogFlusher() {
-	flushInterval := getEnvInt("CH_FLUSH_INTERVAL_MS", 100)
+	flushInterval := getEnvInt("CH_FLUSH_INTERVAL_MS", 3000)
 	ticker := time.NewTicker(time.Duration(flushInterval) * time.Millisecond)
 	batch := make([]logBatchItem, 0, logBatchSize)
 
@@ -1599,7 +1655,7 @@ func (db *ClickHouseDB) flushLogs(batch []logBatchItem) {
 }
 
 func (db *ClickHouseDB) runSpanFlusher() {
-	flushInterval := getEnvInt("CH_FLUSH_INTERVAL_MS", 100)
+	flushInterval := getEnvInt("CH_FLUSH_INTERVAL_MS", 3000)
 	ticker := time.NewTicker(time.Duration(flushInterval) * time.Millisecond)
 	batch := make([]spanBatchItem, 0, spanBatchSize)
 

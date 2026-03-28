@@ -1,0 +1,40 @@
+{{- if (index .Values.components "clickhouse").enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "avika.fullname" . }}-clickhouse-config
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+    component: clickhouse
+data:
+  # System table TTLs to prevent unbounded growth that causes slow startups
+  system-tables-ttl.xml: |
+    <clickhouse>
+        <query_log>
+            <database>system</database>
+            <table>query_log</table>
+            <ttl>event_date + INTERVAL 3 DAY</ttl>
+            <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+        </query_log>
+        <trace_log>
+            <database>system</database>
+            <table>trace_log</table>
+            <ttl>event_date + INTERVAL 3 DAY</ttl>
+        </trace_log>
+        <metric_log>
+            <database>system</database>
+            <table>metric_log</table>
+            <ttl>event_date + INTERVAL 3 DAY</ttl>
+        </metric_log>
+        <asynchronous_metric_log>
+            <database>system</database>
+            <table>asynchronous_metric_log</table>
+            <ttl>event_date + INTERVAL 3 DAY</ttl>
+        </asynchronous_metric_log>
+        <part_log>
+            <database>system</database>
+            <table>part_log</table>
+            <ttl>event_date + INTERVAL 3 DAY</ttl>
+        </part_log>
+    </clickhouse>
+{{- end }}
