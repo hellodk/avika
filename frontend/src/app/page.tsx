@@ -182,14 +182,27 @@ export default function Home() {
                     totalRequests: totalReqs,
                 });
 
-                // Store current as previous for next comparison (simulated trend)
-                // In production, you'd fetch the actual previous period data
-                setPrevStats(prev => ({
-                    totalRequests: prev.totalRequests || totalReqs * 0.95, // Simulate slight growth
-                    errorRate: prev.errorRate || (summary.error_rate || 0) * 1.1,
-                    avgLatency: prev.avgLatency || Math.round(summary.avg_latency || 0) * 1.05,
-                    requestRate: prev.requestRate || currentRequestRate * 0.92,
-                }));
+                // Store current stats as baseline for next refresh cycle's trend comparison.
+                // On subsequent fetches, prevStats holds the real data from the previous poll,
+                // giving an accurate trend between the last two data points.
+                setPrevStats(prev => {
+                    // On first load (prev all zeros), seed with current data so no fake trend shows
+                    if (prev.totalRequests === 0 && prev.requestRate === 0) {
+                        return {
+                            totalRequests: totalReqs,
+                            errorRate: summary.error_rate || 0,
+                            avgLatency: Math.round(summary.avg_latency || 0),
+                            requestRate: currentRequestRate,
+                        };
+                    }
+                    // On subsequent polls, shift current → previous for real comparison
+                    return {
+                        totalRequests: stats.totalRequests,
+                        errorRate: parseFloat(stats.errorRate),
+                        avgLatency: parseInt(stats.avgLatency),
+                        requestRate: parseFloat(stats.requestRate),
+                    };
+                });
             }
             setError(null);
         } catch (err: any) {
@@ -378,7 +391,7 @@ export default function Home() {
                             {loading ? (
                                 <div className="h-full rounded animate-pulse" style={{ background: "rgb(var(--theme-border))" }} />
                             ) : stats.trafficHistory.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <AreaChart data={stats.trafficHistory}>
                                         <defs>
                                             <linearGradient id="colorRequests" x1="0" y1="0" x2="0" y2="1">
@@ -430,11 +443,25 @@ export default function Home() {
                                 </ResponsiveContainer>
                             ) : (
                                 <div className="h-full flex items-center justify-center">
-                                    <div className="text-center">
+                                    <div className="text-center space-y-2">
                                         <Activity className="h-10 w-10 mx-auto mb-3" style={{ color: "rgb(var(--theme-text-muted))" }} />
-                                        <p className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                        <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>
                                             No traffic data yet
                                         </p>
+                                        <p className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                            {agentCount === 0
+                                                ? "Deploy an agent alongside your NGINX instance to start collecting data."
+                                                : "Waiting for traffic data from connected agents."
+                                            }
+                                        </p>
+                                        {agentCount === 0 && (
+                                            <Link href="/inventory">
+                                                <Button variant="outline" size="sm" className="mt-2">
+                                                    Go to Inventory
+                                                    <ArrowUpRight className="h-3 w-3 ml-1" />
+                                                </Button>
+                                            </Link>
+                                        )}
                                     </div>
                                 </div>
                             )}

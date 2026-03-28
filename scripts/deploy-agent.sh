@@ -42,10 +42,17 @@ fi
 # Example: GATEWAY_SERVER=<GATEWAY_HOST>:5020 UPDATE_SERVER=http://<GATEWAY_HOST>:5021 ./deploy-agent.sh
 UPDATE_SERVER="${UPDATE_SERVER:-}"
 GATEWAY_SERVER="${GATEWAY_SERVER:-localhost:50051}"
+INSECURE_CURL="${INSECURE_CURL:-false}"
 INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/avika"
 SERVICE_NAME="avika-agent"
 AGENT_USER="${AGENT_USER:-root}"
+
+CURL_OPTS="-fsSL"
+if [ "$INSECURE_CURL" = "true" ]; then
+    CURL_OPTS="-kfsSL"
+    log_warn "Running strictly with insecure curl (-k). Not recommended for production!"
+fi
 
 # Validate required configuration
 if [ -z "$UPDATE_SERVER" ]; then
@@ -90,7 +97,7 @@ mkdir -p /var/log/avika-agent
 
 # Download version manifest
 log_info "Fetching latest version information..."
-VERSION_JSON=$(curl -fsSL "$UPDATE_SERVER/version.json" || {
+VERSION_JSON=$(curl $CURL_OPTS "$UPDATE_SERVER/version.json" || {
     log_error "Failed to fetch version manifest from $UPDATE_SERVER/version.json"
     log_error "Is the update server running?"
     exit 1
@@ -105,14 +112,14 @@ log_info "Latest version: $LATEST_VERSION"
 # Download the agent binary
 log_info "Downloading agent binary..."
 TMP_BINARY="/tmp/${BINARY_NAME}.tmp"
-curl -fsSL "$DOWNLOAD_URL" -o "$TMP_BINARY" || {
+curl $CURL_OPTS "$DOWNLOAD_URL" -o "$TMP_BINARY" || {
     log_error "Failed to download agent binary from $DOWNLOAD_URL"
     exit 1
 }
 
 # Download and verify checksum
 log_info "Verifying checksum..."
-EXPECTED_CHECKSUM=$(curl -fsSL "$CHECKSUM_URL" | awk '{print $1}')
+EXPECTED_CHECKSUM=$(curl $CURL_OPTS "$CHECKSUM_URL" | awk '{print $1}')
 ACTUAL_CHECKSUM=$(sha256sum "$TMP_BINARY" | awk '{print $1}')
 
 if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
@@ -143,6 +150,12 @@ if [ "$INSTALLED_VERSION" != "$LATEST_VERSION" ]; then
     log_warn "Installed version ($INSTALLED_VERSION) differs from latest ($LATEST_VERSION). You may be running an older gateway; rebuild/redeploy the gateway to serve binaries with the correct version."
 fi
 
+# Detect TLS requirement from gateway URL or port
+TLS_CONFIG="false"
+if [[ "$GATEWAY_SERVER" == https://* ]] || [[ "$GATEWAY_SERVER" == *:443 ]]; then
+    TLS_CONFIG="true"
+fi
+
 # Create configuration file
 log_info "Creating configuration file..."
 cat > "$CONFIG_DIR/avika-agent.conf" <<EOF
@@ -151,6 +164,10 @@ cat > "$CONFIG_DIR/avika-agent.conf" <<EOF
 
 # Gateway Server(s) - comma-separated for multi-gateway
 GATEWAYS="$GATEWAY_SERVER"
+
+# TLS Configuration
+TLS="$TLS_CONFIG"
+TLS_INSECURE="$TLS_CONFIG"
 
 # Agent Identity (leave empty for auto-detection: hostname-ip)
 AGENT_ID=""
@@ -187,7 +204,7 @@ log_info "Downloading systemd service file..."
 SERVICE_URL="${UPDATE_SERVER}/avika-agent.service"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
-if curl -sLf "$SERVICE_URL" -o "$SERVICE_FILE"; then
+if curl $CURL_OPTS "$SERVICE_URL" -o "$SERVICE_FILE"; then
     log_success "Service file downloaded to $SERVICE_FILE"
 else
     log_error "Failed to download service file from $SERVICE_URL"

@@ -2,11 +2,11 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"time"
 )
 
@@ -27,7 +27,7 @@ func NewManager(configPath string) *Manager {
 
 // Backup creates a timestamped backup of the current config
 func (m *Manager) Backup() (string, error) {
-	content, err := ioutil.ReadFile(m.configPath)
+	content, err := os.ReadFile(m.configPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read config: %w", err)
 	}
@@ -35,7 +35,7 @@ func (m *Manager) Backup() (string, error) {
 	timestamp := time.Now().Format("20060102-150405")
 	backupPath := filepath.Join(m.backupDir, fmt.Sprintf("nginx.conf.%s", timestamp))
 
-	if err := ioutil.WriteFile(backupPath, content, 0644); err != nil {
+	if err := os.WriteFile(backupPath, content, 0644); err != nil {
 		return "", fmt.Errorf("failed to write backup: %w", err)
 	}
 
@@ -54,7 +54,7 @@ func (m *Manager) Update(content string, createBackup bool) (string, error) {
 		}
 	}
 
-	if err := ioutil.WriteFile(m.configPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(m.configPath, []byte(content), 0644); err != nil {
 		return backupPath, fmt.Errorf("failed to write config: %w", err)
 	}
 
@@ -146,21 +146,24 @@ func (m *Manager) Stop() error {
 // Rollback restores the most recent backup
 func (m *Manager) Rollback() error {
 	// Find most recent backup
-	files, err := ioutil.ReadDir(m.backupDir)
-	if err != nil || len(files) == 0 {
+	entries, err := os.ReadDir(m.backupDir)
+	if err != nil || len(entries) == 0 {
 		return fmt.Errorf("no backups found")
 	}
 
-	// Get the latest backup (files are sorted by name, which includes timestamp)
-	latestBackup := files[len(files)-1]
+	// Sort by name (which includes timestamp) to get latest
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Name() < entries[j].Name()
+	})
+	latestBackup := entries[len(entries)-1]
 	backupPath := filepath.Join(m.backupDir, latestBackup.Name())
 
-	content, err := ioutil.ReadFile(backupPath)
+	content, err := os.ReadFile(backupPath)
 	if err != nil {
 		return fmt.Errorf("failed to read backup: %w", err)
 	}
 
-	if err := ioutil.WriteFile(m.configPath, content, 0644); err != nil {
+	if err := os.WriteFile(m.configPath, content, 0644); err != nil {
 		return fmt.Errorf("failed to restore config: %w", err)
 	}
 
@@ -176,7 +179,7 @@ func (m *Manager) UpdateSnippet(snippet string, context string) (string, error) 
 		return "", fmt.Errorf("backup failed: %w", err)
 	}
 
-	content, err := ioutil.ReadFile(m.configPath)
+	content, err := os.ReadFile(m.configPath)
 	if err != nil {
 		return backupPath, fmt.Errorf("failed to read config: %w", err)
 	}
@@ -192,7 +195,7 @@ func (m *Manager) UpdateSnippet(snippet string, context string) (string, error) 
 	newContent := configStr + fmt.Sprintf("\n# AI-Tuned Configuration (%s)\n%s\n", time.Now().Format("2006-01-02"), snippet)
 
 	// 3. Write
-	if err := ioutil.WriteFile(m.configPath, []byte(newContent), 0644); err != nil {
+	if err := os.WriteFile(m.configPath, []byte(newContent), 0644); err != nil {
 		return backupPath, fmt.Errorf("failed to write config: %w", err)
 	}
 

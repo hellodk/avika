@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // User represents an authenticated user.
@@ -98,26 +100,34 @@ func NewAuthManager(config AuthConfig) *AuthManager {
 		passwordChangeCache: make(map[string]bool),
 	}
 
-	// Handle first-time setup - use default password "admin"
+	// Handle first-time setup - generate a secure random password
 	if config.Enabled && config.PasswordHash == "" {
-		// Use a well-known default password that users must change
-		defaultPassword := "admin"
+		defaultPassword := am.generateInitialPassword()
 		config.PasswordHash = HashPassword(defaultPassword)
 		am.config = config
 		am.config.FirstTimeSetup = true
 		am.config.RequirePassChange = true
 		am.passwordChangeCache[config.Username] = true
 
-		// Display initial credentials (similar to Jenkins)
+		// Write initial password to a secure file if path is configured
+		if config.InitialSecretPath != "" {
+			if err := os.WriteFile(config.InitialSecretPath, []byte(defaultPassword), 0600); err != nil {
+				log.Printf("Warning: failed to write initial secret to %s: %v", config.InitialSecretPath, err)
+			}
+		}
+
 		log.Println("")
 		log.Println("*************************************************************")
 		log.Println("*************************************************************")
 		log.Println("")
 		log.Println("  AVIKA FIRST-TIME SETUP")
 		log.Println("")
-		log.Println("  Default credentials:")
 		log.Printf("    Username: %s", config.Username)
-		log.Printf("    Password: %s", defaultPassword)
+		if config.InitialSecretPath != "" {
+			log.Printf("    Password written to: %s", config.InitialSecretPath)
+		} else {
+			log.Printf("    Initial password: %s", defaultPassword)
+		}
 		log.Println("")
 		log.Println("  You will be required to change your password on first login.")
 		log.Println("")
@@ -144,10 +154,29 @@ func (am *AuthManager) generateInitialPassword() string {
 	return hex.EncodeToString(bytes)
 }
 
-// HashPassword creates a SHA-256 hash of the password.
+// HashPassword creates a bcrypt hash of the password.
 func HashPassword(password string) string {
-	hash := sha256.Sum256([]byte(password))
-	return hex.EncodeToString(hash[:])
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("Warning: bcrypt hash failed, this should not happen: %v", err)
+		return ""
+	}
+	return string(hash)
+}
+
+// verifyPassword checks a password against a hash.
+// Supports both bcrypt (preferred) and legacy SHA-256 hashes for backward compatibility.
+func verifyPassword(password, storedHash string) bool {
+	// Try bcrypt first
+	if err := bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(password)); err == nil {
+		return true
+	}
+	// Legacy SHA-256 fallback for existing hashes — will be upgraded on next password change
+	if len(storedHash) == 64 {
+		h := sha256.Sum256([]byte(password))
+		return hex.EncodeToString(h[:]) == storedHash
+	}
+	return false
 }
 
 // ValidateCredentials checks if username and password are valid.
@@ -156,18 +185,16 @@ func (am *AuthManager) ValidateCredentials(username, password string) (bool, str
 	am.mu.RLock()
 	defer am.mu.RUnlock()
 
-	passwordHash := HashPassword(password)
-
 	// Try database lookup first if available
 	if am.config.UserLookup != nil {
 		storedHash, role, found := am.config.UserLookup(username)
-		if found && storedHash == passwordHash {
+		if found && verifyPassword(password, storedHash) {
 			return true, role
 		}
 	}
 
 	// Fallback to config-based single user (backwards compatibility)
-	if username == am.config.Username && passwordHash == am.config.PasswordHash {
+	if username == am.config.Username && verifyPassword(password, am.config.PasswordHash) {
 		return true, "admin"
 	}
 

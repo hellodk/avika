@@ -1,0 +1,91 @@
+{{- if .Values.nginx.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "avika.fullname" . }}-nginx
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+    component: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "avika.selectorLabels" . | nindent 6 }}
+      component: nginx
+  template:
+    metadata:
+      labels:
+        {{- include "avika.selectorLabels" . | nindent 8 }}
+        component: nginx
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-nginx.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: nginx
+          image: "nginx:alpine"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: https
+              containerPort: 443
+              protocol: TCP
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: nginx-tls
+              mountPath: /etc/nginx/certs
+              readOnly: true
+            - name: nginx-logs
+              mountPath: /var/log/nginx
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+        - name: agent
+          image: "docker.io/hellodk/avika-agent:latest"
+          imagePullPolicy: Always
+          env:
+            - name: GATEWAY_SERVER
+              value: "{{ include "avika.fullname" . }}-gateway:{{ .Values.components.gateway.ports.grpc.servicePort }}"
+            - name: AGENT_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: LOG_LEVEL
+              value: "info"
+            - name: LOG_FILE
+              value: ""
+            - name: BUFFER_DIR
+              value: "/tmp/avika-agent/"
+          command: ["/usr/local/bin/avika-agent"]
+          args:
+            - "--log-file="
+          volumeMounts:
+            - name: nginx-logs
+              mountPath: /var/log/nginx
+              readOnly: true
+            - name: nginx-conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+          resources:
+            limits:
+              cpu: 200m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: {{ include "avika.fullname" . }}-nginx-conf
+        - name: nginx-tls
+          secret:
+            secretName: {{ include "avika.fullname" . }}-nginx-tls
+        - name: nginx-logs
+          emptyDir: {}
+{{- end }}

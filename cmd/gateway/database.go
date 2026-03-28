@@ -267,6 +267,17 @@ func (db *DB) PruneStaleAgents(maxAge time.Duration) ([]string, error) {
 	return ids, nil
 }
 
+// MarkStaleAgentsOffline updates the status of online agents to 'offline' if they haven't been seen recently.
+func (db *DB) MarkStaleAgentsOffline(maxAge time.Duration) (int64, error) {
+	threshold := time.Now().Add(-maxAge).Unix()
+	query := `UPDATE agents SET status = 'offline' WHERE status = 'online' AND last_seen < $1`
+	res, err := db.conn.Exec(query, threshold)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func (db *DB) UpsertAlertRule(rule *pb.AlertRule) error {
 	query := `
 	INSERT INTO alert_rules (id, name, metric_type, threshold, comparison, window_sec, enabled, recipients)

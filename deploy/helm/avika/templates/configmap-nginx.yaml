@@ -1,0 +1,121 @@
+{{- if .Values.nginx.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "avika.fullname" . }}-nginx-conf
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+    component: nginx
+data:
+  nginx.conf: |
+    user  nginx;
+    worker_processes  auto;
+
+    error_log  /var/log/nginx/error.log notice;
+    pid        /var/run/nginx.pid;
+
+    events {
+        worker_connections  10000;
+    }
+
+    http {
+        include       /etc/nginx/mime.types;
+        default_type  application/octet-stream;
+
+        log_format avika_json escape=json
+        '{'
+          '"ts":"$time_iso8601",'
+          '"req_id":"$request_id",'
+          '"client":"$remote_addr",'
+          '"method":"$request_method",'
+          '"path":"$uri",'
+          '"status":$status,'
+          '"bytes":$body_bytes_sent,'
+          '"rt":$request_time'
+        '}';
+
+        access_log  /var/log/nginx/access.log avika_json;
+
+        sendfile        on;
+        keepalive_timeout  65;
+
+        map $http_upgrade $connection_upgrade {
+            default upgrade;
+            ''      close;
+        }
+
+        # K8s DNS Resolver
+        resolver kube-dns.kube-system.svc.cluster.local valid=10s;
+
+        server {
+            listen 443 ssl;
+            http2 on;
+            server_name ncn112.com;
+
+            ssl_certificate     /etc/nginx/certs/tls.crt;
+            ssl_certificate_key /etc/nginx/certs/tls.key;
+
+            # Routing for Avika Frontend (ncn112.com/avika)
+            location /avika {
+                # Map to the frontend service (K8s service listens on 443 mapping to container port 5031)
+                proxy_pass http://{{ include "avika.fullname" . }}-frontend:443;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                
+                # Handle WebSocket upgrades for Next.js (if applicable)
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection $connection_upgrade;
+            }
+
+            # Routing for Avika Gateway API (ncn112.com/avika/api)
+            location /avika/api/ {
+                # Strip the /avika prefix when sending to gateway if necessary, 
+                # or just pass it directly if gateway handles it. The gateway usually expects /api/.
+                # We'll rewrite to strip /avika so the gateway sees /api/...
+                rewrite ^/avika/api/(.*) /api/$1 break;
+                proxy_pass http://{{ include "avika.fullname" . }}-gateway:443;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+
+            # Routing for Avika Gateway Agent Updates
+            location /avika/updates/ {
+                # Strip /avika prefix to match Gateway expected /updates/
+                rewrite ^/avika/updates/(.*) /updates/$1 break;
+                proxy_pass http://{{ include "avika.fullname" . }}-gateway:443;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+
+            # Routing for Avika Gateway WebSocket Terminal
+            location /avika/terminal {
+                rewrite ^/avika/terminal /terminal break;
+                proxy_pass http://{{ include "avika.fullname" . }}-gateway:443;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection $connection_upgrade;
+                proxy_set_header Host $host;
+                proxy_read_timeout 3600s;
+                proxy_send_timeout 3600s;
+            }
+
+            # Route gRPC requests to the Gateway
+            # Matches gRPC services for Agent package and standard health checking
+            location ~ ^/(nginx\.agent\.v1|grpc\.health\.v1)\. {
+                grpc_pass grpc://{{ include "avika.fullname" . }}-gateway:8443;
+                grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                grpc_read_timeout 1h;
+                grpc_send_timeout 1h;
+            }
+
+            # Default Redirect for root path
+            location / {
+                return 302 /avika;
+            }
+        }
+    }
+{{- end }}

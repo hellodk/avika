@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api";
 import { format } from "date-fns";
-import { Shield, User, Globe, Clock, Info } from "lucide-react";
+import { Shield, User, Globe, Clock, Info, ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface AuditLog {
     id: string;
@@ -22,18 +23,21 @@ interface AuditLog {
     user_agent: string;
 }
 
+const PAGE_SIZE = 100;
+
 export default function AuditPage() {
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [page, setPage] = useState(0);
 
     useEffect(() => {
         const fetchLogs = async () => {
             try {
-                const res = await apiFetch("/api/audit?limit=100");
+                const res = await apiFetch(`/api/audit?limit=${PAGE_SIZE}`);
                 if (res.ok) {
                     const data = await res.json();
-                    setLogs(data || []);
+                    setLogs(Array.isArray(data) ? data : []);
                 } else {
                     const errData = await res.json().catch(() => ({}));
                     setError(errData.error || errData.message || "Failed to fetch audit logs");
@@ -73,11 +77,24 @@ export default function AuditPage() {
             </div>
 
             <Card className="shadow-xl overflow-hidden" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
-                <CardHeader className="border-b py-4" style={{ borderColor: "rgb(var(--theme-border))" }}>
+                <CardHeader className="border-b py-4 flex flex-row items-center justify-between" style={{ borderColor: "rgb(var(--theme-border))" }}>
                     <CardTitle className="text-sm font-medium flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
                         <Clock className="h-4 w-4 text-blue-400" />
-                        Recent Activities (Last 100)
+                        Recent Activities ({logs.length} entries)
                     </CardTitle>
+                    {logs.length > 25 && (
+                        <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                Page {page + 1} of {Math.ceil(logs.length / 25)}
+                            </span>
+                            <Button variant="outline" size="sm" disabled={(page + 1) * 25 >= logs.length} onClick={() => setPage(p => p + 1)}>
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    )}
                 </CardHeader>
                 <CardContent className="p-0">
                     <Table>
@@ -99,7 +116,7 @@ export default function AuditPage() {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                logs.map((log) => (
+                                logs.slice(page * 25, (page + 1) * 25).map((log) => (
                                     <TableRow key={log.id} className="hover-surface" style={{ borderColor: "rgb(var(--theme-border))" }}>
                                         <TableCell className="font-mono text-xs whitespace-nowrap">
                                             {format(new Date(log.timestamp), "MMM dd, HH:mm:ss")}

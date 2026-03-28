@@ -194,12 +194,18 @@ gatewayExternalUrl: ""  # e.g. "https://avika.example.com" or "http://avika.exam
 #   replicaCount: number of replicas
 #   image: {repository, tag, pullPolicy}  # Use values here; avoid --set components.*.image.tag when deploying.
 #   ports: {name: {containerPort, servicePort}}
+#   image: {repository, tag, pullPolicy}  # Use values here; avoid --set components.*.image.tag when deploying.
+#   ports: {name: {containerPort, servicePort}}
 #   env: environment variables
 #   livenessProbe / readinessProbe: health checks
 #   resources: CPU/memory limits
 #   service: {type, annotations}
 #   persistence: (StatefulSet only) {size, storageClass}
 # =============================================================================
+
+# NGINX Configuration (Custom Template)
+nginx:
+  enabled: true
 
 components:
 
@@ -219,10 +225,13 @@ components:
     ports:
       grpc:
         containerPort: 5020
+        servicePort: 8443
       http:
         containerPort: 5021
+        servicePort: 443
       metrics:
         containerPort: 5022
+        servicePort: 9443
     
     service:
       type: ClusterIP
@@ -249,9 +258,9 @@ components:
       AUTH_USERNAME: "admin"
       CH_LOG_BUFFER_SIZE: "100000"
       CH_SPAN_BUFFER_SIZE: "200000"
-      CH_LOG_BATCH_SIZE: "10000"
-      CH_SPAN_BATCH_SIZE: "20000"
-      CH_FLUSH_INTERVAL_MS: "100"
+      CH_LOG_BATCH_SIZE: "5000"
+      CH_SPAN_BATCH_SIZE: "10000"
+      CH_FLUSH_INTERVAL_MS: "3000"
       # LOG_LEVEL: "info"
       # LOG_FORMAT: "json"
     
@@ -303,6 +312,7 @@ components:
     ports:
       http:
         containerPort: 5031
+        servicePort: 443
     
     service:
       type: ClusterIP
@@ -459,24 +469,47 @@ components:
       CLICKHOUSE_DB: "avika"
       CLICKHOUSE_USER: "default"
     
+    # ClickHouse HTTP interface takes 15-30s to start, especially on first boot.
+    # Probes must be generous to avoid CrashLoopBackOff.
+    startupProbe:
+      httpGet:
+        path: /ping
+        port: http
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      failureThreshold: 30  # 10s + 30*5s = up to 160s to start
+
     livenessProbe:
       httpGet:
         path: /ping
         port: http
-      initialDelaySeconds: 30
-      periodSeconds: 10
-    
+      initialDelaySeconds: 0  # startupProbe gates this
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 3
+
     readinessProbe:
       httpGet:
         path: /ping
         port: http
-      initialDelaySeconds: 5
-      periodSeconds: 5
-    
+      initialDelaySeconds: 0  # startupProbe gates this
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+
     volumeMounts:
       - name: data
         mountPath: /var/lib/clickhouse
-    
+      - name: clickhouse-config
+        mountPath: /etc/clickhouse-server/config.d/system-tables-ttl.xml
+        subPath: system-tables-ttl.xml
+        readOnly: true
+
+    volumes:
+      - name: clickhouse-config
+        configMap:
+          name: avika-clickhouse-config
+
     persistence:
       size: 10Gi
       accessMode: ReadWriteOnce
@@ -484,10 +517,10 @@ components:
     resources:
       limits:
         cpu: 2
-        memory: 4Gi
+        memory: 6Gi
       requests:
         cpu: 500m
-        memory: 2Gi
+        memory: 3Gi
 
   # ---------------------------------------------------------------------------
   # REDPANDA - Message Queue (StatefulSet)

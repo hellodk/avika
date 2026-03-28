@@ -1,0 +1,19 @@
+{{- if .Values.nginx.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "avika.fullname" . }}-nginx
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+    component: nginx
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 443
+      targetPort: https
+      protocol: TCP
+      name: https
+  selector:
+    {{- include "avika.selectorLabels" . | nindent 4 }}
+    component: nginx
+{{- end }}

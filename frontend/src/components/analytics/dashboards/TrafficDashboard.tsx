@@ -88,7 +88,7 @@ export function TrafficDashboard() {
                         <CardTitle className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text))' }}>Request Rate (RPS)</CardTitle>
                     </CardHeader>
                     <CardContent className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                             <LineChart data={history}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
                                 <XAxis dataKey="time" hide />
@@ -116,7 +116,7 @@ export function TrafficDashboard() {
                         <CardTitle className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text))' }}>Status Distribution</CardTitle>
                     </CardHeader>
                     <CardContent className="h-[300px] flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                             <PieChart>
                                 <Pie
                                     data={statusPieData}

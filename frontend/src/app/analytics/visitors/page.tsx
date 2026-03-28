@@ -274,7 +274,7 @@ export default function VisitorsPage() {
                 {loading ? (
                   <Skeleton className="h-[300px]" />
                 ) : (
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={300} minWidth={0}>
                     <AreaChart data={data?.hourly || []}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="hour" tickFormatter={(h) => `${h}:00`} />
@@ -306,7 +306,7 @@ export default function VisitorsPage() {
                 {loading ? (
                   <Skeleton className="h-[300px]" />
                 ) : (
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={300} minWidth={0}>
                     <PieChart>
                       <Pie
                         data={deviceData}
@@ -343,7 +343,7 @@ export default function VisitorsPage() {
                 {loading ? (
                   <Skeleton className="h-[300px]" />
                 ) : (
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={300} minWidth={0}>
                     <PieChart>
                       <Pie
                         data={trafficTypeData}
@@ -377,7 +377,7 @@ export default function VisitorsPage() {
                 {loading ? (
                   <Skeleton className="h-[300px]" />
                 ) : (
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={300} minWidth={0}>
                     <BarChart
                       data={(data?.browsers || []).slice(0, 5)}
                       layout="vertical"

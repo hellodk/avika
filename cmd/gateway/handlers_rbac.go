@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -44,7 +45,8 @@ func (srv *server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		http.Error(w, `{"error":"failed to list projects"}`, http.StatusInternalServerError)
+		log.Printf("Error listing projects for user %s (superadmin=%v): %v", user.Username, isSuperAdmin, err)
+		http.Error(w, fmt.Sprintf(`{"error":"Failed to fetch projects","message":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
 		return
 	}
 
@@ -241,7 +243,7 @@ func (srv *server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "delete", "project", projectID, r.RemoteAddr, r.UserAgent(), nil)
+	_ = srv.db.CreateAuditLog(user.Username, "delete", "project", projectID, r.RemoteAddr, r.UserAgent(), nil)
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
@@ -387,7 +389,7 @@ func (srv *server) handleCreateEnvironment(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "create", "environment", env.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(user.Username, "create", "environment", env.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"name":       req.Name,
 		"project_id": projectID,
 	})
@@ -443,7 +445,7 @@ func (srv *server) handleUpdateEnvironment(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "update", "environment", envID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(user.Username, "update", "environment", envID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"name": req.Name,
 	})
 
@@ -1408,6 +1410,9 @@ func (srv *server) handleListAuditLogs(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
 		return
+	}
+	if logs == nil {
+		logs = []AuditLog{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

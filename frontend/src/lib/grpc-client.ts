@@ -37,16 +37,31 @@ const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
 // Adjust based on package name in proto: package nginx.agent.v1;
 const agentWrapper = protoDescriptor.nginx.agent.v1;
 
-// gRPC only: use GATEWAY_GRPC_ADDR (port 5020). Do not fall back to GATEWAY_URL — that is for HTTP (5021).
-const GATEWAY_GRPC_ADDR = process.env.GATEWAY_GRPC_ADDR || 'localhost:5020';
+// Gateway address from environment or default (gRPC port is 5020)
+const GATEWAY_GRPC_ADDR = process.env.GATEWAY_GRPC_ADDR || process.env.GATEWAY_URL || process.env.NEXT_PUBLIC_GATEWAY_URL?.replace(/^https?:\/\//, '') || 'localhost:5020';
+const ENABLE_TLS = process.env.ENABLE_TLS === 'true' || process.env.GATEWAY_TLS === 'true';
+const CA_CERT_FILE = process.env.TLS_CA_CERT_FILE;
 
 let clientInstance: any = null;
 
 export const getAgentServiceClient = () => {
     if (!clientInstance) {
+        const fs = require('fs');
+        let credentials;
+
+        if (ENABLE_TLS) {
+            let caCert;
+            if (CA_CERT_FILE && fs.existsSync(CA_CERT_FILE)) {
+                caCert = fs.readFileSync(CA_CERT_FILE);
+            }
+            credentials = grpc.credentials.createSsl(caCert);
+        } else {
+            credentials = grpc.credentials.createInsecure();
+        }
+
         clientInstance = new agentWrapper.AgentService(
             GATEWAY_GRPC_ADDR,
-            grpc.credentials.createInsecure()
+            credentials
         );
     }
     return clientInstance;
