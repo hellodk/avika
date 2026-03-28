@@ -2017,6 +2017,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Server Assignment API
 	mux.Handle("GET /api/server-assignments", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListServerAssignments)))
 	mux.Handle("GET /api/servers", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListAgents)))
+	mux.Handle("DELETE /api/servers/{agentId}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeleteAgent)))
 	mux.Handle("GET /api/servers/unassigned", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListUnassignedServers)))
 	mux.Handle("POST /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAssignServer)))
 	mux.Handle("DELETE /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUnassignServer)))
@@ -2880,6 +2881,46 @@ func (srv *server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+// handleDeleteAgent handles DELETE /api/servers/{agentId}
+func (srv *server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	agentId := r.PathValue("agentId")
+	if agentId == "" {
+		http.Error(w, `{"error":"agent_id is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	resp, err := srv.RemoveAgent(r.Context(), &pb.RemoveAgentRequest{AgentId: agentId})
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	if !resp.Success {
+		http.Error(w, `{"error":"failed to remove agent"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Also clean ClickHouse data for this agent
+	if srv.clickhouse != nil {
+		if err := srv.clickhouse.DeleteAgentData(agentId); err != nil {
+			gatewayLog.Warn().Err(err).Str("agent_id", agentId).Msg("Failed to clean ClickHouse data for deleted agent")
+		}
+	}
+
+	// Audit log
+	_ = srv.db.CreateAuditLog(user.Username, "delete", "agent", agentId, r.RemoteAddr, r.UserAgent(), nil)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"success":true}`))
 }
 
 func (srv *server) handleAnalytics(w http.ResponseWriter, r *http.Request) {

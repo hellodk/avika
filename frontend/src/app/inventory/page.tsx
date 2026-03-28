@@ -106,14 +106,22 @@ function InventoryPageContent() {
     const deleteAgent = async (agentId: string) => {
         try {
             const res = await apiFetch(`/api/servers/${encodeURIComponent(agentId)}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Failed to delete');
-            setInstances(prev => prev.filter(i => i.agent_id !== agentId));
-            setServerAssignments(prev => {
-                const next = { ...prev };
-                delete next[agentId];
-                return next;
-            });
-            toast.success("Agent removed successfully");
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || `Delete failed (HTTP ${res.status})`);
+            }
+            const result = await res.json().catch(() => ({}));
+            if (result.success) {
+                setInstances(prev => prev.filter(i => i.agent_id !== agentId));
+                setServerAssignments(prev => {
+                    const next = { ...prev };
+                    delete next[agentId];
+                    return next;
+                });
+                toast.success("Agent removed successfully");
+            } else {
+                throw new Error(result.error || "Server reported delete failed");
+            }
         } catch (error: any) {
             toast.error("Failed to remove agent", { description: error.message });
         } finally {

@@ -100,7 +100,7 @@ cmd_test() {
 
     if [[ -z "$sub" ]]; then
         _prompt_select "What would you like to test?" \
-            "unit" "e2e" "integration" "regression" "load" "profile" "all"
+            "unit" "e2e" "integration" "regression" "load" "workload" "profile" "all"
         sub="$PROMPT_RESULT"
     fi
 
@@ -111,6 +111,7 @@ cmd_test() {
         integration) cmd_test_integration "$@" ;;
         regression)  cmd_test_regression "$@" ;;
         load)        cmd_test_load "$@" ;;
+        workload)    cmd_test_workload "$@" ;;
         profile)     cmd_test_profile "$@" ;;
         all)         cmd_test_all "$@" ;;
         *)           error "Unknown test type: $sub"; exit 1 ;;
@@ -212,6 +213,30 @@ cmd_test_load() {
             ;;
     esac
     success "Load test complete"
+}
+
+cmd_test_workload() {
+    header "Workload Generator (geo-distributed fleet simulation)"
+    local config="tests/workload/config.json"
+
+    _prompt_input "Config file" "$config"; config="$PROMPT_RESULT"
+    _prompt_input "Total RPS across all agents" "500"; local rps="$PROMPT_RESULT"
+    _prompt_input "Duration (e.g. 5m, 1h)" "5m"; local dur=$(normalize_duration "$PROMPT_RESULT")
+
+    _prompt_select "Mode:" "Full (setup + traffic)" "Setup only (create projects/envs)" "Traffic only (skip setup)"
+    local mode="$PROMPT_RESULT"
+
+    local flags="-config $config -rps $rps -duration $dur"
+    case "$mode" in
+        "Setup only (create projects/envs)") flags="$flags -setup-only" ;;
+        "Traffic only (skip setup)")          flags="$flags -skip-setup" ;;
+    esac
+
+    info "Building workload generator..."
+    go build -o bin/workload ./tests/workload/
+
+    info "Launching: bin/workload $flags"
+    ./bin/workload $flags
 }
 
 cmd_test_profile() {

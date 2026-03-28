@@ -1,0 +1,140 @@
+{
+  "gateway": {
+    "grpc_address": "10.97.189.242:8443",
+    "http_address": "https://ncn112.com/avika"
+  },
+  "auth": {
+    "username": "admin",
+    "password": "admin"
+  },
+  "projects": [
+    {
+      "name": "Global CDN",
+      "slug": "global-cdn",
+      "description": "Content delivery network across all regions",
+      "environments": [
+        {"name": "Production", "slug": "production", "is_production": true, "color": "#22c55e"},
+        {"name": "Staging", "slug": "staging", "is_production": false, "color": "#eab308"}
+      ]
+    },
+    {
+      "name": "API Platform",
+      "slug": "api-platform",
+      "description": "Backend API services across regions",
+      "environments": [
+        {"name": "US East", "slug": "us-east", "is_production": true, "color": "#3b82f6"},
+        {"name": "EU West", "slug": "eu-west", "is_production": true, "color": "#8b5cf6"},
+        {"name": "AP South", "slug": "ap-south", "is_production": true, "color": "#f97316"}
+      ]
+    }
+  ],
+  "agents": [
+    {"id": "cdn-us-east-{i}", "project": "global-cdn", "environment": "production", "region": "us-east", "count": 8,  "nginx_version": "1.26.2"},
+    {"id": "cdn-eu-west-{i}", "project": "global-cdn", "environment": "production", "region": "eu-west", "count": 6,  "nginx_version": "1.26.2"},
+    {"id": "cdn-ap-south-{i}","project": "global-cdn", "environment": "production", "region": "ap-south","count": 5,  "nginx_version": "1.26.2"},
+    {"id": "cdn-staging-{i}", "project": "global-cdn", "environment": "staging",    "region": "us-east", "count": 3,  "nginx_version": "1.27.0"},
+    {"id": "api-us-{i}",     "project": "api-platform","environment": "us-east",    "region": "us-east", "count": 10, "nginx_version": "1.25.5"},
+    {"id": "api-eu-{i}",     "project": "api-platform","environment": "eu-west",    "region": "eu-west", "count": 8,  "nginx_version": "1.25.5"},
+    {"id": "api-ap-{i}",     "project": "api-platform","environment": "ap-south",   "region": "ap-south","count": 6,  "nginx_version": "1.25.5"},
+    {"id": "api-ap-tokyo-{i}","project":"api-platform","environment": "ap-south",   "region": "ap-tokyo","count": 4,  "nginx_version": "1.25.5"},
+    {"id": "cdn-latam-{i}",  "project": "global-cdn", "environment": "production", "region": "latam",   "count": 3,  "nginx_version": "1.26.2"},
+    {"id": "cdn-africa-{i}", "project": "global-cdn", "environment": "production", "region": "africa",  "count": 2,  "nginx_version": "1.26.2"},
+    {"id": "cdn-mena-{i}",   "project": "global-cdn", "environment": "production", "region": "mena",    "count": 2,  "nginx_version": "1.26.2"}
+  ],
+  "regions": {
+    "us-east": {
+      "client_ips": ["8.8.8.8", "52.95.110.1", "34.117.59.81", "151.101.1.69", "104.16.132.229", "185.199.108.153"],
+      "user_agents": [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 Safari/605.1.15",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148",
+        "curl/8.7.1",
+        "Googlebot/2.1 (+http://www.google.com/bot.html)"
+      ]
+    },
+    "eu-west": {
+      "client_ips": ["91.198.174.192", "185.93.0.1", "185.157.0.1", "80.67.169.12"],
+      "user_agents": [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148"
+      ]
+    },
+    "ap-south": {
+      "client_ips": ["103.10.124.1", "49.36.128.1", "103.21.244.0"],
+      "user_agents": [
+        "Mozilla/5.0 (Linux; Android 14; SM-S926B) AppleWebKit/537.36 Chrome/125.0.0.0 Mobile Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148"
+      ]
+    },
+    "ap-tokyo": {
+      "client_ips": ["203.0.113.10", "202.12.29.205", "168.126.63.1"],
+      "user_agents": [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/125.0.0.0 Mobile Safari/537.36"
+      ]
+    },
+    "latam": {
+      "client_ips": ["177.54.144.106", "189.240.36.1"],
+      "user_agents": [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 13; SM-A546E) AppleWebKit/537.36 Chrome/125.0.0.0 Mobile Safari/537.36"
+      ]
+    },
+    "africa": {
+      "client_ips": ["41.203.65.114", "196.216.2.1"],
+      "user_agents": [
+        "Mozilla/5.0 (Linux; Android 12; TECNO KI7) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36"
+      ]
+    },
+    "mena": {
+      "client_ips": ["94.200.0.1", "223.5.5.5", "77.88.8.8"],
+      "user_agents": [
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36"
+      ]
+    }
+  },
+  "traffic": {
+    "uris": [
+      {"path": "/", "weight": 15, "latency_ms": [5, 30]},
+      {"path": "/api/v1/users", "weight": 12, "latency_ms": [10, 80]},
+      {"path": "/api/v1/products", "weight": 10, "latency_ms": [15, 120]},
+      {"path": "/api/v1/orders", "weight": 8, "latency_ms": [20, 200]},
+      {"path": "/api/v1/auth/login", "weight": 6, "latency_ms": [30, 150]},
+      {"path": "/api/v1/search", "weight": 5, "latency_ms": [50, 500]},
+      {"path": "/health", "weight": 10, "latency_ms": [1, 5]},
+      {"path": "/static/js/app.js", "weight": 8, "latency_ms": [2, 10]},
+      {"path": "/static/css/main.css", "weight": 5, "latency_ms": [2, 8]},
+      {"path": "/images/logo.png", "weight": 4, "latency_ms": [3, 15]},
+      {"path": "/api/v1/notifications", "weight": 3, "latency_ms": [10, 60]},
+      {"path": "/api/v1/analytics", "weight": 2, "latency_ms": [100, 800]},
+      {"path": "/webhook/stripe", "weight": 2, "latency_ms": [50, 300]},
+      {"path": "/graphql", "weight": 4, "latency_ms": [20, 250]},
+      {"path": "/api/v2/feed", "weight": 3, "latency_ms": [30, 200]},
+      {"path": "/.well-known/openid-configuration", "weight": 1, "latency_ms": [5, 20]},
+      {"path": "/robots.txt", "weight": 1, "latency_ms": [1, 3]},
+      {"path": "/favicon.ico", "weight": 1, "latency_ms": [1, 5]}
+    ],
+    "status_weights": {
+      "200": 55, "201": 8, "204": 3,
+      "301": 4, "302": 3, "304": 5,
+      "400": 3, "401": 4, "403": 2, "404": 6, "429": 2,
+      "500": 2, "502": 1, "503": 1, "504": 1
+    },
+    "methods": {
+      "GET": 65, "POST": 20, "PUT": 8, "DELETE": 4, "PATCH": 3
+    },
+    "referers": [
+      "", "", "",
+      "https://www.google.com/search?q=",
+      "https://www.bing.com/search?q=",
+      "https://t.co/abc123",
+      "https://www.reddit.com/r/nginx",
+      "https://news.ycombinator.com",
+      "https://github.com/hellodk/avika"
+    ]
+  }
+}

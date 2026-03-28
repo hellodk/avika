@@ -787,7 +787,7 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, req *pb
 
 	// Combined summary: KPIs + status distribution + latency distribution in one scan
 	var currS2xx, currS3xx, currS4xx, currS5xx uint64
-	var ltBucket0, ltBucket1, ltBucket2, ltBucket3, ltBucket4 int64
+	var ltBucket0, ltBucket1, ltBucket2, ltBucket3, ltBucket4 uint64
 	err = db.conn.QueryRow(ctx, fmt.Sprintf(`
 		SELECT
 			count(*),
@@ -829,13 +829,13 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, req *pb
 	if resp.LatencyDistribution == nil {
 		for _, lb := range []struct {
 			bucket string
-			count  int64
+			count  uint64
 		}{
 			{"0-50ms", ltBucket0}, {"50-100ms", ltBucket1}, {"100-200ms", ltBucket2},
 			{"200-500ms", ltBucket3}, {"500ms+", ltBucket4},
 		} {
 			if lb.count > 0 {
-				resp.LatencyDistribution = append(resp.LatencyDistribution, &pb.LatencyBucket{Bucket: lb.bucket, Count: lb.count})
+				resp.LatencyDistribution = append(resp.LatencyDistribution, &pb.LatencyBucket{Bucket: lb.bucket, Count: int64(lb.count)})
 			}
 		}
 	}
