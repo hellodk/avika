@@ -37,7 +37,7 @@ func (s *server) handleListCertificates(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp.Certificates)
+	_ = json.NewEncoder(w).Encode(resp.Certificates)
 }
 
 // handleUploadCertificate handles certificate upload and proxies to the agent
