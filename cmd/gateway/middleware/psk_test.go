@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -534,6 +535,8 @@ func TestUnaryPSKInterceptor(t *testing.T) {
 		return "success", nil
 	}
 
+	commanderInfo := &grpc.UnaryServerInfo{FullMethod: "/nginx.agent.v1.Commander/Connect"}
+
 	t.Run("valid authentication", func(t *testing.T) {
 		called = false
 		md := metadata.Pairs(
@@ -544,7 +547,7 @@ func TestUnaryPSKInterceptor(t *testing.T) {
 		)
 		ctx := metadata.NewIncomingContext(context.Background(), md)
 
-		_, err := interceptor(ctx, nil, nil, handler)
+		_, err := interceptor(ctx, nil, commanderInfo, handler)
 		if err != nil {
 			t.Errorf("Valid auth should succeed: %v", err)
 		}
@@ -557,7 +560,7 @@ func TestUnaryPSKInterceptor(t *testing.T) {
 		called = false
 		ctx := context.Background() // No metadata
 
-		_, err := interceptor(ctx, nil, nil, handler)
+		_, err := interceptor(ctx, nil, commanderInfo, handler)
 		if err == nil {
 			t.Error("Missing metadata should fail")
 		}
@@ -576,7 +579,7 @@ func TestUnaryPSKInterceptor(t *testing.T) {
 		)
 		ctx := metadata.NewIncomingContext(context.Background(), md)
 
-		_, err := interceptor(ctx, nil, nil, handler)
+		_, err := interceptor(ctx, nil, commanderInfo, handler)
 		if err == nil {
 			t.Error("Invalid signature should fail")
 		}

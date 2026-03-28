@@ -273,7 +273,7 @@ func (pm *PSKManager) UnaryPSKInterceptor() grpc.UnaryServerInterceptor {
 		// Only enforce PSK for agent-facing methods.
 		// BFF calls (AgentService) are handled by session cookies in the HTTP gateway
 		// or are internal calls from Next.js that don't have PSK.
-		if !strings.HasPrefix(info.FullMethod, "/nginx.agent.v1.Commander/") {
+		if info == nil || !strings.HasPrefix(info.FullMethod, "/nginx.agent.v1.Commander/") {
 			return handler(ctx, req)
 		}
 
