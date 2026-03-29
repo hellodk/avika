@@ -12,7 +12,7 @@ func (s *server) handleGetSLOTargets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(targets)
+	_ = json.NewEncoder(w).Encode(targets)
 }
 
 func (s *server) handleUpsertSLOTarget(w http.ResponseWriter, r *http.Request) {
@@ -33,7 +33,7 @@ func (s *server) handleUpsertSLOTarget(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(target)
+	_ = json.NewEncoder(w).Encode(target)
 }
 
 func (s *server) handleDeleteSLOTarget(w http.ResponseWriter, r *http.Request) {
@@ -81,5 +81,5 @@ func (s *server) handleGetSLOCompliance(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(results)
+	_ = json.NewEncoder(w).Encode(results)
 }

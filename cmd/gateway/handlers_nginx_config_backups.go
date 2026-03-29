@@ -61,7 +61,7 @@ func (srv *server) handleListNginxConfigBackups(w http.ResponseWriter, r *http.R
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"backups": backups,
 	})
@@ -153,5 +153,5 @@ func (srv *server) handleRestoreNginxConfigBackup(w http.ResponseWriter, r *http
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(updateResp)
+	_ = json.NewEncoder(w).Encode(updateResp)
 }
