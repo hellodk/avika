@@ -11,8 +11,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 // Base path for API calls (set at build time)
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
-// Version from build time - REQUIRED, set via NEXT_PUBLIC_APP_VERSION at build
-const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
+// Inlined at build; dev server can refresh VERSION before HMR updates the client bundle.
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "dev";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -120,7 +120,9 @@ export default function LoginPage() {
             </div>
             <div>
               <h1 className="text-4xl font-bold text-white tracking-tight">Avika</h1>
-              <p className="text-sm text-slate-400 mt-0.5">v{APP_VERSION}</p>
+              <p className="text-sm text-slate-400 mt-0.5" suppressHydrationWarning>
+                v{APP_VERSION}
+              </p>
             </div>
           </div>
 
@@ -313,7 +315,7 @@ export default function LoginPage() {
           </div>
 
           {/* Footer */}
-          <p className="mt-8 text-center text-xs text-slate-500">
+          <p className="mt-8 text-center text-xs text-slate-500" suppressHydrationWarning>
             Avika v{APP_VERSION}
           </p>
         </div>

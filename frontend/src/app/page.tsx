@@ -8,6 +8,7 @@ import {
     Activity, AlertTriangle, ArrowUpRight, RefreshCw,
     Globe, Clock, CheckCircle2, XCircle, TrendingUp, TrendingDown, Info
 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RefreshButton } from "@/components/ui/refresh-button";
 import {
     Tooltip as UITooltip,
@@ -62,6 +63,10 @@ export default function Home() {
     const [agentCount, setAgentCount] = useState<number>(0);
     const [onlineAgents, setOnlineAgents] = useState<number>(0);
     const [error, setError] = useState<string | null>(null);
+    /** Next.js → gateway /api/servers proxy failed (auth, connection, etc.) */
+    const [agentsLoadError, setAgentsLoadError] = useState<string | null>(null);
+    /** BFF gRPC GetAnalytics failed — charts stay empty without this hint */
+    const [metricsBackendError, setMetricsBackendError] = useState<string | null>(null);
 
     // Time range state
     const [timeRange, setTimeRange] = useState<TimeRange>({
@@ -107,6 +112,10 @@ export default function Home() {
     const fetchStats = useCallback(async () => {
         setLoading(true);
         try {
+            setError(null);
+            setAgentsLoadError(null);
+            setMetricsBackendError(null);
+
             // Build filter query string for project/environment filtering
             let filterParams = '';
             if (selectedEnvironment) {
@@ -124,6 +133,13 @@ export default function Home() {
                 const now = Math.floor(Date.now() / 1000);
                 const online = agents.filter((a: any) => !a.last_seen || (now - parseInt(a.last_seen)) < 180).length;
                 setOnlineAgents(online);
+            } else {
+                const errBody = await serverRes.json().catch(() => ({} as { error?: string }));
+                const msg =
+                    typeof errBody.error === 'string'
+                        ? errBody.error
+                        : `Could not load agents (HTTP ${serverRes.status}). Check gateway URL and session.`;
+                setAgentsLoadError(msg);
             }
 
             const windowParam = getWindowParam(timeRange);
@@ -132,6 +148,15 @@ export default function Home() {
             const analyticsRes = await apiFetch(`/api/analytics?window=${windowParam}${filterParams}`);
             if (analyticsRes.ok) {
                 const data = await analyticsRes.json();
+                if (data.proxy_error === true) {
+                    const detail =
+                        typeof data.proxy_error_message === 'string'
+                            ? data.proxy_error_message
+                            : 'Gateway returned no metrics.';
+                    setMetricsBackendError(
+                        `Metrics unavailable: ${detail} — verify GATEWAY_GRPC_ADDR (and TLS/mTLS if enabled) for the Next.js server, and that ClickHouse is wired on the gateway.`
+                    );
+                } else {
                 const summary = data.summary || {};
                 const totalReqs = summary.total_requests || 0;
 
@@ -203,10 +228,12 @@ export default function Home() {
                         requestRate: parseFloat(stats.requestRate),
                     };
                 });
+                }
+            } else {
+                setMetricsBackendError(`Analytics API returned HTTP ${analyticsRes.status}.`);
             }
-            setError(null);
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : String(err));
         } finally {
             setLoading(false);
         }
@@ -221,7 +248,7 @@ export default function Home() {
     const statusTotal = stats.statusCounts.success + stats.statusCounts.redirect + stats.statusCounts.clientError + stats.statusCounts.serverError;
     const getPercent = (val: number) => statusTotal > 0 ? ((val / statusTotal) * 100).toFixed(1) : "0";
 
-    if (error && agentCount === 0) {
+    if ((error || agentsLoadError) && agentCount === 0) {
         return (
             <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
                 <div className="p-4 rounded-full" style={{ background: "rgba(239, 68, 68, 0.1)" }}>
@@ -232,7 +259,7 @@ export default function Home() {
                         Connection Error
                     </h2>
                     <p className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                        {error}
+                        {error || agentsLoadError}
                     </p>
                 </div>
                 <Button onClick={fetchStats} variant="outline">
@@ -246,6 +273,28 @@ export default function Home() {
     return (
         <div className="space-y-6">
             <OnboardingWizard />
+            {agentsLoadError && (
+                <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Could not load agent list</AlertTitle>
+                    <AlertDescription>{agentsLoadError}</AlertDescription>
+                </Alert>
+            )}
+            {metricsBackendError && (
+                <Alert
+                    className="border-amber-500/40"
+                    style={{
+                        borderColor: "rgba(245, 158, 11, 0.35)",
+                        background: "rgba(245, 158, 11, 0.06)",
+                    }}
+                >
+                    <Info className="h-4 w-4 text-amber-600" />
+                    <AlertTitle style={{ color: "rgb(var(--theme-text))" }}>Dashboard metrics unavailable</AlertTitle>
+                    <AlertDescription style={{ color: "rgb(var(--theme-text-muted))" }} className="text-sm">
+                        {metricsBackendError}
+                    </AlertDescription>
+                </Alert>
+            )}
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
