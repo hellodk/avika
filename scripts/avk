@@ -173,6 +173,8 @@ cmd_test_load() {
 
     local rps duration agents mode gateway batch warmup simple
 
+    _prompt_input "Gateway target (host:port)" "${GATEWAY_TARGET:-localhost:5020}"; gateway="$PROMPT_RESULT"
+
     _prompt_select "Load test mode:" \
         "Quick (simple, no harness)" \
         "Full (baseline + monitoring + analysis)" \
@@ -184,27 +186,26 @@ cmd_test_load() {
             _prompt_input "Requests per second" "50000"; rps="$PROMPT_RESULT"
             _prompt_input "Simulated agents" "500"; agents="$PROMPT_RESULT"
             _prompt_input "Duration (e.g. 2m, 30s, 1h)" "2m"; duration=$(normalize_duration "$PROMPT_RESULT")
-            info "Starting quick load test: ${rps} RPS, ${agents} agents, ${duration}"
-            RPS="$rps" AGENTS="$agents" DURATION="$duration" SIMPLE=1 \
+            info "Starting quick load test: ${rps} RPS, ${agents} agents, ${duration}, target: ${gateway}"
+            RPS="$rps" AGENTS="$agents" DURATION="$duration" GATEWAY_TARGET="$gateway" SIMPLE=1 \
                 bash "$SCRIPT_DIR/load_test.sh"
             ;;
         "Full (baseline + monitoring + analysis)")
             _prompt_input "Requests per second" "50000"; rps="$PROMPT_RESULT"
             _prompt_input "Simulated agents" "100"; agents="$PROMPT_RESULT"
             _prompt_input "Duration (e.g. 5m, 30s, 1h)" "5m"; duration=$(normalize_duration "$PROMPT_RESULT")
-            info "Starting full load test: ${rps} RPS, ${agents} agents, ${duration}"
-            RPS="$rps" AGENTS="$agents" DURATION="$duration" SIMPLE=0 \
+            info "Starting full load test: ${rps} RPS, ${agents} agents, ${duration}, target: ${gateway}"
+            RPS="$rps" AGENTS="$agents" DURATION="$duration" GATEWAY_TARGET="$gateway" SIMPLE=0 \
                 bash "$SCRIPT_DIR/load_test.sh"
             ;;
         "Custom")
             _prompt_input "Requests per second" "10000"; rps="$PROMPT_RESULT"
             _prompt_input "Simulated agents" "50"; agents="$PROMPT_RESULT"
             _prompt_input "Duration (e.g. 1m, 30s, 1h)" "1m"; duration=$(normalize_duration "$PROMPT_RESULT")
-            _prompt_input "Gateway target" "localhost:5020"; gateway="$PROMPT_RESULT"
             _prompt_input "Batch size" "100"; batch="$PROMPT_RESULT"
             _prompt_input "Warmup duration (e.g. 30s)" "30s"; warmup=$(normalize_duration "$PROMPT_RESULT")
             prompt_confirm "Enable full harness (baseline + monitoring)?" && simple=0 || simple=1
-            info "Starting custom load test..."
+            info "Starting custom load test: ${rps} RPS, ${agents} agents, ${duration}, target: ${gateway}"
             RPS="$rps" AGENTS="$agents" DURATION="$duration" \
                 GATEWAY_TARGET="$gateway" BATCH_SIZE="$batch" \
                 WARMUP_DURATION="$warmup" SIMPLE="$simple" \
