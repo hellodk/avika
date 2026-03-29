@@ -77,7 +77,7 @@ func (srv *server) handleUploadCertificate(w http.ResponseWriter, r *http.Reques
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleDeleteCertificate proxies DeleteCertificate to the agent
@@ -108,7 +108,7 @@ func (s *server) handleDeleteCertificate(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 

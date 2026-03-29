@@ -3,11 +3,10 @@
 import { useState, useEffect } from "react";
 import { apiFetch, serverIdForDisplay } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
     Zap, Shield, HeartPulse, FileCode, Check, AlertCircle,
-    ArrowRight, ArrowLeft, Save, Play, Trash2, Server
+    ArrowRight, ArrowLeft, Play, Server
 } from "lucide-react";
 import { generateProvisionSnippet } from "@/lib/provisions";
 
@@ -18,6 +17,16 @@ interface ProvisionTemplate {
     icon: React.ComponentType<{ className?: string }>;
     color: string;
 }
+
+interface ProvisionAgentRow {
+    agent_id?: string;
+    id?: string;
+    hostname?: string;
+    ip?: string;
+}
+
+/** Form state for provision wizard (mixed string/number fields). */
+type ProvisionFormConfig = Record<string, string | number | undefined>;
 
 const templates: ProvisionTemplate[] = [
     {
@@ -61,8 +70,8 @@ export default function ProvisionsPage() {
     const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
     const [step, setStep] = useState(1);
     const [selectedAgent, setSelectedAgent] = useState<string>("");
-    const [agents, setAgents] = useState<any[]>([]);
-    const [config, setConfig] = useState<any>({});
+    const [agents, setAgents] = useState<ProvisionAgentRow[]>([]);
+    const [config, setConfig] = useState<ProvisionFormConfig>({});
 
     useEffect(() => {
         const fetchAgents = async () => {
@@ -70,7 +79,7 @@ export default function ProvisionsPage() {
                 const res = await apiFetch('/api/servers');
                 if (res.ok) {
                     const data = await res.json();
-                    setAgents(data);
+                    setAgents(Array.isArray(data.agents) ? data.agents : []);
                 }
             } catch (err) {
                 console.error("Failed to fetch agents:", err);
@@ -164,22 +173,25 @@ export default function ProvisionsPage() {
                         <div className="space-y-6">
                             <h3 className="text-lg font-medium" style={{ color: `rgb(var(--theme-text))` }}>Step 1: Select Target Instance</h3>
                             <div className="grid grid-cols-1 gap-4">
-                                {agents.map(agent => (
+                                {agents.map((agent) => {
+                                    const aid = agent.agent_id ?? agent.id ?? "";
+                                    return (
                                     <div
-                                        key={agent.agent_id}
-                                        onClick={() => setSelectedAgent(agent.agent_id)}
-                                        className={`p-4 border rounded-lg cursor-pointer transition-all flex items-center justify-between ${selectedAgent === agent.agent_id ? 'border-primary bg-primary/5' : 'border-neutral-800 hover:border-neutral-600'}`}
+                                        key={aid}
+                                        onClick={() => setSelectedAgent(aid)}
+                                        className={`p-4 border rounded-lg cursor-pointer transition-all flex items-center justify-between ${selectedAgent === aid ? 'border-primary bg-primary/5' : 'border-neutral-800 hover:border-neutral-600'}`}
                                     >
                                         <div className="flex items-center gap-3">
                                             <Server className="h-5 w-5 text-neutral-400" />
                                             <div>
                                                 <p className="font-medium" style={{ color: `rgb(var(--theme-text))` }}>{agent.hostname}</p>
-                                                <p className="text-xs text-neutral-500">{agent.ip} | ID: {agent.agent_id ? serverIdForDisplay(agent.agent_id) : ""}</p>
+                                                <p className="text-xs text-neutral-500">{agent.ip} | ID: {aid ? serverIdForDisplay(aid) : ""}</p>
                                             </div>
                                         </div>
-                                        {selectedAgent === agent.agent_id && <Check className="h-5 w-5 text-primary" />}
+                                        {selectedAgent === aid && <Check className="h-5 w-5 text-primary" />}
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                             <div className="flex justify-end">
                                 <Button disabled={!selectedAgent} onClick={() => setStep(2)}>

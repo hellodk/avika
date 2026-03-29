@@ -49,12 +49,12 @@ func (srv *server) handleStageConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "stage_config", "config", req.TargetID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(user.Username, "stage_config", "config", req.TargetID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"path": req.ConfigPath,
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(staged)
+	_ = json.NewEncoder(w).Encode(staged)
 }
 
 // handleGetStagedConfig handles GET /api/staging/config
@@ -75,12 +75,12 @@ func (srv *server) handleGetStagedConfig(w http.ResponseWriter, r *http.Request)
 
 	if staged == nil {
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"status": "no staged config"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "no staged config"})
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(staged)
+	_ = json.NewEncoder(w).Encode(staged)
 }
 
 // handleDiscardStagedConfig handles DELETE /api/staging/config
@@ -99,5 +99,5 @@ func (srv *server) handleDiscardStagedConfig(w http.ResponseWriter, r *http.Requ
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "discarded"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "discarded"})
 }

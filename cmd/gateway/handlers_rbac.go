@@ -71,7 +71,7 @@ func (srv *server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(projects)
+	_ = json.NewEncoder(w).Encode(projects)
 }
 
 // handleCreateProject handles POST /api/projects
@@ -132,7 +132,7 @@ func (srv *server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(project)
+	_ = json.NewEncoder(w).Encode(project)
 }
 
 // handleGetProject handles GET /api/projects/:id
@@ -167,7 +167,7 @@ func (srv *server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(project)
+	_ = json.NewEncoder(w).Encode(project)
 }
 
 // handleUpdateProject handles PUT /api/projects/:id
@@ -213,7 +213,7 @@ func (srv *server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
 }
 
 // handleDeleteProject handles DELETE /api/projects/:id
@@ -246,7 +246,7 @@ func (srv *server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 	_ = srv.db.CreateAuditLog(user.Username, "delete", "project", projectID, r.RemoteAddr, r.UserAgent(), nil)
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 }
 
 // ============================================================================
@@ -296,7 +296,7 @@ func (srv *server) handleListEnvironments(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(envs)
+	_ = json.NewEncoder(w).Encode(envs)
 }
 
 // handleListProjectGroups handles GET /api/projects/:id/groups (all groups in project, for drift compare etc.)
@@ -329,7 +329,7 @@ func (srv *server) handleListProjectGroups(w http.ResponseWriter, r *http.Reques
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(groups)
+	_ = json.NewEncoder(w).Encode(groups)
 }
 
 // handleCreateEnvironment handles POST /api/projects/:id/environments
@@ -396,7 +396,7 @@ func (srv *server) handleCreateEnvironment(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(env)
+	_ = json.NewEncoder(w).Encode(env)
 }
 
 // handleUpdateEnvironment handles PUT /api/environments/:id
@@ -450,7 +450,7 @@ func (srv *server) handleUpdateEnvironment(w http.ResponseWriter, r *http.Reques
 	})
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
 }
 
 // handleDeleteEnvironment handles DELETE /api/environments/:id
@@ -487,10 +487,10 @@ func (srv *server) handleDeleteEnvironment(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "delete", "environment", envID, r.RemoteAddr, r.UserAgent(), nil)
+	_ = srv.db.CreateAuditLog(user.Username, "delete", "environment", envID, r.RemoteAddr, r.UserAgent(), nil)
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 }
 
 // ============================================================================
@@ -547,12 +547,12 @@ func (srv *server) handleAssignServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "assign", "server", agentID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(user.Username, "assign", "server", agentID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"environment_id": req.EnvironmentID,
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(assignment)
+	_ = json.NewEncoder(w).Encode(assignment)
 }
 
 // handleUnassignServer handles DELETE /api/servers/:agentId/assign
@@ -600,10 +600,10 @@ func (srv *server) handleUnassignServer(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "unassign", "server", agentID, r.RemoteAddr, r.UserAgent(), nil)
+	_ = srv.db.CreateAuditLog(user.Username, "unassign", "server", agentID, r.RemoteAddr, r.UserAgent(), nil)
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "unassigned"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "unassigned"})
 }
 
 // handleListServerAssignments handles GET /api/server-assignments
@@ -625,7 +625,7 @@ func (srv *server) handleListServerAssignments(w http.ResponseWriter, r *http.Re
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"assignments": assignments,
 	})
 }
@@ -656,7 +656,7 @@ func (srv *server) handleListUnassignedServers(w http.ResponseWriter, r *http.Re
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(agents)
+	_ = json.NewEncoder(w).Encode(agents)
 }
 
 // handleUpdateServerTags handles PUT /api/servers/:agentId/tags
@@ -705,7 +705,7 @@ func (srv *server) handleUpdateServerTags(w http.ResponseWriter, r *http.Request
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
 }
 
 // ============================================================================
@@ -741,7 +741,7 @@ func (srv *server) handleListTeams(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(teams)
+	_ = json.NewEncoder(w).Encode(teams)
 }
 
 // handleCreateTeam handles POST /api/teams
@@ -789,13 +789,13 @@ func (srv *server) handleCreateTeam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "create", "team", team.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(user.Username, "create", "team", team.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"name": req.Name,
 	})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(team)
+	_ = json.NewEncoder(w).Encode(team)
 }
 
 // handleGetTeam handles GET /api/teams/:id
@@ -833,7 +833,7 @@ func (srv *server) handleGetTeam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(team)
+	_ = json.NewEncoder(w).Encode(team)
 }
 
 // handleUpdateTeam handles PUT /api/teams/:id
@@ -875,12 +875,12 @@ func (srv *server) handleUpdateTeam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "update", "team", teamID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(user.Username, "update", "team", teamID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"name": req.Name,
 	})
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
 }
 
 // handleDeleteTeam handles DELETE /api/teams/:id
@@ -910,10 +910,10 @@ func (srv *server) handleDeleteTeam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "delete", "team", teamID, r.RemoteAddr, r.UserAgent(), nil)
+	_ = srv.db.CreateAuditLog(user.Username, "delete", "team", teamID, r.RemoteAddr, r.UserAgent(), nil)
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 }
 
 // handleListTeamMembers handles GET /api/teams/:id/members
@@ -951,7 +951,7 @@ func (srv *server) handleListTeamMembers(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(members)
+	_ = json.NewEncoder(w).Encode(members)
 }
 
 // handleAddTeamMember handles POST /api/teams/:id/members
@@ -1002,13 +1002,13 @@ func (srv *server) handleAddTeamMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "add_member", "team", teamID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(user.Username, "add_member", "team", teamID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"member_username": req.Username,
 		"role":            string(req.Role),
 	})
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "added"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "added"})
 }
 
 // handleRemoveTeamMember handles DELETE /api/teams/:id/members/:username
@@ -1042,12 +1042,12 @@ func (srv *server) handleRemoveTeamMember(w http.ResponseWriter, r *http.Request
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "remove_member", "team", teamID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(user.Username, "remove_member", "team", teamID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"member_username": username,
 	})
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "removed"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "removed"})
 }
 
 // handleGrantProjectAccess handles POST /api/teams/:id/projects
@@ -1095,13 +1095,13 @@ func (srv *server) handleGrantProjectAccess(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "grant_access", "team_project", teamID+":"+req.ProjectID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(user.Username, "grant_access", "team_project", teamID+":"+req.ProjectID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"project_id": req.ProjectID,
 		"permission": string(req.Permission),
 	})
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "granted"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "granted"})
 }
 
 // handleRevokeProjectAccess handles DELETE /api/teams/:id/projects/:projectId
@@ -1132,10 +1132,10 @@ func (srv *server) handleRevokeProjectAccess(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "revoke_access", "team_project", teamID+":"+projectID, r.RemoteAddr, r.UserAgent(), nil)
+	_ = srv.db.CreateAuditLog(user.Username, "revoke_access", "team_project", teamID+":"+projectID, r.RemoteAddr, r.UserAgent(), nil)
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "revoked"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "revoked"})
 }
 
 // handleListTeamProjects handles GET /api/teams/:id/projects
@@ -1173,7 +1173,7 @@ func (srv *server) handleListTeamProjects(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(access)
+	_ = json.NewEncoder(w).Encode(access)
 }
 
 // ============================================================================
@@ -1240,7 +1240,7 @@ func (srv *server) handleCreateEnrollmentToken(w http.ResponseWriter, r *http.Re
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "create", "enrollment_token", token.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(user.Username, "create", "enrollment_token", token.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"environment_id": envID,
 	})
 
@@ -1257,7 +1257,7 @@ func (srv *server) handleCreateEnrollmentToken(w http.ResponseWriter, r *http.Re
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // handleListEnrollmentTokens handles GET /api/environments/:id/enrollment-tokens
@@ -1302,7 +1302,7 @@ func (srv *server) handleListEnrollmentTokens(w http.ResponseWriter, r *http.Req
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(tokens)
+	_ = json.NewEncoder(w).Encode(tokens)
 }
 
 // handleDeleteEnrollmentToken handles DELETE /api/enrollment-tokens/:id
@@ -1332,10 +1332,10 @@ func (srv *server) handleDeleteEnrollmentToken(w http.ResponseWriter, r *http.Re
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "delete", "enrollment_token", tokenID, r.RemoteAddr, r.UserAgent(), nil)
+	_ = srv.db.CreateAuditLog(user.Username, "delete", "enrollment_token", tokenID, r.RemoteAddr, r.UserAgent(), nil)
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 }
 
 // handleValidateEnrollmentToken handles POST /api/enrollment-tokens/validate
@@ -1380,7 +1380,7 @@ func (srv *server) handleValidateEnrollmentToken(w http.ResponseWriter, r *http.
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // GET /api/audit
@@ -1416,5 +1416,5 @@ func (srv *server) handleListAuditLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(logs)
+	_ = json.NewEncoder(w).Encode(logs)
 }

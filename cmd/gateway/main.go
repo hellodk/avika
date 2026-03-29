@@ -1944,7 +1944,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// OIDC status endpoint (always available so frontend knows if SSO is enabled)
 	mux.HandleFunc("/api/auth/sso-config", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"oidc_enabled": cfg.OIDC.Enabled,
 			"ldap_enabled": cfg.LDAP.Enabled,
 			"saml_enabled": cfg.SAML.Enabled,
@@ -2247,7 +2247,7 @@ func (srv *server) handleServerRealtimeStats(w http.ResponseWriter, r *http.Requ
 	}
 	stats := srv.realtimeAggregator.Stats(agentID, windowSec)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	_ = json.NewEncoder(w).Encode(stats)
 }
 
 // handleGroupRealtimeStats returns sliding-window real-time stats for a group (merged from all agents).
@@ -2286,7 +2286,7 @@ func (srv *server) handleGroupRealtimeStats(w http.ResponseWriter, r *http.Reque
 	}
 	stats := srv.realtimeAggregator.StatsGroup(agentIDs, windowSec)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	_ = json.NewEncoder(w).Encode(stats)
 }
 
 // handleGroupLogsStream streams merged logs from all agents in a group as SSE (Radar-style).
@@ -2879,7 +2879,7 @@ func (srv *server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func (srv *server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
@@ -2934,7 +2934,7 @@ func (srv *server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request) {
@@ -3074,7 +3074,9 @@ func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		log.Printf("failed to write response: %v", err)
+	}
 }
 
 func mustParseUint(s string) uint64 {

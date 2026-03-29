@@ -17,7 +17,9 @@ type Manager struct {
 
 func NewManager(configPath string) *Manager {
 	backupDir := filepath.Join(filepath.Dir(configPath), ".nginx-backups")
-	os.MkdirAll(backupDir, 0755)
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		log.Printf("config backup dir mkdir %s: %v", backupDir, err)
+	}
 
 	return &Manager{
 		configPath: configPath,
