@@ -82,15 +82,24 @@ async function handleMockResponse(path: string, options?: RequestInit): Promise<
     data = { gateway: { wsUrl: "ws://localhost:5021", httpUrl: "http://localhost:5021" } };
   } else if (route.startsWith("/api/analytics")) {
     data = {
-      totals: {
-        requests_total: 15420,
-        requests_2xx: 14000,
-        requests_3xx: 400,
-        requests_4xx: 800,
-        requests_5xx: 220,
-        bytes_sent: 104857600
+      summary: {
+        total_requests: 15420,
+        error_rate: 0.85,
+        avg_latency: 42,
       },
-      timeseries: []
+      request_rate: [
+        { time: "12:00", requests: 120, errors: 1 },
+        { time: "12:05", requests: 135, errors: 0 },
+      ],
+      status_distribution: [
+        { code: 200, count: 14000 },
+        { code: 404, count: 800 },
+        { code: 500, count: 220 },
+      ],
+      top_endpoints: [
+        { uri: "/api/health", requests: 5000, p95: 12, errors: 0 },
+        { uri: "/", requests: 4000, p95: 28, errors: 5 },
+      ],
     };
   } else if (route.startsWith("/api/system")) {
     data = {
