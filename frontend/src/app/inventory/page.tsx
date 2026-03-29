@@ -148,33 +148,44 @@ function InventoryPageContent() {
         setBulkDeleteDialogOpen(true);
     };
 
+    const [bulkDeleteProgress, setBulkDeleteProgress] = useState<{done: number; total: number} | null>(null);
+
     const handleBulkDeleteConfirm = async () => {
         if (selectedAgents.size === 0) return;
         setBulkDeleteDialogOpen(false);
-        setLoading(true);
         const toDelete = Array.from(selectedAgents);
         setSelectedAgents(new Set());
+        setBulkDeleteProgress({ done: 0, total: toDelete.length });
 
-        try {
-            const results = await Promise.all(
-                toDelete.map(async (agentId) => {
-                    try {
-                        const res = await apiFetch(`/api/servers/${encodeURIComponent(agentId)}`, { method: 'DELETE' });
-                        return res.ok ? "success" : "fail";
-                    } catch {
-                        return "fail";
-                    }
-                })
-            );
-            const successCount = results.filter(r => r === "success").length;
-            const failCount = results.length - successCount;
-            toast.success(`Bulk remove completed`, {
-                description: `Successfully removed ${successCount} agents. ${failCount} failed.`
-            });
-            await fetchAgents();
-        } finally {
-            setLoading(false);
+        let successCount = 0;
+        let failCount = 0;
+        for (let i = 0; i < toDelete.length; i++) {
+            try {
+                const res = await apiFetch(`/api/servers/${encodeURIComponent(toDelete[i])}`, { method: 'DELETE' });
+                if (res.ok) successCount++; else failCount++;
+            } catch {
+                failCount++;
+            }
+            setBulkDeleteProgress({ done: i + 1, total: toDelete.length });
         }
+
+        setBulkDeleteProgress(null);
+        toast.success(`Bulk remove completed`, {
+            description: `Removed ${successCount} agents.${failCount > 0 ? ` ${failCount} failed.` : ''}`
+        });
+        await fetchAgents();
+    };
+
+    const handleCleanStaleAgents = async () => {
+        const now = Math.floor(Date.now() / 1000);
+        const sevenDaysAgo = now - 7 * 24 * 60 * 60;
+        const stale = instances.filter(a => a.last_seen && parseInt(a.last_seen) < sevenDaysAgo);
+        if (stale.length === 0) {
+            toast.info("No stale agents found", { description: "All agents were seen within the last 7 days." });
+            return;
+        }
+        setSelectedAgents(new Set(stale.map(a => a.agent_id)));
+        setBulkDeleteDialogOpen(true);
     };
 
     const handleBulkUpdate = async () => {
@@ -335,6 +346,10 @@ function InventoryPageContent() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={handleCleanStaleAgents} title="Remove agents offline for 7+ days">
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Clean Stale
+                    </Button>
                     <RefreshButton
                         loading={loading}
                         onRefresh={async () => {
@@ -345,6 +360,20 @@ function InventoryPageContent() {
                     />
                 </div>
             </div>
+
+            {bulkDeleteProgress && (
+                <div className="flex items-center gap-3 p-3 rounded-lg border" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
+                    <RefreshCw className="h-4 w-4 animate-spin text-blue-500" />
+                    <div className="flex-1">
+                        <p className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text))' }}>
+                            Removing agents... {bulkDeleteProgress.done}/{bulkDeleteProgress.total}
+                        </p>
+                        <div className="h-1.5 rounded-full mt-1 overflow-hidden" style={{ background: 'rgb(var(--theme-border))' }}>
+                            <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${(bulkDeleteProgress.done / bulkDeleteProgress.total) * 100}%` }} />
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <AgentFleetTable
                 instances={instances}

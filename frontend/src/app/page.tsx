@@ -115,11 +115,30 @@ export default function Home() {
                 filterParams = `&project_id=${selectedProject.id}`;
             }
 
-            // Fetch Agent Count
+            // Fetch Agent Count (filtered by project/environment if selected)
             const serverRes = await apiFetch('/api/servers');
             if (serverRes.ok) {
                 const data = await serverRes.json();
-                const agents = Array.isArray(data.agents) ? data.agents : [];
+                let agents = Array.isArray(data.agents) ? data.agents : [];
+
+                // Filter agents by project/environment assignment
+                if (selectedProject || selectedEnvironment) {
+                    const assignRes = await apiFetch('/api/server-assignments');
+                    if (assignRes.ok) {
+                        const assignData = await assignRes.json();
+                        const assignments: Record<string, any> = {};
+                        for (const a of (assignData.assignments || [])) {
+                            assignments[a.agent_id] = a;
+                        }
+                        agents = agents.filter((a: any) => {
+                            const assign = assignments[a.agent_id];
+                            if (!assign) return false;
+                            if (selectedEnvironment) return assign.environment_id === selectedEnvironment.id;
+                            return true; // project-level filter handled by assignment existence
+                        });
+                    }
+                }
+
                 setAgentCount(agents.length);
                 const now = Math.floor(Date.now() / 1000);
                 const online = agents.filter((a: any) => !a.last_seen || (now - parseInt(a.last_seen)) < 180).length;

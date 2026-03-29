@@ -1946,7 +1946,7 @@ func (db *ClickHouseDB) GetGeoData(ctx context.Context, window string) (*GeoData
 			countIf(status >= 400) as errors,
 			avg(request_time) * 1000 as avg_latency
 		FROM nginx_analytics.access_logs
-		WHERE timestamp >= ? AND country != '' AND latitude != 0
+		WHERE timestamp >= ? AND country != '' AND country_code != 'XX' AND latitude != 0
 		GROUP BY country, country_code, city, latitude, longitude
 		ORDER BY requests DESC
 		LIMIT 100
@@ -1974,7 +1974,7 @@ func (db *ClickHouseDB) GetGeoData(ctx context.Context, window string) (*GeoData
 			countIf(status >= 400) as errors,
 			sum(body_bytes_sent) as bandwidth
 		FROM nginx_analytics.access_logs
-		WHERE timestamp >= ? AND country != ''
+		WHERE timestamp >= ? AND country != '' AND country_code != 'XX'
 		GROUP BY country, country_code
 		ORDER BY requests DESC
 		LIMIT 50
@@ -2039,7 +2039,7 @@ func (db *ClickHouseDB) GetGeoData(ctx context.Context, window string) (*GeoData
 			request_uri,
 			status
 		FROM nginx_analytics.access_logs
-		WHERE timestamp >= ? AND country != '' AND latitude != 0
+		WHERE timestamp >= ? AND country != '' AND country_code != 'XX' AND latitude != 0
 		ORDER BY timestamp DESC
 		LIMIT 50
 	`
@@ -2064,7 +2064,7 @@ func (db *ClickHouseDB) GetGeoData(ctx context.Context, window string) (*GeoData
 			uniqExact(city) as cities,
 			count(*) as total
 		FROM nginx_analytics.access_logs
-		WHERE timestamp >= ? AND country != ''
+		WHERE timestamp >= ? AND country != '' AND country_code != 'XX'
 	`
 	var countries, cities, total uint64
 	if err := db.conn.QueryRow(ctx, querySummary, startTime).Scan(&countries, &cities, &total); err != nil {
@@ -2132,7 +2132,7 @@ func (db *ClickHouseDB) GetGeoDataFiltered(ctx context.Context, window string, a
 			countIf(status >= 400) as errors,
 			avg(request_time) * 1000 as avg_latency
 		FROM nginx_analytics.access_logs
-		WHERE timestamp >= ? AND country != '' AND latitude != 0 AND %s
+		WHERE timestamp >= ? AND country != '' AND country_code != 'XX' AND latitude != 0 AND %s
 		GROUP BY country, country_code, city, latitude, longitude
 		ORDER BY requests DESC
 		LIMIT 100
@@ -2160,7 +2160,7 @@ func (db *ClickHouseDB) GetGeoDataFiltered(ctx context.Context, window string, a
 			countIf(status >= 400) as errors,
 			sum(body_bytes_sent) as bandwidth
 		FROM nginx_analytics.access_logs
-		WHERE timestamp >= ? AND country != '' AND %s
+		WHERE timestamp >= ? AND country != '' AND country_code != 'XX' AND %s
 		GROUP BY country, country_code
 		ORDER BY requests DESC
 		LIMIT 50
@@ -2225,7 +2225,7 @@ func (db *ClickHouseDB) GetGeoDataFiltered(ctx context.Context, window string, a
 			request_uri,
 			status
 		FROM nginx_analytics.access_logs
-		WHERE timestamp >= ? AND country != '' AND latitude != 0 AND %s
+		WHERE timestamp >= ? AND country != '' AND country_code != 'XX' AND latitude != 0 AND %s
 		ORDER BY timestamp DESC
 		LIMIT 50
 	`, agentClause)
@@ -2250,7 +2250,7 @@ func (db *ClickHouseDB) GetGeoDataFiltered(ctx context.Context, window string, a
 			uniqExact(city) as cities,
 			count(*) as total
 		FROM nginx_analytics.access_logs
-		WHERE timestamp >= ? AND country != '' AND %s
+		WHERE timestamp >= ? AND country != '' AND country_code != 'XX' AND %s
 	`, agentClause)
 	var countries, cities, total uint64
 	if err := db.conn.QueryRow(ctx, querySummary, agentArgs...).Scan(&countries, &cities, &total); err != nil {
