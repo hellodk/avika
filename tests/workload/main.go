@@ -24,21 +24,27 @@ import (
 	"sync/atomic"
 	"time"
 
+	"crypto/x509"
+
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 // ── Flags ────────────────────────────────────────────────────────────────────
 
 var (
-	configFile = flag.String("config", "tests/workload/config.json", "Path to workload config")
-	duration   = flag.Duration("duration", 5*time.Minute, "Real-time traffic duration")
-	totalRPS   = flag.Int("rps", 500, "Total requests per second across all agents")
-	backfill   = flag.Duration("backfill", 0, "Historical backfill window (e.g. 24h, 7d). Inserts past data rapidly.")
-	setupOnly  = flag.Bool("setup-only", false, "Only create projects/environments")
-	skipSetup  = flag.Bool("skip-setup", false, "Skip project/environment setup")
-	report     = flag.Duration("report", 10*time.Second, "Metrics report interval")
+	configFile  = flag.String("config", "tests/workload/config.json", "Path to workload config")
+	duration    = flag.Duration("duration", 5*time.Minute, "Real-time traffic duration")
+	totalRPS    = flag.Int("rps", 500, "Total requests per second across all agents")
+	backfill    = flag.Duration("backfill", 0, "Historical backfill window (e.g. 24h, 7d). Inserts past data rapidly.")
+	setupOnly   = flag.Bool("setup-only", false, "Only create projects/environments")
+	skipSetup   = flag.Bool("skip-setup", false, "Skip project/environment setup")
+	report      = flag.Duration("report", 10*time.Second, "Metrics report interval")
+	enableTLS   = flag.Bool("tls", false, "Enable TLS for gRPC connection")
+	tlsCA       = flag.String("tls-ca", "", "CA certificate path (default: certs/ca.crt if exists, or TLS_CA_CERT_FILE env)")
+	tlsInsecure = flag.Bool("tls-insecure", false, "Skip TLS certificate verification")
 )
 
 // ── Metrics ──────────────────────────────────────────────────────────────────
@@ -313,6 +319,51 @@ func init() {
 	}
 }
 
+// resolveGRPCCreds builds gRPC transport credentials based on TLS flags.
+// Resolution: -tls-ca flag → TLS_CA_CERT_FILE env → certs/ca.crt (if exists) → skip verify
+func resolveGRPCCreds() grpc.DialOption {
+	if !*enableTLS {
+		return grpc.WithTransportCredentials(insecure.NewCredentials())
+	}
+
+	tlsConfig := &tls.Config{}
+
+	caPath := *tlsCA
+	if caPath == "" {
+		caPath = os.Getenv("TLS_CA_CERT_FILE")
+	}
+	if caPath == "" {
+		if _, err := os.Stat("certs/ca.crt"); err == nil {
+			caPath = "certs/ca.crt"
+		}
+	}
+
+	if caPath != "" {
+		caCert, err := os.ReadFile(caPath)
+		if err != nil {
+			log.Printf("Warning: Could not read CA file %s: %v. Falling back to skip-verify.", caPath, err)
+			tlsConfig.InsecureSkipVerify = true
+		} else {
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM(caCert) {
+				log.Printf("Warning: CA file %s contains no valid certificates. Falling back to skip-verify.", caPath)
+				tlsConfig.InsecureSkipVerify = true
+			} else {
+				tlsConfig.RootCAs = pool
+				log.Printf("TLS enabled with CA: %s", caPath)
+			}
+		}
+	} else {
+		log.Printf("TLS enabled with system certificate pool")
+	}
+
+	if *tlsInsecure {
+		tlsConfig.InsecureSkipVerify = true
+	}
+
+	return grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
+}
+
 func buildUASel(entries []userAgentEntry) []int {
 	var sel []int
 	for i, e := range entries {
@@ -495,7 +546,7 @@ func runBackfillAgent(ctx context.Context, cancel context.CancelFunc, cfg *Confi
 
 func connectAgent(ctx context.Context, cfg *Config, agentID, project, env, nginxVer string) pb.Commander_ConnectClient {
 	conn, err := grpc.Dial(cfg.Gateway.GRPCAddress,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		resolveGRPCCreds(),
 		grpc.WithWriteBufferSize(512*1024),
 		grpc.WithReadBufferSize(512*1024),
 	)

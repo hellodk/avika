@@ -116,6 +116,7 @@ Environment hooks include `ENABLE_TLS`, `TLS_CERT_FILE`, `TLS_KEY_FILE`, `TLS_CA
 - **`frontend/src/app/api/servers/route.ts`** proxies to **`GATEWAY_HTTP_URL/api/servers`** with the browser session cookie (`avika_session`, or full `Cookie` header fallback).
 - Matches cookie-based auth used by other Next.js → gateway routes.
 - **Rollback:** set **`SERVERS_LIST_USE_GRPC=true`** to use the previous gRPC `ListAgents` path (still respects TLS/mTLS below).
+- **Agent removal:** the gateway exposes **`DELETE /api/servers/{agentId}`** (cookie auth); the Next.js BFF proxies to it when delete is on the HTTP path. **`SERVERS_DELETE_USE_GRPC`** defaults to follow **`SERVERS_LIST_USE_GRPC`** when unset (see `frontend/src/lib/servers-bff-transport.ts`). See [inventory-bff-http-grpc-asymmetry.md](./inventory-bff-http-grpc-asymmetry.md).
 
 ### 7.2 gRPC TLS and mTLS from Next.js
 

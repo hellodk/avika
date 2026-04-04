@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -25,6 +26,13 @@ type ClickHouseDB struct {
 	nginxChan chan nginxBatchItem
 	gwChan    chan gwBatchItem
 	geoLookup *geo.GeoIPLookup
+
+	// Drop counters for rate-limited logging (avoid per-record spam under load)
+	droppedLogs   atomic.Int64
+	droppedSpans  atomic.Int64
+	droppedSys    atomic.Int64
+	droppedNginx  atomic.Int64
+	droppedGw     atomic.Int64
 }
 
 type logBatchItem struct {
@@ -76,8 +84,16 @@ var (
 	gwBufferSize    = getEnvInt("CH_GW_BUFFER_SIZE", 1000)
 
 	// Batch flush sizes
-	logBatchSize  = getEnvInt("CH_LOG_BATCH_SIZE", 10000)
-	spanBatchSize = getEnvInt("CH_SPAN_BATCH_SIZE", 20000)
+	logBatchSize   = getEnvInt("CH_LOG_BATCH_SIZE", 10000)
+	spanBatchSize  = getEnvInt("CH_SPAN_BATCH_SIZE", 20000)
+	sysBatchSize   = getEnvInt("CH_SYS_BATCH_SIZE", 1000)
+	nginxBatchSize = getEnvInt("CH_NGINX_BATCH_SIZE", 1000)
+	gwBatchSize    = getEnvInt("CH_GW_BATCH_SIZE", 100)
+
+	// Flush intervals (milliseconds)
+	sysFlushMs   = getEnvInt("CH_SYS_FLUSH_MS", 2000)
+	nginxFlushMs = getEnvInt("CH_NGINX_FLUSH_MS", 2000)
+	gwFlushMs    = getEnvInt("CH_GW_FLUSH_MS", 5000)
 
 	// Connection pool
 	maxOpenConns = getEnvInt("CH_MAX_OPEN_CONNS", 20)
@@ -110,9 +126,11 @@ func formatBytes[T int64 | uint64](b T) string {
 
 func NewClickHouseDB(addr, username, password string) (*ClickHouseDB, error) {
 	// Log configuration for debugging
-	log.Printf("ClickHouse config: buffers(log=%d, span=%d, sys=%d, nginx=%d, gw=%d) batches(log=%d, span=%d) conns(open=%d, idle=%d)",
+	log.Printf("ClickHouse config: buffers(log=%d, span=%d, sys=%d, nginx=%d, gw=%d) batches(log=%d, span=%d, sys=%d, nginx=%d, gw=%d) flush_ms(sys=%d, nginx=%d, gw=%d) conns(open=%d, idle=%d)",
 		logBufferSize, spanBufferSize, sysBufferSize, nginxBufferSize, gwBufferSize,
-		logBatchSize, spanBatchSize, maxOpenConns, maxIdleConns)
+		logBatchSize, spanBatchSize, sysBatchSize, nginxBatchSize, gwBatchSize,
+		sysFlushMs, nginxFlushMs, gwFlushMs,
+		maxOpenConns, maxIdleConns)
 
 	// Debug: log connection parameters (password redacted)
 	log.Printf("ClickHouse connecting to: %s user=%s password=***REDACTED***", addr, username)
@@ -169,6 +187,7 @@ func NewClickHouseDB(addr, username, password string) (*ClickHouseDB, error) {
 	go db.runSysFlusher()
 	go db.runNginxFlusher()
 	go db.runGwFlusher()
+	go db.runDropReporter()
 
 	return db, nil
 }
@@ -414,7 +433,16 @@ func (db *ClickHouseDB) InsertAccessLog(entry *pb.LogEntry, agentID string) erro
 	case db.logChan <- item:
 		return nil
 	default:
-		return fmt.Errorf("access log queue full, dropping record")
+		// Back-pressure: wait briefly before dropping
+		t := time.NewTimer(50 * time.Millisecond)
+		defer t.Stop()
+		select {
+		case db.logChan <- item:
+			return nil
+		case <-t.C:
+			db.droppedLogs.Add(1)
+			return nil // Error is reported periodically by runDropReporter, not per-record
+		}
 	}
 }
 
@@ -453,7 +481,7 @@ func (db *ClickHouseDB) InsertSpans(entry *pb.LogEntry, agentID string, requestT
 		agentID: agentID,
 	}:
 	default:
-		// Drop span if queue full
+		db.droppedSpans.Add(1)
 	}
 
 	// Upstream Span
@@ -1630,7 +1658,7 @@ func (db *ClickHouseDB) flushLogs(batch []logBatchItem) {
 		client_ip, country, country_code, city, region, latitude, longitude, timezone, isp
 	)`)
 	if err != nil {
-		log.Printf("FlushLogs: PrepareBatch failed: %v", err)
+		log.Printf("ClickHouse access log batch prepare failed: %v", err)
 		return
 	}
 
@@ -1645,13 +1673,13 @@ func (db *ClickHouseDB) flushLogs(batch []logBatchItem) {
 			item.entry.UpstreamStatus, item.entry.UserAgent, item.entry.Referer,
 			item.clientIP, item.country, item.countryCode, item.city, item.region,
 			item.latitude, item.longitude, item.timezone, item.isp); err != nil {
-			log.Printf("FlushLogs: Append failed: %v", err)
+			log.Printf("ClickHouse access log batch append failed: %v", err)
 			return
 		}
 	}
 
 	if err := b.Send(); err != nil {
-		log.Printf("FlushLogs: Send failed: %v", err)
+		log.Printf("ClickHouse access log batch send failed: %v", err)
 	}
 }
 
@@ -1688,23 +1716,23 @@ func (db *ClickHouseDB) flushSpans(batch []spanBatchItem) {
 
 	for _, s := range batch {
 		if err := b.Append(s.traceID, s.spanID, s.parent, s.name, s.start, s.end, s.attrs, s.agentID); err != nil {
-			log.Printf("flushSpans: Append failed: %v", err)
+			log.Printf("ClickHouse span batch append failed: %v", err)
 			return
 		}
 	}
 	if err := b.Send(); err != nil {
-		log.Printf("flushSpans: Send failed: %v", err)
+		log.Printf("ClickHouse span batch send failed: %v", err)
 	}
 }
 
 func (db *ClickHouseDB) runSysFlusher() {
-	ticker := time.NewTicker(5 * time.Second)
-	batch := make([]sysBatchItem, 0, 100)
+	ticker := time.NewTicker(time.Duration(sysFlushMs) * time.Millisecond)
+	batch := make([]sysBatchItem, 0, sysBatchSize)
 	for {
 		select {
 		case item := <-db.sysChan:
 			batch = append(batch, item)
-			if len(batch) >= 100 {
+			if len(batch) >= sysBatchSize {
 				db.flushSys(batch)
 				batch = batch[:0]
 			}
@@ -1721,7 +1749,7 @@ func (db *ClickHouseDB) flushSys(batch []sysBatchItem) {
 	ctx := context.Background()
 	b, err := db.conn.PrepareBatch(ctx, "INSERT INTO nginx_analytics.system_metrics (timestamp, instance_id, cpu_usage, memory_usage, memory_total, memory_used, network_rx_bytes, network_tx_bytes, network_rx_rate, network_tx_rate, cpu_user, cpu_system, cpu_iowait)")
 	if err != nil {
-		log.Printf("Failed to prepare system metrics batch: %v", err)
+		log.Printf("ClickHouse system metrics batch prepare failed: %v", err)
 		return
 	}
 	for _, item := range batch {
@@ -1740,23 +1768,23 @@ func (db *ClickHouseDB) flushSys(batch []sysBatchItem) {
 			float32(item.entry.CpuSystemPercent),
 			float32(item.entry.CpuIowaitPercent),
 		); err != nil {
-			log.Printf("Failed to append system metrics: %v", err)
+			log.Printf("ClickHouse system metrics batch append failed: %v", err)
 			return
 		}
 	}
 	if err := b.Send(); err != nil {
-		log.Printf("Failed to send system metrics batch: %v", err)
+		log.Printf("ClickHouse system metrics batch send failed: %v", err)
 	}
 }
 
 func (db *ClickHouseDB) runNginxFlusher() {
-	ticker := time.NewTicker(5 * time.Second)
-	batch := make([]nginxBatchItem, 0, 100)
+	ticker := time.NewTicker(time.Duration(nginxFlushMs) * time.Millisecond)
+	batch := make([]nginxBatchItem, 0, nginxBatchSize)
 	for {
 		select {
 		case item := <-db.nginxChan:
 			batch = append(batch, item)
-			if len(batch) >= 100 {
+			if len(batch) >= nginxBatchSize {
 				db.flushNginx(batch)
 				batch = batch[:0]
 			}
@@ -1777,7 +1805,7 @@ func (db *ClickHouseDB) flushNginx(batch []nginxBatchItem) {
 		status_2xx, status_3xx, status_4xx, status_5xx, bytes_in, bytes_out
 	)`)
 	if err != nil {
-		log.Printf("Failed to prepare nginx metrics batch: %v", err)
+		log.Printf("ClickHouse NGINX metrics batch prepare failed: %v", err)
 		return
 	}
 	for _, item := range batch {
@@ -1808,22 +1836,22 @@ func (db *ClickHouseDB) flushNginx(batch []nginxBatchItem) {
 			s2xx, s3xx, s4xx, s5xx,
 			bytesIn, bytesOut,
 		); err != nil {
-			log.Printf("Failed to append nginx metrics: %v", err)
+			log.Printf("ClickHouse NGINX metrics batch append failed: %v", err)
 			return
 		}
 	}
 	if err := b.Send(); err != nil {
-		log.Printf("Failed to send nginx metrics batch: %v", err)
+		log.Printf("ClickHouse NGINX metrics batch send failed: %v", err)
 	}
 }
 func (db *ClickHouseDB) runGwFlusher() {
-	ticker := time.NewTicker(5 * time.Second)
-	batch := make([]gwBatchItem, 0, 100)
+	ticker := time.NewTicker(time.Duration(gwFlushMs) * time.Millisecond)
+	batch := make([]gwBatchItem, 0, gwBatchSize)
 	for {
 		select {
 		case item := <-db.gwChan:
 			batch = append(batch, item)
-			if len(batch) >= 100 {
+			if len(batch) >= gwBatchSize {
 				db.flushGw(batch)
 				batch = batch[:0]
 			}
@@ -1850,12 +1878,41 @@ func (db *ClickHouseDB) flushGw(batch []gwBatchItem) {
 			uint32(item.metrics.metrics.ActiveConnections), item.metrics.metrics.CpuUsage,
 			item.metrics.metrics.MemoryMb, uint32(item.metrics.metrics.Goroutines),
 			item.metrics.metrics.DbLatency); err != nil {
-			log.Printf("flushGw: Append failed: %v", err)
+			log.Printf("ClickHouse gateway metrics batch append failed: %v", err)
 			return
 		}
 	}
 	if err := b.Send(); err != nil {
-		log.Printf("flushGw: Send failed: %v", err)
+		log.Printf("ClickHouse gateway metrics batch send failed: %v", err)
+	}
+}
+
+// runDropReporter logs aggregated drop counts every 5 seconds instead of per-record spam.
+func (db *ClickHouseDB) runDropReporter() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if n := db.droppedLogs.Swap(0); n > 0 {
+			log.Printf("ClickHouse access log buffer full (%d/%d). %d records dropped in the last 5s. Increase CH_LOG_BUFFER_SIZE to handle this throughput.",
+				len(db.logChan), cap(db.logChan), n)
+		}
+		if n := db.droppedSpans.Swap(0); n > 0 {
+			log.Printf("ClickHouse span buffer full (%d/%d). %d spans dropped in the last 5s. Increase CH_SPAN_BUFFER_SIZE.",
+				len(db.spanChan), cap(db.spanChan), n)
+		}
+		if n := db.droppedSys.Swap(0); n > 0 {
+			log.Printf("ClickHouse system metrics buffer full (%d/%d). %d records dropped in the last 5s. Increase CH_SYS_BUFFER_SIZE.",
+				len(db.sysChan), cap(db.sysChan), n)
+		}
+		if n := db.droppedNginx.Swap(0); n > 0 {
+			log.Printf("ClickHouse NGINX metrics buffer full (%d/%d). %d records dropped in the last 5s. Increase CH_NGINX_BUFFER_SIZE.",
+				len(db.nginxChan), cap(db.nginxChan), n)
+		}
+		if n := db.droppedGw.Swap(0); n > 0 {
+			log.Printf("ClickHouse gateway metrics buffer full (%d/%d). %d records dropped in the last 5s. Increase CH_GW_BUFFER_SIZE.",
+				len(db.gwChan), cap(db.gwChan), n)
+		}
 	}
 }
 

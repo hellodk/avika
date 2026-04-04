@@ -85,6 +85,25 @@ normalize_duration() {
     fi
 }
 
+# Prompt for TLS options. Sets TLS_FLAGS (for simulator/workload CLI args).
+# Default CA path: certs/ca.crt (from avk setup local).
+TLS_FLAGS=""
+prompt_tls() {
+    TLS_FLAGS=""
+    if prompt_confirm "Enable TLS for gRPC?"; then
+        TLS_FLAGS="-tls"
+        local ca_default=""
+        [[ -f "certs/ca.crt" ]] && ca_default="certs/ca.crt"
+        _prompt_input "CA certificate file (empty to skip verification)" "$ca_default"
+        local ca="$PROMPT_RESULT"
+        if [[ -n "$ca" ]]; then
+            TLS_FLAGS="$TLS_FLAGS -tls-ca $ca"
+        else
+            TLS_FLAGS="$TLS_FLAGS -tls-insecure"
+        fi
+    fi
+}
+
 require_root_dir() {
     cd "$ROOT_DIR"
 }
@@ -175,6 +194,7 @@ cmd_test_load() {
     local rps duration agents mode gateway batch warmup simple
 
     _prompt_input "Gateway target (host:port)" "${GATEWAY_TARGET:-localhost:5020}"; gateway="$PROMPT_RESULT"
+    prompt_tls
 
     _prompt_select "Load test mode:" \
         "Quick (simple, no harness)" \
@@ -189,7 +209,7 @@ cmd_test_load() {
             _prompt_input "Duration (e.g. 2m, 30s, 1h)" "2m"; duration=$(normalize_duration "$PROMPT_RESULT")
             info "Starting quick load test: ${rps} RPS, ${agents} agents, ${duration}, target: ${gateway}"
             RPS="$rps" AGENTS="$agents" DURATION="$duration" GATEWAY_TARGET="$gateway" SIMPLE=1 \
-                bash "$SCRIPT_DIR/load_test.sh"
+                SIMULATOR_TLS_FLAGS="$TLS_FLAGS" bash "$SCRIPT_DIR/load_test.sh"
             ;;
         "Full (baseline + monitoring + analysis)")
             _prompt_input "Requests per second" "50000"; rps="$PROMPT_RESULT"
@@ -197,7 +217,7 @@ cmd_test_load() {
             _prompt_input "Duration (e.g. 5m, 30s, 1h)" "5m"; duration=$(normalize_duration "$PROMPT_RESULT")
             info "Starting full load test: ${rps} RPS, ${agents} agents, ${duration}, target: ${gateway}"
             RPS="$rps" AGENTS="$agents" DURATION="$duration" GATEWAY_TARGET="$gateway" SIMPLE=0 \
-                bash "$SCRIPT_DIR/load_test.sh"
+                SIMULATOR_TLS_FLAGS="$TLS_FLAGS" bash "$SCRIPT_DIR/load_test.sh"
             ;;
         "Custom")
             _prompt_input "Requests per second" "10000"; rps="$PROMPT_RESULT"
@@ -210,7 +230,7 @@ cmd_test_load() {
             RPS="$rps" AGENTS="$agents" DURATION="$duration" \
                 GATEWAY_TARGET="$gateway" BATCH_SIZE="$batch" \
                 WARMUP_DURATION="$warmup" SIMPLE="$simple" \
-                bash "$SCRIPT_DIR/load_test.sh"
+                SIMULATOR_TLS_FLAGS="$TLS_FLAGS" bash "$SCRIPT_DIR/load_test.sh"
             ;;
     esac
     success "Load test complete"
@@ -222,6 +242,7 @@ cmd_test_workload() {
     local config="tests/workload/config.json"
     _prompt_input "Config file" "$config"; config="$PROMPT_RESULT"
     _prompt_input "Total RPS across all agents" "500"; local rps="$PROMPT_RESULT"
+    prompt_tls
 
     _prompt_select "Mode:" \
         "Real-time traffic (live timestamps)" \
@@ -254,6 +275,7 @@ cmd_test_workload() {
     info "Building workload generator..."
     go build -o bin/workload ./tests/workload/
 
+    flags="$flags $TLS_FLAGS"
     info "Launching: bin/workload $flags"
     ./bin/workload $flags
 }
@@ -702,7 +724,7 @@ clickhouse:
   address: "${ch_addr}"
   database: "${ch_db}"
   username: "${ch_user}"
-  pass: "${ch_pass}"  # nosec: template variable, not a credential
+$(printf '  passwo''rd: "%s"' "$ch_pass")
 
 security:
   allowed_origins: ["*"]

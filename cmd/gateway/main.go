@@ -310,7 +310,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 					go func(e *pb.LogEntry, agentID string) {
 						start := time.Now()
 						if err := s.clickhouse.InsertAccessLog(e, agentID); err != nil {
-							log.Printf("Failed to insert log to CH: %v", err)
+							log.Printf("ClickHouse access log insert failed: %v", err)
 						}
 						s.trackDBOp(start)
 					}(entry, currentSession.id)
@@ -377,7 +377,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 					go func(m *pb.NginxMetrics, agentID string) {
 						start := time.Now()
 						if err := s.clickhouse.InsertNginxMetrics(m, agentID); err != nil {
-							log.Printf("Failed to insert NGINX metrics to CH: %v", err)
+							log.Printf("ClickHouse NGINX metrics insert failed: %v", err)
 						}
 						s.trackDBOp(start)
 					}(metrics, currentSession.id)
@@ -387,7 +387,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 						go func(sm *pb.SystemMetrics, agentID string) {
 							start := time.Now()
 							if err := s.clickhouse.InsertSystemMetrics(sm, agentID); err != nil {
-								log.Printf("Failed to insert system metrics to CH: %v", err)
+								log.Printf("ClickHouse system metrics insert failed: %v", err)
 							}
 							s.trackDBOp(start)
 						}(metrics.System, currentSession.id)
@@ -2022,6 +2022,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Server Assignment API
 	mux.Handle("GET /api/server-assignments", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListServerAssignments)))
 	mux.Handle("GET /api/servers", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListAgents)))
+	mux.Handle("DELETE /api/servers/{agentId}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRemoveAgent)))
 	mux.Handle("GET /api/servers/unassigned", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListUnassignedServers)))
 	mux.Handle("POST /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAssignServer)))
 	mux.Handle("DELETE /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUnassignServer)))
@@ -2624,6 +2625,7 @@ func (srv *server) handleExportReport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Failed to generate report data: %v", err), http.StatusInternalServerError)
 		return
 	}
+	srv.enrichReportInsights(ctx, report)
 
 	pdfData, err := GeneratePDFReport(report, time.Unix(startUnix, 0), time.Unix(endUnix, 0))
 	if err != nil {
@@ -2885,6 +2887,45 @@ func (srv *server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// handleRemoveAgent handles DELETE /api/servers/{agentId} — same semantics as gRPC RemoveAgent, with session auth.
+func (srv *server) handleRemoveAgent(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	if middleware.GetUserFromContext(r.Context()) == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	raw := r.PathValue("agentId")
+	if raw == "" {
+		http.Error(w, `{"error":"agent ID required"}`, http.StatusBadRequest)
+		return
+	}
+	// Align with Next.js normalizeServerId (space → +). resolveAgentID matches display variants (e.g. + vs -).
+	agentID := strings.ReplaceAll(raw, " ", "+")
+
+	resp, err := srv.RemoveAgent(r.Context(), &pb.RemoveAgentRequest{AgentId: agentID})
+	if err != nil {
+		gatewayLog.Warn().Err(err).Str("agent_id", agentID).Msg("HTTP RemoveAgent failed")
+		w.Header().Set("Content-Type", "application/json")
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if !resp.GetSuccess() {
+		w.WriteHeader(http.StatusBadGateway)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Gateway refused removal (agent not found or DB error)",
+		})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }
 
 func (srv *server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
