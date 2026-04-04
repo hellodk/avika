@@ -26,6 +26,7 @@ type ClickHouseDB struct {
 	nginxChan chan nginxBatchItem
 	gwChan    chan gwBatchItem
 	geoLookup *geo.GeoIPLookup
+	uaParser  *UAParser
 
 	// Drop counters for rate-limited logging (avoid per-record spam under load)
 	droppedLogs   atomic.Int64
@@ -36,17 +37,23 @@ type ClickHouseDB struct {
 }
 
 type logBatchItem struct {
-	entry       *pb.LogEntry
-	agentID     string
-	clientIP    string
-	country     string
-	countryCode string
-	city        string
-	region      string
-	latitude    float64
-	longitude   float64
-	timezone    string
-	isp         string
+	entry          *pb.LogEntry
+	agentID        string
+	clientIP       string
+	country        string
+	countryCode    string
+	city           string
+	region         string
+	latitude       float64
+	longitude      float64
+	timezone       string
+	isp            string
+	isBot          uint8
+	browserFamily  string
+	browserVersion string
+	osFamily       string
+	osVersion      string
+	deviceType     string
 }
 
 type spanBatchItem struct {
@@ -171,6 +178,15 @@ func NewClickHouseDB(addr, username, password string) (*ClickHouseDB, error) {
 		nginxChan: make(chan nginxBatchItem, nginxBufferSize),
 		gwChan:    make(chan gwBatchItem, gwBufferSize),
 		geoLookup: geo.NewGeoIPLookup(),
+	}
+
+	// Initialize UA parser for visitor analytics (browser, OS, device, bot detection)
+	uaParser, err := NewUAParser()
+	if err != nil {
+		log.Printf("Warning: UA parser initialization failed: %v. Visitor analytics will have limited data.", err)
+	} else {
+		db.uaParser = uaParser
+		log.Printf("UA parser initialized for visitor analytics")
 	}
 
 	log.Printf("GeoIP lookup initialized with well-known IP database")
@@ -426,6 +442,21 @@ func (db *ClickHouseDB) InsertAccessLog(entry *pb.LogEntry, agentID string) erro
 			item.longitude = loc.Longitude
 			item.timezone = loc.Timezone
 			item.isp = loc.ISP
+		}
+	}
+
+	// Parse user-agent for visitor analytics (browser, OS, device, bot detection)
+	if db.uaParser != nil && entry.UserAgent != "" {
+		parsed := db.uaParser.Parse(entry.UserAgent)
+		if parsed != nil {
+			item.browserFamily = parsed.BrowserFamily
+			item.browserVersion = parsed.BrowserVersion
+			item.osFamily = parsed.OSFamily
+			item.osVersion = parsed.OSVersion
+			item.deviceType = parsed.DeviceType
+			if parsed.IsBot {
+				item.isBot = 1
+			}
 		}
 	}
 
@@ -1655,7 +1686,8 @@ func (db *ClickHouseDB) flushLogs(batch []logBatchItem) {
 		timestamp, instance_id, remote_addr, request_method,
 		request_uri, status, body_bytes_sent, request_time,
 		request_id, upstream_addr, upstream_status, user_agent, referer,
-		client_ip, country, country_code, city, region, latitude, longitude, timezone, isp
+		client_ip, country, country_code, city, region, latitude, longitude, timezone, isp,
+		is_bot, browser_family, browser_version, os_family, os_version, device_type
 	)`)
 	if err != nil {
 		log.Printf("ClickHouse access log batch prepare failed: %v", err)
@@ -1672,7 +1704,9 @@ func (db *ClickHouseDB) flushLogs(batch []logBatchItem) {
 			float32(item.entry.RequestTime), item.entry.RequestId, item.entry.UpstreamAddr,
 			item.entry.UpstreamStatus, item.entry.UserAgent, item.entry.Referer,
 			item.clientIP, item.country, item.countryCode, item.city, item.region,
-			item.latitude, item.longitude, item.timezone, item.isp); err != nil {
+			item.latitude, item.longitude, item.timezone, item.isp,
+			item.isBot, item.browserFamily, item.browserVersion,
+			item.osFamily, item.osVersion, item.deviceType); err != nil {
 			log.Printf("ClickHouse access log batch append failed: %v", err)
 			return
 		}
