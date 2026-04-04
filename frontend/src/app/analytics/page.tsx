@@ -533,51 +533,43 @@ function AnalyticsView() {
                                             ))}
                                         </div>
                                     ) : (
-                                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                                            <KPICard
-                                                title="Total requests"
-                                                value={(summary.total_requests ?? 0).toLocaleString()}
-                                                delta={summary.requests_delta}
-                                                deltaLabel={getPrevPeriodLabel()}
-                                                icon={Activity}
-                                                iconColor="blue"
-                                                trend={
-                                                    summary.requests_delta === undefined
-                                                        ? undefined
-                                                        : summary.requests_delta >= 0
-                                                          ? "up"
-                                                          : "down"
-                                                }
-                                            />
-                                            <KPICard
-                                                title="Error rate"
-                                                value={`${(summary.error_rate ?? 0).toFixed(2)}%`}
-                                                subtitle={
-                                                    summary.error_rate_delta !== undefined &&
-                                                    summary.error_rate_delta !== 0
-                                                        ? `${summary.error_rate_delta >= 0 ? "+" : ""}${Number(summary.error_rate_delta).toFixed(2)} pp ${getPrevPeriodLabel()}`
-                                                        : (summary.error_rate ?? 0) > 1
-                                                          ? "Above typical threshold"
-                                                          : "Within range"
-                                                }
-                                                icon={AlertTriangle}
-                                                iconColor={(summary.error_rate ?? 0) > 1 ? "red" : "green"}
-                                            />
-                                            <KPICard
-                                                title="Avg latency"
-                                                value={`${Math.round(summary.avg_latency ?? 0)} ms`}
-                                                delta={summary.latency_delta}
-                                                deltaLabel={getPrevPeriodLabel()}
-                                                icon={Timer}
-                                                iconColor="amber"
-                                            />
-                                            <KPICard
-                                                title="Bandwidth"
-                                                value={formatBandwidth(summary.total_bandwidth ?? 0)}
-                                                subtitle="In selected window"
-                                                icon={Zap}
-                                                iconColor="purple"
-                                            />
+                                        <div className="flex flex-wrap items-center gap-4 px-4 py-3 rounded-lg border" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                                            <span className="text-sm font-medium" style={{ color: "rgb(var(--theme-text))" }}>
+                                                {(summary.total_requests ?? 0).toLocaleString()} requests
+                                            </span>
+                                            <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>|</span>
+                                            <span className={`text-sm font-medium ${(summary.error_rate ?? 0) > 1 ? "text-red-500" : "text-emerald-500"}`}>
+                                                {(summary.error_rate ?? 0).toFixed(2)}% errors
+                                            </span>
+                                            <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>|</span>
+                                            <span className="text-sm font-medium" style={{ color: "rgb(var(--theme-text))" }}>
+                                                {Math.round(summary.avg_latency ?? 0)}ms avg
+                                            </span>
+                                            <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>|</span>
+                                            <span className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                                {formatBandwidth(summary.total_bandwidth ?? 0)}
+                                            </span>
+                                            {/* Status code drill-down */}
+                                            {(analyticsData?.statusDistribution?.length ?? 0) > 0 && (
+                                                <>
+                                                    <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>|</span>
+                                                    <div className="flex items-center gap-2">
+                                                        {(analyticsData.statusDistribution || []).map((s: any) => {
+                                                            const code = s.code || s.Code || '';
+                                                            const count = s.count || s.Count || 0;
+                                                            const color = String(code).startsWith('2') ? 'text-emerald-500' :
+                                                                          String(code).startsWith('3') ? 'text-blue-500' :
+                                                                          String(code).startsWith('4') ? 'text-amber-500' :
+                                                                          'text-red-500';
+                                                            return (
+                                                                <span key={code} className={`text-xs font-mono ${color}`} title={`${code}: ${Number(count).toLocaleString()} requests`}>
+                                                                    {code}:{Number(count).toLocaleString()}
+                                                                </span>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     )}
                                 </section>

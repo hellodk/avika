@@ -444,10 +444,6 @@ function MonitoringPageContent() {
                         <Gauge className="h-4 w-4 mr-2" />
                         Performance
                     </TabsTrigger>
-                    <TabsTrigger value="system" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-                        <HardDrive className="h-4 w-4 mr-2" />
-                        System
-                    </TabsTrigger>
                     <TabsTrigger value="config" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
                         <Settings className="h-4 w-4 mr-2" />
                         Configure
@@ -504,15 +500,7 @@ function MonitoringPageContent() {
                         />
                     </div>
 
-                    {/* Secondary metrics */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                        <MetricCard title="Reading" value={latestNginx.reading || 0} icon={<Wifi className="h-4 w-4" />} colorClass="text-blue-400" />
-                        <MetricCard title="Writing" value={latestNginx.writing || 0} icon={<Activity className="h-4 w-4" />} colorClass="text-green-400" />
-                        <MetricCard title="Waiting" value={latestNginx.waiting || 0} icon={<Clock className="h-4 w-4" />} colorClass="text-yellow-400" />
-                        <MetricCard title="2xx Success" value={httpStatusSummary.success.toLocaleString()} icon={<CheckCircle className="h-4 w-4" />} colorClass="text-emerald-400" />
-                        <MetricCard title="4xx Errors" value={httpStatusSummary.notFound.toLocaleString()} icon={<AlertTriangle className="h-4 w-4" />} colorClass="text-amber-400" />
-                        <MetricCard title="5xx Errors" value={httpStatusSummary.serverError.toLocaleString()} icon={<Shield className="h-4 w-4" />} colorClass="text-rose-400" />
-                    </div>
+                    {/* Secondary metrics removed — see Connections tab for R/W/W and Traffic tab for status codes */}
 
                     {/* Request Rate & Connection Distribution */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1229,14 +1217,8 @@ function MonitoringPageContent() {
                     </Card>
                 </TabsContent>
 
-                {/* System Tab (from Analytics - system metrics) */}
-                <TabsContent value="system" className="space-y-6">
-                    <SystemMetricCards data={(data?.system_metrics?.length || 0) > 0 ? {
-                        cpu_usage_percent: data.system_metrics[data.system_metrics.length - 1].cpuUsage ?? data.system_metrics[data.system_metrics.length - 1].cpu_usage,
-                        memory_usage_percent: data.system_metrics[data.system_metrics.length - 1].memoryUsage ?? data.system_metrics[data.system_metrics.length - 1].memory_usage,
-                        network_rx_rate: data.system_metrics[data.system_metrics.length - 1].networkRxRate ?? data.system_metrics[data.system_metrics.length - 1].network_rx_rate,
-                        network_tx_rate: data.system_metrics[data.system_metrics.length - 1].networkTxRate ?? data.system_metrics[data.system_metrics.length - 1].network_tx_rate
-                    } : null} />
+                {/* System Tab removed — duplicate of Host tab. See Host tab for system metrics. */}
+                {/*
                     <div className="grid gap-4 lg:grid-cols-2">
                         <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
                             <CardHeader className="pb-2">
@@ -1294,8 +1276,7 @@ function MonitoringPageContent() {
                                 </ResponsiveContainer>
                             </div>
                         </CardContent>
-                    </Card>
-                </TabsContent>
+                */}
 
                 {/* Configure Tab */}
                 <TabsContent value="config" className="space-y-6">
