@@ -590,26 +590,31 @@ func (s *server) GetAgent(ctx context.Context, req *pb.GetAgentRequest) (*pb.Age
 }
 
 func (s *server) RemoveAgent(ctx context.Context, req *pb.RemoveAgentRequest) (*pb.RemoveAgentResponse, error) {
-	// Always remove from session if it exists
-	s.sessions.Delete(req.AgentId)
-
-	// Remove from DB (always, even if offline)
-	if err := s.db.RemoveAgent(req.AgentId); err != nil {
-		gatewayLog.Warn().Err(err).Str("agent_id", req.AgentId).Msg("Failed to remove agent from DB")
+	if req.AgentId == "" {
 		return &pb.RemoveAgentResponse{Success: false}, nil
 	}
 
-	gatewayLog.Info().Str("agent_id", req.AgentId).Msg("Agent manually removed from inventory")
+	// Resolve before mutating sessions: if we Delete(req.AgentId) first, a client using the
+	// canonical agent_id leaves no session entry and resolveAgentID fails, so we incorrectly
+	// returned Success=false after the row was already removed (and some code paths never
+	// removed the canonical session key when the client sent a normalized id).
 	resolved, ok := s.resolveAgentID(req.AgentId)
-	if !ok {
+
+	s.sessions.Delete(req.AgentId)
+	if ok {
+		s.sessions.Delete(resolved)
+	}
+
+	dbID := req.AgentId
+	if ok {
+		dbID = resolved
+	}
+	if err := s.db.RemoveAgent(dbID); err != nil {
+		gatewayLog.Warn().Err(err).Str("agent_id", dbID).Msg("Failed to remove agent from DB")
 		return &pb.RemoveAgentResponse{Success: false}, nil
 	}
-	s.sessions.Delete(resolved)
-	if err := s.db.RemoveAgent(resolved); err != nil {
-		gatewayLog.Warn().Err(err).Str("agent_id", resolved).Msg("Failed to remove agent from DB")
-		return &pb.RemoveAgentResponse{Success: false}, nil
-	}
-	gatewayLog.Info().Str("agent_id", resolved).Msg("Agent manually removed from inventory")
+
+	gatewayLog.Info().Str("agent_id", dbID).Str("requested_id", req.AgentId).Msg("Agent manually removed from inventory")
 	return &pb.RemoveAgentResponse{Success: true}, nil
 }
 

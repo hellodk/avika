@@ -36,7 +36,7 @@ export function AgentManagement() {
             for (const agent of offlineAgents) {
                 const id = agent.agent_id || agent.id;
                 if (!id) continue;
-                const delRes = await apiFetch(`/api/servers/${id}`, { method: 'DELETE' });
+                const delRes = await apiFetch(`/api/servers/${encodeURIComponent(id)}`, { method: 'DELETE' });
                 if (delRes.ok) deletedCount++;
             }
 

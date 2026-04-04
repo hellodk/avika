@@ -6,7 +6,7 @@
 export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 /** Resolve base path at runtime so /avika works when app is served under /avika even if env is unset */
-function getBasePath(): string {
+export function getBasePath(): string {
   if (BASE_PATH) return BASE_PATH;
   if (typeof window !== "undefined" && window.location.pathname.startsWith("/avika")) {
     return "/avika";
