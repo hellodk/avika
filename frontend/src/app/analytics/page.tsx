@@ -23,6 +23,7 @@ import { AutoRefreshSelector, AutoRefreshConfig } from "@/components/ui/auto-ref
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { StatusDrillDown } from "@/components/analytics/StatusDrillDown";
+import { AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 
 const VisitorAnalyticsContent = dynamic(
@@ -563,14 +564,16 @@ function AnalyticsView() {
                                             </div>
 
                                             {/* Status code drill-down panel */}
-                                            {drillDownClass && (
-                                                <StatusDrillDown
-                                                    window={timeRange.value || "1h"}
-                                                    agentId={selectedAgent}
-                                                    initialClass={drillDownClass}
-                                                    onClose={() => setDrillDownClass(null)}
-                                                />
-                                            )}
+                                            <AnimatePresence>
+                                                {drillDownClass && (
+                                                    <StatusDrillDown
+                                                        window={timeRange.value || "1h"}
+                                                        agentId={selectedAgent}
+                                                        initialClass={drillDownClass}
+                                                        onClose={() => setDrillDownClass(null)}
+                                                    />
+                                                )}
+                                            </AnimatePresence>
 
                                             {hasSparkData ? (
                                                 <div

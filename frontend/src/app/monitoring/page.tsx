@@ -41,6 +41,8 @@ import { toast } from 'sonner';
 import { useTheme } from '@/lib/theme-provider';
 import { getChartColorsForTheme, getHttpStatusColor, type ChartColorPalette } from '@/lib/chart-colors';
 import { SystemMetricCards, NginxMetricCards } from '@/components/analytics/metric-cards';
+import { StatusDrillDown } from '@/components/analytics/StatusDrillDown';
+import { AnimatePresence } from 'framer-motion';
 
 // Skeleton components
 function MetricCardSkeleton() {
@@ -174,6 +176,7 @@ function MonitoringPageContent() {
     const [selectedAugment, setSelectedAugment] = useState<any>(null);
     const [augmentParams, setAugmentParams] = useState<any>({});
     const [augmentResult, setAugmentResult] = useState<string | null>(null);
+    const [statusDrillClass, setStatusDrillClass] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
     useEffect(() => {
@@ -572,7 +575,7 @@ function MonitoringPageContent() {
                             <CardContent>
                                 <div className="h-[280px]">
                                     {statusChartData.length > 0 ? (
-                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                                        <><ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                             <PieChart>
                                                 <Pie
                                                     data={statusChartData}
@@ -586,9 +589,23 @@ function MonitoringPageContent() {
                                                     dataKey="value"
                                                     stroke="rgb(var(--theme-background))"
                                                     strokeWidth={2}
+                                                    cursor="pointer"
+                                                    onClick={(_: any, index: number) => {
+                                                        const entry = statusChartData[index];
+                                                        if (entry) {
+                                                            const code = String(entry.name);
+                                                            // Map "200", "404" etc to class "2xx", "4xx"
+                                                            const cls = code.length === 3 ? code[0] + "xx" : code;
+                                                            setStatusDrillClass(cls);
+                                                        }
+                                                    }}
                                                 >
                                                     {statusChartData.map((entry: any, index: number) => (
-                                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                                        <Cell
+                                                            key={`cell-${index}`}
+                                                            fill={entry.color}
+                                                            style={{ cursor: "pointer", transition: "opacity 0.2s" }}
+                                                        />
                                                     ))}
                                                 </Pie>
                                                 <Tooltip
@@ -596,12 +613,28 @@ function MonitoringPageContent() {
                                                 />
                                             </PieChart>
                                         </ResponsiveContainer>
+                                        <p className="text-center text-xs mt-2" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                            Click a segment to drill down
+                                        </p></>
                                     ) : (
                                         <div className="h-full flex items-center justify-center" style={{ color: "rgb(var(--theme-text-muted))" }}>
                                             No status distribution data
                                         </div>
                                     )}
                                 </div>
+
+                                {/* Drill-down panel — renders inside the card below the pie */}
+                                <AnimatePresence>
+                                    {statusDrillClass && (
+                                        <StatusDrillDown
+                                            window="1h"
+                                            agentId={selectedAgent}
+                                            statusChartData={statusChartData}
+                                            initialClass={statusDrillClass}
+                                            onClose={() => setStatusDrillClass(null)}
+                                        />
+                                    )}
+                                </AnimatePresence>
                             </CardContent>
                         </Card>
 
