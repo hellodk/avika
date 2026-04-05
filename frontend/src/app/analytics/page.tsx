@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import type { LucideIcon } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -16,18 +14,15 @@ import {
     Download,
     ChevronDown,
     RefreshCw,
-    Zap,
     ArrowUpRight,
-    ArrowDownRight,
     LayoutDashboard,
     Users,
-    AlertTriangle,
-    Timer,
 } from "lucide-react";
 import { TimeRangePicker, TimeRange } from "@/components/ui/time-range-picker";
 import { AutoRefreshSelector, AutoRefreshConfig } from "@/components/ui/auto-refresh-selector";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import { StatusDrillDown } from "@/components/analytics/StatusDrillDown";
 import dynamic from "next/dynamic";
 
 const VisitorAnalyticsContent = dynamic(
@@ -41,7 +36,17 @@ const GeoAnalyticsContent = dynamic(
 import { LiveMetricsProvider, useLiveMetrics } from "@/components/analytics/LiveMetricsProvider";
 import { TrafficDashboard } from "@/components/analytics/dashboards/TrafficDashboard";
 import { useTheme } from "@/lib/theme-provider";
+import { getChartColorsForTheme } from "@/lib/chart-colors";
 import { useProject } from "@/lib/project-context";
+import {
+    Area,
+    AreaChart,
+    CartesianGrid,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from "recharts";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -76,74 +81,6 @@ const initialData = {
     gateway_metrics: []
 };
 
-// KPI Card Component - HIGH VISIBILITY VERSION
-function KPICard({ 
-    title, 
-    value, 
-    subtitle, 
-    delta, 
-    deltaLabel,
-    icon: Icon, 
-    iconColor = "blue",
-    trend 
-}: {
-    title: string;
-    value: string | number;
-    subtitle?: string;
-    delta?: number;
-    deltaLabel?: string;
-    icon: LucideIcon;
-    iconColor?: string;
-    trend?: "up" | "down" | "neutral";
-}) {
-    // BRIGHT, HIGH CONTRAST COLORS
-    const colorMap: Record<string, { bg: string; text: string }> = {
-        blue: { bg: "bg-blue-500/20", text: "text-blue-300" },
-        green: { bg: "bg-emerald-500/20", text: "text-emerald-300" },
-        amber: { bg: "bg-amber-500/20", text: "text-amber-300" },
-        red: { bg: "bg-red-500/20", text: "text-red-300" },
-        purple: { bg: "bg-purple-500/20", text: "text-purple-300" },
-        indigo: { bg: "bg-indigo-500/20", text: "text-indigo-300" }
-    };
-
-    const colors = colorMap[iconColor] || colorMap.blue;
-    
-    // Bright trend colors
-    const trendColor = trend === "up" ? "text-emerald-500" : trend === "down" ? "text-red-500" : "";
-    const TrendIcon = trend === "up" ? ArrowUpRight : trend === "down" ? ArrowDownRight : null;
-
-    return (
-        <Card className="border" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
-            <CardContent className="pt-6">
-                <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                        <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                            {title}
-                        </p>
-                        <p className="text-2xl font-bold" style={{ color: "rgb(var(--theme-text))" }}>
-                            {value}
-                        </p>
-                        {(delta !== undefined || subtitle) && (
-                            <div className="flex items-center gap-1 mt-1">
-                                {TrendIcon && <TrendIcon className={`h-3 w-3 ${trendColor}`} />}
-                                <span
-                                    className={`text-xs font-medium ${delta !== undefined ? trendColor : ""}`}
-                                    style={delta === undefined ? { color: "rgb(var(--theme-text-muted))" } : undefined}
-                                >
-                                    {delta !== undefined ? `${delta >= 0 ? '+' : ''}${delta}` : ''} {deltaLabel || subtitle}
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                    <div className={`p-3 rounded-lg ${colors.bg}`}>
-                        <Icon className={`h-5 w-5 ${colors.text}`} />
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
 function AnalyticsContent() {
     return (
         <LiveMetricsProvider>
@@ -177,6 +114,7 @@ function AnalyticsView() {
     const [agents, setAgents] = useState<{ agent_id?: string; id?: string; hostname?: string; status?: string }[]>([]);
     const [loading, setLoading] = useState(true);
     const [analyticsData, setAnalyticsData] = useState<typeof initialData>(initialData);
+    const [drillDownClass, setDrillDownClass] = useState<string | null>(null);
 
     const handleTabChange = (value: string) => {
         const params = new URLSearchParams(searchParams.toString());
@@ -280,32 +218,28 @@ function AnalyticsView() {
 
     // Summary Stats
     const summary = analyticsData.summary;
-    
+    const chartColors = getChartColorsForTheme(theme);
+    const sparkGrid = chartColors.grid;
+    const sparkAxis = chartColors.axis;
+    const sparkTooltipBg = chartColors.tooltipBg;
+    const sparkTooltipText = chartColors.tooltipText;
+    const sparkTooltipBorder = chartColors.tooltipBorder;
+
+    const requestRateSparkData = analyticsData.requestRate.map(
+        (p: { time?: string; requests?: number | string; errors?: number | string }) => ({
+            time: p.time ?? "",
+            requests: Number(p.requests) || 0,
+            errors: Number(p.errors) || 0,
+        })
+    );
+    const hasSparkData = requestRateSparkData.length > 0;
+
     const formatBandwidth = (bytes: number) => {
         if (bytes === 0) return "0 B";
         const k = 1024;
         const sizes = ["B", "KB", "MB", "GB", "TB"];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
-    };
-
-    // Get previous period label based on time range
-    const getPrevPeriodLabel = () => {
-        const value = timeRange.value || '24h';
-        const labels: Record<string, string> = {
-            '5m': 'vs prev 5m',
-            '15m': 'vs prev 15m',
-            '30m': 'vs prev 30m',
-            '1h': 'vs prev hour',
-            '3h': 'vs prev 3h',
-            '6h': 'vs prev 6h',
-            '12h': 'vs prev 12h',
-            '24h': 'vs yesterday',
-            '2d': 'vs prev 2d',
-            '7d': 'vs prev week',
-            '30d': 'vs prev month',
-        };
-        return labels[value] || 'vs previous';
     };
 
     const toggleTimezone = () => {
@@ -520,55 +454,223 @@ function AnalyticsView() {
                                         Summary for the selected time range and filters. Charts and time series stay on Monitoring.
                                     </p>
                                     {loading ? (
-                                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                                            {[0, 1, 2, 3].map((k) => (
+                                        <div className="space-y-4">
+                                            <div
+                                                className="h-14 animate-pulse rounded-xl border"
+                                                style={{
+                                                    background: "rgb(var(--theme-surface))",
+                                                    borderColor: "rgb(var(--theme-border))",
+                                                }}
+                                            />
+                                            <div
+                                                className="h-[140px] animate-pulse rounded-xl border"
+                                                style={{
+                                                    background: "rgb(var(--theme-surface))",
+                                                    borderColor: "rgb(var(--theme-border))",
+                                                }}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div
+                                                className="flex flex-wrap items-center gap-4 rounded-lg border px-4 py-3"
+                                                style={{
+                                                    background: "rgb(var(--theme-surface))",
+                                                    borderColor: "rgb(var(--theme-border))",
+                                                }}
+                                            >
+                                                <span
+                                                    className="text-sm font-medium"
+                                                    style={{ color: "rgb(var(--theme-text))" }}
+                                                >
+                                                    {(summary.total_requests ?? 0).toLocaleString()} requests
+                                                </span>
+                                                <span
+                                                    className="text-xs"
+                                                    style={{ color: "rgb(var(--theme-text-muted))" }}
+                                                >
+                                                    |
+                                                </span>
+                                                <span
+                                                    className={`text-sm font-medium ${(summary.error_rate ?? 0) > 1 ? "text-red-500" : "text-emerald-500"}`}
+                                                >
+                                                    {(summary.error_rate ?? 0).toFixed(2)}% errors
+                                                </span>
+                                                <span
+                                                    className="text-xs"
+                                                    style={{ color: "rgb(var(--theme-text-muted))" }}
+                                                >
+                                                    |
+                                                </span>
+                                                <span
+                                                    className="text-sm font-medium"
+                                                    style={{ color: "rgb(var(--theme-text))" }}
+                                                >
+                                                    {Math.round(summary.avg_latency ?? 0)}ms avg
+                                                </span>
+                                                <span
+                                                    className="text-xs"
+                                                    style={{ color: "rgb(var(--theme-text-muted))" }}
+                                                >
+                                                    |
+                                                </span>
+                                                <span
+                                                    className="text-sm"
+                                                    style={{ color: "rgb(var(--theme-text-muted))" }}
+                                                >
+                                                    {formatBandwidth(summary.total_bandwidth ?? 0)}
+                                                </span>
+                                                {(analyticsData?.statusDistribution?.length ?? 0) > 0 && (
+                                                    <>
+                                                        <span
+                                                            className="text-xs"
+                                                            style={{ color: "rgb(var(--theme-text-muted))" }}
+                                                        >
+                                                            |
+                                                        </span>
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            {(analyticsData.statusDistribution || []).map(
+                                                                (s: {
+                                                                    code?: string;
+                                                                    Code?: string;
+                                                                    count?: number | string;
+                                                                    Count?: number | string;
+                                                                }) => {
+                                                                    const code = s.code ?? s.Code ?? "";
+                                                                    const count = s.count ?? s.Count ?? 0;
+                                                                    const color = String(code).startsWith("2")
+                                                                        ? "text-emerald-500"
+                                                                        : String(code).startsWith("3")
+                                                                          ? "text-blue-500"
+                                                                          : String(code).startsWith("4")
+                                                                            ? "text-amber-500"
+                                                                            : "text-red-500";
+                                                                    return (
+                                                                        <button
+                                                                            key={code}
+                                                                            onClick={() => setDrillDownClass(String(code))}
+                                                                            className={`font-mono text-xs ${color} hover:underline cursor-pointer`}
+                                                                            title={`Click to drill down into ${code} responses`}
+                                                                        >
+                                                                            {code}:{Number(count).toLocaleString()}
+                                                                        </button>
+                                                                    );
+                                                                }
+                                                            )}
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            {/* Status code drill-down panel */}
+                                            {drillDownClass && (
+                                                <StatusDrillDown
+                                                    window={timeRange.value || "1h"}
+                                                    agentId={selectedAgent}
+                                                    initialClass={drillDownClass}
+                                                    onClose={() => setDrillDownClass(null)}
+                                                />
+                                            )}
+
+                                            {hasSparkData ? (
                                                 <div
-                                                    key={k}
-                                                    className="h-[100px] animate-pulse rounded-xl border"
+                                                    className="overflow-hidden rounded-xl border"
                                                     style={{
                                                         background: "rgb(var(--theme-surface))",
                                                         borderColor: "rgb(var(--theme-border))",
                                                     }}
-                                                />
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-wrap items-center gap-4 px-4 py-3 rounded-lg border" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
-                                            <span className="text-sm font-medium" style={{ color: "rgb(var(--theme-text))" }}>
-                                                {(summary.total_requests ?? 0).toLocaleString()} requests
-                                            </span>
-                                            <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>|</span>
-                                            <span className={`text-sm font-medium ${(summary.error_rate ?? 0) > 1 ? "text-red-500" : "text-emerald-500"}`}>
-                                                {(summary.error_rate ?? 0).toFixed(2)}% errors
-                                            </span>
-                                            <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>|</span>
-                                            <span className="text-sm font-medium" style={{ color: "rgb(var(--theme-text))" }}>
-                                                {Math.round(summary.avg_latency ?? 0)}ms avg
-                                            </span>
-                                            <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>|</span>
-                                            <span className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                                {formatBandwidth(summary.total_bandwidth ?? 0)}
-                                            </span>
-                                            {/* Status code drill-down */}
-                                            {(analyticsData?.statusDistribution?.length ?? 0) > 0 && (
-                                                <>
-                                                    <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>|</span>
-                                                    <div className="flex items-center gap-2">
-                                                        {(analyticsData.statusDistribution || []).map((s: any) => {
-                                                            const code = s.code || s.Code || '';
-                                                            const count = s.count || s.Count || 0;
-                                                            const color = String(code).startsWith('2') ? 'text-emerald-500' :
-                                                                          String(code).startsWith('3') ? 'text-blue-500' :
-                                                                          String(code).startsWith('4') ? 'text-amber-500' :
-                                                                          'text-red-500';
-                                                            return (
-                                                                <span key={code} className={`text-xs font-mono ${color}`} title={`${code}: ${Number(count).toLocaleString()} requests`}>
-                                                                    {code}:{Number(count).toLocaleString()}
-                                                                </span>
-                                                            );
-                                                        })}
+                                                >
+                                                    <div
+                                                        className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5"
+                                                        style={{ borderColor: "rgb(var(--theme-border))" }}
+                                                    >
+                                                        <p
+                                                            className="text-sm font-medium"
+                                                            style={{ color: "rgb(var(--theme-text))" }}
+                                                        >
+                                                            Request rate
+                                                        </p>
+                                                        <p
+                                                            className="text-xs"
+                                                            style={{ color: "rgb(var(--theme-text-muted))" }}
+                                                        >
+                                                            Requests vs errors by bucket — full charts on Monitoring
+                                                        </p>
                                                     </div>
-                                                </>
+                                                    <div className="h-[140px] w-full min-w-0 px-2 pb-2 pt-1">
+                                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                                                            <AreaChart
+                                                                data={requestRateSparkData}
+                                                                margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+                                                            >
+                                                                <defs>
+                                                                    <linearGradient id="analyticsSparkReq" x1="0" y1="0" x2="0" y2="1">
+                                                                        <stop offset="0%" stopColor={chartColors.info} stopOpacity={0.35} />
+                                                                        <stop offset="100%" stopColor={chartColors.info} stopOpacity={0} />
+                                                                    </linearGradient>
+                                                                    <linearGradient id="analyticsSparkErr" x1="0" y1="0" x2="0" y2="1">
+                                                                        <stop offset="0%" stopColor={chartColors.error} stopOpacity={0.35} />
+                                                                        <stop offset="100%" stopColor={chartColors.error} stopOpacity={0} />
+                                                                    </linearGradient>
+                                                                </defs>
+                                                                <CartesianGrid strokeDasharray="3 3" stroke={sparkGrid} vertical={false} />
+                                                                <XAxis
+                                                                    dataKey="time"
+                                                                    tick={{ fontSize: 10, fill: sparkAxis }}
+                                                                    tickLine={false}
+                                                                    axisLine={{ stroke: sparkGrid }}
+                                                                    interval="preserveStartEnd"
+                                                                />
+                                                                <YAxis
+                                                                    width={36}
+                                                                    tick={{ fontSize: 10, fill: sparkAxis }}
+                                                                    tickLine={false}
+                                                                    axisLine={false}
+                                                                />
+                                                                <Tooltip
+                                                                    contentStyle={{
+                                                                        backgroundColor: sparkTooltipBg,
+                                                                        border: `1px solid ${sparkTooltipBorder}`,
+                                                                        borderRadius: "0.5rem",
+                                                                        color: sparkTooltipText,
+                                                                        fontSize: "12px",
+                                                                    }}
+                                                                    labelStyle={{ color: sparkTooltipText }}
+                                                                />
+                                                                <Area
+                                                                    type="monotone"
+                                                                    dataKey="requests"
+                                                                    name="Requests"
+                                                                    stroke={chartColors.info}
+                                                                    fill="url(#analyticsSparkReq)"
+                                                                    strokeWidth={1.5}
+                                                                    isAnimationActive={false}
+                                                                />
+                                                                <Area
+                                                                    type="monotone"
+                                                                    dataKey="errors"
+                                                                    name="Errors"
+                                                                    stroke={chartColors.error}
+                                                                    fill="url(#analyticsSparkErr)"
+                                                                    strokeWidth={1.5}
+                                                                    isAnimationActive={false}
+                                                                />
+                                                            </AreaChart>
+                                                        </ResponsiveContainer>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <p
+                                                    className="rounded-lg border px-4 py-3 text-sm"
+                                                    style={{
+                                                        background: "rgb(var(--theme-surface))",
+                                                        borderColor: "rgb(var(--theme-border))",
+                                                        color: "rgb(var(--theme-text-muted))",
+                                                    }}
+                                                >
+                                                    No time-bucketed request data for this range. Try a wider window or check Monitoring →
+                                                    Overview.
+                                                </p>
                                             )}
                                         </div>
                                     )}

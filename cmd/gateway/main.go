@@ -2000,6 +2000,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 
 	// Main analytics API with URL and Status Filtering
 	mux.Handle("/api/analytics", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAnalytics)))
+	mux.Handle("GET /api/analytics/status-drilldown", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleStatusDrillDown)))
 
 	// ============================================================================
 	// RBAC / Multi-Tenancy API Endpoints
@@ -2880,6 +2881,44 @@ type visitorAnalyticsFrontendShape struct {
 // handleListAgents handles GET /api/servers
 func (srv *server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 	resp, err := srv.ListAgents(r.Context(), &pb.ListAgentsRequest{})
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// handleStatusDrillDown handles GET /api/analytics/status-drilldown
+func (srv *server) handleStatusDrillDown(w http.ResponseWriter, r *http.Request) {
+	if srv.clickhouse == nil {
+		http.Error(w, `{"error":"ClickHouse not available"}`, http.StatusServiceUnavailable)
+		return
+	}
+
+	q := r.URL.Query()
+	window := q.Get("window")
+	if window == "" {
+		window = "1h"
+	}
+	class := q.Get("class")   // "4xx" etc
+	uri := q.Get("uri")
+	agentID := q.Get("agent_id")
+
+	code := 0
+	if c := q.Get("code"); c != "" {
+		fmt.Sscanf(c, "%d", &code)
+	}
+
+	// Build agent filter from project/environment if provided
+	var agentFilter []string
+	// (reuse the same filtering logic as handleAnalytics if needed)
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	resp, err := srv.clickhouse.GetStatusDrillDown(ctx, window, class, code, uri, agentFilter, agentID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 		return
