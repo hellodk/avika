@@ -15,7 +15,7 @@ import { AppearanceSettings } from "@/components/settings/appearance-settings";
 import { IntegrationSettings } from "@/components/settings/integration-settings";
 import { DisplaySettings } from "@/components/settings/display-settings";
 import { TelemetrySettings } from "@/components/settings/telemetry-settings";
-import { AIEngineSettings } from "@/components/settings/ai-engine-settings";
+// AIEngineSettings removed from General tab — accessible via Security → LLM
 import { AgentManagement } from "@/components/settings/agent-management";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -266,10 +266,8 @@ function SettingsContent() {
                 <TabsContent value="general" className="space-y-6">
                     <AppearanceSettings />
                     <DisplaySettings defaultTimeRange={defaultTimeRange} setDefaultTimeRange={setDefaultTimeRange} refreshInterval={refreshInterval} setRefreshInterval={setRefreshInterval} timezone={timezone} setTimezone={setTimezone} displayChanged={displayChanged} />
-                    <IntegrationSettings grafanaUrl={grafanaUrl} setGrafanaUrl={setGrafanaUrl} clickhouseUrl={clickhouseUrl} setClickhouseUrl={setClickhouseUrl} prometheusUrl={prometheusUrl} setPrometheusUrl={setPrometheusUrl} postgresUrl={postgresUrl} integrationsChanged={integrationsChanged} />
                     <div className="grid gap-6 md:grid-cols-2">
                         <TelemetrySettings collectionInterval={collectionInterval} setCollectionInterval={setCollectionInterval} retentionDays={retentionDays} setRetentionDays={setRetentionDays} />
-                        <AIEngineSettings anomalyThreshold={anomalyThreshold} setAnomalyThreshold={setAnomalyThreshold} windowSize={windowSize} setWindowSize={setWindowSize} />
                         <AgentManagement />
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3 justify-end pt-4">
@@ -283,9 +281,11 @@ function SettingsContent() {
                 {/* ── Integrations Tab ─────────────────────────────────────── */}
                 <TabsContent value="integrations" className="space-y-6">
                     <div className="flex items-center justify-between">
-                        <p className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>External integrations persisted in the gateway database.</p>
+                        <p className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>Service endpoints and external integrations.</p>
                         <RefreshButton loading={intLoading} onRefresh={loadIntegrations} aria-label="Refresh integrations" />
                     </div>
+                    {/* Infrastructure URLs (Grafana, Prometheus, ClickHouse) */}
+                    <IntegrationSettings grafanaUrl={grafanaUrl} setGrafanaUrl={setGrafanaUrl} clickhouseUrl={clickhouseUrl} setClickhouseUrl={setClickhouseUrl} prometheusUrl={prometheusUrl} setPrometheusUrl={setPrometheusUrl} postgresUrl={postgresUrl} integrationsChanged={integrationsChanged} />
                     <div className="grid gap-6 lg:grid-cols-2">
                         {integrationCards.map((ic) => (
                             <IntegrationCard key={ic.key} title={ic.title} description={ic.desc} row={intRows[ic.key]} onChange={(r) => setIntRows((p) => ({ ...p, [ic.key]: r }))} onSave={() => saveInt(ic.key)} onTest={() => testInt(ic.key)} saving={savingType === ic.key} testing={testingType === ic.key} />
