@@ -1860,7 +1860,34 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Auth endpoints (always available)
 	mux.HandleFunc("/api/auth/login", authManager.LoginHandler())
 	mux.HandleFunc("/api/auth/logout", authManager.LogoutHandler())
-	mux.HandleFunc("/api/auth/me", authManager.MeHandler())
+	// Wrap MeHandler to inject is_superadmin from DB
+	mux.HandleFunc("/api/auth/me", func(w http.ResponseWriter, r *http.Request) {
+		user := middleware.GetUserFromContext(r.Context())
+		if user == nil {
+			authManager.MeHandler().ServeHTTP(w, r)
+			return
+		}
+		isSuperAdmin := false
+		if srv.db != nil {
+			isSuperAdmin, _ = srv.db.IsSuperAdmin(user.Username)
+		}
+		var token string
+		if cookie, err := r.Cookie("avika_session"); err == nil {
+			token = cookie.Value
+		}
+		if token == "" {
+			if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+				token = strings.TrimPrefix(auth, "Bearer ")
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"authenticated":  true,
+			"user":           user,
+			"token":          token,
+			"is_superadmin":  isSuperAdmin,
+		})
+	})
 
 	// Change password requires authentication
 	mux.Handle("/api/auth/change-password", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(authManager.ChangePasswordHandler(onPasswordChanged))))
