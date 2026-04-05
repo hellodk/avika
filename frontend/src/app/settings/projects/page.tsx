@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { apiFetch } from "@/lib/api";
 import { Plus, FolderKanban, ChevronRight, Search, MoreHorizontal, Trash2, Settings, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,7 +42,7 @@ export default function ProjectsPage() {
 
   const fetchProjects = async () => {
     try {
-      const response = await fetch("/api/projects", { credentials: "include" });
+      const response = await apiFetch("/api/projects", { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch projects");
       const data = await response.json();
       setProjects(data || []);
@@ -51,7 +52,7 @@ export default function ProjectsPage() {
       await Promise.all(
         (data || []).map(async (project: Project) => {
           try {
-            const envResponse = await fetch(`/api/projects/${project.id}/environments`, {
+            const envResponse = await apiFetch(`/api/projects/${project.id}/environments`, {
               credentials: "include",
             });
             if (envResponse.ok) {
@@ -83,7 +84,7 @@ export default function ProjectsPage() {
 
     setIsCreating(true);
     try {
-      const response = await fetch("/api/projects", {
+      const response = await apiFetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -113,7 +114,7 @@ export default function ProjectsPage() {
     }
 
     try {
-      const response = await fetch(`/api/projects/${projectId}`, {
+      const response = await apiFetch(`/api/projects/${projectId}`, {
         method: "DELETE",
         credentials: "include",
       });
