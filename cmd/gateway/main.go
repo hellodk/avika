@@ -1847,6 +1847,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		"/metrics",
 		"/api/auth/login",
 		"/api/auth/logout",
+		"/api/auth/me",
 	}
 
 	// Callback to persist password changes to database
@@ -1860,17 +1861,11 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Auth endpoints (always available)
 	mux.HandleFunc("/api/auth/login", authManager.LoginHandler())
 	mux.HandleFunc("/api/auth/logout", authManager.LogoutHandler())
-	// Wrap MeHandler to inject is_superadmin from DB
+	// /api/auth/me — public path, manually validates token to return user info + is_superadmin
 	mux.HandleFunc("/api/auth/me", func(w http.ResponseWriter, r *http.Request) {
-		user := middleware.GetUserFromContext(r.Context())
-		if user == nil {
-			authManager.MeHandler().ServeHTTP(w, r)
-			return
-		}
-		isSuperAdmin := false
-		if srv.db != nil {
-			isSuperAdmin, _ = srv.db.IsSuperAdmin(user.Username)
-		}
+		w.Header().Set("Content-Type", "application/json")
+
+		// Extract token from cookie or Authorization header
 		var token string
 		if cookie, err := r.Cookie("avika_session"); err == nil {
 			token = cookie.Value
@@ -1880,12 +1875,31 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 				token = strings.TrimPrefix(auth, "Bearer ")
 			}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"authenticated":  true,
-			"user":           user,
-			"token":          token,
-			"is_superadmin":  isSuperAdmin,
+		if token == "" {
+			token = r.URL.Query().Get("token")
+		}
+
+		if token == "" {
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"authenticated": false})
+			return
+		}
+
+		user, valid := authManager.ValidateToken(token)
+		if !valid || user == nil {
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"authenticated": false})
+			return
+		}
+
+		isSuperAdmin := false
+		if srv.db != nil {
+			isSuperAdmin, _ = srv.db.IsSuperAdmin(user.Username)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"authenticated": true,
+			"user":          user,
+			"token":         token,
+			"is_superadmin": isSuperAdmin,
 		})
 	})
 
