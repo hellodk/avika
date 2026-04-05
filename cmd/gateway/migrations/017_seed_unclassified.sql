@@ -9,7 +9,7 @@ VALUES (
     'Unclassified',
     'unclassified',
     'Agents that have not been assigned to a project. Classify them by assigning to a real project and environment.',
-    'system',
+    'admin',
     NOW(),
     NOW()
 ) ON CONFLICT (slug) DO NOTHING;
