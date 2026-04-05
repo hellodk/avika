@@ -72,15 +72,8 @@ export default function ProjectsPage() {
   };
 
   useEffect(() => {
-    // Wait for auth context to finish loading before checking permissions
-    if (authLoading) return;
-    if (!isSuperAdmin) {
-      toast.error("You must be a superadmin to access this page");
-      router.push("/");
-      return;
-    }
     fetchProjects();
-  }, [isSuperAdmin, authLoading, router]);
+  }, []);
 
   const handleCreateProject = async () => {
     if (!newProject.name.trim()) {
@@ -141,9 +134,7 @@ export default function ProjectsPage() {
       project.slug.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (authLoading || !isSuperAdmin) {
-    return null;
-  }
+  // Superadmin check removed — access controlled by the Settings page tabs
 
   return (
     <div className="space-y-6">
