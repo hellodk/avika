@@ -19,6 +19,7 @@ const LDAPPage = nextDynamic(() => import("./ldap/page"), { loading: () => <Page
 const SAMLPage = nextDynamic(() => import("./saml/page"), { loading: () => <PageSkeleton /> });
 const WAFPage = nextDynamic(() => import("./waf/page"), { loading: () => <PageSkeleton /> });
 const LLMPage = nextDynamic(() => import("./llm/page"), { loading: () => <PageSkeleton /> });
+const ProjectsPage = nextDynamic(() => import("./projects/page"), { loading: () => <PageSkeleton /> });
 
 function PageSkeleton() {
     return <div className="space-y-4 py-4">{[1, 2, 3].map(i => <div key={i} className="h-16 rounded animate-pulse" style={{ background: "rgb(var(--theme-border))" }} />)}</div>;
@@ -282,6 +283,9 @@ function SettingsContent() {
                     <TabsTrigger value="security" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
                         <Lock className="h-4 w-4 mr-2" />Security
                     </TabsTrigger>
+                    <TabsTrigger value="projects" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                        <Zap className="h-4 w-4 mr-2" />Projects
+                    </TabsTrigger>
                 </TabsList>
 
                 {/* ── General Tab ──────────────────────────────────────────── */}
@@ -350,6 +354,11 @@ function SettingsContent() {
                             </motion.div>
                         )}
                     </AnimatePresence>
+                </TabsContent>
+
+                {/* ── Projects Tab ─────────────────────────────────────────── */}
+                <TabsContent value="projects" className="space-y-6">
+                    <ProjectsPage />
                 </TabsContent>
             </Tabs>
         </div>
