@@ -20,8 +20,8 @@ const PAGES: { href: string; label: string }[] = [
   { href: "/optimization", label: "AI Tuner" },
   { href: "/audit", label: "Audit Logs" },
   { href: "/settings", label: "Settings" },
-  { href: "/settings/integrations", label: "Integrations" },
-  { href: "/settings/security", label: "Security" },
+  { href: "/settings?tab=integrations", label: "Integrations" },
+  { href: "/settings?tab=security", label: "Security" },
 ];
 
 // Settings keywords -> /settings?q=
@@ -85,8 +85,8 @@ const PAGE_ICONS: Record<string, React.ReactNode> = {
   "/optimization": <Zap className="h-4 w-4 shrink-0" />,
   "/audit": <ShieldCheck className="h-4 w-4 shrink-0" />,
   "/settings": <Settings className="h-4 w-4 shrink-0" />,
-  "/settings/integrations": <Globe className="h-4 w-4 shrink-0" />,
-  "/settings/security": <Lock className="h-4 w-4 shrink-0" />,
+  "/settings?tab=integrations": <Globe className="h-4 w-4 shrink-0" />,
+  "/settings?tab=security": <Lock className="h-4 w-4 shrink-0" />,
 };
 
 interface GlobalSearchProps {
