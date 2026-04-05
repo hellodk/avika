@@ -4,9 +4,46 @@ import React, { useState, useEffect } from "react";
 import { Activity, Plus, Target, Trash2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { format } from "date-fns";
+import { Input } from "@/components/ui/input";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getBasePath } from "@/lib/api";
+
+const LATENCY_SLO_TYPES = new Set(["latency", "latency_p95", "latency_p50"]);
+
+/** Percentage SLIs where higher is better (error-budget style). */
+const PERCENT_HIGHER_BETTER = new Set([
+    "availability",
+    "success_rate",
+    "availability_no_4xx",
+]);
+
+const SLO_TYPE_OPTIONS: { value: string; label: string; defaultTarget: number }[] = [
+    { value: "availability", label: "Availability (non-5xx)", defaultTarget: 99.9 },
+    { value: "success_rate", label: "Success rate (2xx only)", defaultTarget: 99.5 },
+    { value: "availability_no_4xx", label: "No 4xx/5xx (2xx–3xx)", defaultTarget: 99.0 },
+    { value: "latency", label: "Latency p99 (ms)", defaultTarget: 500 },
+    { value: "latency_p95", label: "Latency p95 (ms)", defaultTarget: 300 },
+    { value: "latency_p50", label: "Latency p50 / median (ms)", defaultTarget: 100 },
+];
+
+function sloTypeLabel(value: string): string {
+    return SLO_TYPE_OPTIONS.find((o) => o.value === value)?.label ?? value;
+}
+
+function isLatencySloType(sloType: string): boolean {
+    return LATENCY_SLO_TYPES.has(sloType);
+}
+
+function usesErrorBudget(sloType: string): boolean {
+    return PERCENT_HIGHER_BETTER.has(sloType);
+}
 
 interface SLOTarget {
     id: string;
@@ -24,21 +61,45 @@ interface SLOComplianceResult {
     sli: number;
 }
 
+function targetDraftKey(r: SLOComplianceResult): string {
+    return r.target.id;
+}
+
 export default function SLOPage() {
     const [results, setResults] = useState<SLOComplianceResult[]>([]);
     const [loading, setLoading] = useState(true);
+    const [newSloType, setNewSloType] = useState<string>(SLO_TYPE_OPTIONS[0].value);
+    /** String values for target inputs, keyed by SLO row id */
+    const [targetDrafts, setTargetDrafts] = useState<Record<string, string>>({});
+    const [savingTargetId, setSavingTargetId] = useState<string | null>(null);
 
-    const fetchCompliance = async () => {
-        setLoading(true);
+    useEffect(() => {
+        const next: Record<string, string> = {};
+        for (const r of results) {
+            next[targetDraftKey(r)] = String(r.target.target_value);
+        }
+        setTargetDrafts(next);
+    }, [results]);
+
+    const fetchCompliance = async (opts?: { quiet?: boolean }) => {
+        if (!opts?.quiet) setLoading(true);
         try {
             const res = await apiFetch("/api/slo-compliance");
+            if (res.status === 401 || res.status === 403) {
+                const base = getBasePath();
+                toast.error("Sign-in required", {
+                    description: `Open ${base || ""}/login to authenticate with the gateway, then reload this page.`,
+                });
+                setResults([]);
+                return;
+            }
             if (!res.ok) throw new Error("Failed to fetch SLO compliance");
             const data = await res.json();
             setResults(data || []);
-        } catch (error) {
+        } catch {
             toast.error("Could not load SLO data");
         } finally {
-            setLoading(false);
+            if (!opts?.quiet) setLoading(false);
         }
     };
 
@@ -55,31 +116,91 @@ export default function SLOPage() {
             if (!res.ok) throw new Error("Failed to delete");
             toast.success("SLO Target deleted");
             fetchCompliance();
-        } catch (e) {
+        } catch {
             toast.error("Could not delete SLO target");
         }
     };
 
-    const addMockSLO = async () => {
-        // In a real app this would open a modal form
+    const addSLOTarget = async () => {
+        const spec = SLO_TYPE_OPTIONS.find((o) => o.value === newSloType) ?? SLO_TYPE_OPTIONS[0];
         const newTarget: Partial<SLOTarget> = {
             entity_type: "global",
             entity_id: "all",
-            slo_type: "availability",
-            target_value: 99.9,
-            time_window: "30d"
+            slo_type: spec.value,
+            target_value: spec.defaultTarget,
+            time_window: "30d",
         };
         try {
             const res = await apiFetch("/api/slo-targets", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(newTarget)
+                body: JSON.stringify(newTarget),
             });
+            if (res.status === 401 || res.status === 403) {
+                const base = getBasePath();
+                toast.error("Sign-in required", {
+                    description: `Open ${base || ""}/login to authenticate, then try again.`,
+                });
+                return;
+            }
             if (!res.ok) throw new Error("Failed to create");
-            toast.success("Default Global Availability SLO created");
+            toast.success(`SLO target created (${spec.label})`);
             fetchCompliance();
-        } catch (e) {
+        } catch {
             toast.error("Could not create SLO target");
+        }
+    };
+
+    const saveTargetSLO = async (r: SLOComplianceResult) => {
+        const k = targetDraftKey(r);
+        const raw = targetDrafts[k] ?? String(r.target.target_value);
+        const val = parseFloat(raw);
+        if (Number.isNaN(val) || !Number.isFinite(val)) {
+            toast.error("Enter a valid number for the target");
+            return;
+        }
+        const latency = isLatencySloType(r.target.slo_type);
+        if (!latency && (val < 0 || val > 100)) {
+            toast.error("Percentage targets must be between 0 and 100");
+            return;
+        }
+        if (latency && val <= 0) {
+            toast.error("Latency target must be positive (milliseconds)");
+            return;
+        }
+
+        const body = {
+            entity_type: r.target.entity_type,
+            entity_id: r.target.entity_id,
+            slo_type: r.target.slo_type,
+            target_value: val,
+            time_window: r.target.time_window,
+        };
+
+        setSavingTargetId(r.target.id);
+        try {
+            const res = await apiFetch("/api/slo-targets", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+            if (res.status === 401 || res.status === 403) {
+                const base = getBasePath();
+                toast.error("Sign-in required", {
+                    description: `Open ${base || ""}/login to authenticate, then try again.`,
+                });
+                return;
+            }
+            if (!res.ok) {
+                const t = await res.text().catch(() => "");
+                throw new Error(t || res.statusText);
+            }
+            toast.success("Target SLO updated");
+            await fetchCompliance({ quiet: true });
+        } catch {
+            toast.error("Could not update target");
+        } finally {
+            setSavingTargetId(null);
         }
     };
 
@@ -103,13 +224,27 @@ export default function SLOPage() {
                         Service Level Objectives (SLO)
                     </h1>
                     <p className="text-neutral-400 mt-1">
-                        Track availability and latency targets across your fleet.
+                        Track availability, success rate, and latency targets across your fleet.
                     </p>
                 </div>
-                <Button onClick={addMockSLO} className="bg-sky-600 hover:bg-sky-500 text-white">
-                    <Plus className="h-4 w-4 mr-2" />
-                    New SLO Target
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:items-center">
+                    <Select value={newSloType} onValueChange={setNewSloType}>
+                        <SelectTrigger className="w-full sm:w-[280px] bg-neutral-900 border-neutral-700 text-neutral-200">
+                            <SelectValue placeholder="SLO type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {SLO_TYPE_OPTIONS.map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                    {o.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <Button onClick={addSLOTarget} className="bg-sky-600 hover:bg-sky-500 text-white shrink-0">
+                        <Plus className="h-4 w-4 mr-2" />
+                        New SLO target
+                    </Button>
+                </div>
             </div>
 
             {loading ? (
@@ -126,8 +261,8 @@ export default function SLOPage() {
                                 Create an SLO target to start tracking reliability and error budgets.
                             </p>
                         </div>
-                        <Button onClick={addMockSLO} variant="outline" className="mt-4">
-                            Create default SLO
+                        <Button onClick={addSLOTarget} variant="outline" className="mt-4">
+                            Create SLO target
                         </Button>
                     </CardContent>
                 </Card>
@@ -135,14 +270,23 @@ export default function SLOPage() {
                 <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
                     {results.map((r) => {
                         const budget = getBudgetRemaining(r.sli, r.target.target_value);
-                        const isViolating = budget.remaining < 0;
+                        const latency = isLatencySloType(r.target.slo_type);
+                        const isViolating = latency
+                            ? r.sli > r.target.target_value
+                            : budget.remaining < 0;
+                        const rowKey = targetDraftKey(r);
+                        const draftStr = targetDrafts[rowKey] ?? String(r.target.target_value);
+                        const draftNum = parseFloat(draftStr);
+                        const targetDirty =
+                            !Number.isNaN(draftNum) &&
+                            Math.abs(draftNum - r.target.target_value) > 1e-9;
 
                         return (
                             <Card key={r.target.id} className="bg-neutral-900 border-neutral-800 flex flex-col">
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                                     <div>
                                         <CardTitle className="text-lg text-white capitalize flex items-center gap-2">
-                                            {r.target.entity_type} {r.target.slo_type}
+                                            {r.target.entity_type} — {sloTypeLabel(r.target.slo_type)}
                                             {isViolating && <ShieldAlert className="h-4 w-4 text-red-500" />}
                                         </CardTitle>
                                         <CardDescription className="text-neutral-400 mt-1">
@@ -158,22 +302,57 @@ export default function SLOPage() {
                                         <div className="bg-neutral-950 p-4 rounded-lg border border-neutral-800">
                                             <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Current SLI</p>
                                             <p className={`text-2xl font-bold ${isViolating ? 'text-red-400' : 'text-green-400'}`}>
-                                                {r.target.slo_type === 'latency' 
-                                                    ? `${r.sli.toFixed(2)}ms` 
+                                                {latency
+                                                    ? `${r.sli.toFixed(2)}ms`
                                                     : `${r.sli.toFixed(3)}%`}
                                             </p>
                                         </div>
                                         <div className="bg-neutral-950 p-4 rounded-lg border border-neutral-800">
-                                            <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Target SLO</p>
-                                            <p className="text-2xl font-bold text-white">
-                                                {r.target.slo_type === 'latency' 
-                                                    ? `< ${r.target.target_value}ms` 
-                                                    : `${r.target.target_value}%`}
+                                            <p className="text-xs text-neutral-500 uppercase tracking-wider mb-2">Target SLO</p>
+                                            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                                                <div className="flex flex-1 items-center gap-2 min-w-0">
+                                                    {latency && (
+                                                        <span className="text-sm text-neutral-500 shrink-0">&lt;</span>
+                                                    )}
+                                                    <Input
+                                                        type="number"
+                                                        step={latency ? "1" : "0.01"}
+                                                        min={latency ? "0.001" : "0"}
+                                                        max={latency ? undefined : "100"}
+                                                        className="bg-neutral-900 border-neutral-700 text-white font-mono h-10"
+                                                        value={draftStr}
+                                                        onChange={(e) =>
+                                                            setTargetDrafts((s) => ({
+                                                                ...s,
+                                                                [rowKey]: e.target.value,
+                                                            }))
+                                                        }
+                                                        aria-label="Target SLO value"
+                                                    />
+                                                    <span className="text-sm text-neutral-400 shrink-0 whitespace-nowrap">
+                                                        {latency ? "ms" : "%"}
+                                                    </span>
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    className="shrink-0 bg-sky-700 hover:bg-sky-600 text-white border-0"
+                                                    disabled={!targetDirty || savingTargetId === r.target.id}
+                                                    onClick={() => saveTargetSLO(r)}
+                                                >
+                                                    {savingTargetId === r.target.id ? "Saving…" : "Save target"}
+                                                </Button>
+                                            </div>
+                                            <p className="text-xs text-neutral-500 mt-2">
+                                                {latency
+                                                    ? "SLI must stay at or below this latency."
+                                                    : "SLI should meet or exceed this percentage."}
                                             </p>
                                         </div>
                                     </div>
                                     
-                                    {r.target.slo_type === 'availability' && (
+                                    {usesErrorBudget(r.target.slo_type) && (
                                         <div className="space-y-2">
                                             <div className="flex justify-between text-sm">
                                                 <span className="text-neutral-400">Error Budget Remaining</span>

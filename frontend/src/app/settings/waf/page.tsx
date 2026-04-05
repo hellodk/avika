@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatTsDate } from "@/lib/format-timestamp";
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from "@/components/ui/table";
@@ -117,7 +118,7 @@ export default function WAFSettingsPage() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                            {new Date(policy.created_at).toLocaleDateString()}
+                                            {formatTsDate(policy.created_at)}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">

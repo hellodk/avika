@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
@@ -15,15 +16,7 @@ func (s *server) enrichReportInsights(ctx context.Context, report *pb.ReportResp
 	}
 	sum := report.Summary
 
-	// Period-over-period
-	if sum.PrevPeriodRequests > 0 {
-		reqDelta := float64(sum.TotalRequests-sum.PrevPeriodRequests) / float64(sum.PrevPeriodRequests) * 100
-		errDelta := sum.ErrorRate - sum.PrevPeriodErrorRate
-		report.PeriodOverPeriod = fmt.Sprintf("Requests %+.0f%%, Error rate %+.2f%% vs previous period.",
-			reqDelta, errDelta)
-	} else {
-		report.PeriodOverPeriod = "No previous period data for comparison."
-	}
+	report.PeriodOverPeriod = formatPeriodOverPeriod(sum)
 
 	// Availability
 	if s.db != nil {
@@ -49,7 +42,11 @@ func (s *server) enrichReportInsights(ctx context.Context, report *pb.ReportResp
 					enabled++
 				}
 			}
-			report.AlertsSummary = fmt.Sprintf("%d alert rules active (%d enabled).", len(rules), enabled)
+			if len(rules) == 0 {
+				report.AlertsSummary = "No alert rules configured yet (proactive alerting not set up)."
+			} else {
+				report.AlertsSummary = fmt.Sprintf("%d alert rule(s) defined (%d enabled).", len(rules), enabled)
+			}
 		} else {
 			report.AlertsSummary = "Alert rules data unavailable."
 		}
@@ -96,6 +93,9 @@ func (s *server) enrichReportInsights(ctx context.Context, report *pb.ReportResp
 	// Recommendations
 	var recs []string
 	if sum.ErrorRate > 2 {
+		if len(report.TopUris) > 0 && strings.TrimSpace(report.TopUris[0].Uri) != "" {
+			recs = append(recs, fmt.Sprintf("Triage errors on %s first (highest request volume).", truncate(report.TopUris[0].Uri, 56)))
+		}
 		recs = append(recs, "Review top error URIs and fix application or upstream issues.")
 	}
 	if sum.AvgLatency > 300 {
@@ -109,18 +109,49 @@ func (s *server) enrichReportInsights(ctx context.Context, report *pb.ReportResp
 		report.Recommendations = []string{"No actions required; continue monitoring."}
 	}
 
-	// Executive summary (2–4 sentences)
+	// Executive summary: short; trend/availability/alerts stay in their own lines below.
 	health := "System healthy."
 	if sum.ErrorRate > 5 {
 		health = "System under stress; error rate elevated."
 	} else if sum.ErrorRate > 2 {
 		health = "System stable with elevated errors in some endpoints."
 	}
-	report.ExecutiveSummary = health + " " + report.PeriodOverPeriod + " "
-	if len(report.TopIssues) > 0 && report.TopIssues[0] != "No critical issues identified." {
-		report.ExecutiveSummary += "Top concern: " + report.TopIssues[0] + " "
+	var parts []string
+	parts = append(parts, health)
+	if strings.Contains(report.AvailabilitySummary, "offline") || strings.Contains(report.AvailabilitySummary, "No agents") {
+		parts = append(parts, report.AvailabilitySummary+".")
 	}
-	report.ExecutiveSummary += report.AvailabilitySummary + ". " + report.AlertsSummary
+	if len(report.TopIssues) > 0 && report.TopIssues[0] != "No critical issues identified." {
+		parts = append(parts, "Primary issue: "+strings.TrimSuffix(report.TopIssues[0], ".")+".")
+	}
+	report.ExecutiveSummary = strings.Join(parts, " ")
+}
+
+func formatPeriodOverPeriod(sum *pb.ReportSummary) string {
+	if sum.PrevPeriodRequests <= 0 {
+		return "No prior-period request volume in this comparison window; request percent change is not shown."
+	}
+	prev := sum.PrevPeriodRequests
+	cur := sum.TotalRequests
+	reqPct := float64(cur-prev) / float64(prev) * 100
+	absDelta := cur - prev
+
+	var reqLine string
+	switch {
+	case prev < 500 && math.Abs(reqPct) > 200:
+		reqLine = fmt.Sprintf("Requests went from %d to %d (%+d vs a small prior baseline; %% change omitted as misleading).",
+			prev, cur, absDelta)
+	case math.Abs(reqPct) > 500:
+		reqLine = fmt.Sprintf("Request volume changed sharply vs prior (%d -> %d). Percent change omitted above 500%% (usually a tiny or empty prior window).",
+			prev, cur)
+	default:
+		reqLine = fmt.Sprintf("Requests %+.1f%% vs prior period (%d -> %d).", reqPct, prev, cur)
+	}
+
+	dpp := sum.ErrorRate - sum.PrevPeriodErrorRate
+	errLine := fmt.Sprintf("Error rate %+0.2f percentage points vs prior (now %.2f%%, was %.2f%%).",
+		dpp, sum.ErrorRate, sum.PrevPeriodErrorRate)
+	return reqLine + " " + errLine
 }
 
 func truncate(s string, max int) string {

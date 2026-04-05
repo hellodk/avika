@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { apiFetch } from "@/lib/api";
+import { formatTsDate } from "@/lib/format-timestamp";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -211,7 +212,7 @@ export default function AlertsPage() {
             if (diffMins < 60) return `${diffMins} minutes ago`;
             if (diffHours < 24) return `${diffHours} hours ago`;
             if (diffDays < 7) return `${diffDays} days ago`;
-            return date.toLocaleDateString();
+            return formatTsDate(date);
         } catch {
             return timestamp;
         }

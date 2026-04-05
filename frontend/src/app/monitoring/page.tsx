@@ -41,6 +41,9 @@ import { toast } from 'sonner';
 import { useTheme } from '@/lib/theme-provider';
 import { getChartColorsForTheme, getHttpStatusColor, type ChartColorPalette } from '@/lib/chart-colors';
 import { SystemMetricCards, NginxMetricCards } from '@/components/analytics/metric-cards';
+import { StatusDrillDown } from '@/components/analytics/StatusDrillDown';
+import { formatTsTime } from '@/lib/format-timestamp';
+import { AnimatePresence } from 'framer-motion';
 
 // Skeleton components
 function MetricCardSkeleton() {
@@ -174,6 +177,7 @@ function MonitoringPageContent() {
     const [selectedAugment, setSelectedAugment] = useState<any>(null);
     const [augmentParams, setAugmentParams] = useState<any>({});
     const [augmentResult, setAugmentResult] = useState<string | null>(null);
+    const [statusDrillClass, setStatusDrillClass] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
     useEffect(() => {
@@ -444,10 +448,6 @@ function MonitoringPageContent() {
                         <Gauge className="h-4 w-4 mr-2" />
                         Performance
                     </TabsTrigger>
-                    <TabsTrigger value="system" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-                        <HardDrive className="h-4 w-4 mr-2" />
-                        System
-                    </TabsTrigger>
                     <TabsTrigger value="config" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
                         <Settings className="h-4 w-4 mr-2" />
                         Configure
@@ -504,15 +504,7 @@ function MonitoringPageContent() {
                         />
                     </div>
 
-                    {/* Secondary metrics */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                        <MetricCard title="Reading" value={latestNginx.reading || 0} icon={<Wifi className="h-4 w-4" />} colorClass="text-blue-400" />
-                        <MetricCard title="Writing" value={latestNginx.writing || 0} icon={<Activity className="h-4 w-4" />} colorClass="text-green-400" />
-                        <MetricCard title="Waiting" value={latestNginx.waiting || 0} icon={<Clock className="h-4 w-4" />} colorClass="text-yellow-400" />
-                        <MetricCard title="2xx Success" value={httpStatusSummary.success.toLocaleString()} icon={<CheckCircle className="h-4 w-4" />} colorClass="text-emerald-400" />
-                        <MetricCard title="4xx Errors" value={httpStatusSummary.notFound.toLocaleString()} icon={<AlertTriangle className="h-4 w-4" />} colorClass="text-amber-400" />
-                        <MetricCard title="5xx Errors" value={httpStatusSummary.serverError.toLocaleString()} icon={<Shield className="h-4 w-4" />} colorClass="text-rose-400" />
-                    </div>
+                    {/* Secondary metrics removed — see Connections tab for R/W/W and Traffic tab for status codes */}
 
                     {/* Request Rate & Connection Distribution */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -584,7 +576,7 @@ function MonitoringPageContent() {
                             <CardContent>
                                 <div className="h-[280px]">
                                     {statusChartData.length > 0 ? (
-                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                                        <><ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                             <PieChart>
                                                 <Pie
                                                     data={statusChartData}
@@ -598,9 +590,23 @@ function MonitoringPageContent() {
                                                     dataKey="value"
                                                     stroke="rgb(var(--theme-background))"
                                                     strokeWidth={2}
+                                                    cursor="pointer"
+                                                    onClick={(_: any, index: number) => {
+                                                        const entry = statusChartData[index];
+                                                        if (entry) {
+                                                            const code = String(entry.name);
+                                                            // Map "200", "404" etc to class "2xx", "4xx"
+                                                            const cls = code.length === 3 ? code[0] + "xx" : code;
+                                                            setStatusDrillClass(cls);
+                                                        }
+                                                    }}
                                                 >
                                                     {statusChartData.map((entry: any, index: number) => (
-                                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                                        <Cell
+                                                            key={`cell-${index}`}
+                                                            fill={entry.color}
+                                                            style={{ cursor: "pointer", transition: "opacity 0.2s" }}
+                                                        />
                                                     ))}
                                                 </Pie>
                                                 <Tooltip
@@ -608,12 +614,28 @@ function MonitoringPageContent() {
                                                 />
                                             </PieChart>
                                         </ResponsiveContainer>
+                                        <p className="text-center text-xs mt-2" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                            Click a segment to drill down
+                                        </p></>
                                     ) : (
                                         <div className="h-full flex items-center justify-center" style={{ color: "rgb(var(--theme-text-muted))" }}>
                                             No status distribution data
                                         </div>
                                     )}
                                 </div>
+
+                                {/* Drill-down panel — renders inside the card below the pie */}
+                                <AnimatePresence>
+                                    {statusDrillClass && (
+                                        <StatusDrillDown
+                                            window="1h"
+                                            agentId={selectedAgent}
+                                            statusChartData={statusChartData}
+                                            initialClass={statusDrillClass}
+                                            onClose={() => setStatusDrillClass(null)}
+                                        />
+                                    )}
+                                </AnimatePresence>
                             </CardContent>
                         </Card>
 
@@ -1229,14 +1251,8 @@ function MonitoringPageContent() {
                     </Card>
                 </TabsContent>
 
-                {/* System Tab (from Analytics - system metrics) */}
-                <TabsContent value="system" className="space-y-6">
-                    <SystemMetricCards data={(data?.system_metrics?.length || 0) > 0 ? {
-                        cpu_usage_percent: data.system_metrics[data.system_metrics.length - 1].cpuUsage ?? data.system_metrics[data.system_metrics.length - 1].cpu_usage,
-                        memory_usage_percent: data.system_metrics[data.system_metrics.length - 1].memoryUsage ?? data.system_metrics[data.system_metrics.length - 1].memory_usage,
-                        network_rx_rate: data.system_metrics[data.system_metrics.length - 1].networkRxRate ?? data.system_metrics[data.system_metrics.length - 1].network_rx_rate,
-                        network_tx_rate: data.system_metrics[data.system_metrics.length - 1].networkTxRate ?? data.system_metrics[data.system_metrics.length - 1].network_tx_rate
-                    } : null} />
+                {/* System Tab removed — duplicate of Host tab. See Host tab for system metrics. */}
+                {/*
                     <div className="grid gap-4 lg:grid-cols-2">
                         <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
                             <CardHeader className="pb-2">
@@ -1294,8 +1310,7 @@ function MonitoringPageContent() {
                                 </ResponsiveContainer>
                             </div>
                         </CardContent>
-                    </Card>
-                </TabsContent>
+                */}
 
                 {/* Configure Tab */}
                 <TabsContent value="config" className="space-y-6">
@@ -1417,7 +1432,7 @@ function MonitoringPageContent() {
                                     {(data?.recent_requests || []).slice(0, 10).map((log: any, i: number) => (
                                         <TableRow key={i} style={{ borderColor: "rgb(var(--theme-border))" }}>
                                             <TableCell style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                                {new Date(log.timestamp * 1000).toLocaleTimeString()}
+                                                {formatTsTime(log.timestamp)}
                                             </TableCell>
                                             <TableCell>
                                                 <Badge className={log.request_method === 'GET' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'}>

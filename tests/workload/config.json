@@ -1,0 +1,44 @@
+{
+  "gateway": {
+    "grpc_address": "10.97.189.242:8443",
+    "http_address": "https://ncn112.com/avika"
+  },
+  "auth": {
+    "username": "admin",
+    "password": "admin"
+  },
+  "projects": [
+    {
+      "name": "Global CDN",
+      "slug": "global-cdn",
+      "description": "Content delivery network across all regions",
+      "environments": [
+        {"name": "Production", "slug": "production", "is_production": true, "color": "#22c55e"},
+        {"name": "Staging", "slug": "staging", "is_production": false, "color": "#eab308"}
+      ]
+    },
+    {
+      "name": "API Platform",
+      "slug": "api-platform",
+      "description": "Backend API services across regions",
+      "environments": [
+        {"name": "US East", "slug": "us-east", "is_production": true, "color": "#3b82f6"},
+        {"name": "EU West", "slug": "eu-west", "is_production": true, "color": "#8b5cf6"},
+        {"name": "AP South", "slug": "ap-south", "is_production": true, "color": "#f97316"}
+      ]
+    }
+  ],
+  "agents": [
+    {"id": "cdn-us-east-{i}",  "project": "global-cdn",  "environment": "production", "region": "us-east",  "count": 8,  "nginx_version": "1.26.2"},
+    {"id": "cdn-eu-west-{i}",  "project": "global-cdn",  "environment": "production", "region": "eu-west",  "count": 6,  "nginx_version": "1.26.2"},
+    {"id": "cdn-ap-south-{i}", "project": "global-cdn",  "environment": "production", "region": "ap-south", "count": 5,  "nginx_version": "1.26.2"},
+    {"id": "cdn-staging-{i}",  "project": "global-cdn",  "environment": "staging",    "region": "us-east",  "count": 3,  "nginx_version": "1.27.0"},
+    {"id": "api-us-{i}",      "project": "api-platform", "environment": "us-east",    "region": "us-east",  "count": 10, "nginx_version": "1.25.5"},
+    {"id": "api-eu-{i}",      "project": "api-platform", "environment": "eu-west",    "region": "eu-west",  "count": 8,  "nginx_version": "1.25.5"},
+    {"id": "api-ap-{i}",      "project": "api-platform", "environment": "ap-south",   "region": "ap-south", "count": 6,  "nginx_version": "1.25.5"},
+    {"id": "api-ap-tokyo-{i}", "project": "api-platform", "environment": "ap-south",  "region": "ap-tokyo", "count": 4,  "nginx_version": "1.25.5"},
+    {"id": "cdn-latam-{i}",   "project": "global-cdn",  "environment": "production",  "region": "latam",    "count": 3,  "nginx_version": "1.26.2"},
+    {"id": "cdn-africa-{i}",  "project": "global-cdn",  "environment": "production",  "region": "africa",   "count": 2,  "nginx_version": "1.26.2"},
+    {"id": "cdn-mena-{i}",    "project": "global-cdn",  "environment": "production",  "region": "mena",     "count": 2,  "nginx_version": "1.26.2"}
+  ]
+}

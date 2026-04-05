@@ -310,7 +310,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 					go func(e *pb.LogEntry, agentID string) {
 						start := time.Now()
 						if err := s.clickhouse.InsertAccessLog(e, agentID); err != nil {
-							log.Printf("Failed to insert log to CH: %v", err)
+							log.Printf("ClickHouse access log insert failed: %v", err)
 						}
 						s.trackDBOp(start)
 					}(entry, currentSession.id)
@@ -377,7 +377,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 					go func(m *pb.NginxMetrics, agentID string) {
 						start := time.Now()
 						if err := s.clickhouse.InsertNginxMetrics(m, agentID); err != nil {
-							log.Printf("Failed to insert NGINX metrics to CH: %v", err)
+							log.Printf("ClickHouse NGINX metrics insert failed: %v", err)
 						}
 						s.trackDBOp(start)
 					}(metrics, currentSession.id)
@@ -387,7 +387,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 						go func(sm *pb.SystemMetrics, agentID string) {
 							start := time.Now()
 							if err := s.clickhouse.InsertSystemMetrics(sm, agentID); err != nil {
-								log.Printf("Failed to insert system metrics to CH: %v", err)
+								log.Printf("ClickHouse system metrics insert failed: %v", err)
 							}
 							s.trackDBOp(start)
 						}(metrics.System, currentSession.id)
@@ -590,26 +590,31 @@ func (s *server) GetAgent(ctx context.Context, req *pb.GetAgentRequest) (*pb.Age
 }
 
 func (s *server) RemoveAgent(ctx context.Context, req *pb.RemoveAgentRequest) (*pb.RemoveAgentResponse, error) {
-	// Always remove from session if it exists
-	s.sessions.Delete(req.AgentId)
-
-	// Remove from DB (always, even if offline)
-	if err := s.db.RemoveAgent(req.AgentId); err != nil {
-		gatewayLog.Warn().Err(err).Str("agent_id", req.AgentId).Msg("Failed to remove agent from DB")
+	if req.AgentId == "" {
 		return &pb.RemoveAgentResponse{Success: false}, nil
 	}
 
-	gatewayLog.Info().Str("agent_id", req.AgentId).Msg("Agent manually removed from inventory")
+	// Resolve before mutating sessions: if we Delete(req.AgentId) first, a client using the
+	// canonical agent_id leaves no session entry and resolveAgentID fails, so we incorrectly
+	// returned Success=false after the row was already removed (and some code paths never
+	// removed the canonical session key when the client sent a normalized id).
 	resolved, ok := s.resolveAgentID(req.AgentId)
-	if !ok {
+
+	s.sessions.Delete(req.AgentId)
+	if ok {
+		s.sessions.Delete(resolved)
+	}
+
+	dbID := req.AgentId
+	if ok {
+		dbID = resolved
+	}
+	if err := s.db.RemoveAgent(dbID); err != nil {
+		gatewayLog.Warn().Err(err).Str("agent_id", dbID).Msg("Failed to remove agent from DB")
 		return &pb.RemoveAgentResponse{Success: false}, nil
 	}
-	s.sessions.Delete(resolved)
-	if err := s.db.RemoveAgent(resolved); err != nil {
-		gatewayLog.Warn().Err(err).Str("agent_id", resolved).Msg("Failed to remove agent from DB")
-		return &pb.RemoveAgentResponse{Success: false}, nil
-	}
-	gatewayLog.Info().Str("agent_id", resolved).Msg("Agent manually removed from inventory")
+
+	gatewayLog.Info().Str("agent_id", dbID).Str("requested_id", req.AgentId).Msg("Agent manually removed from inventory")
 	return &pb.RemoveAgentResponse{Success: true}, nil
 }
 
@@ -1995,6 +2000,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 
 	// Main analytics API with URL and Status Filtering
 	mux.Handle("/api/analytics", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAnalytics)))
+	mux.Handle("GET /api/analytics/status-drilldown", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleStatusDrillDown)))
 
 	// ============================================================================
 	// RBAC / Multi-Tenancy API Endpoints
@@ -2017,6 +2023,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Server Assignment API
 	mux.Handle("GET /api/server-assignments", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListServerAssignments)))
 	mux.Handle("GET /api/servers", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListAgents)))
+	mux.Handle("DELETE /api/servers/{agentId}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRemoveAgent)))
 	mux.Handle("GET /api/servers/unassigned", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListUnassignedServers)))
 	mux.Handle("POST /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAssignServer)))
 	mux.Handle("DELETE /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUnassignServer)))
@@ -2619,6 +2626,7 @@ func (srv *server) handleExportReport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Failed to generate report data: %v", err), http.StatusInternalServerError)
 		return
 	}
+	srv.enrichReportInsights(ctx, report)
 
 	pdfData, err := GeneratePDFReport(report, time.Unix(startUnix, 0), time.Unix(endUnix, 0))
 	if err != nil {
@@ -2880,6 +2888,83 @@ func (srv *server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// handleStatusDrillDown handles GET /api/analytics/status-drilldown
+func (srv *server) handleStatusDrillDown(w http.ResponseWriter, r *http.Request) {
+	if srv.clickhouse == nil {
+		http.Error(w, `{"error":"ClickHouse not available"}`, http.StatusServiceUnavailable)
+		return
+	}
+
+	q := r.URL.Query()
+	window := q.Get("window")
+	if window == "" {
+		window = "1h"
+	}
+	class := q.Get("class")   // "4xx" etc
+	uri := q.Get("uri")
+	agentID := q.Get("agent_id")
+
+	code := 0
+	if c := q.Get("code"); c != "" {
+		fmt.Sscanf(c, "%d", &code)
+	}
+
+	// Build agent filter from project/environment if provided
+	var agentFilter []string
+	// (reuse the same filtering logic as handleAnalytics if needed)
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	resp, err := srv.clickhouse.GetStatusDrillDown(ctx, window, class, code, uri, agentFilter, agentID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// handleRemoveAgent handles DELETE /api/servers/{agentId} — same semantics as gRPC RemoveAgent, with session auth.
+func (srv *server) handleRemoveAgent(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	if middleware.GetUserFromContext(r.Context()) == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	raw := r.PathValue("agentId")
+	if raw == "" {
+		http.Error(w, `{"error":"agent ID required"}`, http.StatusBadRequest)
+		return
+	}
+	// Align with Next.js normalizeServerId (space → +). resolveAgentID matches display variants (e.g. + vs -).
+	agentID := strings.ReplaceAll(raw, " ", "+")
+
+	resp, err := srv.RemoveAgent(r.Context(), &pb.RemoveAgentRequest{AgentId: agentID})
+	if err != nil {
+		gatewayLog.Warn().Err(err).Str("agent_id", agentID).Msg("HTTP RemoveAgent failed")
+		w.Header().Set("Content-Type", "application/json")
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if !resp.GetSuccess() {
+		w.WriteHeader(http.StatusBadGateway)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Gateway refused removal (agent not found or DB error)",
+		})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }
 
 func (srv *server) handleAnalytics(w http.ResponseWriter, r *http.Request) {

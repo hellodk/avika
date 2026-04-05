@@ -7,7 +7,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api";
-import { format } from "date-fns";
+import { formatTsShort } from "@/lib/format-timestamp";
 import { Shield, User, Globe, Clock, Info, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -119,7 +119,7 @@ export default function AuditPage() {
                                 logs.slice(page * 25, (page + 1) * 25).map((log) => (
                                     <TableRow key={log.id} className="hover-surface" style={{ borderColor: "rgb(var(--theme-border))" }}>
                                         <TableCell className="font-mono text-xs whitespace-nowrap">
-                                            {format(new Date(log.timestamp), "MMM dd, HH:mm:ss")}
+                                            {formatTsShort(log.timestamp)}
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2">

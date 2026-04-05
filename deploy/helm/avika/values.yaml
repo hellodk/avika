@@ -218,7 +218,7 @@ components:
     image:
       useGlobalRegistry: true
       repository: avika-gateway
-      tag: "latest"
+      tag: "pr-203"
       pullPolicy: Always
     terminationGracePeriodSeconds: 35
     
@@ -306,7 +306,7 @@ components:
     image:
       useGlobalRegistry: true
       repository: avika-frontend
-      tag: "latest"
+      tag: "pr-203"
       pullPolicy: Always
     
     ports:

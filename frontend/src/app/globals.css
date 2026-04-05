@@ -217,10 +217,11 @@
     color: #374151 !important;
   }
 
-  /* Analytics tab trigger: active state uses theme primary */
+  /* Analytics tabs: active = subtle tint + primary text (not a heavy solid pill) */
   .analytics-tab-trigger[data-state="active"] {
-    background: rgb(var(--theme-primary)) !important;
-    color: rgb(255, 255, 255) !important;
+    background: rgba(var(--theme-primary), 0.14) !important;
+    color: rgb(var(--theme-primary)) !important;
+    box-shadow: none !important;
   }
 }
 

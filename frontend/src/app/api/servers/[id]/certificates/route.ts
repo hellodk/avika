@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAgentServiceClient } from '@/lib/grpc-client';
 import { normalizeServerId } from '@/lib/api';
+import { isGrpcExplicitFailure } from '@/lib/grpc-success';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,14 @@ export async function POST(
                     console.error("gRPC UploadCertificate Error:", err);
                     return resolve(NextResponse.json({ error: err.message }, { status: 500 }));
                 }
+                if (isGrpcExplicitFailure(response)) {
+                    return resolve(
+                        NextResponse.json(
+                            { error: response?.error || 'Certificate upload rejected' },
+                            { status: 502 }
+                        )
+                    );
+                }
                 resolve(NextResponse.json(response));
             });
         });
@@ -62,6 +71,14 @@ export async function DELETE(
                 if (err) {
                     console.error("gRPC DeleteCertificate Error:", err);
                     return resolve(NextResponse.json({ error: err.message }, { status: 500 }));
+                }
+                if (isGrpcExplicitFailure(response)) {
+                    return resolve(
+                        NextResponse.json(
+                            { error: response?.message || 'Certificate delete rejected' },
+                            { status: 502 }
+                        )
+                    );
                 }
                 resolve(NextResponse.json(response));
             });

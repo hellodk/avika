@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { formatTs, formatTsDate } from "@/lib/format-timestamp";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -646,7 +647,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 const newLog = JSON.parse(event.data) as LogEntry;
                 const ts = (newLog.timestamp as number) || Math.floor(Date.now() / 1000);
                 const date = new Date(ts * 1000);
-                (newLog as any).formattedTime = date.toLocaleString();
+                (newLog as any).formattedTime = formatTs(date);
                 if (!newLog.message && newLog.content) (newLog as any).message = newLog.content;
                 else if (!newLog.message) (newLog as any).message = `${newLog.request_method || ""} ${newLog.request_uri || ""} ${newLog.status ?? ""}`.trim() || "—";
                 setLogs((prev) => [newLog, ...prev].slice(0, Math.max(500, logTailLines)));
@@ -1325,7 +1326,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <span className="text-xs text-neutral-500">
-                                                {b.created_at ? new Date(b.created_at).toLocaleString() : "—"}
+                                                {b.created_at ? formatTs(b.created_at) : "—"}
                                             </span>
                                             <Button
                                                 variant="outline"
@@ -1447,7 +1448,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <div className="text-right">
-                                                <div className="text-sm text-neutral-300">Expires: {new Date(cert.expiry_timestamp * 1000).toLocaleDateString()}</div>
+                                                <div className="text-sm text-neutral-300">Expires: {formatTsDate(cert.expiry_timestamp)}</div>
                                                 <Badge className={cert.days_until_expiry < 30 ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-green-500/10 text-green-400 border-green-500/20"}>
                                                     {cert.days_until_expiry < 30 && <AlertTriangle className="h-3 w-3 mr-1" />}
                                                     {cert.days_until_expiry} days left
@@ -2025,7 +2026,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                             <div className="flex items-center gap-3">
                                                 <div className={`w-2 h-2 rounded-full ${report.status === 'UP' ? 'bg-green-400' : 'bg-red-400'}`} />
                                                 <div>
-                                                    <div className="text-sm font-medium text-white">{new Date(report.timestamp * 1000).toLocaleString()}</div>
+                                                    <div className="text-sm font-medium text-white">{formatTs(report.timestamp)}</div>
                                                     <div className="text-xs text-neutral-500">{report.check_type} • {report.target}</div>
                                                 </div>
                                             </div>
@@ -2384,7 +2385,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                         <li key={b.name} className="flex items-center justify-between p-2 rounded-lg bg-neutral-950 border border-neutral-800">
                                             <span className="font-mono text-sm text-white truncate" style={{ color: "rgb(var(--theme-text))" }}>{b.name}</span>
                                             <span className="text-xs text-neutral-500 shrink-0 ml-2" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                                {b.created_at ? new Date(b.created_at * 1000).toLocaleString() : "—"}
+                                                {b.created_at ? formatTs(b.created_at) : "—"}
                                             </span>
                                             <Button
                                                 variant="outline"
