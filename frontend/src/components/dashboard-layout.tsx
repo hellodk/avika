@@ -253,7 +253,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 >
                     {/* Left: Project Selector and Breadcrumb */}
                     <div className="flex items-center gap-4">
-                        <ProjectSelector className="w-[180px]" />
+                        <ProjectSelector className="w-[240px]" />
                         <div className="w-px h-6 hidden md:block" style={{ background: "rgb(var(--theme-border))" }} />
                         <div className="hidden md:block">
                             <Breadcrumb />

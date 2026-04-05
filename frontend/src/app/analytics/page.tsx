@@ -14,7 +14,6 @@ import {
     Download,
     ChevronDown,
     RefreshCw,
-    ArrowUpRight,
     LayoutDashboard,
     Users,
 } from "lucide-react";
@@ -32,6 +31,10 @@ const VisitorAnalyticsContent = dynamic(
 );
 const GeoAnalyticsContent = dynamic(
     () => import("@/app/analytics/geo/page").then((m) => ({ default: m.default })),
+    { ssr: false, loading: () => <div className="flex items-center justify-center py-12"><RefreshCw className="h-8 w-8 animate-spin" style={{ color: "rgb(var(--theme-text-muted))" }} /></div> }
+);
+const TracesContent = dynamic(
+    () => import("@/app/analytics/traces/page").then((m) => ({ default: m.default })),
     { ssr: false, loading: () => <div className="flex items-center justify-center py-12"><RefreshCw className="h-8 w-8 animate-spin" style={{ color: "rgb(var(--theme-text-muted))" }} /></div> }
 );
 import { LiveMetricsProvider, useLiveMetrics } from "@/components/analytics/LiveMetricsProvider";
@@ -412,9 +415,10 @@ function AnalyticsView() {
                 <div className="overflow-x-auto pb-1 -mx-1 scrollbar-thin" style={{ scrollbarWidth: 'thin' }}>
                     <TabsList className="p-1.5 h-auto inline-flex flex-nowrap gap-1 rounded-lg w-max min-w-full" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
                         {[
-                            { value: 'overview', label: 'Overview', icon: LayoutDashboard },
-                            { value: 'visitors', label: 'Visitor Analytics', icon: Users },
+                            { value: 'overview', label: 'Traffic', icon: LayoutDashboard },
+                            { value: 'visitors', label: 'Visitors', icon: Users },
                             { value: 'geo', label: 'Geo', icon: Globe },
+                            { value: 'traces', label: 'Traces', icon: Activity },
                         ].map(tab => (
                             <TabsTrigger
                                 key={tab.value}
@@ -705,75 +709,45 @@ function AnalyticsView() {
                                     </Button>
                                 </section>
 
-                                <section className="space-y-3">
-                                    <h2
-                                        className="text-xs font-semibold uppercase tracking-wider"
-                                        style={{ color: "rgb(var(--theme-text-dim))" }}
-                                    >
-                                        Detailed analytics
-                                    </h2>
-                                    <div className="grid gap-4 md:grid-cols-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => handleTabChange("visitors")}
-                                            className="group flex min-h-[132px] items-center gap-5 rounded-xl border p-5 text-left transition-all hover:border-[rgba(var(--theme-primary),0.45)] w-full"
-                                            style={{
-                                                background: "rgb(var(--theme-surface))",
-                                                borderColor: "rgb(var(--theme-border))",
-                                                color: "rgb(var(--theme-text))",
-                                            }}
-                                        >
-                                            <div
-                                                className="rounded-xl p-3 transition-colors group-hover:bg-[rgba(var(--theme-primary),0.12)]"
-                                                style={{ background: "rgba(var(--theme-primary), 0.1)" }}
-                                            >
-                                                <Users
-                                                    className="h-7 w-7"
-                                                    style={{ color: "rgb(var(--theme-primary))" }}
-                                                />
+                                {/* Latency Percentiles + Top Endpoints */}
+                                <section className="grid gap-4 lg:grid-cols-2">
+                                    {/* P50/P95/P99 Latency Chart */}
+                                    {(analyticsData.latencyTrend?.length || 0) > 0 && (
+                                        <div className="rounded-xl border p-5" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                                            <h3 className="text-sm font-medium mb-3" style={{ color: "rgb(var(--theme-text))" }}>Latency Percentiles</h3>
+                                            <div className="h-[200px]">
+                                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                                                    <AreaChart data={analyticsData.latencyTrend}>
+                                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                                                        <XAxis dataKey="time" stroke="rgb(var(--theme-text-muted))" fontSize={11} tickLine={false} />
+                                                        <YAxis stroke="rgb(var(--theme-text-muted))" fontSize={11} tickLine={false} unit="ms" />
+                                                        <Tooltip contentStyle={{ backgroundColor: "rgb(var(--theme-surface))", border: "1px solid rgb(var(--theme-border))", borderRadius: 8, color: "rgb(var(--theme-text))" }} />
+                                                        <Area type="monotone" dataKey="p99" stroke="#ef4444" fill="#ef4444" fillOpacity={0.05} strokeWidth={1.5} name="P99" dot={false} />
+                                                        <Area type="monotone" dataKey="p95" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.08} strokeWidth={1.5} name="P95" dot={false} />
+                                                        <Area type="monotone" dataKey="p50" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} strokeWidth={2} name="P50" dot={false} />
+                                                    </AreaChart>
+                                                </ResponsiveContainer>
                                             </div>
-                                            <div className="min-w-0 flex-1 space-y-1">
-                                                <p className="font-semibold">Visitor Analytics</p>
-                                                <p className="text-sm leading-relaxed" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                                    Browsers, devices, referrers, status codes (GoAccess-style)
-                                                </p>
+                                        </div>
+                                    )}
+
+                                    {/* Top Endpoints */}
+                                    {(analyticsData.topEndpoints?.length || 0) > 0 && (
+                                        <div className="rounded-xl border p-5" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                                            <h3 className="text-sm font-medium mb-3" style={{ color: "rgb(var(--theme-text))" }}>Top Endpoints</h3>
+                                            <div className="space-y-2">
+                                                {analyticsData.topEndpoints.slice(0, 6).map((e: any, i: number) => (
+                                                    <div key={i} className="flex items-center justify-between py-1.5">
+                                                        <span className="font-mono text-xs truncate max-w-[250px]" style={{ color: "rgb(var(--theme-text))" }} title={e.uri}>{e.uri}</span>
+                                                        <div className="flex items-center gap-3 shrink-0 ml-3">
+                                                            <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>{parseInt(e.requests).toLocaleString()}</span>
+                                                            <span className={`text-xs font-medium ${parseFloat(e.p95) > 200 ? 'text-amber-500' : ''}`}>{Math.round(parseFloat(e.p95 || 0))}ms</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
-                                            <ArrowUpRight
-                                                className="h-5 w-5 shrink-0 opacity-60 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100"
-                                                style={{ color: "rgb(var(--theme-primary))" }}
-                                            />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleTabChange("geo")}
-                                            className="group flex min-h-[132px] items-center gap-5 rounded-xl border p-5 text-left transition-all hover:border-[rgba(var(--theme-primary),0.45)] w-full"
-                                            style={{
-                                                background: "rgb(var(--theme-surface))",
-                                                borderColor: "rgb(var(--theme-border))",
-                                                color: "rgb(var(--theme-text))",
-                                            }}
-                                        >
-                                            <div
-                                                className="rounded-xl p-3 transition-colors group-hover:bg-[rgba(var(--theme-primary),0.12)]"
-                                                style={{ background: "rgba(var(--theme-primary), 0.1)" }}
-                                            >
-                                                <Globe
-                                                    className="h-7 w-7"
-                                                    style={{ color: "rgb(var(--theme-primary))" }}
-                                                />
-                                            </div>
-                                            <div className="min-w-0 flex-1 space-y-1">
-                                                <p className="font-semibold">Geo Analytics</p>
-                                                <p className="text-sm leading-relaxed" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                                    Traffic by country and city
-                                                </p>
-                                            </div>
-                                            <ArrowUpRight
-                                                className="h-5 w-5 shrink-0 opacity-60 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100"
-                                                style={{ color: "rgb(var(--theme-primary))" }}
-                                            />
-                                        </button>
-                                    </div>
+                                        </div>
+                                    )}
                                 </section>
                             </div>
                         </TabsContent>
@@ -784,6 +758,10 @@ function AnalyticsView() {
 
                         <TabsContent value="geo" className="space-y-6 mt-6">
                             <GeoAnalyticsContent />
+                        </TabsContent>
+
+                        <TabsContent value="traces" className="space-y-6 mt-6">
+                            <TracesContent />
                         </TabsContent>
                     </>
                 )}

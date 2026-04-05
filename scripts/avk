@@ -808,6 +808,55 @@ YAMLEOF
 }
 
 # ── avk push ──────────────────────────────────────────────────────────────────
+# ── avk lint ──────────────────────────────────────────────────────────────────
+cmd_lint() {
+    header "Running lints (same checks as CI)"
+    require_root_dir
+    local failed=false
+
+    # Go vet
+    info "go vet..."
+    if go vet ./cmd/gateway/... ./cmd/agent/... ./internal/... 2>&1; then
+        success "go vet passed"
+    else
+        failed=true
+    fi
+
+    # golangci-lint (if installed)
+    if command -v golangci-lint &>/dev/null; then
+        info "golangci-lint (gateway)..."
+        if (cd cmd/gateway && golangci-lint run --timeout=5m ./...) 2>&1; then
+            success "golangci-lint passed"
+        else
+            failed=true
+        fi
+    else
+        warn "golangci-lint not installed. Install: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"
+    fi
+
+    # Go build
+    info "go build..."
+    if go build ./cmd/gateway/... 2>&1 && go build ./cmd/agent/... 2>&1; then
+        success "Go builds passed"
+    else
+        failed=true
+    fi
+
+    # TypeScript
+    info "TypeScript check..."
+    if (cd frontend && npx tsc --noEmit) 2>&1; then
+        success "TypeScript passed"
+    else
+        failed=true
+    fi
+
+    if [[ "$failed" == true ]]; then
+        error "Some checks failed"
+        return 1
+    fi
+    success "All lints passed"
+}
+
 cmd_push() {
     require_root_dir
     bash "$SCRIPT_DIR/safe-push.sh" "$@"
@@ -838,6 +887,7 @@ ${BOLD}Commands:${NC}
   ${CYAN}restart${NC}   Restart local services
   ${CYAN}release${NC}   Build a local release package
   ${CYAN}setup${NC}     Configure environment (local, hooks, grafana, clickhouse-creds)
+  ${CYAN}lint${NC}      Run all lints (go vet, golangci-lint, TypeScript) — same as CI
   ${CYAN}push${NC}      Safe git push with security checks
   ${CYAN}version${NC}   Show version
 
@@ -854,7 +904,7 @@ main() {
     if [[ -z "$cmd" ]]; then
         echo -e "\n${BOLD}${CYAN}avk${NC} — Avika CLI v$(version)" >&2
         _prompt_select "What would you like to do?" \
-            "test" "build" "deploy" "start" "stop" "status" "restart" "release" "setup" "push"
+            "test" "build" "deploy" "start" "stop" "status" "restart" "release" "setup" "lint" "push"
         cmd="$PROMPT_RESULT"
     fi
 
@@ -868,6 +918,7 @@ main() {
         restart)    cmd_restart "$@" ;;
         release)    cmd_release "$@" ;;
         setup)      cmd_setup "$@" ;;
+        lint)       cmd_lint "$@" ;;
         push)       cmd_push "$@" ;;
         version|-v|--version) cmd_version ;;
         help|-h|--help) usage ;;

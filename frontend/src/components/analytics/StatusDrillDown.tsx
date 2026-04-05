@@ -60,12 +60,14 @@ export function StatusDrillDown({ window, agentId, statusChartData, initialClass
   const [state, setState] = useState<DrillDownState>(initialClass ? { class: initialClass } : {});
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [direction, setDirection] = useState(1); // 1 = forward, -1 = backward
+  const [error, setError] = useState<string | null>(null);
+  const [direction, setDirection] = useState(1);
 
   const level = state.uri ? 4 : state.code ? 3 : state.class ? 2 : 1;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams({ window });
       if (agentId && agentId !== "all") params.set("agent_id", agentId);
@@ -74,9 +76,13 @@ export function StatusDrillDown({ window, agentId, statusChartData, initialClass
       if (state.uri) params.set("uri", state.uri);
 
       const res = await apiFetch(`/api/analytics/status-drilldown?${params}`);
-      if (res.ok) setData(await res.json());
-    } catch (err) {
-      console.error("Status drilldown fetch failed:", err);
+      if (res.ok) {
+        setData(await res.json());
+      } else {
+        setError(`API returned ${res.status}`);
+      }
+    } catch (err: any) {
+      setError(err?.message || "Failed to fetch data");
     } finally {
       setLoading(false);
     }
@@ -180,11 +186,13 @@ export function StatusDrillDown({ window, agentId, statusChartData, initialClass
         >
           {loading ? (
             <div className="h-24 flex items-center justify-center">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}
-                className="h-6 w-6 border-2 border-blue-500 border-t-transparent rounded-full"
-              />
+              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }} className="h-6 w-6 border-2 border-blue-500 border-t-transparent rounded-full" />
+            </div>
+          ) : error ? (
+            <div className="text-center py-6 space-y-2">
+              <p className="text-sm text-red-500">Failed to load data</p>
+              <p className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>{error}</p>
+              <Button variant="outline" size="sm" onClick={fetchData}>Retry</Button>
             </div>
           ) : (
             <>

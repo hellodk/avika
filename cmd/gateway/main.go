@@ -1847,6 +1847,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		"/metrics",
 		"/api/auth/login",
 		"/api/auth/logout",
+		"/api/auth/me",
 	}
 
 	// Callback to persist password changes to database
@@ -1860,7 +1861,47 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Auth endpoints (always available)
 	mux.HandleFunc("/api/auth/login", authManager.LoginHandler())
 	mux.HandleFunc("/api/auth/logout", authManager.LogoutHandler())
-	mux.HandleFunc("/api/auth/me", authManager.MeHandler())
+	// /api/auth/me — public path, manually validates token to return user info + is_superadmin
+	mux.HandleFunc("/api/auth/me", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Extract token from cookie or Authorization header
+		var token string
+		if cookie, err := r.Cookie("avika_session"); err == nil {
+			token = cookie.Value
+		}
+		if token == "" {
+			if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+				token = strings.TrimPrefix(auth, "Bearer ")
+			}
+		}
+		if token == "" {
+			token = r.URL.Query().Get("token")
+		}
+
+		if token == "" {
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"authenticated": false})
+			return
+		}
+
+		user, valid := authManager.ValidateToken(token)
+		if !valid || user == nil {
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"authenticated": false})
+			return
+		}
+
+		isSuperAdmin := false
+		if srv.db != nil {
+			isSuperAdmin, _ = srv.db.IsSuperAdmin(user.Username)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"authenticated": true,
+			"user":          user,
+			"token":         token,
+			"is_superadmin": isSuperAdmin,
+		})
+	})
 
 	// Change password requires authentication
 	mux.Handle("/api/auth/change-password", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(authManager.ChangePasswordHandler(onPasswordChanged))))
@@ -2001,6 +2042,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Main analytics API with URL and Status Filtering
 	mux.Handle("/api/analytics", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAnalytics)))
 	mux.Handle("GET /api/analytics/status-drilldown", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleStatusDrillDown)))
+	mux.Handle("GET /api/analytics/visitor-drilldown", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleVisitorDrillDown)))
 
 	// ============================================================================
 	// RBAC / Multi-Tenancy API Endpoints
@@ -2908,7 +2950,7 @@ func (srv *server) handleStatusDrillDown(w http.ResponseWriter, r *http.Request)
 
 	code := 0
 	if c := q.Get("code"); c != "" {
-		fmt.Sscanf(c, "%d", &code)
+		_, _ = fmt.Sscanf(c, "%d", &code)
 	}
 
 	// Build agent filter from project/environment if provided
@@ -2924,6 +2966,38 @@ func (srv *server) handleStatusDrillDown(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// handleVisitorDrillDown handles GET /api/analytics/visitor-drilldown
+func (srv *server) handleVisitorDrillDown(w http.ResponseWriter, r *http.Request) {
+	if srv.clickhouse == nil {
+		http.Error(w, `{"error":"ClickHouse not available"}`, http.StatusServiceUnavailable)
+		return
+	}
+	q := r.URL.Query()
+	window := q.Get("window")
+	if window == "" {
+		window = "1h"
+	}
+	category := q.Get("category") // "devices", "browsers", "os"
+	group := q.Get("group")       // e.g., "Chrome", "mobile"
+	version := q.Get("version")   // e.g., "125.0.0"
+
+	if category == "" {
+		http.Error(w, `{"error":"category parameter required (devices, browsers, os)"}`, http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	resp, err := srv.clickhouse.GetVisitorDrillDown(ctx, window, category, group, version)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
 }

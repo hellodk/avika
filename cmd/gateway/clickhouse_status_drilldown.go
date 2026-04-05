@@ -143,7 +143,7 @@ func (db *ClickHouseDB) getTopCodeInClass(ctx context.Context, where string, arg
 		%s AND status >= %d AND status < %d
 	`, where, low, high)
 	var total uint64
-	db.conn.QueryRow(ctx, totalQuery, args...).Scan(&total)
+	_ = db.conn.QueryRow(ctx, totalQuery, args...).Scan(&total)
 
 	pct := 0.0
 	if total > 0 {
@@ -209,7 +209,7 @@ func (db *ClickHouseDB) getTopURIForCode(ctx context.Context, where string, args
 		LIMIT 1
 	`, where, code)
 	var uri string
-	db.conn.QueryRow(ctx, query, args...).Scan(&uri)
+	_ = db.conn.QueryRow(ctx, query, args...).Scan(&uri)
 	return uri
 }
 
