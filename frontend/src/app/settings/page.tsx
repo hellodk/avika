@@ -9,7 +9,28 @@ import { Button } from "@/components/ui/button";
 import { Save, Check, Loader2, Settings, Globe, Lock, Zap, ChevronRight, RefreshCw, PlugZap, Key, KeyRound, ShieldCheck } from "lucide-react";
 import { useUserSettings } from "@/lib/user-settings";
 import { toast } from "sonner";
-import Link from "next/link";
+// Link removed — security sub-pages now render inline
+import nextDynamic from "next/dynamic";
+import { motion, AnimatePresence } from "framer-motion";
+
+// Lazy-loaded security sub-pages for inline rendering
+const SSOPage = nextDynamic(() => import("./sso/page"), { loading: () => <PageSkeleton /> });
+const LDAPPage = nextDynamic(() => import("./ldap/page"), { loading: () => <PageSkeleton /> });
+const SAMLPage = nextDynamic(() => import("./saml/page"), { loading: () => <PageSkeleton /> });
+const WAFPage = nextDynamic(() => import("./waf/page"), { loading: () => <PageSkeleton /> });
+const LLMPage = nextDynamic(() => import("./llm/page"), { loading: () => <PageSkeleton /> });
+
+function PageSkeleton() {
+    return <div className="space-y-4 py-4">{[1, 2, 3].map(i => <div key={i} className="h-16 rounded animate-pulse" style={{ background: "rgb(var(--theme-border))" }} />)}</div>;
+}
+
+const securityPageMap: Record<string, React.ComponentType> = {
+    "/settings/sso": SSOPage,
+    "/settings/ldap": LDAPPage,
+    "/settings/saml": SAMLPage,
+    "/settings/waf": WAFPage,
+    "/settings/llm": LLMPage,
+};
 
 import { AppearanceSettings } from "@/components/settings/appearance-settings";
 import { IntegrationSettings } from "@/components/settings/integration-settings";
@@ -196,6 +217,7 @@ function SettingsContent() {
     const [intLoading, setIntLoading] = useState(false);
     const [savingType, setSavingType] = useState<string | null>(null);
     const [testingType, setTestingType] = useState<string | null>(null);
+    const [securityDrill, setSecurityDrill] = useState<string | null>(null); // href of active sub-page
 
     const loadIntegrations = useCallback(async () => {
         setIntLoading(true);
@@ -295,20 +317,39 @@ function SettingsContent() {
 
                 {/* ── Security Tab ─────────────────────────────────────────── */}
                 <TabsContent value="security" className="space-y-6">
-                    <p className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>Authentication providers, firewall policies, and AI configuration.</p>
-                    <div className="grid gap-4 md:grid-cols-2">
-                        {securitySections.map((s) => (
-                            <Link key={s.href} href={s.href}>
-                                <Card className="hover:border-blue-500/50 transition-colors cursor-pointer h-full" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
-                                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                        <CardTitle className="text-sm font-medium flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>{s.icon}{s.title}</CardTitle>
-                                        <ChevronRight className="h-4 w-4" style={{ color: "rgb(var(--theme-text-muted))" }} />
-                                    </CardHeader>
-                                    <CardContent><CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>{s.description}</CardDescription></CardContent>
-                                </Card>
-                            </Link>
-                        ))}
-                    </div>
+                    <AnimatePresence mode="wait">
+                        {securityDrill ? (() => {
+                            const Page = securityPageMap[securityDrill];
+                            const section = securitySections.find(s => s.href === securityDrill);
+                            return (
+                                <motion.div key={securityDrill} initial={{ x: 60, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -60, opacity: 0 }} transition={{ duration: 0.2 }}>
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <button onClick={() => setSecurityDrill(null)} className="text-sm hover:underline" style={{ color: "rgb(var(--theme-text-muted))" }}>Security</button>
+                                        <ChevronRight className="h-3 w-3" style={{ color: "rgb(var(--theme-text-muted))" }} />
+                                        <span className="text-sm font-semibold" style={{ color: "rgb(var(--theme-text))" }}>{section?.title}</span>
+                                    </div>
+                                    {Page ? <Page /> : null}
+                                </motion.div>
+                            );
+                        })() : (
+                            <motion.div key="grid" initial={{ x: -60, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 60, opacity: 0 }} transition={{ duration: 0.2 }}>
+                                <p className="text-sm mb-4" style={{ color: "rgb(var(--theme-text-muted))" }}>Authentication providers, firewall policies, and AI configuration.</p>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    {securitySections.map((s) => (
+                                        <motion.button key={s.href} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setSecurityDrill(s.href)} className="text-left w-full">
+                                            <Card className="hover:border-blue-500/50 transition-colors cursor-pointer h-full" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+                                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                                    <CardTitle className="text-sm font-medium flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>{s.icon}{s.title}</CardTitle>
+                                                    <ChevronRight className="h-4 w-4" style={{ color: "rgb(var(--theme-text-muted))" }} />
+                                                </CardHeader>
+                                                <CardContent><CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>{s.description}</CardDescription></CardContent>
+                                            </Card>
+                                        </motion.button>
+                                    ))}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </TabsContent>
             </Tabs>
         </div>
