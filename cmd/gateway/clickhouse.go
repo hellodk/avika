@@ -1697,7 +1697,7 @@ func (db *ClickHouseDB) flushLogs(batch []logBatchItem) {
 	for _, item := range batch {
 		ts := time.Unix(item.entry.Timestamp, 0)
 		if item.entry.Timestamp == 0 {
-			ts = time.Now()
+			ts = time.Now().UTC()
 		}
 		if err := b.Append(ts, item.agentID, item.entry.RemoteAddr, item.entry.RequestMethod,
 			item.entry.RequestUri, uint16(item.entry.Status), uint64(item.entry.BodyBytesSent),
@@ -1788,7 +1788,7 @@ func (db *ClickHouseDB) flushSys(batch []sysBatchItem) {
 	}
 	for _, item := range batch {
 		if err := b.Append(
-			time.Now(),
+			time.Now().UTC(),
 			item.agentID,
 			float32(item.entry.CpuUsagePercent),
 			float32(item.entry.MemoryUsagePercent),
@@ -1857,7 +1857,7 @@ func (db *ClickHouseDB) flushNginx(batch []nginxBatchItem) {
 		bytesIn := uint64(item.entry.BytesInTotal)
 		bytesOut := uint64(item.entry.BytesOutTotal)
 		if err := b.Append(
-			time.Now(),
+			time.Now().UTC(),
 			item.agentID,
 			uint32(item.entry.ActiveConnections),
 			uint64(item.entry.AcceptedConnections),
@@ -1908,7 +1908,7 @@ func (db *ClickHouseDB) flushGw(batch []gwBatchItem) {
 		return
 	}
 	for _, item := range batch {
-		if err := b.Append(time.Now(), item.metrics.gatewayID, item.metrics.metrics.Eps,
+		if err := b.Append(time.Now().UTC(), item.metrics.gatewayID, item.metrics.metrics.Eps,
 			uint32(item.metrics.metrics.ActiveConnections), item.metrics.metrics.CpuUsage,
 			item.metrics.metrics.MemoryMb, uint32(item.metrics.metrics.Goroutines),
 			item.metrics.metrics.DbLatency); err != nil {

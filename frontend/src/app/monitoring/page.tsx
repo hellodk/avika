@@ -42,6 +42,7 @@ import { useTheme } from '@/lib/theme-provider';
 import { getChartColorsForTheme, getHttpStatusColor, type ChartColorPalette } from '@/lib/chart-colors';
 import { SystemMetricCards, NginxMetricCards } from '@/components/analytics/metric-cards';
 import { StatusDrillDown } from '@/components/analytics/StatusDrillDown';
+import { formatTsTime } from '@/lib/format-timestamp';
 import { AnimatePresence } from 'framer-motion';
 
 // Skeleton components
@@ -1431,7 +1432,7 @@ function MonitoringPageContent() {
                                     {(data?.recent_requests || []).slice(0, 10).map((log: any, i: number) => (
                                         <TableRow key={i} style={{ borderColor: "rgb(var(--theme-border))" }}>
                                             <TableCell style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                                {new Date(log.timestamp * 1000).toLocaleTimeString()}
+                                                {formatTsTime(log.timestamp)}
                                             </TableCell>
                                             <TableCell>
                                                 <Badge className={log.request_method === 'GET' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'}>

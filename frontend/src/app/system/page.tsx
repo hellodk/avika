@@ -1,6 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { formatTsDate } from "@/lib/format-timestamp";
 import { apiFetch, serverIdForDisplay } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -505,7 +506,7 @@ function formatLastSeen(lastSeen: string | number) {
     if (diff < 60) return `${diff}s ago`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return new Date(timestamp * 1000).toLocaleDateString();
+    return formatTsDate(timestamp);
 }
 
 function SystemHealthPageSkeleton() {

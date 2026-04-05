@@ -1,7 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { format } from "date-fns";
+import { formatTsPrecise } from "@/lib/format-timestamp";
 
 interface Span {
     trace_id: string;
@@ -41,7 +41,7 @@ export function TraceWaterfall({ trace }: { trace: Trace }) {
         <div className="space-y-4">
             <div className="flex justify-between text-sm pb-2 border-b" style={{ color: 'rgb(var(--theme-text-muted))', borderColor: 'rgb(var(--theme-border))' }}>
                 <span>Timeline ({totalDuration.toFixed(2)}ms)</span>
-                <span>Start: {format(new Date(minStart), "HH:mm:ss.SSS")}</span>
+                <span>Start: {formatTsPrecise(minStart)}</span>
             </div>
             <div className="space-y-1">
                 {sortedSpans.map(span => {

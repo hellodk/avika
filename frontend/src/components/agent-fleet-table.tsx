@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
+import { formatTsDate } from "@/lib/format-timestamp";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow
@@ -75,7 +76,7 @@ function formatLastSeen(lastSeen: string | number) {
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
     const days = Math.floor(diff / 86400);
     if (days < 30) return `${days}d ago`;
-    return new Date(timestamp * 1000).toLocaleDateString();
+    return formatTsDate(timestamp);
 }
 
 export function AgentFleetTable({
