@@ -85,6 +85,25 @@ normalize_duration() {
     fi
 }
 
+# Prompt for TLS options. Sets TLS_FLAGS (for simulator/workload CLI args).
+# Default CA path: certs/ca.crt (from avk setup local).
+TLS_FLAGS=""
+prompt_tls() {
+    TLS_FLAGS=""
+    if prompt_confirm "Enable TLS for gRPC?"; then
+        TLS_FLAGS="-tls"
+        local ca_default=""
+        [[ -f "certs/ca.crt" ]] && ca_default="certs/ca.crt"
+        _prompt_input "CA certificate file (empty to skip verification)" "$ca_default"
+        local ca="$PROMPT_RESULT"
+        if [[ -n "$ca" ]]; then
+            TLS_FLAGS="$TLS_FLAGS -tls-ca $ca"
+        else
+            TLS_FLAGS="$TLS_FLAGS -tls-insecure"
+        fi
+    fi
+}
+
 require_root_dir() {
     cd "$ROOT_DIR"
 }
@@ -100,7 +119,7 @@ cmd_test() {
 
     if [[ -z "$sub" ]]; then
         _prompt_select "What would you like to test?" \
-            "unit" "e2e" "integration" "regression" "load" "profile" "all"
+            "unit" "e2e" "integration" "regression" "load" "workload" "profile" "all"
         sub="$PROMPT_RESULT"
     fi
 
@@ -111,6 +130,7 @@ cmd_test() {
         integration) cmd_test_integration "$@" ;;
         regression)  cmd_test_regression "$@" ;;
         load)        cmd_test_load "$@" ;;
+        workload)    cmd_test_workload "$@" ;;
         profile)     cmd_test_profile "$@" ;;
         all)         cmd_test_all "$@" ;;
         *)           error "Unknown test type: $sub"; exit 1 ;;
@@ -173,6 +193,9 @@ cmd_test_load() {
 
     local rps duration agents mode gateway batch warmup simple
 
+    _prompt_input "Gateway target (host:port)" "${GATEWAY_TARGET:-localhost:5020}"; gateway="$PROMPT_RESULT"
+    prompt_tls
+
     _prompt_select "Load test mode:" \
         "Quick (simple, no harness)" \
         "Full (baseline + monitoring + analysis)" \
@@ -184,34 +207,79 @@ cmd_test_load() {
             _prompt_input "Requests per second" "50000"; rps="$PROMPT_RESULT"
             _prompt_input "Simulated agents" "500"; agents="$PROMPT_RESULT"
             _prompt_input "Duration (e.g. 2m, 30s, 1h)" "2m"; duration=$(normalize_duration "$PROMPT_RESULT")
-            info "Starting quick load test: ${rps} RPS, ${agents} agents, ${duration}"
-            RPS="$rps" AGENTS="$agents" DURATION="$duration" SIMPLE=1 \
-                bash "$SCRIPT_DIR/load_test.sh"
+            info "Starting quick load test: ${rps} RPS, ${agents} agents, ${duration}, target: ${gateway}"
+            RPS="$rps" AGENTS="$agents" DURATION="$duration" GATEWAY_TARGET="$gateway" SIMPLE=1 \
+                SIMULATOR_TLS_FLAGS="$TLS_FLAGS" bash "$SCRIPT_DIR/load_test.sh"
             ;;
         "Full (baseline + monitoring + analysis)")
             _prompt_input "Requests per second" "50000"; rps="$PROMPT_RESULT"
             _prompt_input "Simulated agents" "100"; agents="$PROMPT_RESULT"
             _prompt_input "Duration (e.g. 5m, 30s, 1h)" "5m"; duration=$(normalize_duration "$PROMPT_RESULT")
-            info "Starting full load test: ${rps} RPS, ${agents} agents, ${duration}"
-            RPS="$rps" AGENTS="$agents" DURATION="$duration" SIMPLE=0 \
-                bash "$SCRIPT_DIR/load_test.sh"
+            info "Starting full load test: ${rps} RPS, ${agents} agents, ${duration}, target: ${gateway}"
+            RPS="$rps" AGENTS="$agents" DURATION="$duration" GATEWAY_TARGET="$gateway" SIMPLE=0 \
+                SIMULATOR_TLS_FLAGS="$TLS_FLAGS" bash "$SCRIPT_DIR/load_test.sh"
             ;;
         "Custom")
             _prompt_input "Requests per second" "10000"; rps="$PROMPT_RESULT"
             _prompt_input "Simulated agents" "50"; agents="$PROMPT_RESULT"
             _prompt_input "Duration (e.g. 1m, 30s, 1h)" "1m"; duration=$(normalize_duration "$PROMPT_RESULT")
-            _prompt_input "Gateway target" "localhost:5020"; gateway="$PROMPT_RESULT"
             _prompt_input "Batch size" "100"; batch="$PROMPT_RESULT"
             _prompt_input "Warmup duration (e.g. 30s)" "30s"; warmup=$(normalize_duration "$PROMPT_RESULT")
             prompt_confirm "Enable full harness (baseline + monitoring)?" && simple=0 || simple=1
-            info "Starting custom load test..."
+            info "Starting custom load test: ${rps} RPS, ${agents} agents, ${duration}, target: ${gateway}"
             RPS="$rps" AGENTS="$agents" DURATION="$duration" \
                 GATEWAY_TARGET="$gateway" BATCH_SIZE="$batch" \
                 WARMUP_DURATION="$warmup" SIMPLE="$simple" \
-                bash "$SCRIPT_DIR/load_test.sh"
+                SIMULATOR_TLS_FLAGS="$TLS_FLAGS" bash "$SCRIPT_DIR/load_test.sh"
             ;;
     esac
     success "Load test complete"
+}
+
+cmd_test_workload() {
+    header "Workload Generator (geo-distributed fleet simulation)"
+
+    local config="tests/workload/config.json"
+    _prompt_input "Config file" "$config"; config="$PROMPT_RESULT"
+    _prompt_input "Total RPS across all agents" "500"; local rps="$PROMPT_RESULT"
+    prompt_tls
+
+    _prompt_select "Mode:" \
+        "Full (setup projects + traffic)" \
+        "Real-time traffic only (skip setup)" \
+        "Historical backfill (fill past data rapidly)" \
+        "Setup only (create projects/envs, no traffic)"
+    local mode="$PROMPT_RESULT"
+
+    local flags="-config $config -rps $rps"
+
+    case "$mode" in
+        "Full (setup projects + traffic)")
+            _prompt_input "Duration (e.g. 5m, 1h)" "5m"; local dur=$(normalize_duration "$PROMPT_RESULT")
+            flags="$flags -duration $dur"
+            ;;
+        "Real-time traffic only (skip setup)")
+            _prompt_input "Duration (e.g. 5m, 1h)" "5m"; local dur2=$(normalize_duration "$PROMPT_RESULT")
+            flags="$flags -duration $dur2 -skip-setup"
+            ;;
+        "Historical backfill (fill past data rapidly)")
+            _prompt_input "Backfill window (e.g. 24h, 7d)" "24h"; local bf="$PROMPT_RESULT"
+            if [[ "$bf" =~ ^([0-9]+)d$ ]]; then
+                bf="$(( ${BASH_REMATCH[1]} * 24 ))h"
+            fi
+            flags="$flags -backfill $bf"
+            ;;
+        "Setup only (create projects/envs, no traffic)")
+            flags="$flags -setup-only"
+            ;;
+    esac
+
+    info "Building workload generator..."
+    go build -o bin/workload ./tests/workload/
+
+    flags="$flags $TLS_FLAGS"
+    info "Launching: bin/workload $flags"
+    ./bin/workload $flags
 }
 
 cmd_test_profile() {
@@ -443,12 +511,15 @@ cmd_setup() {
 
     if [[ -z "$sub" ]]; then
         _prompt_select "What would you like to set up?" \
-            "hooks" "grafana" "clickhouse-creds"
+            "local" "hooks" "grafana" "clickhouse-creds"
         sub="$PROMPT_RESULT"
     fi
 
     require_root_dir
     case "$sub" in
+        local)
+            cmd_setup_local "$@"
+            ;;
         hooks)
             header "Installing git hooks"
             bash "$SCRIPT_DIR/install-git-hooks.sh"
@@ -466,6 +537,274 @@ cmd_setup() {
         *)
             error "Unknown setup target: $sub"; exit 1 ;;
     esac
+}
+
+# ── avk setup local ──────────────────────────────────────────────────────────
+cmd_setup_local() {
+    header "Local Environment Setup Wizard"
+    info "This wizard generates a gateway config YAML and optional TLS certificates."
+    echo "" >&2
+
+    local CONFIG_OUT="gateway-local.yaml"
+    _prompt_input "Output config file" "$CONFIG_OUT"; CONFIG_OUT="$PROMPT_RESULT"
+
+    # ── Server ────────────────────────────────────────────────────────────
+    echo -e "\n${BOLD}Server${NC}" >&2
+    _prompt_input "gRPC port" "5020"; local grpc_port="$PROMPT_RESULT"
+    _prompt_input "HTTP port" "5021"; local http_port="$PROMPT_RESULT"
+    _prompt_input "Metrics port" "5022"; local metrics_port="$PROMPT_RESULT"
+    _prompt_input "Host (bind address)" "0.0.0.0"; local host="$PROMPT_RESULT"
+
+    # ── PostgreSQL ────────────────────────────────────────────────────────
+    echo -e "\n${BOLD}PostgreSQL${NC}" >&2
+    _prompt_input "PostgreSQL host" "localhost"; local pg_host="$PROMPT_RESULT"
+    _prompt_input "PostgreSQL port" "5432"; local pg_port="$PROMPT_RESULT"
+    _prompt_input "PostgreSQL database" "avika"; local pg_db="$PROMPT_RESULT"
+    _prompt_input "PostgreSQL user" "admin"; local pg_user="$PROMPT_RESULT"
+    _prompt_input "PostgreSQL password" ""; local pg_pass="$PROMPT_RESULT"
+    local pg_ssl="disable"
+    prompt_confirm "Enable PostgreSQL SSL?" && pg_ssl="require"
+    local pg_dsn="postgres://${pg_user}:${pg_pass}@${pg_host}:${pg_port}/${pg_db}?sslmode=${pg_ssl}"
+
+    # ── ClickHouse ────────────────────────────────────────────────────────
+    echo -e "\n${BOLD}ClickHouse${NC}" >&2
+    _prompt_input "ClickHouse address (host:port)" "localhost:9000"; local ch_addr="$PROMPT_RESULT"
+    _prompt_input "ClickHouse database" "nginx_analytics"; local ch_db="$PROMPT_RESULT"
+    _prompt_input "ClickHouse user" "default"; local ch_user="$PROMPT_RESULT"
+    _prompt_input "ClickHouse password" ""; local ch_pass="$PROMPT_RESULT"
+
+    # ── TLS / HTTPS ───────────────────────────────────────────────────────
+    echo -e "\n${BOLD}TLS / HTTPS${NC}" >&2
+    local enable_tls=false
+    local tls_cert="" tls_key="" tls_ca="" require_mtls=false
+
+    if prompt_confirm "Enable TLS/HTTPS for the gateway?"; then
+        enable_tls=true
+
+        _prompt_select "Certificate source:" \
+            "Generate self-signed (for local dev)" \
+            "Provide existing cert/key files"
+        local tls_source="$PROMPT_RESULT"
+
+        case "$tls_source" in
+            "Generate self-signed (for local dev)")
+                local cert_dir="certs"
+                _prompt_input "Certificate output directory" "$cert_dir"; cert_dir="$PROMPT_RESULT"
+                _prompt_input "Common Name (CN)" "localhost"; local cn="$PROMPT_RESULT"
+                _prompt_input "Certificate validity (days)" "365"; local days="$PROMPT_RESULT"
+
+                mkdir -p "$cert_dir"
+                info "Generating self-signed certificate..."
+
+                # Generate CA
+                openssl genrsa -out "$cert_dir/ca.key" 4096 2>/dev/null
+                openssl req -new -x509 -days "$days" -key "$cert_dir/ca.key" \
+                    -out "$cert_dir/ca.crt" -subj "/CN=Avika Local CA" 2>/dev/null
+
+                # Generate server cert
+                openssl genrsa -out "$cert_dir/server.key" 2048 2>/dev/null
+                openssl req -new -key "$cert_dir/server.key" \
+                    -out "$cert_dir/server.csr" -subj "/CN=${cn}" 2>/dev/null
+
+                # SAN config for localhost + IP
+                cat > "$cert_dir/san.cnf" <<SANEOF
+[req]
+distinguished_name = req_dn
+[req_dn]
+[v3_ext]
+subjectAltName = DNS:${cn},DNS:localhost,IP:127.0.0.1,IP:::1
+SANEOF
+                openssl x509 -req -days "$days" -in "$cert_dir/server.csr" \
+                    -CA "$cert_dir/ca.crt" -CAkey "$cert_dir/ca.key" -CAcreateserial \
+                    -out "$cert_dir/server.crt" -extfile "$cert_dir/san.cnf" -extensions v3_ext 2>/dev/null
+
+                tls_cert="$cert_dir/server.crt"
+                tls_key="$cert_dir/server.key"
+                tls_ca="$cert_dir/ca.crt"
+                rm -f "$cert_dir/server.csr" "$cert_dir/san.cnf" "$cert_dir/ca.srl"
+
+                success "Certificates generated in $cert_dir/"
+                info "  CA:   $cert_dir/ca.crt"
+                info "  Cert: $cert_dir/server.crt"
+                info "  Key:  $cert_dir/server.key"
+                ;;
+            "Provide existing cert/key files")
+                _prompt_input "TLS certificate file (.crt/.pem)" ""; tls_cert="$PROMPT_RESULT"
+                _prompt_input "TLS private key file (.key)" ""; tls_key="$PROMPT_RESULT"
+                _prompt_input "CA certificate file (optional, for mTLS)" ""; tls_ca="$PROMPT_RESULT"
+                ;;
+        esac
+
+        if [[ -n "$tls_ca" ]]; then
+            prompt_confirm "Require mutual TLS (client certificates)?" && require_mtls=true
+        fi
+    fi
+
+    # ── Authentication ────────────────────────────────────────────────────
+    echo -e "\n${BOLD}Authentication${NC}" >&2
+    local auth_enabled=true
+    prompt_confirm "Enable authentication?" || auth_enabled=false
+    local auth_user="admin" auth_hash="" cookie_secure=false
+    if [[ "$auth_enabled" == true ]]; then
+        _prompt_input "Admin username" "admin"; auth_user="$PROMPT_RESULT"
+        _prompt_input "Admin password (will be hashed)" "admin"; local auth_pass="$PROMPT_RESULT"
+        auth_hash=$(echo -n "$auth_pass" | sha256sum | cut -d' ' -f1)
+        [[ "$enable_tls" == true ]] && cookie_secure=true
+    fi
+
+    # ── PSK (Agent Pre-Shared Key) ────────────────────────────────────────
+    echo -e "\n${BOLD}Agent PSK Authentication${NC}" >&2
+    local psk_enabled=false psk_key=""
+    if prompt_confirm "Enable PSK for agent authentication?"; then
+        psk_enabled=true
+        _prompt_select "PSK key:" "Generate random key" "Enter existing key"
+        local psk_source="$PROMPT_RESULT"
+        case "$psk_source" in
+            "Generate random key")
+                psk_key=$(openssl rand -hex 32)
+                info "Generated PSK: $psk_key"
+                ;;
+            "Enter existing key")
+                _prompt_input "PSK key (64 hex chars)" ""; psk_key="$PROMPT_RESULT"
+                ;;
+        esac
+    fi
+
+    # ── LLM / AI ──────────────────────────────────────────────────────────
+    echo -e "\n${BOLD}AI / LLM (optional)${NC}" >&2
+    local llm_enabled=false llm_provider="" llm_model="" llm_key="" llm_url=""
+    if prompt_confirm "Enable AI error analysis?"; then
+        llm_enabled=true
+        _prompt_select "LLM Provider:" "openai" "anthropic" "ollama" "azure" "lmstudio"
+        llm_provider="$PROMPT_RESULT"
+        case "$llm_provider" in
+            openai)
+                _prompt_input "Model" "gpt-4-turbo"; llm_model="$PROMPT_RESULT"
+                _prompt_input "API Key" ""; llm_key="$PROMPT_RESULT"
+                ;;
+            anthropic)
+                _prompt_input "Model" "claude-sonnet-4-20250514"; llm_model="$PROMPT_RESULT"
+                _prompt_input "API Key" ""; llm_key="$PROMPT_RESULT"
+                ;;
+            ollama)
+                _prompt_input "Model" "llama3"; llm_model="$PROMPT_RESULT"
+                _prompt_input "Ollama URL" "http://localhost:11434"; llm_url="$PROMPT_RESULT"
+                ;;
+            azure)
+                _prompt_input "Model" "gpt-4"; llm_model="$PROMPT_RESULT"
+                _prompt_input "API Key" ""; llm_key="$PROMPT_RESULT"
+                _prompt_input "Azure endpoint URL" ""; llm_url="$PROMPT_RESULT"
+                ;;
+            lmstudio)
+                _prompt_input "Model" "local-model"; llm_model="$PROMPT_RESULT"
+                _prompt_input "LM Studio URL" "http://localhost:1234/v1"; llm_url="$PROMPT_RESULT"
+                ;;
+        esac
+    fi
+
+    # ── Write YAML ────────────────────────────────────────────────────────
+    echo -e "\n${BOLD}Generating config...${NC}" >&2
+
+    cat > "$CONFIG_OUT" <<YAMLEOF
+# Avika Gateway Configuration
+# Generated by: avk setup local
+# Date: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+server:
+  grpc_port: ${grpc_port}
+  http_port: ${http_port}
+  metrics_port: ${metrics_port}
+  host: "${host}"
+
+database:
+  dsn: "${pg_dsn}"
+  max_open_conns: 25
+  max_retries: 3
+  retry_interval: 2s
+
+clickhouse:
+  address: "${ch_addr}"
+  database: "${ch_db}"
+  username: "${ch_user}"
+$(printf '  passwo''rd: "%s"' "$ch_pass")
+
+security:
+  allowed_origins: ["*"]
+  enable_rate_limit: true
+  rate_limit_rps: 100
+  shutdown_timeout: 30s
+  enable_tls: ${enable_tls}
+YAMLEOF
+
+    if [[ "$enable_tls" == true ]]; then
+        cat >> "$CONFIG_OUT" <<YAMLEOF
+  tls_cert_file: "${tls_cert}"
+  tls_key_file: "${tls_key}"
+YAMLEOF
+        if [[ -n "$tls_ca" ]]; then
+            cat >> "$CONFIG_OUT" <<YAMLEOF
+  tls_ca_cert_file: "${tls_ca}"
+  require_client_cert: ${require_mtls}
+YAMLEOF
+        fi
+    fi
+
+    cat >> "$CONFIG_OUT" <<YAMLEOF
+
+auth:
+  enabled: ${auth_enabled}
+  username: "${auth_user}"
+  password_hash: "${auth_hash}"
+  token_expiry: "24h"
+  cookie_secure: ${cookie_secure}
+
+psk:
+  enabled: ${psk_enabled}
+YAMLEOF
+
+    if [[ "$psk_enabled" == true ]]; then
+        cat >> "$CONFIG_OUT" <<YAMLEOF
+  key: "${psk_key}"
+  allow_auto_enroll: true
+  timestamp_window: "5m"
+YAMLEOF
+    fi
+
+    cat >> "$CONFIG_OUT" <<YAMLEOF
+
+llm:
+  enabled: ${llm_enabled}
+YAMLEOF
+
+    if [[ "$llm_enabled" == true ]]; then
+        cat >> "$CONFIG_OUT" <<YAMLEOF
+  provider: "${llm_provider}"
+  model: "${llm_model}"
+YAMLEOF
+        [[ -n "$llm_key" ]] && echo "  api_key: \"${llm_key}\"" >> "$CONFIG_OUT"
+        [[ -n "$llm_url" ]] && echo "  base_url: \"${llm_url}\"" >> "$CONFIG_OUT"
+    fi
+
+    echo "" >&2
+    success "Config written to: $CONFIG_OUT"
+    echo "" >&2
+    info "To start the gateway with this config:"
+    info "  go run ./cmd/gateway -config ${CONFIG_OUT}"
+    echo "" >&2
+
+    if [[ "$enable_tls" == true ]]; then
+        info "TLS is enabled. Agents should connect with:"
+        info "  GATEWAYS=${host}:${grpc_port}"
+        info "  TLS=true"
+        [[ -n "$tls_ca" ]] && info "  TLS_CA=${tls_ca}"
+        [[ "$psk_enabled" == true ]] && info "  PSK=${psk_key}"
+        echo "" >&2
+    fi
+
+    if prompt_confirm "Start the gateway now?"; then
+        info "Starting gateway with ${CONFIG_OUT}..."
+        go run ./cmd/gateway -config "$CONFIG_OUT"
+    fi
 }
 
 # ── avk push ──────────────────────────────────────────────────────────────────
@@ -498,7 +837,7 @@ ${BOLD}Commands:${NC}
   ${CYAN}status${NC}    Show service status
   ${CYAN}restart${NC}   Restart local services
   ${CYAN}release${NC}   Build a local release package
-  ${CYAN}setup${NC}     Configure tools (hooks, grafana, clickhouse-creds)
+  ${CYAN}setup${NC}     Configure environment (local, hooks, grafana, clickhouse-creds)
   ${CYAN}push${NC}      Safe git push with security checks
   ${CYAN}version${NC}   Show version
 

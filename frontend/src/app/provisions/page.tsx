@@ -70,29 +70,47 @@ export default function ProvisionsPage() {
     const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
     const [step, setStep] = useState(1);
     const [selectedAgent, setSelectedAgent] = useState<string>("");
+    const [selectedAgents, setSelectedAgentsLocal] = useState<Set<string>>(new Set());
     const [agents, setAgents] = useState<ProvisionAgentRow[]>([]);
     const [config, setConfig] = useState<ProvisionFormConfig>({});
 
+    // Project → Environment → Instance selection
+    const [projects, setProjects] = useState<any[]>([]);
+    const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+    const [environments, setEnvironments] = useState<any[]>([]);
+    const [selectedEnvId, setSelectedEnvId] = useState<string>("");
+    const [serverAssignments, setServerAssignments] = useState<Record<string, any>>({});
+
     useEffect(() => {
-        const fetchAgents = async () => {
-            try {
-                const res = await apiFetch('/api/servers');
-                if (res.ok) {
-                    const data = await res.json();
-                    setAgents(Array.isArray(data.agents) ? data.agents : []);
-                }
-            } catch (err) {
-                console.error("Failed to fetch agents:", err);
-            }
-        };
-        fetchAgents();
+        apiFetch('/api/projects').then(r => r.json()).then(d => setProjects(Array.isArray(d) ? d : [])).catch(() => {});
+        apiFetch('/api/servers').then(r => r.json()).then(d => setAgents(Array.isArray(d?.agents) ? d.agents : [])).catch(() => {});
+        apiFetch('/api/server-assignments').then(r => r.json()).then(d => {
+            const map: Record<string, any> = {};
+            for (const a of (d?.assignments || [])) map[a.agent_id] = a;
+            setServerAssignments(map);
+        }).catch(() => {});
     }, []);
+
+    useEffect(() => {
+        if (!selectedProjectId) { setEnvironments([]); return; }
+        apiFetch(`/api/projects/${selectedProjectId}/environments`).then(r => r.json()).then(d => setEnvironments(Array.isArray(d) ? d : [])).catch(() => setEnvironments([]));
+    }, [selectedProjectId]);
+
+    // Agents filtered by selected environment
+    const filteredAgents = agents.filter(a => {
+        const aid = a.agent_id ?? a.id ?? "";
+        const assign = serverAssignments[aid];
+        return assign && assign.environment_id === selectedEnvId;
+    });
 
     const reset = () => {
         setSelectedTemplate(null);
         setStep(1);
         setSelectedAgent("");
+        setSelectedAgentsLocal(new Set());
         setConfig({});
+        setSelectedProjectId("");
+        setSelectedEnvId("");
     };
 
     if (!selectedTemplate) {
@@ -171,30 +189,91 @@ export default function ProvisionsPage() {
                 <CardContent className="p-8">
                     {step === 1 && (
                         <div className="space-y-6">
-                            <h3 className="text-lg font-medium" style={{ color: `rgb(var(--theme-text))` }}>Step 1: Select Target Instance</h3>
-                            <div className="grid grid-cols-1 gap-4">
-                                {agents.map((agent) => {
-                                    const aid = agent.agent_id ?? agent.id ?? "";
-                                    return (
-                                    <div
-                                        key={aid}
-                                        onClick={() => setSelectedAgent(aid)}
-                                        className={`p-4 border rounded-lg cursor-pointer transition-all flex items-center justify-between ${selectedAgent === aid ? 'border-primary bg-primary/5' : 'border-neutral-800 hover:border-neutral-600'}`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <Server className="h-5 w-5 text-neutral-400" />
-                                            <div>
-                                                <p className="font-medium" style={{ color: `rgb(var(--theme-text))` }}>{agent.hostname}</p>
-                                                <p className="text-xs text-neutral-500">{agent.ip} | ID: {aid ? serverIdForDisplay(aid) : ""}</p>
-                                            </div>
+                            <h3 className="text-lg font-medium" style={{ color: `rgb(var(--theme-text))` }}>Step 1: Select Target</h3>
+
+                            {/* Project selection */}
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium" style={{ color: `rgb(var(--theme-text))` }}>Project</label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {projects.filter(p => p.slug !== "unclassified").map((p: any) => (
+                                        <div key={p.id} onClick={() => { setSelectedProjectId(p.id); setSelectedEnvId(""); setSelectedAgentsLocal(new Set()); }}
+                                            className={`p-3 border rounded-lg cursor-pointer transition-all ${selectedProjectId === p.id ? 'border-blue-500 bg-blue-500/5' : ''}`}
+                                            style={{ borderColor: selectedProjectId === p.id ? undefined : "rgb(var(--theme-border))" }}>
+                                            <p className="font-medium text-sm" style={{ color: `rgb(var(--theme-text))` }}>{p.name}</p>
+                                            {p.description && <p className="text-xs mt-0.5" style={{ color: `rgb(var(--theme-text-muted))` }}>{p.description}</p>}
                                         </div>
-                                        {selectedAgent === aid && <Check className="h-5 w-5 text-primary" />}
-                                    </div>
-                                    );
-                                })}
+                                    ))}
+                                </div>
                             </div>
+
+                            {/* Environment selection (after project) */}
+                            {selectedProjectId && (
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium" style={{ color: `rgb(var(--theme-text))` }}>Environment</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {environments.filter((e: any) => e.slug !== "unclassified").map((e: any) => (
+                                            <button key={e.id} onClick={() => { setSelectedEnvId(e.id); setSelectedAgentsLocal(new Set()); }}
+                                                className={`px-4 py-2 rounded-lg border text-sm transition-all ${selectedEnvId === e.id ? 'border-blue-500 bg-blue-500/10 font-medium' : ''}`}
+                                                style={{ borderColor: selectedEnvId === e.id ? undefined : "rgb(var(--theme-border))", color: `rgb(var(--theme-text))` }}>
+                                                <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ background: e.color || "#6366f1" }} />
+                                                {e.name}
+                                            </button>
+                                        ))}
+                                        {environments.length === 0 && <p className="text-xs" style={{ color: `rgb(var(--theme-text-muted))` }}>No environments in this project.</p>}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Instance selection (after environment) */}
+                            {selectedEnvId && (
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium" style={{ color: `rgb(var(--theme-text))` }}>
+                                        Instances ({filteredAgents.length} in this environment)
+                                    </label>
+                                    {filteredAgents.length === 0 ? (
+                                        <p className="text-sm py-4" style={{ color: `rgb(var(--theme-text-muted))` }}>No agents assigned to this environment.</p>
+                                    ) : (
+                                        <>
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <button onClick={() => {
+                                                    if (selectedAgents.size === filteredAgents.length) setSelectedAgentsLocal(new Set());
+                                                    else setSelectedAgentsLocal(new Set(filteredAgents.map(a => a.agent_id ?? a.id ?? "")));
+                                                }} className="text-xs text-blue-500 hover:underline">
+                                                    {selectedAgents.size === filteredAgents.length ? "Deselect all" : "Select all"}
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto">
+                                                {filteredAgents.map((agent) => {
+                                                    const aid = agent.agent_id ?? agent.id ?? "";
+                                                    const isSelected = selectedAgents.has(aid);
+                                                    return (
+                                                        <div key={aid} onClick={() => {
+                                                            const next = new Set(selectedAgents);
+                                                            if (isSelected) next.delete(aid); else next.add(aid);
+                                                            setSelectedAgentsLocal(next);
+                                                            setSelectedAgent(aid); // for backward compat with step 3
+                                                        }}
+                                                            className={`p-3 border rounded-lg cursor-pointer transition-all flex items-center justify-between ${isSelected ? 'border-blue-500 bg-blue-500/5' : ''}`}
+                                                            style={{ borderColor: isSelected ? undefined : "rgb(var(--theme-border))" }}>
+                                                            <div className="flex items-center gap-3">
+                                                                <Server className="h-4 w-4" style={{ color: `rgb(var(--theme-text-muted))` }} />
+                                                                <div>
+                                                                    <p className="font-medium text-sm" style={{ color: `rgb(var(--theme-text))` }}>{agent.hostname}</p>
+                                                                    <p className="text-xs" style={{ color: `rgb(var(--theme-text-muted))` }}>{agent.ip}</p>
+                                                                </div>
+                                                            </div>
+                                                            {isSelected && <Check className="h-4 w-4 text-blue-500" />}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
                             <div className="flex justify-end">
-                                <Button disabled={!selectedAgent} onClick={() => setStep(2)}>
+                                <Button disabled={selectedAgents.size === 0} onClick={() => setStep(2)}>
                                     Next <ArrowRight className="h-4 w-4 ml-2" />
                                 </Button>
                             </div>

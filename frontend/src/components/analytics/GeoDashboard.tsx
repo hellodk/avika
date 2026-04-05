@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
+import { formatTs } from "@/lib/format-timestamp";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   Table,
@@ -374,7 +375,7 @@ export function GeoDashboard() {
               {(geo.recent_requests ?? []).slice(0, 20).map((r, i) => (
                 <TableRow key={`${r.client_ip}-${r.timestamp}-${i}`} style={{ borderColor: "rgb(var(--theme-border))" }}>
                   <TableCell style={{ color: "rgb(var(--theme-text-muted))" }}>
-                    {r.timestamp ? new Date(r.timestamp * 1000).toLocaleString() : "—"}
+                    {r.timestamp ? formatTs(r.timestamp) : "—"}
                   </TableCell>
                   <TableCell style={{ color: "rgb(var(--theme-text))" }}>
                     {[r.city, r.country].filter(Boolean).join(", ") || r.country_code || "—"}

@@ -142,6 +142,8 @@ const nextConfig: NextConfig = {
       { source: '/visitors', destination: '/analytics/visitors', permanent: false },
       { source: '/geo', destination: '/analytics/geo', permanent: false },
       { source: '/servers', destination: '/inventory', permanent: false },
+      { source: '/settings/integrations', destination: '/settings?tab=integrations', permanent: false },
+      { source: '/settings/security', destination: '/settings?tab=security', permanent: false },
     ];
   },
 };

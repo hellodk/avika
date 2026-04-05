@@ -2,24 +2,28 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { apiFetch } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-    BarChart3, TrendingUp, AlertCircle, Activity, Clock, Globe, Server, 
-    Radio, Download, ChevronDown, RefreshCw, Zap, ArrowUpRight, ArrowDownRight,
-    Wifi, LayoutDashboard, Filter, Users
+import {
+    TrendingUp,
+    AlertCircle,
+    Activity,
+    Globe,
+    Server,
+    Radio,
+    Download,
+    ChevronDown,
+    RefreshCw,
+    ArrowUpRight,
+    LayoutDashboard,
+    Users,
 } from "lucide-react";
-import { 
-    Line, LineChart, Bar, BarChart, ResponsiveContainer, Tooltip, 
-    XAxis, YAxis, CartesianGrid, Legend, Area, AreaChart, Pie, PieChart, Cell 
-} from "recharts";
 import { TimeRangePicker, TimeRange } from "@/components/ui/time-range-picker";
 import { AutoRefreshSelector, AutoRefreshConfig } from "@/components/ui/auto-refresh-selector";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import { StatusDrillDown } from "@/components/analytics/StatusDrillDown";
+import { AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 
 const VisitorAnalyticsContent = dynamic(
@@ -32,10 +36,18 @@ const GeoAnalyticsContent = dynamic(
 );
 import { LiveMetricsProvider, useLiveMetrics } from "@/components/analytics/LiveMetricsProvider";
 import { TrafficDashboard } from "@/components/analytics/dashboards/TrafficDashboard";
-import { NginxCoreDashboard } from "@/components/analytics/dashboards/NginxCoreDashboard";
 import { useTheme } from "@/lib/theme-provider";
-import { getChartColorsForTheme, getHttpStatusColor } from "@/lib/chart-colors";
+import { getChartColorsForTheme } from "@/lib/chart-colors";
 import { useProject } from "@/lib/project-context";
+import {
+    Area,
+    AreaChart,
+    CartesianGrid,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from "recharts";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -70,74 +82,6 @@ const initialData = {
     gateway_metrics: []
 };
 
-// KPI Card Component - HIGH VISIBILITY VERSION
-function KPICard({ 
-    title, 
-    value, 
-    subtitle, 
-    delta, 
-    deltaLabel,
-    icon: Icon, 
-    iconColor = "blue",
-    trend 
-}: {
-    title: string;
-    value: string | number;
-    subtitle?: string;
-    delta?: number;
-    deltaLabel?: string;
-    icon: any;
-    iconColor?: string;
-    trend?: "up" | "down" | "neutral";
-}) {
-    // BRIGHT, HIGH CONTRAST COLORS
-    const colorMap: Record<string, { bg: string; text: string }> = {
-        blue: { bg: "bg-blue-500/20", text: "text-blue-300" },
-        green: { bg: "bg-emerald-500/20", text: "text-emerald-300" },
-        amber: { bg: "bg-amber-500/20", text: "text-amber-300" },
-        red: { bg: "bg-red-500/20", text: "text-red-300" },
-        purple: { bg: "bg-purple-500/20", text: "text-purple-300" },
-        indigo: { bg: "bg-indigo-500/20", text: "text-indigo-300" }
-    };
-
-    const colors = colorMap[iconColor] || colorMap.blue;
-    
-    // Bright trend colors
-    const trendColor = trend === "up" ? "text-emerald-500" : trend === "down" ? "text-red-500" : "";
-    const TrendIcon = trend === "up" ? ArrowUpRight : trend === "down" ? ArrowDownRight : null;
-
-    return (
-        <Card className="border" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
-            <CardContent className="pt-6">
-                <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                        <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                            {title}
-                        </p>
-                        <p className="text-2xl font-bold" style={{ color: "rgb(var(--theme-text))" }}>
-                            {value}
-                        </p>
-                        {(delta !== undefined || subtitle) && (
-                            <div className="flex items-center gap-1 mt-1">
-                                {TrendIcon && <TrendIcon className={`h-3 w-3 ${trendColor}`} />}
-                                <span
-                                    className={`text-xs font-medium ${delta !== undefined ? trendColor : ""}`}
-                                    style={delta === undefined ? { color: "rgb(var(--theme-text-muted))" } : undefined}
-                                >
-                                    {delta !== undefined ? `${delta >= 0 ? '+' : ''}${delta}` : ''} {deltaLabel || subtitle}
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                    <div className={`p-3 rounded-lg ${colors.bg}`}>
-                        <Icon className={`h-5 w-5 ${colors.text}`} />
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
 function AnalyticsContent() {
     return (
         <LiveMetricsProvider>
@@ -150,14 +94,6 @@ function AnalyticsView() {
     const { isLive, setIsLive, isConnected, data: liveData } = useLiveMetrics();
     const { theme } = useTheme();
     const { selectedProject, selectedEnvironment } = useProject();
-
-    // Theme-aware chart colors (WCAG compliant)
-    const chartColors = getChartColorsForTheme(theme);
-    const gridColor = chartColors.grid;
-    const axisColor = chartColors.axis;
-    const tooltipBg = chartColors.tooltipBg;
-    const tooltipText = chartColors.tooltipText;
-    const tooltipBorder = chartColors.tooltipBorder;
 
     const searchParams = useSearchParams();
     const router = useRouter();
@@ -176,10 +112,10 @@ function AnalyticsView() {
     });
     const [timezone, setTimezone] = useState('UTC');
     const [selectedAgent, setSelectedAgent] = useState<string>('all');
-    const [agents, setAgents] = useState<any[]>([]);
-    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+    const [agents, setAgents] = useState<{ agent_id?: string; id?: string; hostname?: string; status?: string }[]>([]);
     const [loading, setLoading] = useState(true);
-    const [analyticsData, setAnalyticsData] = useState<any>(initialData);
+    const [analyticsData, setAnalyticsData] = useState<typeof initialData>(initialData);
+    const [drillDownClass, setDrillDownClass] = useState<string | null>(null);
 
     const handleTabChange = (value: string) => {
         const params = new URLSearchParams(searchParams.toString());
@@ -283,7 +219,22 @@ function AnalyticsView() {
 
     // Summary Stats
     const summary = analyticsData.summary;
-    
+    const chartColors = getChartColorsForTheme(theme);
+    const sparkGrid = chartColors.grid;
+    const sparkAxis = chartColors.axis;
+    const sparkTooltipBg = chartColors.tooltipBg;
+    const sparkTooltipText = chartColors.tooltipText;
+    const sparkTooltipBorder = chartColors.tooltipBorder;
+
+    const requestRateSparkData = analyticsData.requestRate.map(
+        (p: { time?: string; requests?: number | string; errors?: number | string }) => ({
+            time: p.time ?? "",
+            requests: Number(p.requests) || 0,
+            errors: Number(p.errors) || 0,
+        })
+    );
+    const hasSparkData = requestRateSparkData.length > 0;
+
     const formatBandwidth = (bytes: number) => {
         if (bytes === 0) return "0 B";
         const k = 1024;
@@ -292,136 +243,8 @@ function AnalyticsView() {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
     };
 
-    // Comprehensive time format conversion for browser timezone
-    const formatTimeForDisplay = (timeStr: string) => {
-        if (!timeStr) return timeStr;
-        if (timezone !== 'Browser') return timeStr;
-
-        try {
-            // Pattern: HH:MM (e.g., "14:30")
-            if (timeStr.match(/^\d{2}:\d{2}$/)) {
-                const now = new Date();
-                const [hours, minutes] = timeStr.split(':').map(Number);
-                const utcDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hours, minutes));
-                return utcDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-            }
-
-            // Pattern: MM-DD HH:MM (e.g., "03-01 14:30")
-            if (timeStr.match(/^\d{2}-\d{2} \d{2}:\d{2}$/)) {
-                const now = new Date();
-                const [datePart, timePart] = timeStr.split(' ');
-                const [month, day] = datePart.split('-').map(Number);
-                const [hours, minutes] = timePart.split(':').map(Number);
-                const utcDate = new Date(Date.UTC(now.getUTCFullYear(), month - 1, day, hours, minutes));
-                return utcDate.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' }) + ' ' +
-                       utcDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-            }
-
-            // Pattern: MM-DD HH:00 (e.g., "03-01 14:00")
-            if (timeStr.match(/^\d{2}-\d{2} \d{2}:00$/)) {
-                const now = new Date();
-                const [datePart, timePart] = timeStr.split(' ');
-                const [month, day] = datePart.split('-').map(Number);
-                const hours = parseInt(timePart.split(':')[0]);
-                const utcDate = new Date(Date.UTC(now.getUTCFullYear(), month - 1, day, hours, 0));
-                return utcDate.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' }) + ' ' +
-                       utcDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-            }
-
-            // Pattern: YYYY-MM-DD HH:MM (e.g., "2026-03-01 14:30")
-            if (timeStr.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/)) {
-                const utcDate = new Date(timeStr + ':00Z');
-                return utcDate.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) + ' ' +
-                       utcDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-            }
-
-            // Pattern: YYYY-MM-DD (e.g., "2026-03-01")
-            if (timeStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                const utcDate = new Date(timeStr + 'T00:00:00Z');
-                return utcDate.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
-            }
-        } catch (e) {
-            console.error('Time format conversion error:', e);
-        }
-
-        return timeStr;
-    };
-
-    // Get timezone label for display
-    const getTimezoneLabel = () => {
-        if (timezone === 'Browser') {
-            return Intl.DateTimeFormat().resolvedOptions().timeZone;
-        }
-        return 'UTC';
-    };
-
-    // Get previous period label based on time range
-    const getPrevPeriodLabel = () => {
-        const value = timeRange.value || '24h';
-        const labels: Record<string, string> = {
-            '5m': 'vs prev 5m',
-            '15m': 'vs prev 15m',
-            '30m': 'vs prev 30m',
-            '1h': 'vs prev hour',
-            '3h': 'vs prev 3h',
-            '6h': 'vs prev 6h',
-            '12h': 'vs prev 12h',
-            '24h': 'vs yesterday',
-            '2d': 'vs prev 2d',
-            '7d': 'vs prev week',
-            '30d': 'vs prev month',
-        };
-        return labels[value] || 'vs previous';
-    };
-
-    const requestData = analyticsData.requestRate.map((p: any) => ({
-        time: formatTimeForDisplay(p.time),
-        requests: parseInt(p.requests),
-        errors: parseInt(p.errors)
-    }));
-
-    // Theme-aware status colors for pie chart
-    const statusChartData = analyticsData.statusDistribution.map((s: any) => ({
-        name: s.code,
-        value: parseInt(s.count),
-        color: getHttpStatusColor(s.code, theme as any)
-    }));
-
-    const endpointData = analyticsData.topEndpoints.map((e: any) => ({
-        uri: e.uri,
-        requests: parseInt(e.requests),
-        errors: parseInt(e.errors),
-        p95: e.p95,
-        avgLatency: Math.round(e.p95 / 1.5),
-        traffic: e.traffic
-    }));
-
     const toggleTimezone = () => {
         setTimezone(prev => prev === 'UTC' ? 'Browser' : 'UTC');
-    };
-
-    const sortData = (data: any[], key: string) => {
-        if (!sortConfig || sortConfig.key !== key) {
-            return [...data].sort((a, b) => (a[key] > b[key] ? -1 : 1));
-        }
-        if (sortConfig.key === key && sortConfig.direction === 'desc') {
-            return [...data].sort((a, b) => (a[key] > b[key] ? 1 : -1));
-        }
-        return data;
-    };
-
-    const getSortedEndpoints = () => {
-        return sortData(endpointData, sortConfig?.key || 'requests');
-    };
-
-    const sortedEndpoints = getSortedEndpoints();
-
-    const handleSort = (key: string) => {
-        let direction: 'asc' | 'desc' = 'desc';
-        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'desc') {
-            direction = 'asc';
-        }
-        setSortConfig({ key, direction });
     };
 
     const handleExport = (format: 'csv' | 'json') => {
@@ -435,25 +258,25 @@ function AnalyticsView() {
         window.open(url, '_blank');
     };
 
-    const selectedAgentData = agents.find((a: any) => (a.agent_id || a.id) === selectedAgent);
+    const selectedAgentData = agents.find((a) => (a.agent_id || a.id) === selectedAgent);
     const isOffline = selectedAgentData?.status === 'offline';
 
-    // Insights styling helper - theme-aware for contrast (light: dark text on tinted bg; dark: bright text on tinted bg)
+    // Softer insight banners (readable without dominating the page)
     const isLight = theme === "light";
     const getInsightStyle = (type: string) => {
         switch (type) {
-            case 'critical':
+            case "critical":
                 return isLight
-                    ? { bg: 'bg-red-100', border: 'border-l-red-600', text: 'text-red-800', icon: AlertCircle }
-                    : { bg: 'bg-red-500/20', border: 'border-l-red-400', text: 'text-red-300', icon: AlertCircle };
-            case 'warning':
+                    ? { wrap: "border-red-200/90 bg-red-50/90", title: "text-red-900", body: "text-red-900/75", icon: AlertCircle }
+                    : { wrap: "border-red-500/25 bg-red-500/[0.06]", title: "text-red-200", body: "text-red-200/70", icon: AlertCircle };
+            case "warning":
                 return isLight
-                    ? { bg: 'bg-amber-100', border: 'border-l-amber-600', text: 'text-amber-800', icon: TrendingUp }
-                    : { bg: 'bg-amber-500/20', border: 'border-l-amber-400', text: 'text-amber-300', icon: TrendingUp };
+                    ? { wrap: "border-amber-200/90 bg-amber-50/80", title: "text-amber-950", body: "text-amber-900/75", icon: TrendingUp }
+                    : { wrap: "border-amber-500/25 bg-amber-500/[0.06]", title: "text-amber-200", body: "text-amber-200/70", icon: TrendingUp };
             default:
                 return isLight
-                    ? { bg: 'bg-blue-100', border: 'border-l-blue-600', text: 'text-blue-800', icon: Activity }
-                    : { bg: 'bg-blue-500/20', border: 'border-l-blue-400', text: 'text-blue-300', icon: Activity };
+                    ? { wrap: "border-blue-200/90 bg-blue-50/80", title: "text-blue-950", body: "text-blue-900/75", icon: Activity }
+                    : { wrap: "border-blue-500/25 bg-blue-500/[0.06]", title: "text-blue-200", body: "text-blue-200/70", icon: Activity };
         }
     };
 
@@ -480,7 +303,7 @@ function AnalyticsView() {
  style={{ color: 'rgb(var(--theme-text))' }}
                         >
                             <option value="all">All Servers</option>
-                            {agents.map((agent: any) => (
+                            {agents.map((agent) => (
                                 <option key={agent.agent_id || agent.id} value={agent.agent_id || agent.id}>
                                     {agent.hostname || (agent.agent_id || agent.id || "").substring(0, 12)}
                                 </option>
@@ -560,32 +383,27 @@ function AnalyticsView() {
                 </div>
             )}
 
-            {/* Actionable Insights */}
+            {/* Actionable insights — compact stack, tuned borders (no heavy left rail) */}
             {analyticsData.insights.length > 0 && (
-                <div className="grid gap-4 md:grid-cols-3">
-                    {analyticsData.insights.map((insight: any, idx: number) => {
-                        const style = getInsightStyle(insight.type);
-                        const InsightIcon = style.icon;
-                        return (
-                            <Card 
-                                key={idx} 
-                                className={`border-l-4 ${style.border} ${style.bg}`}
-                                style={{ borderColor: "rgb(var(--theme-border))" }}
-                            >
-                                <CardHeader className="pb-2 flex flex-row items-start justify-between space-y-0">
-                                    <CardTitle className={`text-sm font-semibold ${style.text}`}>
-                                        {insight.title}
-                                    </CardTitle>
-                                    <InsightIcon className={`h-4 w-4 ${style.text}`} />
-                                </CardHeader>
-                                <CardContent>
-                                    <p className="text-sm" style={{ color: 'rgb(var(--theme-text-muted))' }}>
-                                        {insight.message}
-                                    </p>
-                                </CardContent>
-                            </Card>
-                        );
-                    })}
+                <div className="max-w-3xl space-y-2">
+                    {analyticsData.insights.map(
+                        (insight: { type?: string; title: string; message: string }, idx: number) => {
+                            const style = getInsightStyle(insight.type || "info");
+                            const InsightIcon = style.icon;
+                            return (
+                                <div
+                                    key={`${insight.title}-${idx}`}
+                                    className={`flex gap-3 rounded-lg border px-4 py-3 ${style.wrap}`}
+                                >
+                                    <InsightIcon className={`mt-0.5 h-4 w-4 shrink-0 ${style.title}`} />
+                                    <div className="min-w-0 space-y-1">
+                                        <p className={`text-sm font-semibold ${style.title}`}>{insight.title}</p>
+                                        <p className={`text-sm leading-snug ${style.body}`}>{insight.message}</p>
+                                    </div>
+                                </div>
+                            );
+                        }
+                    )}
                 </div>
             )}
 
@@ -601,8 +419,7 @@ function AnalyticsView() {
                             <TabsTrigger
                                 key={tab.value}
                                 value={tab.value}
-                                className="analytics-tab-trigger flex items-center gap-2 px-4 py-2 data-[state=active]:shadow-md transition-all rounded-md hover:opacity-90 flex-shrink-0"
-                                style={{ color: 'rgb(var(--theme-text-muted))' }}
+                                className="analytics-tab-trigger flex items-center gap-2 px-4 py-2 transition-colors rounded-md hover:opacity-90 flex-shrink-0 text-[rgb(var(--theme-text-muted))]"
                             >
                                 <tab.icon className="h-4 w-4" />
                                 {tab.label}
@@ -625,42 +442,339 @@ function AnalyticsView() {
                     </div>
                 ) : (
                     <>
-                        {/* OVERVIEW TAB - Key metrics moved to Monitoring > Overview */}
-                        <TabsContent value="overview" className="space-y-6">
-                            <p className="text-sm" style={{ color: 'rgb(var(--theme-text-muted))' }}>
-                                Key metrics and charts are on <Link href="/monitoring" className="underline hover:opacity-90" style={{ color: 'rgb(var(--theme-primary))' }}>Monitoring → Overview</Link>. Use the tabs above for detailed analytics.
-                            </p>
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <button
-                                    type="button"
-                                    onClick={() => handleTabChange("visitors")}
-                                    className="flex items-center gap-4 p-4 rounded-lg border-2 transition-colors hover:border-blue-500/50 text-left w-full"
-                                    style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
+                        <TabsContent value="overview" className="mt-0 space-y-8">
+                            <div className="max-w-6xl space-y-8">
+                                <section className="space-y-3">
+                                    <h2
+                                        className="text-xs font-semibold uppercase tracking-wider"
+                                        style={{ color: "rgb(var(--theme-text-dim))" }}
+                                    >
+                                        Fleet snapshot
+                                    </h2>
+                                    <p className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                        Summary for the selected time range and filters. Charts and time series stay on Monitoring.
+                                    </p>
+                                    {loading ? (
+                                        <div className="space-y-4">
+                                            <div
+                                                className="h-14 animate-pulse rounded-xl border"
+                                                style={{
+                                                    background: "rgb(var(--theme-surface))",
+                                                    borderColor: "rgb(var(--theme-border))",
+                                                }}
+                                            />
+                                            <div
+                                                className="h-[140px] animate-pulse rounded-xl border"
+                                                style={{
+                                                    background: "rgb(var(--theme-surface))",
+                                                    borderColor: "rgb(var(--theme-border))",
+                                                }}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div
+                                                className="flex flex-wrap items-center gap-4 rounded-lg border px-4 py-3"
+                                                style={{
+                                                    background: "rgb(var(--theme-surface))",
+                                                    borderColor: "rgb(var(--theme-border))",
+                                                }}
+                                            >
+                                                <span
+                                                    className="text-sm font-medium"
+                                                    style={{ color: "rgb(var(--theme-text))" }}
+                                                >
+                                                    {(summary.total_requests ?? 0).toLocaleString()} requests
+                                                </span>
+                                                <span
+                                                    className="text-xs"
+                                                    style={{ color: "rgb(var(--theme-text-muted))" }}
+                                                >
+                                                    |
+                                                </span>
+                                                <span
+                                                    className={`text-sm font-medium ${(summary.error_rate ?? 0) > 1 ? "text-red-500" : "text-emerald-500"}`}
+                                                >
+                                                    {(summary.error_rate ?? 0).toFixed(2)}% errors
+                                                </span>
+                                                <span
+                                                    className="text-xs"
+                                                    style={{ color: "rgb(var(--theme-text-muted))" }}
+                                                >
+                                                    |
+                                                </span>
+                                                <span
+                                                    className="text-sm font-medium"
+                                                    style={{ color: "rgb(var(--theme-text))" }}
+                                                >
+                                                    {Math.round(summary.avg_latency ?? 0)}ms avg
+                                                </span>
+                                                <span
+                                                    className="text-xs"
+                                                    style={{ color: "rgb(var(--theme-text-muted))" }}
+                                                >
+                                                    |
+                                                </span>
+                                                <span
+                                                    className="text-sm"
+                                                    style={{ color: "rgb(var(--theme-text-muted))" }}
+                                                >
+                                                    {formatBandwidth(summary.total_bandwidth ?? 0)}
+                                                </span>
+                                                {(analyticsData?.statusDistribution?.length ?? 0) > 0 && (
+                                                    <>
+                                                        <span
+                                                            className="text-xs"
+                                                            style={{ color: "rgb(var(--theme-text-muted))" }}
+                                                        >
+                                                            |
+                                                        </span>
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            {(analyticsData.statusDistribution || []).map(
+                                                                (s: {
+                                                                    code?: string;
+                                                                    Code?: string;
+                                                                    count?: number | string;
+                                                                    Count?: number | string;
+                                                                }) => {
+                                                                    const code = s.code ?? s.Code ?? "";
+                                                                    const count = s.count ?? s.Count ?? 0;
+                                                                    const color = String(code).startsWith("2")
+                                                                        ? "text-emerald-500"
+                                                                        : String(code).startsWith("3")
+                                                                          ? "text-blue-500"
+                                                                          : String(code).startsWith("4")
+                                                                            ? "text-amber-500"
+                                                                            : "text-red-500";
+                                                                    return (
+                                                                        <button
+                                                                            key={code}
+                                                                            onClick={() => setDrillDownClass(String(code))}
+                                                                            className={`font-mono text-xs ${color} hover:underline cursor-pointer`}
+                                                                            title={`Click to drill down into ${code} responses`}
+                                                                        >
+                                                                            {code}:{Number(count).toLocaleString()}
+                                                                        </button>
+                                                                    );
+                                                                }
+                                                            )}
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            {/* Status code drill-down panel */}
+                                            <AnimatePresence>
+                                                {drillDownClass && (
+                                                    <StatusDrillDown
+                                                        window={timeRange.value || "1h"}
+                                                        agentId={selectedAgent}
+                                                        initialClass={drillDownClass}
+                                                        onClose={() => setDrillDownClass(null)}
+                                                    />
+                                                )}
+                                            </AnimatePresence>
+
+                                            {hasSparkData ? (
+                                                <div
+                                                    className="overflow-hidden rounded-xl border"
+                                                    style={{
+                                                        background: "rgb(var(--theme-surface))",
+                                                        borderColor: "rgb(var(--theme-border))",
+                                                    }}
+                                                >
+                                                    <div
+                                                        className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5"
+                                                        style={{ borderColor: "rgb(var(--theme-border))" }}
+                                                    >
+                                                        <p
+                                                            className="text-sm font-medium"
+                                                            style={{ color: "rgb(var(--theme-text))" }}
+                                                        >
+                                                            Request rate
+                                                        </p>
+                                                        <p
+                                                            className="text-xs"
+                                                            style={{ color: "rgb(var(--theme-text-muted))" }}
+                                                        >
+                                                            Requests vs errors by bucket — full charts on Monitoring
+                                                        </p>
+                                                    </div>
+                                                    <div className="h-[140px] w-full min-w-0 px-2 pb-2 pt-1">
+                                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                                                            <AreaChart
+                                                                data={requestRateSparkData}
+                                                                margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+                                                            >
+                                                                <defs>
+                                                                    <linearGradient id="analyticsSparkReq" x1="0" y1="0" x2="0" y2="1">
+                                                                        <stop offset="0%" stopColor={chartColors.info} stopOpacity={0.35} />
+                                                                        <stop offset="100%" stopColor={chartColors.info} stopOpacity={0} />
+                                                                    </linearGradient>
+                                                                    <linearGradient id="analyticsSparkErr" x1="0" y1="0" x2="0" y2="1">
+                                                                        <stop offset="0%" stopColor={chartColors.error} stopOpacity={0.35} />
+                                                                        <stop offset="100%" stopColor={chartColors.error} stopOpacity={0} />
+                                                                    </linearGradient>
+                                                                </defs>
+                                                                <CartesianGrid strokeDasharray="3 3" stroke={sparkGrid} vertical={false} />
+                                                                <XAxis
+                                                                    dataKey="time"
+                                                                    tick={{ fontSize: 10, fill: sparkAxis }}
+                                                                    tickLine={false}
+                                                                    axisLine={{ stroke: sparkGrid }}
+                                                                    interval="preserveStartEnd"
+                                                                />
+                                                                <YAxis
+                                                                    width={36}
+                                                                    tick={{ fontSize: 10, fill: sparkAxis }}
+                                                                    tickLine={false}
+                                                                    axisLine={false}
+                                                                />
+                                                                <Tooltip
+                                                                    contentStyle={{
+                                                                        backgroundColor: sparkTooltipBg,
+                                                                        border: `1px solid ${sparkTooltipBorder}`,
+                                                                        borderRadius: "0.5rem",
+                                                                        color: sparkTooltipText,
+                                                                        fontSize: "12px",
+                                                                    }}
+                                                                    labelStyle={{ color: sparkTooltipText }}
+                                                                />
+                                                                <Area
+                                                                    type="monotone"
+                                                                    dataKey="requests"
+                                                                    name="Requests"
+                                                                    stroke={chartColors.info}
+                                                                    fill="url(#analyticsSparkReq)"
+                                                                    strokeWidth={1.5}
+                                                                    isAnimationActive={false}
+                                                                />
+                                                                <Area
+                                                                    type="monotone"
+                                                                    dataKey="errors"
+                                                                    name="Errors"
+                                                                    stroke={chartColors.error}
+                                                                    fill="url(#analyticsSparkErr)"
+                                                                    strokeWidth={1.5}
+                                                                    isAnimationActive={false}
+                                                                />
+                                                            </AreaChart>
+                                                        </ResponsiveContainer>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <p
+                                                    className="rounded-lg border px-4 py-3 text-sm"
+                                                    style={{
+                                                        background: "rgb(var(--theme-surface))",
+                                                        borderColor: "rgb(var(--theme-border))",
+                                                        color: "rgb(var(--theme-text-muted))",
+                                                    }}
+                                                >
+                                                    No time-bucketed request data for this range. Try a wider window or check Monitoring →
+                                                    Overview.
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+                                </section>
+
+                                <section
+                                    className="flex flex-col gap-4 rounded-xl border p-5 sm:flex-row sm:items-center sm:justify-between"
+                                    style={{
+                                        background: "rgb(var(--theme-surface))",
+                                        borderColor: "rgb(var(--theme-border))",
+                                    }}
                                 >
-                                    <div className="p-2 rounded-lg" style={{ background: 'rgba(var(--theme-primary), 0.15)' }}>
-                                        <Users className="h-6 w-6" style={{ color: 'rgb(var(--theme-primary))' }} />
+                                    <p className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                        Request rates, status mix, top endpoints, and system charts are on{" "}
+                                        <Link
+                                            href="/monitoring"
+                                            className="underline underline-offset-2 hover:opacity-90"
+                                            style={{ color: "rgb(var(--theme-primary))" }}
+                                        >
+                                            Monitoring → Overview
+                                        </Link>
+                                        .
+                                    </p>
+                                    <Button variant="outline" size="sm" className="h-9 shrink-0 self-start sm:self-auto" asChild>
+                                        <Link href="/monitoring">
+                                            <LayoutDashboard className="mr-2 h-4 w-4" />
+                                            Open Monitoring
+                                        </Link>
+                                    </Button>
+                                </section>
+
+                                <section className="space-y-3">
+                                    <h2
+                                        className="text-xs font-semibold uppercase tracking-wider"
+                                        style={{ color: "rgb(var(--theme-text-dim))" }}
+                                    >
+                                        Detailed analytics
+                                    </h2>
+                                    <div className="grid gap-4 md:grid-cols-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleTabChange("visitors")}
+                                            className="group flex min-h-[132px] items-center gap-5 rounded-xl border p-5 text-left transition-all hover:border-[rgba(var(--theme-primary),0.45)] w-full"
+                                            style={{
+                                                background: "rgb(var(--theme-surface))",
+                                                borderColor: "rgb(var(--theme-border))",
+                                                color: "rgb(var(--theme-text))",
+                                            }}
+                                        >
+                                            <div
+                                                className="rounded-xl p-3 transition-colors group-hover:bg-[rgba(var(--theme-primary),0.12)]"
+                                                style={{ background: "rgba(var(--theme-primary), 0.1)" }}
+                                            >
+                                                <Users
+                                                    className="h-7 w-7"
+                                                    style={{ color: "rgb(var(--theme-primary))" }}
+                                                />
+                                            </div>
+                                            <div className="min-w-0 flex-1 space-y-1">
+                                                <p className="font-semibold">Visitor Analytics</p>
+                                                <p className="text-sm leading-relaxed" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                                    Browsers, devices, referrers, status codes (GoAccess-style)
+                                                </p>
+                                            </div>
+                                            <ArrowUpRight
+                                                className="h-5 w-5 shrink-0 opacity-60 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100"
+                                                style={{ color: "rgb(var(--theme-primary))" }}
+                                            />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleTabChange("geo")}
+                                            className="group flex min-h-[132px] items-center gap-5 rounded-xl border p-5 text-left transition-all hover:border-[rgba(var(--theme-primary),0.45)] w-full"
+                                            style={{
+                                                background: "rgb(var(--theme-surface))",
+                                                borderColor: "rgb(var(--theme-border))",
+                                                color: "rgb(var(--theme-text))",
+                                            }}
+                                        >
+                                            <div
+                                                className="rounded-xl p-3 transition-colors group-hover:bg-[rgba(var(--theme-primary),0.12)]"
+                                                style={{ background: "rgba(var(--theme-primary), 0.1)" }}
+                                            >
+                                                <Globe
+                                                    className="h-7 w-7"
+                                                    style={{ color: "rgb(var(--theme-primary))" }}
+                                                />
+                                            </div>
+                                            <div className="min-w-0 flex-1 space-y-1">
+                                                <p className="font-semibold">Geo Analytics</p>
+                                                <p className="text-sm leading-relaxed" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                                    Traffic by country and city
+                                                </p>
+                                            </div>
+                                            <ArrowUpRight
+                                                className="h-5 w-5 shrink-0 opacity-60 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100"
+                                                style={{ color: "rgb(var(--theme-primary))" }}
+                                            />
+                                        </button>
                                     </div>
-                                    <div>
-                                        <p className="font-semibold">Visitor Analytics</p>
-                                        <p className="text-sm" style={{ color: 'rgb(var(--theme-text-muted))' }}>Browsers, devices, referrers, status codes (GoAccess-style)</p>
-                                    </div>
-                                    <ArrowUpRight className="h-4 w-4 ml-auto flex-shrink-0" style={{ color: 'rgb(var(--theme-text-muted))' }} />
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleTabChange("geo")}
-                                    className="flex items-center gap-4 p-4 rounded-lg border-2 transition-colors hover:border-blue-500/50 text-left w-full"
-                                    style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}
-                                >
-                                    <div className="p-2 rounded-lg" style={{ background: 'rgba(var(--theme-primary), 0.15)' }}>
-                                        <Globe className="h-6 w-6" style={{ color: 'rgb(var(--theme-primary))' }} />
-                                    </div>
-                                    <div>
-                                        <p className="font-semibold">Geo Analytics</p>
-                                        <p className="text-sm" style={{ color: 'rgb(var(--theme-text-muted))' }}>Traffic by country and city</p>
-                                    </div>
-                                    <ArrowUpRight className="h-4 w-4 ml-auto flex-shrink-0" style={{ color: 'rgb(var(--theme-text-muted))' }} />
-                                </button>
+                                </section>
                             </div>
                         </TabsContent>
 

@@ -2,5 +2,5 @@ apiVersion: v2
 name: avika
 description: A Helm chart for NGINX Management & Monitoring Application
 type: application
-version: 1.109.5
-appVersion: "1.109.5"
+version: 1.109.6
+appVersion: "1.109.6"

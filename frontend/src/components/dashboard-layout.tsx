@@ -73,9 +73,7 @@ const NAV_SECTIONS: NavSection[] = [
     {
         title: "Settings",
         items: [
-            { href: "/settings", icon: <Settings />, label: "General" },
-            { href: "/settings/integrations", icon: <Globe />, label: "Integrations" },
-            { href: "/settings/security", icon: <Lock />, label: "Security" },
+            { href: "/settings", icon: <Settings />, label: "Settings" },
         ],
     },
 ];

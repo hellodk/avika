@@ -8,7 +8,7 @@ type SLOTarget struct {
 	ID          string    `json:"id"`
 	EntityType  string    `json:"entity_type"` // global, group, agent
 	EntityID    string    `json:"entity_id"`
-	SLOType     string    `json:"slo_type"` // availability, latency
+	SLOType     string    `json:"slo_type"` // availability, latency, success_rate, availability_no_4xx, latency_p95, latency_p50
 	TargetValue float64   `json:"target_value"`
 	TimeWindow  string    `json:"time_window"` // 7d, 30d
 	CreatedAt   time.Time `json:"created_at"`
