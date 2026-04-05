@@ -30,7 +30,7 @@ import { useRouter } from "next/navigation";
 
 export default function ProjectsPage() {
   const router = useRouter();
-  const { isSuperAdmin, refreshProjects } = useProject();
+  const { isSuperAdmin, refreshProjects, isLoading: authLoading } = useProject();
   const [projects, setProjects] = useState<Project[]>([]);
   const [environments, setEnvironments] = useState<Record<string, Environment[]>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -72,13 +72,15 @@ export default function ProjectsPage() {
   };
 
   useEffect(() => {
+    // Wait for auth context to finish loading before checking permissions
+    if (authLoading) return;
     if (!isSuperAdmin) {
       toast.error("You must be a superadmin to access this page");
       router.push("/");
       return;
     }
     fetchProjects();
-  }, [isSuperAdmin, router]);
+  }, [isSuperAdmin, authLoading, router]);
 
   const handleCreateProject = async () => {
     if (!newProject.name.trim()) {
@@ -139,7 +141,7 @@ export default function ProjectsPage() {
       project.slug.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (!isSuperAdmin) {
+  if (authLoading || !isSuperAdmin) {
     return null;
   }
 
