@@ -35,6 +35,8 @@ import {
   Bar,
 } from "recharts";
 import { Users, Globe, Activity, Bot, Monitor, Smartphone, Tablet, Search, Link2, AlertTriangle, FileText, Clock } from "lucide-react";
+import { VisitorDrillDown } from "@/components/analytics/VisitorDrillDown";
+import { AnimatePresence } from "framer-motion";
 import { useTheme } from "@/lib/theme-provider";
 
 interface VisitorAnalytics {
@@ -134,6 +136,7 @@ export default function VisitorsPage() {
   const tooltipBorder = isDark ? "#334155" : "#e2e8f0";
 
   const [data, setData] = useState<VisitorAnalytics | null>(null);
+  const [drillDown, setDrillDown] = useState<{ category: "devices" | "browsers" | "os"; group?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [timeWindow, setTimeWindow] = useState("24h");
 
@@ -279,7 +282,7 @@ export default function VisitorsPage() {
               ) : deviceData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <PieChart>
-                    <Pie data={deviceData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false}>
+                    <Pie data={deviceData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false} cursor="pointer" onClick={(_: any, index: number) => { const d = deviceData[index]; if (d) setDrillDown({ category: "devices", group: d.name.toLowerCase() }); }}>
                       {deviceData.map((d, i) => <Cell key={i} fill={d.color} />)}
                     </Pie>
                     <Tooltip formatter={(v: any) => formatNumber(v)} />
@@ -308,13 +311,14 @@ export default function VisitorsPage() {
         </Card>
       </div>
 
-      {/* Row 2: Browsers + OS */}
+      {/* Row 2: Browsers + OS (clickable for drill-down) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
               <Monitor className="h-4 w-4" /> Browsers
             </CardTitle>
+            <p className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Click a bar to drill down</p>
           </CardHeader>
           <CardContent>
             <div className="h-[200px]">
@@ -325,11 +329,16 @@ export default function VisitorsPage() {
                     <XAxis type="number" fontSize={12} stroke="rgb(var(--theme-text-muted))" tickFormatter={(v) => formatNumber(v)} />
                     <YAxis dataKey="name" type="category" width={80} fontSize={12} stroke="rgb(var(--theme-text-muted))" />
                     <Tooltip contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8 }} formatter={(v: any) => formatNumber(v)} />
-                    <Bar dataKey="hits" fill="#3b82f6" radius={[0, 4, 4, 0]} name="Hits" />
+                    <Bar dataKey="hits" fill="#3b82f6" radius={[0, 4, 4, 0]} name="Hits" cursor="pointer" onClick={(d: any) => d?.name && setDrillDown({ category: "browsers", group: d.name })} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
             </div>
+            <AnimatePresence>
+              {drillDown?.category === "browsers" && (
+                <VisitorDrillDown window={timeWindow} category="browsers" initialGroup={drillDown.group} onClose={() => setDrillDown(null)} />
+              )}
+            </AnimatePresence>
           </CardContent>
         </Card>
 
@@ -338,6 +347,7 @@ export default function VisitorsPage() {
             <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
               <Smartphone className="h-4 w-4" /> Operating Systems
             </CardTitle>
+            <p className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Click a bar to drill down</p>
           </CardHeader>
           <CardContent>
             <div className="h-[200px]">
@@ -348,14 +358,26 @@ export default function VisitorsPage() {
                     <XAxis type="number" fontSize={12} stroke="rgb(var(--theme-text-muted))" tickFormatter={(v) => formatNumber(v)} />
                     <YAxis dataKey="name" type="category" width={80} fontSize={12} stroke="rgb(var(--theme-text-muted))" />
                     <Tooltip contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8 }} formatter={(v: any) => formatNumber(v)} />
-                    <Bar dataKey="hits" fill="#10b981" radius={[0, 4, 4, 0]} name="Hits" />
+                    <Bar dataKey="hits" fill="#10b981" radius={[0, 4, 4, 0]} name="Hits" cursor="pointer" onClick={(d: any) => d?.name && setDrillDown({ category: "os", group: d.name })} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
             </div>
+            <AnimatePresence>
+              {drillDown?.category === "os" && (
+                <VisitorDrillDown window={timeWindow} category="os" initialGroup={drillDown.group} onClose={() => setDrillDown(null)} />
+              )}
+            </AnimatePresence>
           </CardContent>
         </Card>
       </div>
+
+      {/* Device drill-down (triggered from pie chart above) */}
+      <AnimatePresence>
+        {drillDown?.category === "devices" && (
+          <VisitorDrillDown window={timeWindow} category="devices" initialGroup={drillDown.group} onClose={() => setDrillDown(null)} />
+        )}
+      </AnimatePresence>
 
       {/* Row 3: Referrers + 404 Errors */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

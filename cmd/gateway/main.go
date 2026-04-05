@@ -2001,6 +2001,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Main analytics API with URL and Status Filtering
 	mux.Handle("/api/analytics", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAnalytics)))
 	mux.Handle("GET /api/analytics/status-drilldown", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleStatusDrillDown)))
+	mux.Handle("GET /api/analytics/visitor-drilldown", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleVisitorDrillDown)))
 
 	// ============================================================================
 	// RBAC / Multi-Tenancy API Endpoints
@@ -2924,6 +2925,38 @@ func (srv *server) handleStatusDrillDown(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// handleVisitorDrillDown handles GET /api/analytics/visitor-drilldown
+func (srv *server) handleVisitorDrillDown(w http.ResponseWriter, r *http.Request) {
+	if srv.clickhouse == nil {
+		http.Error(w, `{"error":"ClickHouse not available"}`, http.StatusServiceUnavailable)
+		return
+	}
+	q := r.URL.Query()
+	window := q.Get("window")
+	if window == "" {
+		window = "1h"
+	}
+	category := q.Get("category") // "devices", "browsers", "os"
+	group := q.Get("group")       // e.g., "Chrome", "mobile"
+	version := q.Get("version")   // e.g., "125.0.0"
+
+	if category == "" {
+		http.Error(w, `{"error":"category parameter required (devices, browsers, os)"}`, http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	resp, err := srv.clickhouse.GetVisitorDrillDown(ctx, window, category, group, version)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
 }
