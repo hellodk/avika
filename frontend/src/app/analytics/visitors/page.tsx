@@ -34,7 +34,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import { Users, Globe, Activity, Bot, Monitor, Smartphone, Tablet, Search, Link2, AlertTriangle, FileText } from "lucide-react";
+import { Users, Globe, Activity, Bot, Monitor, Smartphone, Tablet, Search, Link2, AlertTriangle, FileText, Clock } from "lucide-react";
 import { useTheme } from "@/lib/theme-provider";
 
 interface VisitorAnalytics {
@@ -209,9 +209,9 @@ export default function VisitorsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { title: "Unique Visitors", value: formatNumber(data?.summary?.unique_visitors || "0"), icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-          { title: "Total Hits", value: formatNumber(data?.summary?.total_hits || "0"), icon: Activity, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-          { title: "Bandwidth", value: formatBytes(data?.summary?.total_bandwidth || "0"), icon: Globe, color: "text-purple-500", bg: "bg-purple-500/10" },
+          { title: "Human Traffic", value: formatNumber(humanHits), icon: Activity, color: "text-emerald-500", bg: "bg-emerald-500/10" },
           { title: "Bot Traffic", value: `${botPct}%`, icon: Bot, color: "text-amber-500", bg: "bg-amber-500/10" },
+          { title: "404 Errors", value: formatNumber(data?.not_found?.reduce((sum: number, nf: any) => sum + parseInt(nf.hits || "0"), 0) || 0), icon: Search, color: "text-red-500", bg: "bg-red-500/10" },
         ].map((kpi) => (
           <Card key={kpi.title} style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
             <CardContent className="pt-6">
@@ -454,27 +454,18 @@ export default function VisitorsPage() {
 
         <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
           <CardHeader className="pb-2">
-            <CardTitle style={{ color: "rgb(var(--theme-text))" }}>Status Codes</CardTitle>
+            <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
+              <Clock className="h-4 w-4 text-amber-500" /> Slowest Endpoints
+            </CardTitle>
+            <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>By average response time</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {(data?.status_codes || []).length === 0 ? (
-              <p className="text-sm text-center py-4" style={{ color: "rgb(var(--theme-text-muted))" }}>No status data</p>
-            ) : (data?.status_codes || []).slice(0, 8).map((c, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <Badge variant="outline" className={`w-12 justify-center font-mono text-xs ${statusColor(c.code)}`}>
-                  {c.code}
-                </Badge>
-                <div className="flex-1">
-                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgb(var(--theme-border))" }}>
-                    <div
-                      className={`h-full rounded-full ${c.code >= 500 ? 'bg-red-500' : c.code >= 400 ? 'bg-amber-500' : c.code >= 300 ? 'bg-blue-500' : 'bg-emerald-500'}`}
-                      style={{ width: `${Math.min(c.percentage || 0, 100)}%` }}
-                    />
-                  </div>
-                </div>
-                <span className="text-xs w-16 text-right" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                  {formatNumber(c.hits)} ({c.percentage?.toFixed(1)}%)
-                </span>
+            {(data?.requested_urls || []).length === 0 ? (
+              <p className="text-sm text-center py-4" style={{ color: "rgb(var(--theme-text-muted))" }}>No URL data</p>
+            ) : [...(data?.requested_urls || [])].sort((a: any, b: any) => parseFloat(b.bandwidth || "0") - parseFloat(a.bandwidth || "0")).slice(0, 6).map((u: any, i: number) => (
+              <div key={i} className="flex items-center justify-between">
+                <span className="font-mono text-xs truncate max-w-[180px]" style={{ color: "rgb(var(--theme-text))" }} title={u.uri}>{u.uri}</span>
+                <span className="text-xs font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>{formatBytes(u.bandwidth)}</span>
               </div>
             ))}
           </CardContent>
