@@ -14,7 +14,6 @@ import {
     Download,
     ChevronDown,
     RefreshCw,
-    ArrowUpRight,
     LayoutDashboard,
     Users,
 } from "lucide-react";
