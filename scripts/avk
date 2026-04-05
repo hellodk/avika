@@ -245,32 +245,34 @@ cmd_test_workload() {
     prompt_tls
 
     _prompt_select "Mode:" \
-        "Real-time traffic (live timestamps)" \
+        "Full (setup projects + traffic)" \
+        "Real-time traffic only (skip setup)" \
         "Historical backfill (fill past data rapidly)" \
-        "Setup only (create projects/envs)"
+        "Setup only (create projects/envs, no traffic)"
     local mode="$PROMPT_RESULT"
 
     local flags="-config $config -rps $rps"
 
     case "$mode" in
-        "Real-time traffic (live timestamps)")
+        "Full (setup projects + traffic)")
             _prompt_input "Duration (e.g. 5m, 1h)" "5m"; local dur=$(normalize_duration "$PROMPT_RESULT")
             flags="$flags -duration $dur"
             ;;
+        "Real-time traffic only (skip setup)")
+            _prompt_input "Duration (e.g. 5m, 1h)" "5m"; local dur2=$(normalize_duration "$PROMPT_RESULT")
+            flags="$flags -duration $dur2 -skip-setup"
+            ;;
         "Historical backfill (fill past data rapidly)")
             _prompt_input "Backfill window (e.g. 24h, 7d)" "24h"; local bf="$PROMPT_RESULT"
-            # Normalize: 7d → 168h
             if [[ "$bf" =~ ^([0-9]+)d$ ]]; then
                 bf="$(( ${BASH_REMATCH[1]} * 24 ))h"
             fi
             flags="$flags -backfill $bf"
             ;;
-        "Setup only (create projects/envs)")
+        "Setup only (create projects/envs, no traffic)")
             flags="$flags -setup-only"
             ;;
     esac
-
-    prompt_confirm "Skip project/env creation?" && flags="$flags -skip-setup"
 
     info "Building workload generator..."
     go build -o bin/workload ./tests/workload/

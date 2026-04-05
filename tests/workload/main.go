@@ -439,6 +439,9 @@ func main() {
 
 	go metricsReporter(ctx)
 
+	// Resolve gRPC credentials once (not per-agent)
+	grpcCreds := resolveGRPCCreds()
+
 	var wg sync.WaitGroup
 	rpsPerAgent := *totalRPS / totalAgents
 	if rpsPerAgent < 1 {
@@ -465,9 +468,9 @@ func main() {
 			}, r regionData, sel []int) {
 				defer wg.Done()
 				if *backfill > 0 {
-					runBackfillAgent(ctx, cancel, cfg, id, ag.Project, ag.Environment, ag.NginxVersion, r, sel, rpsPerAgent)
+					runBackfillAgent(ctx, cancel, cfg, id, ag.Project, ag.Environment, ag.NginxVersion, r, sel, rpsPerAgent, grpcCreds)
 				} else {
-					runRealtimeAgent(ctx, cfg, id, ag.Project, ag.Environment, ag.NginxVersion, r, sel, rpsPerAgent)
+					runRealtimeAgent(ctx, cfg, id, ag.Project, ag.Environment, ag.NginxVersion, r, sel, rpsPerAgent, grpcCreds)
 				}
 			}(agentID, ag, region, uaSel)
 		}
@@ -481,8 +484,8 @@ func main() {
 
 // ── Real-time agent: sends data with current timestamps ──────────────────────
 
-func runRealtimeAgent(ctx context.Context, cfg *Config, agentID, project, env, nginxVer string, region regionData, uaSel []int, rps int) {
-	stream := connectAgent(ctx, cfg, agentID, project, env, nginxVer)
+func runRealtimeAgent(ctx context.Context, cfg *Config, agentID, project, env, nginxVer string, region regionData, uaSel []int, rps int, creds grpc.DialOption) {
+	stream := connectAgent(ctx, cfg, agentID, project, env, nginxVer, creds)
 	if stream == nil {
 		return
 	}
@@ -513,8 +516,8 @@ func runRealtimeAgent(ctx context.Context, cfg *Config, agentID, project, env, n
 
 // ── Backfill agent: sends historical data rapidly ────────────────────────────
 
-func runBackfillAgent(ctx context.Context, cancel context.CancelFunc, cfg *Config, agentID, project, env, nginxVer string, region regionData, uaSel []int, rps int) {
-	stream := connectAgent(ctx, cfg, agentID, project, env, nginxVer)
+func runBackfillAgent(ctx context.Context, cancel context.CancelFunc, cfg *Config, agentID, project, env, nginxVer string, region regionData, uaSel []int, rps int, creds grpc.DialOption) {
+	stream := connectAgent(ctx, cfg, agentID, project, env, nginxVer, creds)
 	if stream == nil {
 		return
 	}
@@ -544,9 +547,9 @@ func runBackfillAgent(ctx context.Context, cancel context.CancelFunc, cfg *Confi
 
 // ── Shared agent helpers ─────────────────────────────────────────────────────
 
-func connectAgent(ctx context.Context, cfg *Config, agentID, project, env, nginxVer string) pb.Commander_ConnectClient {
+func connectAgent(ctx context.Context, cfg *Config, agentID, project, env, nginxVer string, creds grpc.DialOption) pb.Commander_ConnectClient {
 	conn, err := grpc.Dial(cfg.Gateway.GRPCAddress,
-		resolveGRPCCreds(),
+		creds,
 		grpc.WithWriteBufferSize(512*1024),
 		grpc.WithReadBufferSize(512*1024),
 	)
