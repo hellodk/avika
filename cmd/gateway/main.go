@@ -3169,59 +3169,92 @@ func mustParseUint(s string) uint64 {
 	return n
 }
 
-// autoAssignAgentToEnvironment automatically assigns an agent to an environment based on its labels
-// Labels like "project" and "environment" are matched against project/environment slugs
+// Well-known IDs for the Unclassified project/environment (from migration 017).
+const (
+	unclassifiedProjectID = "a0000000-0000-0000-0000-000000000001"
+	unclassifiedEnvID     = "b0000000-0000-0000-0000-000000000001"
+	unclassifiedSlug      = "unclassified"
+)
+
+// autoAssignAgentToEnvironment assigns an agent based on its labels.
+//
+// Rules:
+//   - Agent has project + environment labels → look up existing project/environment by slug
+//     (agents cannot create projects — they must reference user-created ones).
+//   - If the referenced project/environment doesn't exist → assign to Unclassified + log warning.
+//   - Agent has no labels → assign to Unclassified project/environment.
+//   - If agent is being moved FROM Unclassified TO a real project → remove from Unclassified first.
+//   - Agent cannot be in both Unclassified and a real project simultaneously.
 func (s *server) autoAssignAgentToEnvironment(agentID string, labels map[string]string) {
 	if s.db == nil {
 		return
 	}
 
-	// Check for project label
-	projectSlug, hasProject := labels["project"]
-	if !hasProject {
-		return
+	projectSlug := labels["project"]
+	envSlug := labels["environment"]
+
+	var targetEnvID string
+	var targetProjectName, targetEnvName string
+
+	if projectSlug != "" && envSlug != "" {
+		// Agent declares a project + environment — look up (don't create)
+		project, err := s.db.GetProjectBySlug(projectSlug)
+		if err != nil || project == nil {
+			gatewayLog.Warn().Str("agent_id", agentID).Str("project", projectSlug).
+				Msg("Agent references non-existent project. Assigning to Unclassified. Create the project first, then the agent will auto-assign on next heartbeat.")
+			targetEnvID = unclassifiedEnvID
+			targetProjectName = "Unclassified"
+			targetEnvName = "Unclassified"
+		} else {
+			env, err := s.db.GetEnvironmentBySlug(project.ID, envSlug)
+			if err != nil || env == nil {
+				gatewayLog.Warn().Str("agent_id", agentID).Str("project", projectSlug).Str("environment", envSlug).
+					Msg("Agent references non-existent environment. Assigning to Unclassified. Create the environment first.")
+				targetEnvID = unclassifiedEnvID
+				targetProjectName = "Unclassified"
+				targetEnvName = "Unclassified"
+			} else {
+				targetEnvID = env.ID
+				targetProjectName = project.Name
+				targetEnvName = env.Name
+			}
+		}
+	} else {
+		// No labels — Unclassified
+		targetEnvID = unclassifiedEnvID
+		targetProjectName = "Unclassified"
+		targetEnvName = "Unclassified"
 	}
 
-	// Environments are agent-only: only assign when agent sends AVIKA_LABEL_ENVIRONMENT (no default)
-	envSlug, hasEnv := labels["environment"]
-	if !hasEnv || envSlug == "" {
-		return
-	}
-
-	// Find project by slug
-	project, err := s.db.GetProjectBySlug(projectSlug)
-	if err != nil || project == nil {
-		log.Printf("Auto-assign: project '%s' not found for agent %s", projectSlug, agentID)
-		return
-	}
-
-	// Find or create environment by project and slug (environments driven by agent config)
-	env, err := s.db.EnsureEnvironment(project.ID, envSlug)
-	if err != nil || env == nil {
-		log.Printf("Auto-assign: failed to ensure environment '%s' in project '%s' for agent %s: %v", envSlug, projectSlug, agentID, err)
-		return
-	}
-
-	// Check if already assigned
+	// Check current assignment
 	existing, err := s.db.GetServerAssignment(agentID)
 	if err == nil && existing != nil {
-		// Already assigned, skip
-		log.Printf("Auto-assign: agent %s already assigned to environment %s", agentID, existing.EnvironmentID)
-		return
+		if existing.EnvironmentID == targetEnvID {
+			return // Already correctly assigned
+		}
+		// Moving between assignments — enforce mutual exclusion with Unclassified
+		// If moving FROM Unclassified TO real → remove Unclassified assignment
+		// If moving FROM real TO Unclassified → only if explicitly unassigned (don't downgrade)
+		if existing.EnvironmentID == unclassifiedEnvID && targetEnvID != unclassifiedEnvID {
+			// Upgrading from Unclassified to real project — remove old assignment
+			_ = s.db.UnassignServer(agentID)
+		} else if existing.EnvironmentID != unclassifiedEnvID && targetEnvID == unclassifiedEnvID {
+			// Agent is already in a real project but labels are missing/wrong — keep existing, don't downgrade
+			return
+		} else if existing.EnvironmentID != unclassifiedEnvID {
+			// Already assigned to a real project — don't reassign unless explicitly unassigned first
+			return
+		}
 	}
 
-	// Auto-assign to environment
-	displayName := ""
-	if name, ok := labels["name"]; ok {
-		displayName = name
-	}
-	_, err = s.db.AssignServer(agentID, env.ID, displayName, "", nil) // Empty string for auto-assignment
+	displayName := labels["name"]
+	_, err = s.db.AssignServer(agentID, targetEnvID, displayName, "", nil)
 	if err != nil {
-		log.Printf("Auto-assign failed for agent %s: %v", agentID, err)
+		gatewayLog.Warn().Err(err).Str("agent_id", agentID).Msg("Auto-assign failed")
 		return
 	}
 
-	log.Printf("Auto-assigned agent %s to project '%s', environment '%s'", agentID, project.Name, env.Name)
+	gatewayLog.Info().Str("agent_id", agentID).Str("project", targetProjectName).Str("environment", targetEnvName).Msg("Agent auto-assigned")
 }
 
 func loadServerTLSConfig(cfg *config.Config) (*tls.Config, error) {

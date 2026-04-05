@@ -338,6 +338,30 @@ function InventoryPageContent() {
                 </div>
             </div>
 
+            {/* Unclassified agents warning */}
+            {(() => {
+                const unclassifiedCount = instances.filter(a => {
+                    const assign = serverAssignments[a.agent_id];
+                    return !assign; // no assignment = unclassified
+                }).length;
+                if (unclassifiedCount === 0) return null;
+                return (
+                    <div className="flex items-center gap-3 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5">
+                        <div className="p-2 rounded-lg bg-amber-500/10">
+                            <FolderKanban className="h-5 w-5 text-amber-500" />
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text))" }}>
+                                {unclassifiedCount} unclassified agent{unclassifiedCount > 1 ? "s" : ""}
+                            </p>
+                            <p className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                These agents need to be assigned to a project and environment. Select them and use the assign action, or configure LABEL_project and LABEL_environment in their agent config.
+                            </p>
+                        </div>
+                    </div>
+                );
+            })()}
+
             <AgentFleetTable
                 instances={instances}
                 loading={loading}
