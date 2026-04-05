@@ -47,6 +47,7 @@ export function VisitorDrillDown({ window, category, initialGroup, onClose }: Pr
   const [version, setVersion] = useState<string | null>(null);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [direction, setDirection] = useState(1);
 
   const level = version ? 3 : group ? 2 : 1;
@@ -54,14 +55,19 @@ export function VisitorDrillDown({ window, category, initialGroup, onClose }: Pr
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams({ window, category });
       if (group) params.set("group", group);
       if (version) params.set("version", version);
       const res = await apiFetch(`/api/analytics/visitor-drilldown?${params}`);
-      if (res.ok) setData(await res.json());
-    } catch (err) {
-      console.error("Visitor drilldown fetch failed:", err);
+      if (res.ok) {
+        setData(await res.json());
+      } else {
+        setError(`API returned ${res.status}`);
+      }
+    } catch (err: any) {
+      setError(err?.message || "Failed to fetch data");
     } finally {
       setLoading(false);
     }
@@ -119,6 +125,12 @@ export function VisitorDrillDown({ window, category, initialGroup, onClose }: Pr
           {loading ? (
             <div className="h-20 flex items-center justify-center">
               <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }} className="h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full" />
+            </div>
+          ) : error ? (
+            <div className="text-center py-6 space-y-2">
+              <p className="text-sm text-red-500">Failed to load data</p>
+              <p className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>{error}</p>
+              <Button variant="outline" size="sm" onClick={fetchData}>Retry</Button>
             </div>
           ) : (
             <>
