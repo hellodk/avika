@@ -97,9 +97,12 @@ func (db *ClickHouseDB) statusLevel1(ctx context.Context, where string, args []i
 	var classes []StatusClassStat
 	for rows.Next() {
 		var s StatusClassStat
-		if err := rows.Scan(&s.Class, &s.Count); err != nil {
+		var cnt uint64
+		if err := rows.Scan(&s.Class, &cnt); err != nil {
+			log.Printf("Status drilldown L1 scan error: %v", err)
 			continue
 		}
+		s.Count = int64(cnt)
 		total += s.Count
 		classes = append(classes, s)
 	}
@@ -131,10 +134,10 @@ func (db *ClickHouseDB) getTopCodeInClass(ctx context.Context, where string, arg
 	var code uint16
 	var cnt uint64
 	if err := db.conn.QueryRow(ctx, query, args...).Scan(&code, &cnt); err != nil {
+		log.Printf("Status drilldown getTopCode scan error: %v", err)
 		return 0, 0
 	}
 
-	// Get total for class
 	totalQuery := fmt.Sprintf(`
 		SELECT count() FROM nginx_analytics.access_logs
 		%s AND status >= %d AND status < %d
@@ -175,10 +178,13 @@ func (db *ClickHouseDB) statusLevel2(ctx context.Context, where string, args []i
 	for rows.Next() {
 		var s DrillDownCodeStat
 		var code uint16
-		if err := rows.Scan(&code, &s.Count, &s.AvgLatency); err != nil {
+		var cnt uint64
+		if err := rows.Scan(&code, &cnt, &s.AvgLatency); err != nil {
+			log.Printf("Status drilldown L2 scan error: %v", err)
 			continue
 		}
 		s.Code = int(code)
+		s.Count = int64(cnt)
 		total += s.Count
 		codes = append(codes, s)
 	}
@@ -234,10 +240,13 @@ func (db *ClickHouseDB) statusLevel3(ctx context.Context, where string, args []i
 	var uris []StatusURIStat
 	for rows.Next() {
 		var s StatusURIStat
-		if err := rows.Scan(&s.URI, &s.Count, &s.AvgLatency, &s.P95Latency, &s.LastSeen, &s.Bandwidth); err != nil {
+		var cnt, bw uint64
+		if err := rows.Scan(&s.URI, &cnt, &s.AvgLatency, &s.P95Latency, &s.LastSeen, &bw); err != nil {
 			log.Printf("Status drilldown L3 scan error: %v", err)
 			continue
 		}
+		s.Count = int64(cnt)
+		s.Bandwidth = int64(bw)
 		uris = append(uris, s)
 	}
 
@@ -273,10 +282,12 @@ func (db *ClickHouseDB) statusLevel4(ctx context.Context, where string, args []i
 	var traces []StatusTraceStat
 	for rows.Next() {
 		var t StatusTraceStat
-		if err := rows.Scan(&t.Timestamp, &t.RequestID, &t.ClientIP, &t.Country, &t.UserAgent, &t.Latency, &t.Upstream, &t.BodyBytes); err != nil {
+		var bb uint64
+		if err := rows.Scan(&t.Timestamp, &t.RequestID, &t.ClientIP, &t.Country, &t.UserAgent, &t.Latency, &t.Upstream, &bb); err != nil {
 			log.Printf("Status drilldown L4 scan error: %v", err)
 			continue
 		}
+		t.BodyBytes = int64(bb)
 		traces = append(traces, t)
 	}
 

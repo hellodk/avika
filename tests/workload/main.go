@@ -655,7 +655,7 @@ func genLog(agentID string, region regionData, uaSel []int, ts time.Time) *pb.Ag
 		Timestamp: ts.Unix(),
 		Payload: &pb.AgentMessage_LogEntry{
 			LogEntry: &pb.LogEntry{
-				Timestamp:     ts.UnixMilli(),
+				Timestamp:     ts.Unix(),
 				LogType:       "access",
 				RemoteAddr:    clientIP,
 				RequestMethod: method,
