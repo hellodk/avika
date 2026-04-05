@@ -827,10 +827,14 @@ func (db *DB) ListTeamProjectAccess(teamID string) ([]TeamProjectAccess, error) 
 // User Access Operations
 // ============================================================================
 
-// IsSuperAdmin checks if a user is a superadmin
+// IsSuperAdmin checks if a user has superadmin privileges.
+// Users with role='admin' OR is_superadmin=true are treated as superadmin.
 func (db *DB) IsSuperAdmin(username string) (bool, error) {
 	var isSuperAdmin bool
-	err := db.conn.QueryRow("SELECT COALESCE(is_superadmin, FALSE) FROM users WHERE username = $1", username).Scan(&isSuperAdmin)
+	err := db.conn.QueryRow(
+		"SELECT COALESCE(is_superadmin, FALSE) OR (role = 'admin') FROM users WHERE username = $1",
+		username,
+	).Scan(&isSuperAdmin)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
