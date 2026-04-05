@@ -2936,7 +2936,7 @@ func (srv *server) handleStatusDrillDown(w http.ResponseWriter, r *http.Request)
 
 	code := 0
 	if c := q.Get("code"); c != "" {
-		fmt.Sscanf(c, "%d", &code)
+		_, _ = fmt.Sscanf(c, "%d", &code)
 	}
 
 	// Build agent filter from project/environment if provided

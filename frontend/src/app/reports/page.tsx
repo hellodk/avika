@@ -506,21 +506,21 @@ export default function ReportsPage() {
                                         {reportData.alertsSummary && <span><span className="font-medium" style={{ color: "rgb(var(--theme-text))" }}>Alerts:</span> {reportData.alertsSummary}</span>}
                                     </div>
                                 )}
-                                {reportData.topIssues?.length > 0 && (
+                                {(reportData.topIssues ?? []).length > 0 && (
                                     <div>
                                         <p className="text-sm font-medium mb-1" style={{ color: "rgb(var(--theme-text))" }}>Top issues</p>
                                         <ul className="list-disc list-inside text-sm space-y-1" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                            {reportData.topIssues.map((issue: string, i: number) => (
+                                            {(reportData.topIssues ?? []).map((issue: string, i: number) => (
                                                 <li key={i}>{issue}</li>
                                             ))}
                                         </ul>
                                     </div>
                                 )}
-                                {reportData.recommendations?.length > 0 && (
+                                {(reportData.recommendations ?? []).length > 0 && (
                                     <div>
                                         <p className="text-sm font-medium mb-1" style={{ color: "rgb(var(--theme-text))" }}>Recommendations</p>
                                         <ul className="list-disc list-inside text-sm space-y-1" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                            {reportData.recommendations.map((rec: string, i: number) => (
+                                            {(reportData.recommendations ?? []).map((rec: string, i: number) => (
                                                 <li key={i}>{rec}</li>
                                             ))}
                                         </ul>
@@ -574,8 +574,8 @@ export default function ReportsPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {reportData.topUris?.length > 0 ? (
-                                            reportData.topUris.map((u: TopUriRow, i: number) => (
+                                        {(reportData.topUris ?? []).length > 0 ? (
+                                            (reportData.topUris ?? []).map((u: TopUriRow, i: number) => (
                                                 <TableRow key={i} style={{ borderColor: "rgb(var(--theme-border))" }}>
                                                     <TableCell 
                                                         className="font-mono text-xs truncate max-w-[200px]" 
@@ -616,8 +616,8 @@ export default function ReportsPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {reportData.topServers?.length > 0 ? (
-                                            reportData.topServers.map((s: ReportServerRow, i: number) => {
+                                        {(reportData.topServers ?? []).length > 0 ? (
+                                            (reportData.topServers ?? []).map((s: ReportServerRow, i: number) => {
                                                 const errRate = Number(s.error_rate ?? s.errorRate) || 0;
                                                 return (
                                                 <TableRow key={i} style={{ borderColor: "rgb(var(--theme-border))" }}>
