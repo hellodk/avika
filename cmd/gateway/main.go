@@ -2048,6 +2048,9 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// RBAC / Multi-Tenancy API Endpoints
 	// ============================================================================
 
+	// System info (gateway version + TLS metadata) — used by Settings install snippet
+	mux.Handle("GET /api/system/install-info", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleInstallInfo)))
+
 	// Projects API
 	mux.Handle("GET /api/projects", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListProjects)))
 	mux.Handle("POST /api/projects", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateProject)))

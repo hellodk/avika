@@ -43,6 +43,11 @@ fi
 UPDATE_SERVER="${UPDATE_SERVER:-}"
 GATEWAY_SERVER="${GATEWAY_SERVER:-localhost:50051}"
 INSECURE_CURL="${INSECURE_CURL:-false}"
+# Optional: assign the agent to a project + environment by slug.
+# These get written to the agent config as LABEL_project / LABEL_environment,
+# which the gateway's auto-assign logic uses to place the agent in the right env.
+PROJECT_SLUG="${PROJECT_SLUG:-}"
+ENVIRONMENT_SLUG="${ENVIRONMENT_SLUG:-}"
 INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/avika"
 SERVICE_NAME="avika-agent"
@@ -195,6 +200,17 @@ BACKUP_DIR="/var/lib/nginx-manager/backups"
 LOG_LEVEL="info"
 LOG_FILE="/var/log/avika-agent/agent.log"
 EOF
+
+# Append project/environment labels (drives auto-assignment in the gateway).
+if [ -n "$PROJECT_SLUG" ]; then
+    echo "" >> "$CONFIG_DIR/avika-agent.conf"
+    echo "# Project / Environment assignment (set at install time)" >> "$CONFIG_DIR/avika-agent.conf"
+    echo "LABEL_project=$PROJECT_SLUG" >> "$CONFIG_DIR/avika-agent.conf"
+    if [ -n "$ENVIRONMENT_SLUG" ]; then
+        echo "LABEL_environment=$ENVIRONMENT_SLUG" >> "$CONFIG_DIR/avika-agent.conf"
+    fi
+    log_info "Agent will report labels: project=$PROJECT_SLUG environment=${ENVIRONMENT_SLUG:-<none>}"
+fi
 
 chmod 644 "$CONFIG_DIR/avika-agent.conf"
 log_success "Configuration file created at $CONFIG_DIR/avika-agent.conf"
