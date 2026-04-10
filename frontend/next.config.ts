@@ -111,7 +111,9 @@ const nextConfig: NextConfig = {
     ];
   },
   
-  // Rewrites - proxy health/ready endpoints to gateway so K8s probes work
+  // Rewrites - proxy health/ready endpoints to gateway so K8s probes work,
+  // and proxy /updates/* so the agent install command works in dev (in
+  // production, HAProxy handles this same path-based routing).
   async rewrites() {
     const gatewayUrl = process.env.GATEWAY_HTTP_URL || "http://localhost:5021";
     return [
@@ -124,6 +126,12 @@ const nextConfig: NextConfig = {
         source: '/ready',
         destination: `${gatewayUrl}/ready`,
         basePath: false,
+      },
+      // /avika/updates/* → gateway /updates/* (binaries, deploy script, version.json, systemd unit)
+      // basePath defaults to true, so source matches with the /avika prefix in the browser.
+      {
+        source: '/updates/:path*',
+        destination: `${gatewayUrl}/updates/:path*`,
       },
     ];
   },
