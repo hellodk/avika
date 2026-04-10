@@ -4,7 +4,7 @@ import { recordRequest } from "@/lib/metrics";
 
 // Paths that don't require authentication
 // Note: When basePath is configured, Next.js middleware receives pathname WITHOUT the basePath
-const publicPaths = ["/login", "/change-password", "/api/auth/login", "/api/auth/logout", "/api/auth/change-password", "/api/health", "/api/metrics"];
+const publicPaths = ["/login", "/change-password", "/api/auth/login", "/api/auth/logout", "/api/auth/change-password", "/api/health", "/api/metrics", "/updates/install"];
 
 export function middleware(request: NextRequest) {
   // pathname is already stripped of basePath by Next.js
