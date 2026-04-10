@@ -174,9 +174,10 @@ if [ "$INSTALLED_VERSION" != "$LATEST_VERSION" ]; then
     log_warn "Installed version ($INSTALLED_VERSION) differs from latest ($LATEST_VERSION). You may be running an older gateway; rebuild/redeploy the gateway to serve binaries with the correct version."
 fi
 
-# Detect TLS requirement from gateway URL or port
+# Detect TLS requirement: if INSECURE_CURL is true (self-signed cert detected),
+# the gateway is serving over TLS. Also check for known TLS ports.
 TLS_CONFIG="false"
-if [[ "$GATEWAY_SERVER" == https://* ]] || [[ "$GATEWAY_SERVER" == *:443 ]]; then
+if [ "$INSECURE_CURL" = "true" ] || [[ "$GATEWAY_SERVER" == *:443 ]] || [[ "$GATEWAY_SERVER" == *:8443 ]]; then
     TLS_CONFIG="true"
 fi
 
@@ -191,7 +192,7 @@ GATEWAYS="$GATEWAY_SERVER"
 
 # TLS Configuration
 TLS="$TLS_CONFIG"
-TLS_INSECURE="$TLS_CONFIG"
+TLS_INSECURE="$INSECURE_CURL"
 
 # Agent Identity (leave empty for auto-detection: hostname-ip)
 AGENT_ID=""
