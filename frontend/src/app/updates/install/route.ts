@@ -79,6 +79,18 @@ INSECURE_CURL="${insecureCurl}"
 
 export UPDATE_SERVER GATEWAY_SERVER INSECURE_CURL
 
+# Auto-detect self-signed certificate if not already flagged.
+# Try a quick fetch; if it fails but succeeds with -k, switch to insecure mode.
+if [ "$INSECURE_CURL" != "true" ]; then
+    if ! curl -fsSL --connect-timeout 5 "$UPDATE_SERVER/version.json" -o /dev/null 2>/dev/null; then
+        if curl -kfsSL --connect-timeout 5 "$UPDATE_SERVER/version.json" -o /dev/null 2>/dev/null; then
+            INSECURE_CURL="true"
+            export INSECURE_CURL
+            echo "[WARN] Self-signed certificate detected — switching to insecure mode"
+        fi
+    fi
+fi
+
 CURL_OPTS="-fsSL"
 [ "$INSECURE_CURL" = "true" ] && CURL_OPTS="-kfsSL"
 
