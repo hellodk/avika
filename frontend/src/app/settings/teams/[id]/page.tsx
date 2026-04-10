@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api";
 import { ArrowLeft, Plus, Users, Trash2, FolderKanban, Shield, UserMinus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -73,7 +74,7 @@ export default function TeamDetailPage() {
 
   const fetchTeam = async () => {
     try {
-      const response = await fetch(`/api/teams/${teamId}`, { credentials: "include" });
+      const response = await apiFetch(`/api/teams/${teamId}`, { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch team");
       const data = await response.json();
       setTeam(data);
@@ -85,7 +86,7 @@ export default function TeamDetailPage() {
 
   const fetchMembers = async () => {
     try {
-      const response = await fetch(`/api/teams/${teamId}/members`, { credentials: "include" });
+      const response = await apiFetch(`/api/teams/${teamId}/members`, { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch members");
       const data = await response.json();
       setMembers(data || []);
@@ -96,7 +97,7 @@ export default function TeamDetailPage() {
 
   const fetchProjectAccess = async () => {
     try {
-      const response = await fetch(`/api/teams/${teamId}/projects`, { credentials: "include" });
+      const response = await apiFetch(`/api/teams/${teamId}/projects`, { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch project access");
       const data = await response.json();
       setProjectAccess(data || []);
@@ -122,7 +123,7 @@ export default function TeamDetailPage() {
 
     setIsAddingMember(true);
     try {
-      const response = await fetch(`/api/teams/${teamId}/members`, {
+      const response = await apiFetch(`/api/teams/${teamId}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -149,7 +150,7 @@ export default function TeamDetailPage() {
     if (!confirm(`Remove ${username} from this team?`)) return;
 
     try {
-      const response = await fetch(`/api/teams/${teamId}/members/${username}`, {
+      const response = await apiFetch(`/api/teams/${teamId}/members/${username}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -171,7 +172,7 @@ export default function TeamDetailPage() {
 
     setIsGrantingAccess(true);
     try {
-      const response = await fetch(`/api/teams/${teamId}/projects`, {
+      const response = await apiFetch(`/api/teams/${teamId}/projects`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -198,7 +199,7 @@ export default function TeamDetailPage() {
     if (!confirm("Revoke this project access?")) return;
 
     try {
-      const response = await fetch(`/api/teams/${teamId}/projects/${projectId}`, {
+      const response = await apiFetch(`/api/teams/${teamId}/projects/${projectId}`, {
         method: "DELETE",
         credentials: "include",
       });

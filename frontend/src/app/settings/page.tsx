@@ -6,7 +6,7 @@ import { Suspense, useEffect, useMemo, useState, useRef, useCallback } from "rea
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Save, Check, Loader2, Settings, Globe, Lock, Zap, ChevronRight, RefreshCw, PlugZap, Key, KeyRound, ShieldCheck } from "lucide-react";
+import { Save, Check, Loader2, Settings, Globe, Lock, Zap, ChevronRight, RefreshCw, PlugZap, Key, KeyRound, ShieldCheck, Users, FolderKanban } from "lucide-react";
 import { useUserSettings } from "@/lib/user-settings";
 import { toast } from "sonner";
 // Link removed — security sub-pages now render inline
@@ -20,6 +20,8 @@ const SAMLPage = nextDynamic(() => import("./saml/page"), { loading: () => <Page
 const WAFPage = nextDynamic(() => import("./waf/page"), { loading: () => <PageSkeleton /> });
 const LLMPage = nextDynamic(() => import("./llm/page"), { loading: () => <PageSkeleton /> });
 const ProjectsPage = nextDynamic(() => import("./projects/page"), { loading: () => <PageSkeleton /> });
+const UsersPage = nextDynamic(() => import("./users/page"), { loading: () => <PageSkeleton /> });
+const TeamsPage = nextDynamic(() => import("./teams/page"), { loading: () => <PageSkeleton /> });
 
 function PageSkeleton() {
     return <div className="space-y-4 py-4">{[1, 2, 3].map(i => <div key={i} className="h-16 rounded animate-pulse" style={{ background: "rgb(var(--theme-border))" }} />)}</div>;
@@ -284,7 +286,13 @@ function SettingsContent() {
                         <Lock className="h-4 w-4 mr-2" />Security
                     </TabsTrigger>
                     <TabsTrigger value="projects" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-                        <Zap className="h-4 w-4 mr-2" />Projects
+                        <FolderKanban className="h-4 w-4 mr-2" />Projects
+                    </TabsTrigger>
+                    <TabsTrigger value="users" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                        <Users className="h-4 w-4 mr-2" />Users
+                    </TabsTrigger>
+                    <TabsTrigger value="teams" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                        <ShieldCheck className="h-4 w-4 mr-2" />Teams
                     </TabsTrigger>
                 </TabsList>
 
@@ -359,6 +367,16 @@ function SettingsContent() {
                 {/* ── Projects Tab ─────────────────────────────────────────── */}
                 <TabsContent value="projects" className="space-y-6">
                     <ProjectsPage />
+                </TabsContent>
+
+                {/* ── Users Tab ───────────────────────────────────────────── */}
+                <TabsContent value="users" className="space-y-6">
+                    <UsersPage />
+                </TabsContent>
+
+                {/* ── Teams Tab ───────────────────────────────────────────── */}
+                <TabsContent value="teams" className="space-y-6">
+                    <TeamsPage />
                 </TabsContent>
             </Tabs>
         </div>
