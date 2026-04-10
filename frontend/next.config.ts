@@ -129,23 +129,23 @@ const nextConfig: NextConfig = {
           destination: `${gatewayUrl}/ready`,
           basePath: false,
         },
-        // /avika/updates/* → gateway /updates/* (binaries, deploy script, version.json, systemd unit)
-        {
-          source: '/updates/:path*',
-          destination: `${gatewayUrl}/updates/:path*`,
-        },
       ],
       // afterFiles: checked after filesystem routes but before fallback
       afterFiles: [],
       // fallback: only checked when no page or API route matches.
-      // This proxies all /api/* that DON'T have a dedicated Next.js route file
-      // to the gateway — so /api/users, /api/teams, /api/sso/*, etc. all work
-      // without needing individual proxy routes.
-      // Existing routes like /api/servers/route.ts still take precedence.
+      // Next.js API route files (e.g., /api/servers/route.ts, /updates/install/route.ts)
+      // take precedence. Everything else falls through to the gateway.
       fallback: [
         {
           source: '/api/:path*',
           destination: `${gatewayUrl}/api/:path*`,
+        },
+        // /avika/updates/* → gateway /updates/* (binaries, deploy script, version.json,
+        // systemd unit). The /updates/install route.ts takes precedence for dynamic
+        // install script generation; all other /updates/* paths proxy to the gateway.
+        {
+          source: '/updates/:path*',
+          destination: `${gatewayUrl}/updates/:path*`,
         },
       ],
     };

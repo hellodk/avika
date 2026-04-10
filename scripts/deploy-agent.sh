@@ -53,17 +53,36 @@ CONFIG_DIR="/etc/avika"
 SERVICE_NAME="avika-agent"
 AGENT_USER="${AGENT_USER:-root}"
 
+# ── Normalize GATEWAY_SERVER: strip scheme prefix, add default port ──────────
+GATEWAY_SERVER=$(echo "$GATEWAY_SERVER" | sed 's|^https\?://||;s|/$||')
+if ! echo "$GATEWAY_SERVER" | grep -qE ':[0-9]+$'; then
+    GATEWAY_SERVER="${GATEWAY_SERVER}:443"
+fi
+
 CURL_OPTS="-fsSL"
 if [ "$INSECURE_CURL" = "true" ]; then
     CURL_OPTS="-kfsSL"
-    log_warn "Running strictly with insecure curl (-k). Not recommended for production!"
+    log_warn "Running with insecure curl (-k). Not recommended for production!"
 fi
 
 # Validate required configuration
 if [ -z "$UPDATE_SERVER" ]; then
     log_error "UPDATE_SERVER environment variable is required"
-    log_error "Example: curl -fsSL http://<GATEWAY_HOST>:5021/updates/deploy-agent.sh | UPDATE_SERVER=http://<GATEWAY_HOST>:5021/updates GATEWAY_SERVER=<GATEWAY_HOST>:5020 sudo -E bash"
+    log_error "Example: curl -kfsSL https://<HOST>/avika/updates/install | sudo bash"
     exit 1
+fi
+
+# ── Auto-detect self-signed cert if INSECURE_CURL wasn't set ─────────────────
+# Try a quick fetch; if it fails with an SSL error but succeeds with -k,
+# the server has a self-signed cert → switch to insecure mode automatically.
+if [ "$INSECURE_CURL" != "true" ]; then
+    if ! curl -fsSL --connect-timeout 5 "$UPDATE_SERVER/version.json" -o /dev/null 2>/dev/null; then
+        if curl -kfsSL --connect-timeout 5 "$UPDATE_SERVER/version.json" -o /dev/null 2>/dev/null; then
+            INSECURE_CURL="true"
+            CURL_OPTS="-kfsSL"
+            log_warn "Self-signed certificate detected — switching to insecure mode"
+        fi
+    fi
 fi
 
 # Check if running as root
