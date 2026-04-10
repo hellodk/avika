@@ -116,24 +116,39 @@ const nextConfig: NextConfig = {
   // production, HAProxy handles this same path-based routing).
   async rewrites() {
     const gatewayUrl = process.env.GATEWAY_HTTP_URL || "http://localhost:5021";
-    return [
-      {
-        source: '/health',
-        destination: `${gatewayUrl}/health`,
-        basePath: false,
-      },
-      {
-        source: '/ready',
-        destination: `${gatewayUrl}/ready`,
-        basePath: false,
-      },
-      // /avika/updates/* → gateway /updates/* (binaries, deploy script, version.json, systemd unit)
-      // basePath defaults to true, so source matches with the /avika prefix in the browser.
-      {
-        source: '/updates/:path*',
-        destination: `${gatewayUrl}/updates/:path*`,
-      },
-    ];
+    return {
+      // beforeFiles: runs before Next.js checks filesystem/API routes
+      beforeFiles: [
+        {
+          source: '/health',
+          destination: `${gatewayUrl}/health`,
+          basePath: false,
+        },
+        {
+          source: '/ready',
+          destination: `${gatewayUrl}/ready`,
+          basePath: false,
+        },
+        // /avika/updates/* → gateway /updates/* (binaries, deploy script, version.json, systemd unit)
+        {
+          source: '/updates/:path*',
+          destination: `${gatewayUrl}/updates/:path*`,
+        },
+      ],
+      // afterFiles: checked after filesystem routes but before fallback
+      afterFiles: [],
+      // fallback: only checked when no page or API route matches.
+      // This proxies all /api/* that DON'T have a dedicated Next.js route file
+      // to the gateway — so /api/users, /api/teams, /api/sso/*, etc. all work
+      // without needing individual proxy routes.
+      // Existing routes like /api/servers/route.ts still take precedence.
+      fallback: [
+        {
+          source: '/api/:path*',
+          destination: `${gatewayUrl}/api/:path*`,
+        },
+      ],
+    };
   },
 
   // Redirects - redirect root to basePath; legacy routes to new locations
