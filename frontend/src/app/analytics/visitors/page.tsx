@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -12,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -33,9 +33,11 @@ import {
   Cell,
   BarChart,
   Bar,
-  Legend,
 } from "recharts";
-import { Users, Globe, Activity, Bot, Monitor, Smartphone, Tablet } from "lucide-react";
+import { Users, Globe, Activity, Bot, Monitor, Smartphone, Tablet, Search, Link2, AlertTriangle, FileText, Clock } from "lucide-react";
+import { VisitorDrillDown } from "@/components/analytics/VisitorDrillDown";
+import { AnimatePresence } from "framer-motion";
+import { useTheme } from "@/lib/theme-provider";
 
 interface VisitorAnalytics {
   summary: {
@@ -100,25 +102,41 @@ interface VisitorAnalytics {
   }>;
 }
 
-const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+const CHART_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
 
 function formatNumber(num: string | number): string {
   const n = typeof num === "string" ? parseInt(num) : num;
+  if (isNaN(n)) return "0";
   if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
   if (n >= 1000) return (n / 1000).toFixed(1) + "K";
-  return n.toString();
+  return n.toLocaleString();
 }
 
 function formatBytes(bytes: string | number): string {
   const b = typeof bytes === "string" ? parseInt(bytes) : bytes;
-  if (b >= 1073741824) return (b / 1073741824).toFixed(2) + " GB";
-  if (b >= 1048576) return (b / 1048576).toFixed(2) + " MB";
-  if (b >= 1024) return (b / 1024).toFixed(2) + " KB";
+  if (isNaN(b) || b === 0) return "0 B";
+  if (b >= 1073741824) return (b / 1073741824).toFixed(1) + " GB";
+  if (b >= 1048576) return (b / 1048576).toFixed(1) + " MB";
+  if (b >= 1024) return (b / 1024).toFixed(1) + " KB";
   return b + " B";
 }
 
+function statusColor(code: number): string {
+  if (code >= 500) return "text-red-500";
+  if (code >= 400) return "text-amber-500";
+  if (code >= 300) return "text-blue-500";
+  return "text-emerald-500";
+}
+
 export default function VisitorsPage() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const gridColor = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
+  const tooltipBg = isDark ? "#1e293b" : "#ffffff";
+  const tooltipBorder = isDark ? "#334155" : "#e2e8f0";
+
   const [data, setData] = useState<VisitorAnalytics | null>(null);
+  const [drillDown, setDrillDown] = useState<{ category: "devices" | "browsers" | "os"; group?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [timeWindow, setTimeWindow] = useState("24h");
 
@@ -141,544 +159,340 @@ export default function VisitorsPage() {
     return () => clearInterval(interval);
   }, [timeWindow]);
 
+  const totalHits = parseInt(data?.summary?.total_hits || "0");
+  const botHits = parseInt(data?.summary?.bot_hits || "0");
+  const humanHits = parseInt(data?.summary?.human_hits || "0");
+  const botPct = totalHits > 0 ? ((botHits / totalHits) * 100).toFixed(1) : "0";
+
   const deviceData = data?.devices
     ? [
-      { name: "Desktop", value: parseInt(data.devices.desktop || "0"), icon: Monitor },
-      { name: "Mobile", value: parseInt(data.devices.mobile || "0"), icon: Smartphone },
-      { name: "Tablet", value: parseInt(data.devices.tablet || "0"), icon: Tablet },
-      { name: "Other", value: parseInt(data.devices.other || "0"), icon: Globe },
+      { name: "Desktop", value: parseInt(data.devices.desktop || "0"), color: "#3b82f6" },
+      { name: "Mobile", value: parseInt(data.devices.mobile || "0"), color: "#10b981" },
+      { name: "Tablet", value: parseInt(data.devices.tablet || "0"), color: "#f59e0b" },
+      { name: "Other", value: parseInt(data.devices.other || "0"), color: "#8b5cf6" },
     ].filter((d) => d.value > 0)
     : [];
 
-  const trafficTypeData = data?.summary
-    ? [
-      { name: "Human", value: parseInt(data.summary.human_hits || "0") },
-      { name: "Bot", value: parseInt(data.summary.bot_hits || "0") },
-    ]
-    : [];
+  const browserChartData = (data?.browsers || []).slice(0, 6).map((b) => ({
+    name: b.browser,
+    hits: parseInt(b.hits),
+  }));
+
+  const osChartData = (data?.operating_systems || []).slice(0, 6).map((o) => ({
+    name: o.os,
+    hits: parseInt(o.hits),
+  }));
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "rgb(var(--theme-text))" }}>Visitor Analytics</h1>
-          <p className="text-sm mt-1" style={{ color: "rgb(var(--theme-text-muted))" }}>Traffic, devices, browsers, and referrers</p>
+          <h1 className="text-2xl font-semibold" style={{ color: "rgb(var(--theme-text))" }}>
+            Visitor Analytics
+          </h1>
+          <p className="text-sm mt-1" style={{ color: "rgb(var(--theme-text-muted))" }}>
+            Audience insights, devices, referrers, and content performance
+          </p>
         </div>
         <Select value={timeWindow} onValueChange={setTimeWindow}>
-          <SelectTrigger className="w-[180px] px-3 py-2 border rounded-md bg-background">
-            <SelectValue placeholder="Time window" />
+          <SelectTrigger className="w-[160px]" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="1h">Last Hour</SelectItem>
-            <SelectItem value="24h">Last 24 Hours</SelectItem>
-            <SelectItem value="7d">Last 7 Days</SelectItem>
-            <SelectItem value="30d">Last 30 Days</SelectItem>
+            <SelectItem value="1h">Last hour</SelectItem>
+            <SelectItem value="24h">Last 24 hours</SelectItem>
+            <SelectItem value="7d">Last 7 days</SelectItem>
+            <SelectItem value="30d">Last 30 days</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Unique Visitors</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { title: "Unique Visitors", value: formatNumber(data?.summary?.unique_visitors || "0"), icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
+          { title: "Human Traffic", value: formatNumber(humanHits), icon: Activity, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+          { title: "Bot Traffic", value: `${botPct}%`, icon: Bot, color: "text-amber-500", bg: "bg-amber-500/10" },
+          { title: "404 Errors", value: formatNumber(data?.not_found?.reduce((sum: number, nf: any) => sum + parseInt(nf.hits || "0"), 0) || 0), icon: Search, color: "text-red-500", bg: "bg-red-500/10" },
+        ].map((kpi) => (
+          <Card key={kpi.title} style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>{kpi.title}</p>
+                  {loading ? (
+                    <Skeleton className="h-8 w-20 mt-1" />
+                  ) : (
+                    <p className="text-2xl font-bold mt-1" style={{ color: "rgb(var(--theme-text))" }}>{kpi.value}</p>
+                  )}
+                </div>
+                <div className={`p-3 rounded-lg ${kpi.bg}`}>
+                  <kpi.icon className={`h-5 w-5 ${kpi.color}`} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Row 1: Hourly Traffic + Device Split */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="lg:col-span-2" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+          <CardHeader className="pb-2">
+            <CardTitle style={{ color: "rgb(var(--theme-text))" }}>Hourly Traffic</CardTitle>
+            <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>Hits distribution across hours</CardDescription>
           </CardHeader>
           <CardContent>
-            {loading ? (
-              <Skeleton className="h-8 w-20" />
-            ) : (
-              <div className="text-2xl font-bold">
-                {formatNumber(data?.summary?.unique_visitors || "0")}
-              </div>
-            )}
+            <div className="h-[280px]">
+              {loading ? (
+                <Skeleton className="h-full" />
+              ) : (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <AreaChart data={data?.hourly || []}>
+                    <defs>
+                      <linearGradient id="fillHits" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+                    <XAxis dataKey="hour" tickFormatter={(h) => `${h}:00`} stroke="rgb(var(--theme-text-muted))" fontSize={12} />
+                    <YAxis stroke="rgb(var(--theme-text-muted))" fontSize={12} tickFormatter={(v) => formatNumber(v)} />
+                    <Tooltip contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8 }} formatter={(v: any) => formatNumber(v)} labelFormatter={(h) => `${h}:00`} />
+                    <Area type="monotone" dataKey="hits" stroke="#3b82f6" strokeWidth={2} fill="url(#fillHits)" name="Hits" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Hits</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
+        <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+          <CardHeader className="pb-2">
+            <CardTitle style={{ color: "rgb(var(--theme-text))" }}>Devices</CardTitle>
+            <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>
+              {deviceData.length > 0 ? `${deviceData.length} device types` : "No device data"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            {loading ? (
-              <Skeleton className="h-8 w-20" />
-            ) : (
-              <div className="text-2xl font-bold">
-                {formatNumber(data?.summary?.total_hits || "0")}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bandwidth</CardTitle>
-            <Globe className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-8 w-20" />
-            ) : (
-              <div className="text-2xl font-bold">
-                {formatBytes(data?.summary?.total_bandwidth || "0")}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bot Traffic</CardTitle>
-            <Bot className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-8 w-20" />
-            ) : (
-              <div className="text-2xl font-bold">
-                {data?.summary?.total_hits
-                  ? (
-                    (parseInt(data.summary.bot_hits || "0") /
-                      parseInt(data.summary.total_hits)) *
-                    100
-                  ).toFixed(1)
-                  : "0"}
-                %
+            <div className="h-[200px]">
+              {loading ? (
+                <Skeleton className="h-full" />
+              ) : deviceData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <PieChart>
+                    <Pie data={deviceData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false} cursor="pointer" onClick={(_: any, index: number) => { const d = deviceData[index]; if (d) setDrillDown({ category: "devices", group: d.name.toLowerCase() }); }}>
+                      {deviceData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                    </Pie>
+                    <Tooltip formatter={(v: any) => formatNumber(v)} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center">
+                  <p className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>No device data yet</p>
+                </div>
+              )}
+            </div>
+            {/* Human vs Bot bar */}
+            {!loading && totalHits > 0 && (
+              <div className="mt-4 space-y-2">
+                <div className="flex justify-between text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                  <span>Human ({formatNumber(humanHits)})</span>
+                  <span>Bot ({formatNumber(botHits)})</span>
+                </div>
+                <div className="h-2 rounded-full overflow-hidden flex" style={{ background: "rgb(var(--theme-border))" }}>
+                  <div className="h-full bg-emerald-500" style={{ width: `${100 - parseFloat(botPct)}%` }} />
+                  <div className="h-full bg-amber-500" style={{ width: `${botPct}%` }} />
+                </div>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="browsers">Browsers</TabsTrigger>
-          <TabsTrigger value="os">Operating Systems</TabsTrigger>
-          <TabsTrigger value="referrers">Referrers</TabsTrigger>
-          <TabsTrigger value="404">404 Errors</TabsTrigger>
-          <TabsTrigger value="static">Static Files</TabsTrigger>
-          <TabsTrigger value="urls">Requested URLs</TabsTrigger>
-          <TabsTrigger value="status">Status Codes</TabsTrigger>
-        </TabsList>
+      {/* Row 2: Browsers + OS (clickable for drill-down) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
+              <Monitor className="h-4 w-4" /> Browsers
+            </CardTitle>
+            <p className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Click a bar to drill down</p>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[200px]">
+              {loading ? <Skeleton className="h-full" /> : (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <BarChart data={browserChartData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridColor} horizontal={false} />
+                    <XAxis type="number" fontSize={12} stroke="rgb(var(--theme-text-muted))" tickFormatter={(v) => formatNumber(v)} />
+                    <YAxis dataKey="name" type="category" width={80} fontSize={12} stroke="rgb(var(--theme-text-muted))" />
+                    <Tooltip contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8 }} formatter={(v: any) => formatNumber(v)} />
+                    <Bar dataKey="hits" fill="#3b82f6" radius={[0, 4, 4, 0]} name="Hits" cursor="pointer" onClick={(d: any) => d?.name && setDrillDown({ category: "browsers", group: d.name })} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            <AnimatePresence>
+              {drillDown?.category === "browsers" && (
+                <VisitorDrillDown window={timeWindow} category="browsers" initialGroup={drillDown.group} onClose={() => setDrillDown(null)} />
+              )}
+            </AnimatePresence>
+          </CardContent>
+        </Card>
 
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Hourly Distribution */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Hourly Traffic Distribution</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <Skeleton className="h-[300px]" />
-                ) : (
-                  <ResponsiveContainer width="100%" height={300} minWidth={0}>
-                    <AreaChart data={data?.hourly || []}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="hour" tickFormatter={(h) => `${h}:00`} />
-                      <YAxis />
-                      <Tooltip
-                        formatter={(value: any) => formatNumber(value)}
-                        labelFormatter={(h) => `${h}:00`}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="hits"
-                        stroke="#3b82f6"
-                        fill="#3b82f6"
-                        fillOpacity={0.3}
-                        name="Hits"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
+        <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
+              <Smartphone className="h-4 w-4" /> Operating Systems
+            </CardTitle>
+            <p className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>Click a bar to drill down</p>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[200px]">
+              {loading ? <Skeleton className="h-full" /> : (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <BarChart data={osChartData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridColor} horizontal={false} />
+                    <XAxis type="number" fontSize={12} stroke="rgb(var(--theme-text-muted))" tickFormatter={(v) => formatNumber(v)} />
+                    <YAxis dataKey="name" type="category" width={80} fontSize={12} stroke="rgb(var(--theme-text-muted))" />
+                    <Tooltip contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8 }} formatter={(v: any) => formatNumber(v)} />
+                    <Bar dataKey="hits" fill="#10b981" radius={[0, 4, 4, 0]} name="Hits" cursor="pointer" onClick={(d: any) => d?.name && setDrillDown({ category: "os", group: d.name })} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            <AnimatePresence>
+              {drillDown?.category === "os" && (
+                <VisitorDrillDown window={timeWindow} category="os" initialGroup={drillDown.group} onClose={() => setDrillDown(null)} />
+              )}
+            </AnimatePresence>
+          </CardContent>
+        </Card>
+      </div>
 
-            {/* Device Types */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Device Types</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <Skeleton className="h-[300px]" />
-                ) : (
-                  <ResponsiveContainer width="100%" height={300} minWidth={0}>
-                    <PieChart>
-                      <Pie
-                        data={deviceData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent }) =>
-                          `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`
-                        }
-                        outerRadius={100}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {deviceData.map((_, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={COLORS[index % COLORS.length]}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value: any) => formatNumber(value)} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
+      {/* Device drill-down (triggered from pie chart above) */}
+      <AnimatePresence>
+        {drillDown?.category === "devices" && (
+          <VisitorDrillDown window={timeWindow} category="devices" initialGroup={drillDown.group} onClose={() => setDrillDown(null)} />
+        )}
+      </AnimatePresence>
 
-            {/* Traffic Type */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Human vs Bot Traffic</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <Skeleton className="h-[300px]" />
-                ) : (
-                  <ResponsiveContainer width="100%" height={300} minWidth={0}>
-                    <PieChart>
-                      <Pie
-                        data={trafficTypeData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent }) =>
-                          `${name}: ${((percent ?? 0) * 100).toFixed(1)}%`
-                        }
-                        outerRadius={100}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        <Cell fill="#10b981" />
-                        <Cell fill="#ef4444" />
-                      </Pie>
-                      <Tooltip formatter={(value: any) => formatNumber(value)} />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Top Browsers */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Top Browsers</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <Skeleton className="h-[300px]" />
-                ) : (
-                  <ResponsiveContainer width="100%" height={300} minWidth={0}>
-                    <BarChart
-                      data={(data?.browsers || []).slice(0, 5)}
-                      layout="vertical"
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" />
-                      <YAxis
-                        dataKey="browser"
-                        type="category"
-                        width={100}
-                      />
-                      <Tooltip formatter={(value: any) => formatNumber(value)} />
-                      <Bar dataKey="hits" fill="#3b82f6" name="Hits" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="browsers">
-          <Card>
-            <CardHeader>
-              <CardTitle>Browser Statistics</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Browser</TableHead>
-                    <TableHead>Version</TableHead>
-                    <TableHead className="text-right">Hits</TableHead>
-                    <TableHead className="text-right">Visitors</TableHead>
-                    <TableHead className="text-right">%</TableHead>
+      {/* Row 3: Referrers + 404 Errors */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
+              <Link2 className="h-4 w-4" /> Top Referrers
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow style={{ borderColor: "rgb(var(--theme-border))" }}>
+                  <TableHead>Source</TableHead>
+                  <TableHead className="text-right w-20">Hits</TableHead>
+                  <TableHead className="text-right w-16">%</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(data?.referrers || []).length === 0 ? (
+                  <TableRow><TableCell colSpan={3} className="text-center py-8" style={{ color: "rgb(var(--theme-text-muted))" }}>No referrer data</TableCell></TableRow>
+                ) : (data?.referrers || []).slice(0, 8).map((r, i) => (
+                  <TableRow key={i} style={{ borderColor: "rgb(var(--theme-border))" }}>
+                    <TableCell className="font-mono text-xs truncate max-w-[250px]" title={r.referrer}>{r.referrer || "(direct)"}</TableCell>
+                    <TableCell className="text-right text-sm">{formatNumber(r.hits)}</TableCell>
+                    <TableCell className="text-right text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>{r.percentage?.toFixed(1)}%</TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(data?.browsers || []).map((browser, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{browser.browser}</TableCell>
-                      <TableCell>{browser.version}</TableCell>
-                      <TableCell className="text-right">
-                        {formatNumber(browser.hits)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatNumber(browser.visitors)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {browser.percentage?.toFixed(1)}%
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
 
-        <TabsContent value="os">
-          <Card>
-            <CardHeader>
-              <CardTitle>Operating System Statistics</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>OS</TableHead>
-                    <TableHead>Version</TableHead>
-                    <TableHead className="text-right">Hits</TableHead>
-                    <TableHead className="text-right">Visitors</TableHead>
-                    <TableHead className="text-right">%</TableHead>
+        <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
+              <AlertTriangle className="h-4 w-4 text-amber-500" /> 404 Errors
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow style={{ borderColor: "rgb(var(--theme-border))" }}>
+                  <TableHead>Path</TableHead>
+                  <TableHead className="text-right w-20">Hits</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(data?.not_found || []).length === 0 ? (
+                  <TableRow><TableCell colSpan={2} className="text-center py-8" style={{ color: "rgb(var(--theme-text-muted))" }}>No 404 errors</TableCell></TableRow>
+                ) : (data?.not_found || []).slice(0, 8).map((nf, i) => (
+                  <TableRow key={i} style={{ borderColor: "rgb(var(--theme-border))" }}>
+                    <TableCell className="font-mono text-xs truncate max-w-[300px]" title={nf.path}>{nf.path}</TableCell>
+                    <TableCell className="text-right text-sm">{formatNumber(nf.hits)}</TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(data?.operating_systems || []).map((os, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{os.os}</TableCell>
-                      <TableCell>{os.version}</TableCell>
-                      <TableCell className="text-right">
-                        {formatNumber(os.hits)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatNumber(os.visitors)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {os.percentage?.toFixed(1)}%
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
 
-        <TabsContent value="referrers">
-          <Card>
-            <CardHeader>
-              <CardTitle>Referring Sites</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Referrer</TableHead>
-                    <TableHead className="text-right">Hits</TableHead>
-                    <TableHead className="text-right">Visitors</TableHead>
-                    <TableHead className="text-right">%</TableHead>
+      {/* Row 4: Top URLs + Status Codes */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="lg:col-span-2" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
+              <FileText className="h-4 w-4" /> Top Requested URLs
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow style={{ borderColor: "rgb(var(--theme-border))" }}>
+                  <TableHead>Path</TableHead>
+                  <TableHead className="text-right w-20">Hits</TableHead>
+                  <TableHead className="text-right w-24">Bandwidth</TableHead>
+                  <TableHead className="text-right w-16">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(data?.requested_urls || []).length === 0 ? (
+                  <TableRow><TableCell colSpan={4} className="text-center py-8" style={{ color: "rgb(var(--theme-text-muted))" }}>No URL data</TableCell></TableRow>
+                ) : (data?.requested_urls || []).slice(0, 10).map((u, i) => (
+                  <TableRow key={i} style={{ borderColor: "rgb(var(--theme-border))" }}>
+                    <TableCell className="font-mono text-xs truncate max-w-[300px]" title={u.uri}>{u.uri}</TableCell>
+                    <TableCell className="text-right text-sm">{formatNumber(u.hits)}</TableCell>
+                    <TableCell className="text-right text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>{formatBytes(u.bandwidth)}</TableCell>
+                    <TableCell className={`text-right text-sm font-medium ${statusColor(u.status)}`}>{u.status}</TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(data?.referrers || []).length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground">
-                        No referrer data available
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    (data?.referrers || []).map((referrer, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{referrer.referrer}</TableCell>
-                        <TableCell className="text-right">
-                          {formatNumber(referrer.hits)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatNumber(referrer.visitors)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {referrer.percentage?.toFixed(1)}%
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
 
-        <TabsContent value="404">
-          <Card>
-            <CardHeader>
-              <CardTitle>404 Not Found Errors</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Path</TableHead>
-                    <TableHead className="text-right">Hits</TableHead>
-                    <TableHead className="text-right">Last Seen</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(data?.not_found || []).length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center text-muted-foreground">
-                        No 404 errors recorded
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    (data?.not_found || []).map((nf, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-mono text-sm">{nf.path}</TableCell>
-                        <TableCell className="text-right">
-                          {formatNumber(nf.hits)}
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {new Date(nf.last_seen).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="static">
-          <Card>
-            <CardHeader>
-              <CardTitle>Static Files</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Path</TableHead>
-                    <TableHead className="text-right">Hits</TableHead>
-                    <TableHead className="text-right">Bandwidth</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(data?.static_files || []).length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center text-muted-foreground">
-                        No static file data available
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    (data?.static_files || []).map((sf, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-mono text-sm">{sf.path}</TableCell>
-                        <TableCell className="text-right">
-                          {formatNumber(sf.hits)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatBytes(sf.bandwidth)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="urls" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Top Requested URLs</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Most requested paths (GoAccess-style &quot;Requested Files&quot;)
-              </p>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>URL / Path</TableHead>
-                    <TableHead className="text-right">Hits</TableHead>
-                    <TableHead className="text-right">Bandwidth</TableHead>
-                    <TableHead className="text-right">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(data?.requested_urls || []).length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground">
-                        No requested URL data available
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    (data?.requested_urls || []).map((u, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-mono text-sm max-w-[300px] truncate" title={u.uri}>{u.uri}</TableCell>
-                        <TableCell className="text-right">{formatNumber(u.hits)}</TableCell>
-                        <TableCell className="text-right">{formatBytes(u.bandwidth)}</TableCell>
-                        <TableCell className="text-right">{u.status}</TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="status" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>HTTP Status Code Distribution</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Request count by status code (GoAccess-style)
-              </p>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Hits</TableHead>
-                    <TableHead className="text-right">%</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(data?.status_codes || []).length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center text-muted-foreground">
-                        No status code data available
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    (data?.status_codes || []).map((c, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{c.code}</TableCell>
-                        <TableCell className="text-right">{formatNumber(c.hits)}</TableCell>
-                        <TableCell className="text-right">{c.percentage?.toFixed(1)}%</TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
+              <Clock className="h-4 w-4 text-amber-500" /> Slowest Endpoints
+            </CardTitle>
+            <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>By average response time</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(data?.requested_urls || []).length === 0 ? (
+              <p className="text-sm text-center py-4" style={{ color: "rgb(var(--theme-text-muted))" }}>No URL data</p>
+            ) : [...(data?.requested_urls || [])].sort((a: any, b: any) => parseFloat(b.bandwidth || "0") - parseFloat(a.bandwidth || "0")).slice(0, 6).map((u: any, i: number) => (
+              <div key={i} className="flex items-center justify-between">
+                <span className="font-mono text-xs truncate max-w-[180px]" style={{ color: "rgb(var(--theme-text))" }} title={u.uri}>{u.uri}</span>
+                <span className="text-xs font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>{formatBytes(u.bandwidth)}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

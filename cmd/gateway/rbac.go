@@ -827,10 +827,14 @@ func (db *DB) ListTeamProjectAccess(teamID string) ([]TeamProjectAccess, error) 
 // User Access Operations
 // ============================================================================
 
-// IsSuperAdmin checks if a user is a superadmin
+// IsSuperAdmin checks if a user has superadmin privileges.
+// Users with role='admin' OR is_superadmin=true are treated as superadmin.
 func (db *DB) IsSuperAdmin(username string) (bool, error) {
 	var isSuperAdmin bool
-	err := db.conn.QueryRow("SELECT COALESCE(is_superadmin, FALSE) FROM users WHERE username = $1", username).Scan(&isSuperAdmin)
+	err := db.conn.QueryRow(
+		"SELECT COALESCE(is_superadmin, FALSE) OR (role = 'admin') FROM users WHERE username = $1",
+		username,
+	).Scan(&isSuperAdmin)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
@@ -1231,4 +1235,293 @@ func (db *DB) ListEnrollmentTokens(environmentID string) ([]EnrollmentToken, err
 func (db *DB) DeleteEnrollmentToken(id string) error {
 	_, err := db.conn.Exec("DELETE FROM enrollment_tokens WHERE id = $1", id)
 	return err
+}
+
+// ============================================================================
+// User Management Operations (Admin)
+// ============================================================================
+
+// UserDetailRecord is the full user row returned by the admin user management API.
+// The simpler UserRecord in database.go only carries username/hash/role for the auth login path.
+type UserDetailRecord struct {
+	Username         string     `json:"username"`
+	Role             string     `json:"role"`
+	Email            string     `json:"email"`
+	IsActive         bool       `json:"is_active"`
+	LastLogin        *time.Time `json:"last_login,omitempty"`
+	IsSuperAdmin     bool       `json:"is_superadmin"`
+	ExternalID       string     `json:"external_id,omitempty"`
+	IdentityProvider string     `json:"identity_provider"`
+	DisplayName      string     `json:"display_name,omitempty"`
+	AvatarURL        string     `json:"avatar_url,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+}
+
+// ListUsersDetailed returns all users with full detail (excluding password_hash).
+// If search is non-empty the result is filtered by username, email, or display_name (case-insensitive substring match).
+func (db *DB) ListUsersDetailed(search string) ([]UserDetailRecord, error) {
+	baseQuery := `
+		SELECT username, role, email, is_active, last_login, is_superadmin,
+		       external_id, identity_provider, display_name, avatar_url,
+		       created_at, updated_at
+		FROM users
+	`
+	var rows *sql.Rows
+	var err error
+
+	if search != "" {
+		pattern := "%" + search + "%"
+		baseQuery += ` WHERE (username ILIKE $1 OR email ILIKE $1 OR display_name ILIKE $1)`
+		baseQuery += ` ORDER BY username`
+		rows, err = db.conn.Query(baseQuery, pattern)
+	} else {
+		baseQuery += ` ORDER BY username`
+		rows, err = db.conn.Query(baseQuery)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []UserDetailRecord
+	for rows.Next() {
+		var u UserDetailRecord
+		var email, externalID, displayName, avatarURL sql.NullString
+		var lastLogin sql.NullTime
+		var isSuperAdmin, isActive sql.NullBool
+		if err := rows.Scan(
+			&u.Username, &u.Role, &email, &isActive, &lastLogin, &isSuperAdmin,
+			&externalID, &u.IdentityProvider, &displayName, &avatarURL,
+			&u.CreatedAt, &u.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		u.Email = email.String
+		u.ExternalID = externalID.String
+		u.DisplayName = displayName.String
+		u.AvatarURL = avatarURL.String
+		if lastLogin.Valid {
+			u.LastLogin = &lastLogin.Time
+		}
+		if isSuperAdmin.Valid {
+			u.IsSuperAdmin = isSuperAdmin.Bool
+		}
+		if isActive.Valid {
+			u.IsActive = isActive.Bool
+		} else {
+			u.IsActive = true // default active when NULL
+		}
+		users = append(users, u)
+	}
+	return users, nil
+}
+
+// GetUserDetailed retrieves a single user by username with full detail (excluding password_hash).
+// Returns nil, nil when the user does not exist.
+func (db *DB) GetUserDetailed(username string) (*UserDetailRecord, error) {
+	query := `
+		SELECT username, role, email, is_active, last_login, is_superadmin,
+		       external_id, identity_provider, display_name, avatar_url,
+		       created_at, updated_at
+		FROM users WHERE username = $1
+	`
+	var u UserDetailRecord
+	var email, externalID, displayName, avatarURL sql.NullString
+	var lastLogin sql.NullTime
+	var isSuperAdmin, isActive sql.NullBool
+	err := db.conn.QueryRow(query, username).Scan(
+		&u.Username, &u.Role, &email, &isActive, &lastLogin, &isSuperAdmin,
+		&externalID, &u.IdentityProvider, &displayName, &avatarURL,
+		&u.CreatedAt, &u.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	u.Email = email.String
+	u.ExternalID = externalID.String
+	u.DisplayName = displayName.String
+	u.AvatarURL = avatarURL.String
+	if lastLogin.Valid {
+		u.LastLogin = &lastLogin.Time
+	}
+	if isSuperAdmin.Valid {
+		u.IsSuperAdmin = isSuperAdmin.Bool
+	}
+	if isActive.Valid {
+		u.IsActive = isActive.Bool
+	} else {
+		u.IsActive = true
+	}
+	return &u, nil
+}
+
+// CreateUserByAdmin creates a new local user (admin action) and returns the full user detail record.
+func (db *DB) CreateUserByAdmin(username, passwordHash, role, email, displayName string, isSuperAdmin bool) (*UserDetailRecord, error) {
+	query := `
+		INSERT INTO users (username, password_hash, role, email, display_name, is_superadmin, is_active, identity_provider, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, true, 'local', NOW(), NOW())
+		RETURNING username, role, email, is_active, last_login, is_superadmin,
+		          external_id, identity_provider, display_name, avatar_url,
+		          created_at, updated_at
+	`
+	var u UserDetailRecord
+	var emailVal, externalID, displayNameVal, avatarURL sql.NullString
+	var lastLogin sql.NullTime
+	var isSuperAdminVal, isActive sql.NullBool
+	err := db.conn.QueryRow(query, username, passwordHash, role, email, displayName, isSuperAdmin).Scan(
+		&u.Username, &u.Role, &emailVal, &isActive, &lastLogin, &isSuperAdminVal,
+		&externalID, &u.IdentityProvider, &displayNameVal, &avatarURL,
+		&u.CreatedAt, &u.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+	u.Email = emailVal.String
+	u.ExternalID = externalID.String
+	u.DisplayName = displayNameVal.String
+	u.AvatarURL = avatarURL.String
+	if lastLogin.Valid {
+		u.LastLogin = &lastLogin.Time
+	}
+	if isSuperAdminVal.Valid {
+		u.IsSuperAdmin = isSuperAdminVal.Bool
+	}
+	if isActive.Valid {
+		u.IsActive = isActive.Bool
+	} else {
+		u.IsActive = true
+	}
+	return &u, nil
+}
+
+// UpdateUserByAdmin dynamically updates user fields. Only non-nil pointer arguments are applied.
+func (db *DB) UpdateUserByAdmin(username string, role, email, displayName *string, isSuperAdmin, isActive *bool) error {
+	setClauses := []string{}
+	args := []interface{}{}
+	argIdx := 1
+
+	if role != nil {
+		setClauses = append(setClauses, fmt.Sprintf("role = $%d", argIdx))
+		args = append(args, *role)
+		argIdx++
+	}
+	if email != nil {
+		setClauses = append(setClauses, fmt.Sprintf("email = $%d", argIdx))
+		args = append(args, *email)
+		argIdx++
+	}
+	if displayName != nil {
+		setClauses = append(setClauses, fmt.Sprintf("display_name = $%d", argIdx))
+		args = append(args, *displayName)
+		argIdx++
+	}
+	if isSuperAdmin != nil {
+		setClauses = append(setClauses, fmt.Sprintf("is_superadmin = $%d", argIdx))
+		args = append(args, *isSuperAdmin)
+		argIdx++
+	}
+	if isActive != nil {
+		setClauses = append(setClauses, fmt.Sprintf("is_active = $%d", argIdx))
+		args = append(args, *isActive)
+		argIdx++
+	}
+
+	setClauses = append(setClauses, "updated_at = NOW()")
+
+	if len(args) == 0 {
+		// Nothing to update besides updated_at
+		query := fmt.Sprintf("UPDATE users SET updated_at = NOW() WHERE username = $1")
+		_, err := db.conn.Exec(query, username)
+		return err
+	}
+
+	query := fmt.Sprintf("UPDATE users SET %s WHERE username = $%d",
+		strings.Join(setClauses, ", "), argIdx)
+	args = append(args, username)
+	_, err := db.conn.Exec(query, args...)
+	return err
+}
+
+// DeactivateUser sets a user as inactive.
+func (db *DB) DeactivateUser(username string) error {
+	_, err := db.conn.Exec("UPDATE users SET is_active = false, updated_at = NOW() WHERE username = $1", username)
+	return err
+}
+
+// ReactivateUser sets a user as active.
+func (db *DB) ReactivateUser(username string) error {
+	_, err := db.conn.Exec("UPDATE users SET is_active = true, updated_at = NOW() WHERE username = $1", username)
+	return err
+}
+
+// ============================================================================
+// SSO Config Operations
+// ============================================================================
+
+// SSOConfigRecord represents a row in the sso_config table.
+type SSOConfigRecord struct {
+	Provider  string          `json:"provider"`
+	Config    json.RawMessage `json:"config"`
+	IsEnabled bool            `json:"is_enabled"`
+	UpdatedAt time.Time       `json:"updated_at"`
+	UpdatedBy string          `json:"updated_by,omitempty"`
+}
+
+// GetSSOConfig retrieves the SSO configuration for a given provider.
+// Returns nil, nil when the provider does not exist.
+func (db *DB) GetSSOConfig(provider string) (*SSOConfigRecord, error) {
+	query := `
+		SELECT provider, config, is_enabled, updated_at, COALESCE(updated_by, '')
+		FROM sso_config WHERE provider = $1
+	`
+	var r SSOConfigRecord
+	err := db.conn.QueryRow(query, provider).Scan(
+		&r.Provider, &r.Config, &r.IsEnabled, &r.UpdatedAt, &r.UpdatedBy,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// UpsertSSOConfig inserts or updates the SSO configuration for a provider.
+func (db *DB) UpsertSSOConfig(provider string, config json.RawMessage, isEnabled bool, updatedBy string) error {
+	query := `
+		INSERT INTO sso_config (provider, config, is_enabled, updated_at, updated_by)
+		VALUES ($1, $2, $3, NOW(), $4)
+		ON CONFLICT (provider) DO UPDATE SET
+			config = $2, is_enabled = $3, updated_at = NOW(), updated_by = $4
+	`
+	_, err := db.conn.Exec(query, provider, config, isEnabled, updatedBy)
+	return err
+}
+
+// ListSSOConfigs returns all SSO configurations ordered by provider name.
+func (db *DB) ListSSOConfigs() ([]SSOConfigRecord, error) {
+	query := `
+		SELECT provider, config, is_enabled, updated_at, COALESCE(updated_by, '')
+		FROM sso_config ORDER BY provider
+	`
+	rows, err := db.conn.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var configs []SSOConfigRecord
+	for rows.Next() {
+		var r SSOConfigRecord
+		if err := rows.Scan(&r.Provider, &r.Config, &r.IsEnabled, &r.UpdatedAt, &r.UpdatedBy); err != nil {
+			return nil, err
+		}
+		configs = append(configs, r)
+	}
+	return configs, nil
 }

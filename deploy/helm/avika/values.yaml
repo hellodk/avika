@@ -203,9 +203,26 @@ gatewayExternalUrl: ""  # e.g. "https://avika.example.com" or "http://avika.exam
 #   persistence: (StatefulSet only) {size, storageClass}
 # =============================================================================
 
-# NGINX Configuration (Custom Template)
+# =============================================================================
+# REVERSE PROXY — choose nginx or haproxy (only one should be enabled)
+# =============================================================================
+# If you use an EXTERNAL proxy (e.g., existing nginx/HAProxy/Cloudflare),
+# set both to false and configure your proxy with the rules documented in
+# docs/AGENT_INSTALL_REDESIGN.md and deploy/nginx/nginx.conf or deploy/haproxy/haproxy.cfg.
+#
+# Key routing rules your external proxy must implement:
+#   /avika/updates/install  → frontend (exact match, dynamic install script)
+#   /avika/api/*            → gateway  (strip /avika prefix)
+#   /avika/updates/*        → gateway  (strip /avika prefix)
+#   /avika/terminal         → gateway  (WebSocket upgrade)
+#   /nginx.agent.v1.*       → gateway  (gRPC, h2)
+#   /avika/*                → frontend (default, keep /avika prefix)
+
 nginx:
   enabled: true
+
+haproxy:
+  enabled: false
 
 components:
 
@@ -218,7 +235,7 @@ components:
     image:
       useGlobalRegistry: true
       repository: avika-gateway
-      tag: "latest"
+      tag: "pr-206"
       pullPolicy: Always
     terminationGracePeriodSeconds: 35
     
@@ -306,7 +323,7 @@ components:
     image:
       useGlobalRegistry: true
       repository: avika-frontend
-      tag: "latest"
+      tag: "pr-206"
       pullPolicy: Always
     
     ports:

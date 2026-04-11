@@ -7,12 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AlertCircle, Loader2, Activity, Shield, Lock, Zap, Server, Eye, EyeOff, KeyRound } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { getBasePath } from "@/lib/api";
 
-// Base path for API calls (set at build time)
-const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
-
-// Version from build time - REQUIRED, set via NEXT_PUBLIC_APP_VERSION at build
-const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
+// Inlined at build; dev server can refresh VERSION before HMR updates the client bundle.
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "dev";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,7 +24,7 @@ export default function LoginPage() {
 
   // Check if SSO is enabled
   useEffect(() => {
-    fetch(`${BASE_PATH}/api/auth/sso-config`)
+    fetch(`${getBasePath()}/api/auth/sso-config`)
       .then(res => res.json())
       .then(data => {
         setSsoEnabled(data.oidc_enabled === true);
@@ -42,7 +40,7 @@ export default function LoginPage() {
     const params = new URLSearchParams(window.location.search);
     const redirect = params.get("redirect") || "/";
     // Redirect to OIDC login endpoint
-    window.location.href = `${BASE_PATH}/api/auth/oidc/login?redirect=${encodeURIComponent(redirect)}`;
+    window.location.href = `${getBasePath()}/api/auth/oidc/login?redirect=${encodeURIComponent(redirect)}`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -58,7 +56,7 @@ export default function LoginPage() {
     }
 
     try {
-      const response = await fetch(`${BASE_PATH}/api/auth/login`, {
+      const response = await fetch(`${getBasePath()}/api/auth/login`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -120,7 +118,9 @@ export default function LoginPage() {
             </div>
             <div>
               <h1 className="text-4xl font-bold text-white tracking-tight">Avika</h1>
-              <p className="text-sm text-slate-400 mt-0.5">v{APP_VERSION}</p>
+              <p className="text-sm text-slate-400 mt-0.5" suppressHydrationWarning>
+                v{APP_VERSION}
+              </p>
             </div>
           </div>
 
@@ -313,7 +313,7 @@ export default function LoginPage() {
           </div>
 
           {/* Footer */}
-          <p className="mt-8 text-center text-xs text-slate-500">
+          <p className="mt-8 text-center text-xs text-slate-500" suppressHydrationWarning>
             Avika v{APP_VERSION}
           </p>
         </div>

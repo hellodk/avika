@@ -310,7 +310,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 					go func(e *pb.LogEntry, agentID string) {
 						start := time.Now()
 						if err := s.clickhouse.InsertAccessLog(e, agentID); err != nil {
-							log.Printf("Failed to insert log to CH: %v", err)
+							log.Printf("ClickHouse access log insert failed: %v", err)
 						}
 						s.trackDBOp(start)
 					}(entry, currentSession.id)
@@ -377,7 +377,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 					go func(m *pb.NginxMetrics, agentID string) {
 						start := time.Now()
 						if err := s.clickhouse.InsertNginxMetrics(m, agentID); err != nil {
-							log.Printf("Failed to insert NGINX metrics to CH: %v", err)
+							log.Printf("ClickHouse NGINX metrics insert failed: %v", err)
 						}
 						s.trackDBOp(start)
 					}(metrics, currentSession.id)
@@ -387,7 +387,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 						go func(sm *pb.SystemMetrics, agentID string) {
 							start := time.Now()
 							if err := s.clickhouse.InsertSystemMetrics(sm, agentID); err != nil {
-								log.Printf("Failed to insert system metrics to CH: %v", err)
+								log.Printf("ClickHouse system metrics insert failed: %v", err)
 							}
 							s.trackDBOp(start)
 						}(metrics.System, currentSession.id)
@@ -590,26 +590,31 @@ func (s *server) GetAgent(ctx context.Context, req *pb.GetAgentRequest) (*pb.Age
 }
 
 func (s *server) RemoveAgent(ctx context.Context, req *pb.RemoveAgentRequest) (*pb.RemoveAgentResponse, error) {
-	// Always remove from session if it exists
-	s.sessions.Delete(req.AgentId)
-
-	// Remove from DB (always, even if offline)
-	if err := s.db.RemoveAgent(req.AgentId); err != nil {
-		gatewayLog.Warn().Err(err).Str("agent_id", req.AgentId).Msg("Failed to remove agent from DB")
+	if req.AgentId == "" {
 		return &pb.RemoveAgentResponse{Success: false}, nil
 	}
 
-	gatewayLog.Info().Str("agent_id", req.AgentId).Msg("Agent manually removed from inventory")
+	// Resolve before mutating sessions: if we Delete(req.AgentId) first, a client using the
+	// canonical agent_id leaves no session entry and resolveAgentID fails, so we incorrectly
+	// returned Success=false after the row was already removed (and some code paths never
+	// removed the canonical session key when the client sent a normalized id).
 	resolved, ok := s.resolveAgentID(req.AgentId)
-	if !ok {
+
+	s.sessions.Delete(req.AgentId)
+	if ok {
+		s.sessions.Delete(resolved)
+	}
+
+	dbID := req.AgentId
+	if ok {
+		dbID = resolved
+	}
+	if err := s.db.RemoveAgent(dbID); err != nil {
+		gatewayLog.Warn().Err(err).Str("agent_id", dbID).Msg("Failed to remove agent from DB")
 		return &pb.RemoveAgentResponse{Success: false}, nil
 	}
-	s.sessions.Delete(resolved)
-	if err := s.db.RemoveAgent(resolved); err != nil {
-		gatewayLog.Warn().Err(err).Str("agent_id", resolved).Msg("Failed to remove agent from DB")
-		return &pb.RemoveAgentResponse{Success: false}, nil
-	}
-	gatewayLog.Info().Str("agent_id", resolved).Msg("Agent manually removed from inventory")
+
+	gatewayLog.Info().Str("agent_id", dbID).Str("requested_id", req.AgentId).Msg("Agent manually removed from inventory")
 	return &pb.RemoveAgentResponse{Success: true}, nil
 }
 
@@ -1842,6 +1847,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		"/metrics",
 		"/api/auth/login",
 		"/api/auth/logout",
+		"/api/auth/me",
 	}
 
 	// Callback to persist password changes to database
@@ -1855,7 +1861,47 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Auth endpoints (always available)
 	mux.HandleFunc("/api/auth/login", authManager.LoginHandler())
 	mux.HandleFunc("/api/auth/logout", authManager.LogoutHandler())
-	mux.HandleFunc("/api/auth/me", authManager.MeHandler())
+	// /api/auth/me — public path, manually validates token to return user info + is_superadmin
+	mux.HandleFunc("/api/auth/me", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Extract token from cookie or Authorization header
+		var token string
+		if cookie, err := r.Cookie("avika_session"); err == nil {
+			token = cookie.Value
+		}
+		if token == "" {
+			if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+				token = strings.TrimPrefix(auth, "Bearer ")
+			}
+		}
+		if token == "" {
+			token = r.URL.Query().Get("token")
+		}
+
+		if token == "" {
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"authenticated": false})
+			return
+		}
+
+		user, valid := authManager.ValidateToken(token)
+		if !valid || user == nil {
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"authenticated": false})
+			return
+		}
+
+		isSuperAdmin := false
+		if srv.db != nil {
+			isSuperAdmin, _ = srv.db.IsSuperAdmin(user.Username)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"authenticated": true,
+			"user":          user,
+			"token":         token,
+			"is_superadmin": isSuperAdmin,
+		})
+	})
 
 	// Change password requires authentication
 	mux.Handle("/api/auth/change-password", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(authManager.ChangePasswordHandler(onPasswordChanged))))
@@ -1944,7 +1990,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// OIDC status endpoint (always available so frontend knows if SSO is enabled)
 	mux.HandleFunc("/api/auth/sso-config", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"oidc_enabled": cfg.OIDC.Enabled,
 			"ldap_enabled": cfg.LDAP.Enabled,
 			"saml_enabled": cfg.SAML.Enabled,
@@ -1995,10 +2041,15 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 
 	// Main analytics API with URL and Status Filtering
 	mux.Handle("/api/analytics", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAnalytics)))
+	mux.Handle("GET /api/analytics/status-drilldown", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleStatusDrillDown)))
+	mux.Handle("GET /api/analytics/visitor-drilldown", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleVisitorDrillDown)))
 
 	// ============================================================================
 	// RBAC / Multi-Tenancy API Endpoints
 	// ============================================================================
+
+	// System info (gateway version + TLS metadata) — used by Settings install snippet
+	mux.Handle("GET /api/system/install-info", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleInstallInfo)))
 
 	// Projects API
 	mux.Handle("GET /api/projects", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListProjects)))
@@ -2017,6 +2068,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Server Assignment API
 	mux.Handle("GET /api/server-assignments", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListServerAssignments)))
 	mux.Handle("GET /api/servers", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListAgents)))
+	mux.Handle("DELETE /api/servers/{agentId}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRemoveAgent)))
 	mux.Handle("GET /api/servers/unassigned", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListUnassignedServers)))
 	mux.Handle("POST /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleAssignServer)))
 	mux.Handle("DELETE /api/servers/{agentId}/assign", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUnassignServer)))
@@ -2104,6 +2156,19 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.Handle("GET /api/teams/{id}/projects", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListTeamProjects)))
 	mux.Handle("POST /api/teams/{id}/projects", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGrantProjectAccess)))
 	mux.Handle("DELETE /api/teams/{id}/projects/{projectId}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRevokeProjectAccess)))
+
+	// User Management API
+	mux.Handle("GET /api/users", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListUsers)))
+	mux.Handle("POST /api/users", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateUser)))
+	mux.Handle("GET /api/users/{username}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetUser)))
+	mux.Handle("PUT /api/users/{username}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateUser)))
+	mux.Handle("DELETE /api/users/{username}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeactivateUser)))
+	mux.Handle("POST /api/users/{username}/reactivate", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleReactivateUser)))
+
+	// SSO Configuration API
+	mux.Handle("GET /api/sso/config/{provider}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetSSOConfig)))
+	mux.Handle("PUT /api/sso/config/{provider}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handlePutSSOConfig)))
+	mux.Handle("POST /api/sso/test/{provider}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleTestSSOConfig)))
 
 	// Enrollment Tokens API
 	mux.Handle("GET /api/environments/{id}/enrollment-tokens", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListEnrollmentTokens)))
@@ -2247,7 +2312,7 @@ func (srv *server) handleServerRealtimeStats(w http.ResponseWriter, r *http.Requ
 	}
 	stats := srv.realtimeAggregator.Stats(agentID, windowSec)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	_ = json.NewEncoder(w).Encode(stats)
 }
 
 // handleGroupRealtimeStats returns sliding-window real-time stats for a group (merged from all agents).
@@ -2286,7 +2351,7 @@ func (srv *server) handleGroupRealtimeStats(w http.ResponseWriter, r *http.Reque
 	}
 	stats := srv.realtimeAggregator.StatsGroup(agentIDs, windowSec)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	_ = json.NewEncoder(w).Encode(stats)
 }
 
 // handleGroupLogsStream streams merged logs from all agents in a group as SSE (Radar-style).
@@ -2619,6 +2684,7 @@ func (srv *server) handleExportReport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Failed to generate report data: %v", err), http.StatusInternalServerError)
 		return
 	}
+	srv.enrichReportInsights(ctx, report)
 
 	pdfData, err := GeneratePDFReport(report, time.Unix(startUnix, 0), time.Unix(endUnix, 0))
 	if err != nil {
@@ -2871,6 +2937,8 @@ type visitorAnalyticsFrontendShape struct {
 }
 
 // handleListAgents handles GET /api/servers
+// RBAC: superadmins see all agents; regular users see only agents in
+// environments their teams have access to (via GetVisibleAgentIDs).
 func (srv *server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 	resp, err := srv.ListAgents(r.Context(), &pb.ListAgentsRequest{})
 	if err != nil {
@@ -2878,8 +2946,137 @@ func (srv *server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Apply RBAC filtering if DB is available
+	user := middleware.GetUserFromContext(r.Context())
+	if user != nil && srv.db != nil {
+		isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+		if !isSuperAdmin {
+			visibleIDs, _ := srv.db.GetVisibleAgentIDs(user.Username)
+			visibleSet := make(map[string]struct{}, len(visibleIDs))
+			for _, id := range visibleIDs {
+				visibleSet[id] = struct{}{}
+			}
+			filtered := make([]*pb.AgentInfo, 0, len(resp.Agents))
+			for _, agent := range resp.Agents {
+				if _, ok := visibleSet[agent.AgentId]; ok {
+					filtered = append(filtered, agent)
+				}
+			}
+			resp.Agents = filtered
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// handleStatusDrillDown handles GET /api/analytics/status-drilldown
+func (srv *server) handleStatusDrillDown(w http.ResponseWriter, r *http.Request) {
+	if srv.clickhouse == nil {
+		http.Error(w, `{"error":"ClickHouse not available"}`, http.StatusServiceUnavailable)
+		return
+	}
+
+	q := r.URL.Query()
+	window := q.Get("window")
+	if window == "" {
+		window = "1h"
+	}
+	class := q.Get("class")   // "4xx" etc
+	uri := q.Get("uri")
+	agentID := q.Get("agent_id")
+
+	code := 0
+	if c := q.Get("code"); c != "" {
+		_, _ = fmt.Sscanf(c, "%d", &code)
+	}
+
+	// Build agent filter from project/environment if provided
+	var agentFilter []string
+	// (reuse the same filtering logic as handleAnalytics if needed)
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	resp, err := srv.clickhouse.GetStatusDrillDown(ctx, window, class, code, uri, agentFilter, agentID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// handleVisitorDrillDown handles GET /api/analytics/visitor-drilldown
+func (srv *server) handleVisitorDrillDown(w http.ResponseWriter, r *http.Request) {
+	if srv.clickhouse == nil {
+		http.Error(w, `{"error":"ClickHouse not available"}`, http.StatusServiceUnavailable)
+		return
+	}
+	q := r.URL.Query()
+	window := q.Get("window")
+	if window == "" {
+		window = "1h"
+	}
+	category := q.Get("category") // "devices", "browsers", "os"
+	group := q.Get("group")       // e.g., "Chrome", "mobile"
+	version := q.Get("version")   // e.g., "125.0.0"
+
+	if category == "" {
+		http.Error(w, `{"error":"category parameter required (devices, browsers, os)"}`, http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	resp, err := srv.clickhouse.GetVisitorDrillDown(ctx, window, category, group, version)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// handleRemoveAgent handles DELETE /api/servers/{agentId} — same semantics as gRPC RemoveAgent, with session auth.
+func (srv *server) handleRemoveAgent(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	if middleware.GetUserFromContext(r.Context()) == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	raw := r.PathValue("agentId")
+	if raw == "" {
+		http.Error(w, `{"error":"agent ID required"}`, http.StatusBadRequest)
+		return
+	}
+	// Align with Next.js normalizeServerId (space → +). resolveAgentID matches display variants (e.g. + vs -).
+	agentID := strings.ReplaceAll(raw, " ", "+")
+
+	resp, err := srv.RemoveAgent(r.Context(), &pb.RemoveAgentRequest{AgentId: agentID})
+	if err != nil {
+		gatewayLog.Warn().Err(err).Str("agent_id", agentID).Msg("HTTP RemoveAgent failed")
+		w.Header().Set("Content-Type", "application/json")
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if !resp.GetSuccess() {
+		w.WriteHeader(http.StatusBadGateway)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Gateway refused removal (agent not found or DB error)",
+		})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }
 
 func (srv *server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
@@ -2934,7 +3131,7 @@ func (srv *server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request) {
@@ -3074,7 +3271,9 @@ func (srv *server) handleVisitorAnalytics(w http.ResponseWriter, r *http.Request
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		log.Printf("failed to write response: %v", err)
+	}
 }
 
 func mustParseUint(s string) uint64 {
@@ -3082,59 +3281,92 @@ func mustParseUint(s string) uint64 {
 	return n
 }
 
-// autoAssignAgentToEnvironment automatically assigns an agent to an environment based on its labels
-// Labels like "project" and "environment" are matched against project/environment slugs
+// Well-known IDs for the Unclassified project/environment (from migration 017).
+const (
+	unclassifiedProjectID = "a0000000-0000-0000-0000-000000000001"
+	unclassifiedEnvID     = "b0000000-0000-0000-0000-000000000001"
+	unclassifiedSlug      = "unclassified"
+)
+
+// autoAssignAgentToEnvironment assigns an agent based on its labels.
+//
+// Rules:
+//   - Agent has project + environment labels → look up existing project/environment by slug
+//     (agents cannot create projects — they must reference user-created ones).
+//   - If the referenced project/environment doesn't exist → assign to Unclassified + log warning.
+//   - Agent has no labels → assign to Unclassified project/environment.
+//   - If agent is being moved FROM Unclassified TO a real project → remove from Unclassified first.
+//   - Agent cannot be in both Unclassified and a real project simultaneously.
 func (s *server) autoAssignAgentToEnvironment(agentID string, labels map[string]string) {
 	if s.db == nil {
 		return
 	}
 
-	// Check for project label
-	projectSlug, hasProject := labels["project"]
-	if !hasProject {
-		return
+	projectSlug := labels["project"]
+	envSlug := labels["environment"]
+
+	var targetEnvID string
+	var targetProjectName, targetEnvName string
+
+	if projectSlug != "" && envSlug != "" {
+		// Agent declares a project + environment — look up (don't create)
+		project, err := s.db.GetProjectBySlug(projectSlug)
+		if err != nil || project == nil {
+			gatewayLog.Warn().Str("agent_id", agentID).Str("project", projectSlug).
+				Msg("Agent references non-existent project. Assigning to Unclassified. Create the project first, then the agent will auto-assign on next heartbeat.")
+			targetEnvID = unclassifiedEnvID
+			targetProjectName = "Unclassified"
+			targetEnvName = "Unclassified"
+		} else {
+			env, err := s.db.GetEnvironmentBySlug(project.ID, envSlug)
+			if err != nil || env == nil {
+				gatewayLog.Warn().Str("agent_id", agentID).Str("project", projectSlug).Str("environment", envSlug).
+					Msg("Agent references non-existent environment. Assigning to Unclassified. Create the environment first.")
+				targetEnvID = unclassifiedEnvID
+				targetProjectName = "Unclassified"
+				targetEnvName = "Unclassified"
+			} else {
+				targetEnvID = env.ID
+				targetProjectName = project.Name
+				targetEnvName = env.Name
+			}
+		}
+	} else {
+		// No labels — Unclassified
+		targetEnvID = unclassifiedEnvID
+		targetProjectName = "Unclassified"
+		targetEnvName = "Unclassified"
 	}
 
-	// Environments are agent-only: only assign when agent sends AVIKA_LABEL_ENVIRONMENT (no default)
-	envSlug, hasEnv := labels["environment"]
-	if !hasEnv || envSlug == "" {
-		return
-	}
-
-	// Find project by slug
-	project, err := s.db.GetProjectBySlug(projectSlug)
-	if err != nil || project == nil {
-		log.Printf("Auto-assign: project '%s' not found for agent %s", projectSlug, agentID)
-		return
-	}
-
-	// Find or create environment by project and slug (environments driven by agent config)
-	env, err := s.db.EnsureEnvironment(project.ID, envSlug)
-	if err != nil || env == nil {
-		log.Printf("Auto-assign: failed to ensure environment '%s' in project '%s' for agent %s: %v", envSlug, projectSlug, agentID, err)
-		return
-	}
-
-	// Check if already assigned
+	// Check current assignment
 	existing, err := s.db.GetServerAssignment(agentID)
 	if err == nil && existing != nil {
-		// Already assigned, skip
-		log.Printf("Auto-assign: agent %s already assigned to environment %s", agentID, existing.EnvironmentID)
-		return
+		if existing.EnvironmentID == targetEnvID {
+			return // Already correctly assigned
+		}
+		// Moving between assignments — enforce mutual exclusion with Unclassified
+		// If moving FROM Unclassified TO real → remove Unclassified assignment
+		// If moving FROM real TO Unclassified → only if explicitly unassigned (don't downgrade)
+		if existing.EnvironmentID == unclassifiedEnvID && targetEnvID != unclassifiedEnvID {
+			// Upgrading from Unclassified to real project — remove old assignment
+			_ = s.db.UnassignServer(agentID)
+		} else if existing.EnvironmentID != unclassifiedEnvID && targetEnvID == unclassifiedEnvID {
+			// Agent is already in a real project but labels are missing/wrong — keep existing, don't downgrade
+			return
+		} else if existing.EnvironmentID != unclassifiedEnvID {
+			// Already assigned to a real project — don't reassign unless explicitly unassigned first
+			return
+		}
 	}
 
-	// Auto-assign to environment
-	displayName := ""
-	if name, ok := labels["name"]; ok {
-		displayName = name
-	}
-	_, err = s.db.AssignServer(agentID, env.ID, displayName, "", nil) // Empty string for auto-assignment
+	displayName := labels["name"]
+	_, err = s.db.AssignServer(agentID, targetEnvID, displayName, "", nil)
 	if err != nil {
-		log.Printf("Auto-assign failed for agent %s: %v", agentID, err)
+		gatewayLog.Warn().Err(err).Str("agent_id", agentID).Msg("Auto-assign failed")
 		return
 	}
 
-	log.Printf("Auto-assigned agent %s to project '%s', environment '%s'", agentID, project.Name, env.Name)
+	gatewayLog.Info().Str("agent_id", agentID).Str("project", targetProjectName).Str("environment", targetEnvName).Msg("Agent auto-assigned")
 }
 
 func loadServerTLSConfig(cfg *config.Config) (*tls.Config, error) {

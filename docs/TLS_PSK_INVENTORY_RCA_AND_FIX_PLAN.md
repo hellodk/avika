@@ -109,4 +109,72 @@ Environment hooks include `ENABLE_TLS`, `TLS_CERT_FILE`, `TLS_KEY_FILE`, `TLS_CA
 
 ---
 
-*Document version: 1.0 — for review alongside `feature/tls-psk-analysis`.*
+## 7. Implemented follow-ups (inventory HTTP + gRPC mTLS)
+
+### 7.1 `GET /api/servers` via gateway HTTP (default)
+
+- **`frontend/src/app/api/servers/route.ts`** proxies to **`GATEWAY_HTTP_URL/api/servers`** with the browser session cookie (`avika_session`, or full `Cookie` header fallback).
+- Matches cookie-based auth used by other Next.js → gateway routes.
+- **Rollback:** set **`SERVERS_LIST_USE_GRPC=true`** to use the previous gRPC `ListAgents` path (still respects TLS/mTLS below).
+- **Agent removal:** the gateway exposes **`DELETE /api/servers/{agentId}`** (cookie auth); the Next.js BFF proxies to it when delete is on the HTTP path. **`SERVERS_DELETE_USE_GRPC`** defaults to follow **`SERVERS_LIST_USE_GRPC`** when unset (see `frontend/src/lib/servers-bff-transport.ts`). See [inventory-bff-http-grpc-asymmetry.md](./inventory-bff-http-grpc-asymmetry.md).
+
+### 7.2 gRPC TLS and mTLS from Next.js
+
+- **`frontend/src/lib/grpc-client.ts`**
+  - **`ENABLE_TLS=true`** or **`GATEWAY_TLS=true`** — use TLS to gateway gRPC.
+  - **`TLS_CA_CERT_FILE`** — optional PEM CA (recommended for private CAs).
+  - **mTLS (client identity):** set **both**
+    - **`TLS_CLIENT_CERT_FILE`** (or **`GRPC_TLS_CLIENT_CERT_FILE`**)
+    - **`TLS_CLIENT_KEY_FILE`** (or **`GRPC_TLS_CLIENT_KEY_FILE`**)
+  - If only one of cert/key is set, client creation **throws** with a clear error.
+
+---
+
+---
+
+## 8. Revalidation — breaking changes & contract (`GET /api/servers`)
+
+### 8.1 Response shape (unchanged for success)
+
+Successful responses remain:
+
+```json
+{ "agents": [...], "system_version": "..." }
+```
+
+Agents are normalized (snake_case + `agent_id` alias) in `frontend/src/app/api/servers/route.ts`.
+
+### 8.2 Auth semantics (intentional change vs old gRPC list)
+
+- **Default path:** Next.js proxies to **gateway HTTP** `GET /api/servers` with the user’s **session cookie**.
+- Gateway **requires authentication** for this route (not a public path). Unauthenticated browser sessions receive **401** from Next (forwarded from gateway), with body `{ "error", "agents": [], "system_version": "0.0.0" }`.
+- **Previously**, listing via **gRPC from the Next server** did not attach gateway session; behavior was more permissive for that internal hop. Integrations that called **`/api/servers` without a session** may now get **401** instead of a list — use a logged-in browser or set **`SERVERS_LIST_USE_GRPC=true`** only if you accept the old gRPC path (still subject to gateway gRPC TLS/PSK config).
+
+### 8.3 Error status codes
+
+| Case | Status | Body |
+|------|--------|------|
+| Gateway auth failure | 401 / 403 | `{ error, agents: [], system_version }` |
+| Bad JSON from gateway | 502 | `{ error, agents: [], system_version }` |
+| Next cannot reach gateway | 502 | `{ error: "Failed to connect to gateway", ... }` |
+| **`SERVERS_LIST_USE_GRPC=true`** + gRPC failure | **200** | `{ agents: [], system_version: "0.0.0" }` (legacy lenient behavior) |
+
+UI callers that only check `res.ok` (dashboard, monitoring, global search) continue to **skip updates** on failure; inventory and system page surface errors where implemented.
+
+### 8.4 gRPC client (`getAgentServiceClient`)
+
+- **`ENABLE_TLS` + mismatched mTLS env** (only cert or only key): **throws** on first client construction — affects **all** routes using gRPC, not only `/api/servers`.
+- Set **both** `TLS_CLIENT_CERT_FILE` and `TLS_CLIENT_KEY_FILE`, or **neither** (server TLS only with optional CA).
+
+### 8.5 Bugfix during revalidation
+
+- **`frontend/src/app/provisions/page.tsx`** — was calling `setAgents(data)` on the full JSON object; fixed to **`setAgents(data.agents || [])`** so the agent dropdown matches the API contract.
+
+### 8.6 Tests
+
+- **Vitest** `frontend/tests/unit/api/servers.test.ts` mocks `getGrpcClient` (not `getAgentServiceClient`) — **stale** relative to the real route; update or remove if you rely on it.
+- **Playwright** latency tests use `request.get('/api/servers')` without asserting status; they remain valid if responses are fast (including 401).
+
+---
+
+*Document version: 1.2 — revalidation notes for HTTP list + mTLS.*

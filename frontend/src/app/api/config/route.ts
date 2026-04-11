@@ -49,12 +49,19 @@ export async function GET(request: Request) {
         wsUrl = `ws://${wsHost}:${wsPort}`;
     }
 
+    const grpcPort =
+        process.env.GATEWAY_GRPC_PORT ||
+        process.env.AVIKA_GATEWAY_SERVICE_PORT_GRPC ||
+        "5020";
+
     return NextResponse.json({
         gateway: {
             wsUrl,
             httpUrl,
             host: gatewayIp,
             httpPort: gatewayHttpPort,
+            /** Agent gRPC port (for install one-liner / docs); host is same logical gateway as `host`. */
+            grpcPort,
         }
     });
 }

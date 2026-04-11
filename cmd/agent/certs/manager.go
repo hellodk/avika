@@ -4,7 +4,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -66,7 +65,7 @@ func (m *Manager) scanDirectory(dir string) ([]*pb.Certificate, error) {
 }
 
 func (m *Manager) parseCertificate(certPath string) (*pb.Certificate, error) {
-	data, err := ioutil.ReadFile(certPath)
+	data, err := os.ReadFile(certPath)
 	if err != nil {
 		return nil, err
 	}
@@ -88,10 +87,7 @@ func (m *Manager) parseCertificate(certPath string) (*pb.Certificate, error) {
 	daysUntilExpiry := int32(time.Until(cert.NotAfter).Hours() / 24)
 
 	// Extract SANs (Subject Alternative Names)
-	sanDomains := []string{}
-	for _, dns := range cert.DNSNames {
-		sanDomains = append(sanDomains, dns)
-	}
+	sanDomains := append([]string{}, cert.DNSNames...)
 
 	domain := cert.Subject.CommonName
 	if domain == "" && len(sanDomains) > 0 {

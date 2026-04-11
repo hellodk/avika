@@ -111,21 +111,44 @@ const nextConfig: NextConfig = {
     ];
   },
   
-  // Rewrites - proxy health/ready endpoints to gateway so K8s probes work
+  // Rewrites - proxy health/ready endpoints to gateway so K8s probes work,
+  // and proxy /updates/* so the agent install command works in dev (in
+  // production, HAProxy handles this same path-based routing).
   async rewrites() {
     const gatewayUrl = process.env.GATEWAY_HTTP_URL || "http://localhost:5021";
-    return [
-      {
-        source: '/health',
-        destination: `${gatewayUrl}/health`,
-        basePath: false,
-      },
-      {
-        source: '/ready',
-        destination: `${gatewayUrl}/ready`,
-        basePath: false,
-      },
-    ];
+    return {
+      // beforeFiles: runs before Next.js checks filesystem/API routes
+      beforeFiles: [
+        {
+          source: '/health',
+          destination: `${gatewayUrl}/health`,
+          basePath: false,
+        },
+        {
+          source: '/ready',
+          destination: `${gatewayUrl}/ready`,
+          basePath: false,
+        },
+      ],
+      // afterFiles: checked after filesystem routes but before fallback
+      afterFiles: [],
+      // fallback: only checked when no page or API route matches.
+      // Next.js API route files (e.g., /api/servers/route.ts, /updates/install/route.ts)
+      // take precedence. Everything else falls through to the gateway.
+      fallback: [
+        {
+          source: '/api/:path*',
+          destination: `${gatewayUrl}/api/:path*`,
+        },
+        // /avika/updates/* → gateway /updates/* (binaries, deploy script, version.json,
+        // systemd unit). The /updates/install route.ts takes precedence for dynamic
+        // install script generation; all other /updates/* paths proxy to the gateway.
+        {
+          source: '/updates/:path*',
+          destination: `${gatewayUrl}/updates/:path*`,
+        },
+      ],
+    };
   },
 
   // Redirects - redirect root to basePath; legacy routes to new locations
@@ -142,6 +165,8 @@ const nextConfig: NextConfig = {
       { source: '/visitors', destination: '/analytics/visitors', permanent: false },
       { source: '/geo', destination: '/analytics/geo', permanent: false },
       { source: '/servers', destination: '/inventory', permanent: false },
+      { source: '/settings/integrations', destination: '/settings?tab=integrations', permanent: false },
+      { source: '/settings/security', destination: '/settings?tab=security', permanent: false },
     ];
   },
 };

@@ -1,6 +1,6 @@
-
 import { NextResponse } from 'next/server';
 import { getAgentServiceClient } from '@/lib/grpc-client';
+import { isGrpcExplicitFailure } from '@/lib/grpc-success';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +42,14 @@ export async function POST(req: Request) {
             if (err) {
                 console.error('gRPC ApplyAugment Error:', err);
                 return resolve(NextResponse.json({ success: false, error: err.message }, { status: 500 }));
+            }
+            if (isGrpcExplicitFailure(response)) {
+                return resolve(
+                    NextResponse.json(
+                        { success: false, error: response?.error || 'Apply augment rejected' },
+                        { status: 502 }
+                    )
+                );
             }
             resolve(NextResponse.json(response));
         });

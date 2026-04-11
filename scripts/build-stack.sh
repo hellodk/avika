@@ -275,6 +275,6 @@ echo -e "\n${GREEN}🏁 All builds completed successfully! (Version: ${VERSION})
 echo "--------------------------------------------------------"
 echo "Images pushed:"
 echo "  - ${REPO}/avika-agent:${VERSION} (via build-agent.sh)"
-echo "  - ${REPO}/gateway:${VERSION}"
+echo "  - ${REPO}/avika-gateway:${VERSION}"
 echo "  - ${REPO}/avika-frontend:${VERSION}"
 echo "--------------------------------------------------------"

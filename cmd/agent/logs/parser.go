@@ -247,7 +247,7 @@ func GetLastN(logPath string, n int) ([]*pb.LogEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer tailFile.Stop()
+	defer func() { _ = tailFile.Stop() }()
 
 	// For GetLastN, we assume combined unless specified, or we could pass format.
 	// Let's assume combined for now as it's a fallback/diagnostic tool.

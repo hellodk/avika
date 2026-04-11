@@ -14,8 +14,6 @@ import { ProjectSelector } from "@/components/project-selector";
 import { EnvironmentTabs } from "@/components/environment-tabs";
 import { useProject } from "@/lib/project-context";
 import { Breadcrumb } from "@/components/breadcrumb";
-
-const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "dev";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-provider";
 import {
@@ -28,6 +26,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { GlobalSearch } from "@/components/global-search";
 import { CommandPalette } from "@/components/command-palette";
+
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "dev";
 
 interface NavSection {
     title: string;
@@ -73,9 +73,7 @@ const NAV_SECTIONS: NavSection[] = [
     {
         title: "Settings",
         items: [
-            { href: "/settings", icon: <Settings />, label: "General" },
-            { href: "/settings/integrations", icon: <Globe />, label: "Integrations" },
-            { href: "/settings/security", icon: <Lock />, label: "Security" },
+            { href: "/settings", icon: <Settings />, label: "Settings" },
         ],
     },
 ];
@@ -168,7 +166,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                                 <span className="font-semibold text-lg leading-tight" style={{ color: "rgb(var(--theme-text))" }}>
                                     Avika
                                 </span>
-                                <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                <span
+                                    className="text-xs"
+                                    style={{ color: "rgb(var(--theme-text-muted))" }}
+                                    suppressHydrationWarning
+                                >
                                     v{APP_VERSION}
                                 </span>
                             </div>
@@ -251,7 +253,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 >
                     {/* Left: Project Selector and Breadcrumb */}
                     <div className="flex items-center gap-4">
-                        <ProjectSelector className="w-[180px]" />
+                        <ProjectSelector className="w-[240px]" />
                         <div className="w-px h-6 hidden md:block" style={{ background: "rgb(var(--theme-border))" }} />
                         <div className="hidden md:block">
                             <Breadcrumb />

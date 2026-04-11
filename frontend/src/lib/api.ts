@@ -6,7 +6,7 @@
 export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 /** Resolve base path at runtime so /avika works when app is served under /avika even if env is unset */
-function getBasePath(): string {
+export function getBasePath(): string {
   if (BASE_PATH) return BASE_PATH;
   if (typeof window !== "undefined" && window.location.pathname.startsWith("/avika")) {
     return "/avika";
@@ -71,7 +71,7 @@ async function handleMockResponse(path: string, options?: RequestInit): Promise<
   // Simulate network latency
   await new Promise(resolve => setTimeout(resolve, 300));
 
-  let data: any = { success: true, message: "Mock response" };
+  let data: Record<string, unknown> | unknown[] = { success: true, message: "Mock response" };
   const route = path.replace(BASE_PATH, "");
 
   if (route.startsWith("/api/auth/me")) {
@@ -82,15 +82,24 @@ async function handleMockResponse(path: string, options?: RequestInit): Promise<
     data = { gateway: { wsUrl: "ws://localhost:5021", httpUrl: "http://localhost:5021" } };
   } else if (route.startsWith("/api/analytics")) {
     data = {
-      totals: {
-        requests_total: 15420,
-        requests_2xx: 14000,
-        requests_3xx: 400,
-        requests_4xx: 800,
-        requests_5xx: 220,
-        bytes_sent: 104857600
+      summary: {
+        total_requests: 15420,
+        error_rate: 0.85,
+        avg_latency: 42,
       },
-      timeseries: []
+      request_rate: [
+        { time: "12:00", requests: 120, errors: 1 },
+        { time: "12:05", requests: 135, errors: 0 },
+      ],
+      status_distribution: [
+        { code: 200, count: 14000 },
+        { code: 404, count: 800 },
+        { code: 500, count: 220 },
+      ],
+      top_endpoints: [
+        { uri: "/api/health", requests: 5000, p95: 12, errors: 0 },
+        { uri: "/", requests: 4000, p95: 28, errors: 5 },
+      ],
     };
   } else if (route.startsWith("/api/system")) {
     data = {
@@ -126,6 +135,42 @@ async function handleMockResponse(path: string, options?: RequestInit): Promise<
         },
       ],
     };
+  } else if (route.startsWith("/api/slo-compliance")) {
+    data = [];
+  } else if (route.startsWith("/api/slo-targets")) {
+    const m = (options?.method || "GET").toUpperCase();
+    if (m === "POST") {
+      const now = new Date().toISOString();
+      let sloType = "availability";
+      let targetVal = 99.9;
+      try {
+        const b = options?.body;
+        if (typeof b === "string") {
+          const parsed = JSON.parse(b) as { slo_type?: string; target_value?: number };
+          if (parsed.slo_type) sloType = parsed.slo_type;
+          if (typeof parsed.target_value === "number") targetVal = parsed.target_value;
+        }
+      } catch {
+        /* use defaults */
+      }
+      return new Response(
+        JSON.stringify({
+          id: "00000000-0000-0000-0000-000000000001",
+          entity_type: "global",
+          entity_id: "all",
+          slo_type: sloType,
+          target_value: targetVal,
+          time_window: "30d",
+          created_at: now,
+          updated_at: now,
+        }),
+        { status: 201, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    if (m === "DELETE") {
+      return new Response(null, { status: 200 });
+    }
+    data = [];
   }
 
   return new Response(JSON.stringify(data), {
