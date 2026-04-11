@@ -1840,6 +1840,14 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		UserLookup:   userLookup,
 	})
 
+	// Wire persistent session store so browser sessions survive pod restarts.
+	// Without this, the in-memory token cache is lost on every restart and
+	// users get silently logged out.
+	if srv.db != nil && srv.db.conn != nil {
+		authManager.SetSessionStore(NewPgSessionStore(srv.db.conn))
+		log.Printf("Auth: persistent session store enabled (postgres)")
+	}
+
 	// Public paths that don't require authentication
 	publicPaths := []string{
 		"/health",
@@ -1892,7 +1900,13 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 
 		isSuperAdmin := false
 		if srv.db != nil {
-			isSuperAdmin, _ = srv.db.IsSuperAdmin(user.Username)
+			var err error
+			isSuperAdmin, err = srv.db.IsSuperAdmin(user.Username)
+			if err != nil {
+				// Log instead of swallowing — a DB error here means the
+				// frontend silently denies admin access to a real admin.
+				log.Printf("auth/me: IsSuperAdmin failed for user=%s: %v", user.Username, err)
+			}
 		}
 
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{

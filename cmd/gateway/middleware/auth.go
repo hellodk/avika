@@ -66,12 +66,39 @@ func DefaultAuthConfig() AuthConfig {
 	}
 }
 
+// SessionStore is an optional persistent backing for the in-memory token cache.
+// If set on AuthManager, tokens survive pod restarts: ValidateToken falls
+// through to the store on cache miss, and GenerateToken writes through to
+// both cache and store.
+//
+// Implementations must be safe for concurrent use.
+type SessionStore interface {
+	// Save persists a session. Called when a token is generated.
+	Save(token string, user *User, expiresAt time.Time, requirePassChange bool) error
+	// Load retrieves a session by token. Returns (nil, false, nil) if not found.
+	// Returns an error only on actual storage failures (e.g. DB unreachable).
+	Load(token string) (entry *PersistedSession, found bool, err error)
+	// Delete removes a session (used on logout).
+	Delete(token string) error
+	// DeleteExpired removes all expired sessions; called periodically.
+	DeleteExpired() error
+}
+
+// PersistedSession is the on-disk shape of a session entry.
+type PersistedSession struct {
+	Username          string
+	Role              string
+	ExpiresAt         time.Time
+	RequirePassChange bool
+}
+
 // AuthManager handles authentication operations.
 type AuthManager struct {
 	config              AuthConfig
 	mu                  sync.RWMutex
 	tokenCache          map[string]*tokenCacheEntry
 	passwordChangeCache map[string]bool // Tracks users who need to change password
+	sessionStore        SessionStore    // Optional persistent backing
 }
 
 type tokenCacheEntry struct {
@@ -206,31 +233,78 @@ func (am *AuthManager) GenerateToken(user *User) (string, time.Time, error) {
 	return am.GenerateTokenWithFlags(user, false)
 }
 
-// ValidateToken checks if a token is valid and returns the associated user.
-func (am *AuthManager) ValidateToken(token string) (*User, bool) {
-	am.mu.RLock()
-	defer am.mu.RUnlock()
-
-	entry, exists := am.tokenCache[token]
-	if !exists {
-		return nil, false
-	}
-
-	if time.Now().After(entry.expiresAt) {
-		return nil, false
-	}
-
-	return entry.user, true
-}
-
-// RevokeToken invalidates a token.
-func (am *AuthManager) RevokeToken(token string) {
+// SetSessionStore enables persistent session storage. Must be called before
+// AuthManager is exposed to handlers. After this, ValidateToken falls through
+// to the store on cache miss, and GenerateToken writes through to both.
+func (am *AuthManager) SetSessionStore(store SessionStore) {
 	am.mu.Lock()
-	delete(am.tokenCache, token)
+	am.sessionStore = store
 	am.mu.Unlock()
 }
 
-// cleanupLoop removes expired tokens periodically.
+// ValidateToken checks if a token is valid and returns the associated user.
+// Falls through to the persistent store on cache miss (if a store is configured)
+// so that browser sessions survive pod restarts.
+func (am *AuthManager) ValidateToken(token string) (*User, bool) {
+	// Fast path: in-memory cache
+	am.mu.RLock()
+	entry, exists := am.tokenCache[token]
+	store := am.sessionStore
+	am.mu.RUnlock()
+
+	if exists {
+		if time.Now().After(entry.expiresAt) {
+			return nil, false
+		}
+		return entry.user, true
+	}
+
+	// Slow path: check persistent store (after cache miss)
+	if store == nil {
+		return nil, false
+	}
+	persisted, found, err := store.Load(token)
+	if err != nil {
+		log.Printf("auth: session store load failed for token %s...: %v", token[:min(8, len(token))], err)
+		return nil, false
+	}
+	if !found {
+		return nil, false
+	}
+	if time.Now().After(persisted.ExpiresAt) {
+		// Expired in DB but not yet cleaned up
+		_ = store.Delete(token)
+		return nil, false
+	}
+
+	// Re-populate the in-memory cache so subsequent lookups are fast.
+	user := &User{Username: persisted.Username, Role: persisted.Role}
+	am.mu.Lock()
+	am.tokenCache[token] = &tokenCacheEntry{
+		user:              user,
+		expiresAt:         persisted.ExpiresAt,
+		requirePassChange: persisted.RequirePassChange,
+	}
+	am.mu.Unlock()
+
+	return user, true
+}
+
+// RevokeToken invalidates a token in both cache and persistent store.
+func (am *AuthManager) RevokeToken(token string) {
+	am.mu.Lock()
+	delete(am.tokenCache, token)
+	store := am.sessionStore
+	am.mu.Unlock()
+	if store != nil {
+		if err := store.Delete(token); err != nil {
+			log.Printf("auth: session store delete failed: %v", err)
+		}
+	}
+}
+
+
+// cleanupLoop removes expired tokens periodically from both cache and store.
 func (am *AuthManager) cleanupLoop() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
@@ -243,7 +317,13 @@ func (am *AuthManager) cleanupLoop() {
 				delete(am.tokenCache, token)
 			}
 		}
+		store := am.sessionStore
 		am.mu.Unlock()
+		if store != nil {
+			if err := store.DeleteExpired(); err != nil {
+				log.Printf("auth: session store cleanup failed: %v", err)
+			}
+		}
 	}
 }
 
@@ -369,6 +449,8 @@ func (am *AuthManager) LoginHandler() http.HandlerFunc {
 }
 
 // GenerateTokenWithFlags creates a new session token with additional flags.
+// Writes through to the persistent store (if configured) so the session
+// survives pod restarts.
 func (am *AuthManager) GenerateTokenWithFlags(user *User, requirePassChange bool) (string, time.Time, error) {
 	// Generate random token
 	tokenBytes := make([]byte, 32)
@@ -386,7 +468,17 @@ func (am *AuthManager) GenerateTokenWithFlags(user *User, requirePassChange bool
 		expiresAt:         expiresAt,
 		requirePassChange: requirePassChange,
 	}
+	store := am.sessionStore
 	am.mu.Unlock()
+
+	// Write through to persistent store. We log but don't fail the login if
+	// the store is unavailable — the token still works for the lifetime of
+	// this pod's memory cache.
+	if store != nil {
+		if err := store.Save(token, user, expiresAt, requirePassChange); err != nil {
+			log.Printf("auth: session store save failed (token still valid in memory): %v", err)
+		}
+	}
 
 	return token, expiresAt, nil
 }

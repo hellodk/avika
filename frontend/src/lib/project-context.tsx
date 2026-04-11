@@ -124,12 +124,38 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       const response = await apiFetch("/api/auth/me", {
         credentials: "include",
       });
-      if (response.ok) {
-        const data = await response.json();
-        setIsSuperAdmin(data.is_superadmin || false);
+      if (!response.ok) {
+        // Server-side error (5xx) — keep state at defaults; the user can retry.
+        console.error("fetchUserInfo: /api/auth/me returned", response.status);
+        return;
       }
-    } catch {
-      // Ignore errors - user might not be authenticated yet
+      const data = await response.json();
+      // The backend returns {authenticated: false} when the cookie is invalid
+      // (e.g. after a gateway pod restart wiped the in-memory token cache).
+      // The browser still has the cookie but the server doesn't recognize it.
+      // Treat this as a hard logout: clear the cookie and bounce to /login.
+      if (data?.authenticated === false) {
+        if (typeof window !== "undefined") {
+          // Don't redirect if already on login page (avoid loops).
+          const loginPaths = ["/login", "/change-password"];
+          const onLoginPage = loginPaths.some((p) =>
+            window.location.pathname.endsWith(p)
+          );
+          if (!onLoginPage) {
+            // Clear stale session cookie so the middleware doesn't see it.
+            document.cookie = "avika_session=; Max-Age=0; path=/";
+            const redirect = encodeURIComponent(
+              window.location.pathname + window.location.search
+            );
+            window.location.href = `/avika/login?redirect=${redirect}`;
+          }
+        }
+        return;
+      }
+      setIsSuperAdmin(data.is_superadmin || false);
+    } catch (err) {
+      // Network error / parse error — log so it doesn't go silent.
+      console.error("fetchUserInfo: failed", err);
     }
   }, []);
 
