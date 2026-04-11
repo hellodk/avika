@@ -2,12 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
-import { useProject } from "@/lib/project-context";
 import {
     Search,
     Plus,
     MoreHorizontal,
-    Shield,
     ShieldCheck,
     UserX,
     UserCheck,
@@ -85,7 +83,6 @@ const emptyForm: UserFormData = {
 };
 
 export default function UsersPage() {
-    const { isSuperAdmin } = useProject();
     const [users, setUsers] = useState<UserRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [search, setSearch] = useState("");
@@ -240,20 +237,6 @@ export default function UsersPage() {
             return dateStr;
         }
     };
-
-    if (!isSuperAdmin) {
-        return (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Shield className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-lg font-medium" style={{ color: "rgb(var(--theme-text))" }}>
-                    Admin access required
-                </p>
-                <p className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                    User management is restricted to superadmins.
-                </p>
-            </div>
-        );
-    }
 
     return (
         <div className="space-y-4">
