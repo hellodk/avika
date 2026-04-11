@@ -828,11 +828,16 @@ func (db *DB) ListTeamProjectAccess(teamID string) ([]TeamProjectAccess, error) 
 // ============================================================================
 
 // IsSuperAdmin checks if a user has superadmin privileges.
-// Users with role='admin' OR is_superadmin=true are treated as superadmin.
+// A user is considered superadmin if ANY of these are true:
+//   - is_superadmin = true (the explicit RBAC flag)
+//   - role = 'admin' (legacy admin role)
+//   - role = 'superuser' (seeded administrative role from migration 002)
+//
+// All three are local administrative users who manage the cluster setup.
 func (db *DB) IsSuperAdmin(username string) (bool, error) {
 	var isSuperAdmin bool
 	err := db.conn.QueryRow(
-		"SELECT COALESCE(is_superadmin, FALSE) OR (role = 'admin') FROM users WHERE username = $1",
+		"SELECT COALESCE(is_superadmin, FALSE) OR (role IN ('admin', 'superuser')) FROM users WHERE username = $1",
 		username,
 	).Scan(&isSuperAdmin)
 	if err == sql.ErrNoRows {

@@ -47,6 +47,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { RefreshButton } from "@/components/ui/refresh-button";
+import { useProject } from "@/lib/project-context";
 
 // ── Integration card (from /settings/integrations) ──────────────────────────
 
@@ -141,11 +142,24 @@ function SettingsContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const { settings: userSettings, updateSettings, resetSettings } = useUserSettings();
+    const { isSuperAdmin, isLoading: projectLoading } = useProject();
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
 
-    // Tab state from URL
-    const tab = searchParams.get("tab") || "general";
+    // Tab state from URL. Admin-only tabs (users, teams) are hidden for
+    // non-superadmins; if someone deep-links to ?tab=users without rights,
+    // we redirect them to the general tab once auth state has loaded.
+    const requestedTab = searchParams.get("tab") || "general";
+    const adminOnlyTabs = useMemo(() => new Set(["users", "teams"]), []);
+    const isAdminOnlyTab = adminOnlyTabs.has(requestedTab);
+
+    useEffect(() => {
+        if (!projectLoading && isAdminOnlyTab && !isSuperAdmin) {
+            router.replace("/settings?tab=general");
+        }
+    }, [projectLoading, isAdminOnlyTab, isSuperAdmin, router]);
+
+    const tab = isAdminOnlyTab && !isSuperAdmin && !projectLoading ? "general" : requestedTab;
 
     // ── General tab state ────────────────────────────────────────────────
     const [grafanaUrl, setGrafanaUrl] = useState(userSettings.integrations.grafanaUrl);
@@ -288,12 +302,18 @@ function SettingsContent() {
                     <TabsTrigger value="projects" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
                         <FolderKanban className="h-4 w-4 mr-2" />Projects
                     </TabsTrigger>
-                    <TabsTrigger value="users" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-                        <Users className="h-4 w-4 mr-2" />Users
-                    </TabsTrigger>
-                    <TabsTrigger value="teams" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-                        <ShieldCheck className="h-4 w-4 mr-2" />Teams
-                    </TabsTrigger>
+                    {/* Users + Teams: admin/superuser only. Hidden until auth state has
+                        loaded to prevent flicker for actual admins. */}
+                    {!projectLoading && isSuperAdmin && (
+                        <>
+                            <TabsTrigger value="users" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                                <Users className="h-4 w-4 mr-2" />Users
+                            </TabsTrigger>
+                            <TabsTrigger value="teams" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                                <ShieldCheck className="h-4 w-4 mr-2" />Teams
+                            </TabsTrigger>
+                        </>
+                    )}
                 </TabsList>
 
                 {/* ── General Tab ──────────────────────────────────────────── */}
@@ -369,15 +389,19 @@ function SettingsContent() {
                     <ProjectsPage />
                 </TabsContent>
 
-                {/* ── Users Tab ───────────────────────────────────────────── */}
-                <TabsContent value="users" className="space-y-6">
-                    <UsersPage />
-                </TabsContent>
+                {/* ── Users Tab (admin/superuser only) ──────────────────── */}
+                {!projectLoading && isSuperAdmin && (
+                    <TabsContent value="users" className="space-y-6">
+                        <UsersPage />
+                    </TabsContent>
+                )}
 
-                {/* ── Teams Tab ───────────────────────────────────────────── */}
-                <TabsContent value="teams" className="space-y-6">
-                    <TeamsPage />
-                </TabsContent>
+                {/* ── Teams Tab (admin/superuser only) ──────────────────── */}
+                {!projectLoading && isSuperAdmin && (
+                    <TabsContent value="teams" className="space-y-6">
+                        <TeamsPage />
+                    </TabsContent>
+                )}
             </Tabs>
         </div>
     );
