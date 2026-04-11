@@ -89,7 +89,7 @@ type UserRecord struct {
 func (db *DB) GetUser(username string) (*UserRecord, error) {
 	var user UserRecord
 	err := db.conn.QueryRow(
-		"SELECT username, password_hash, role FROM users WHERE username = $1",
+		"SELECT username, password_hash, role FROM users WHERE username = $1 AND COALESCE(is_active, true) = true",
 		username,
 	).Scan(&user.Username, &user.PasswordHash, &user.Role)
 	if err == sql.ErrNoRows {

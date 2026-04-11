@@ -1418,3 +1418,320 @@ func (srv *server) handleListAuditLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(logs)
 }
+
+// ============================================================================
+// User Management Handlers
+// ============================================================================
+
+// handleListUsers handles GET /api/users
+func (srv *server) handleListUsers(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	if !isSuperAdmin {
+		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
+		return
+	}
+
+	search := r.URL.Query().Get("search")
+	users, err := srv.db.ListUsersDetailed(search)
+	if err != nil {
+		log.Printf("Error listing users: %v", err)
+		http.Error(w, `{"error":"failed to list users"}`, http.StatusInternalServerError)
+		return
+	}
+	if users == nil {
+		users = []UserDetailRecord{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(users)
+}
+
+// handleCreateUser handles POST /api/users
+func (srv *server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	if !isSuperAdmin {
+		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
+		return
+	}
+
+	var req struct {
+		Username     string `json:"username"`
+		Password     string `json:"password"`
+		Role         string `json:"role"`
+		Email        string `json:"email"`
+		DisplayName  string `json:"display_name"`
+		IsSuperAdmin bool   `json:"is_superadmin"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	if req.Username == "" {
+		http.Error(w, `{"error":"username is required"}`, http.StatusBadRequest)
+		return
+	}
+	if len(req.Password) < 8 {
+		http.Error(w, `{"error":"password must be at least 8 characters"}`, http.StatusBadRequest)
+		return
+	}
+	if req.Role != "admin" && req.Role != "viewer" {
+		http.Error(w, `{"error":"role must be admin or viewer"}`, http.StatusBadRequest)
+		return
+	}
+
+	hashedPassword := middleware.HashPassword(req.Password)
+	if hashedPassword == "" {
+		http.Error(w, `{"error":"failed to hash password"}`, http.StatusInternalServerError)
+		return
+	}
+
+	created, err := srv.db.CreateUserByAdmin(req.Username, hashedPassword, req.Role, req.Email, req.DisplayName, req.IsSuperAdmin)
+	if err != nil {
+		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
+			http.Error(w, `{"error":"user already exists"}`, http.StatusConflict)
+			return
+		}
+		log.Printf("Error creating user %s: %v", req.Username, err)
+		http.Error(w, `{"error":"failed to create user"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Audit log
+	_ = srv.db.CreateAuditLog(user.Username, "create", "user", req.Username, r.RemoteAddr, r.UserAgent(), map[string]string{
+		"role":          req.Role,
+		"is_superadmin": fmt.Sprintf("%v", req.IsSuperAdmin),
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(created)
+}
+
+// handleGetUser handles GET /api/users/{username}
+func (srv *server) handleGetUser(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	username := r.PathValue("username")
+	if username == "" {
+		http.Error(w, `{"error":"username required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Superadmin or self
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	if !isSuperAdmin && user.Username != username {
+		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		return
+	}
+
+	u, err := srv.db.GetUserDetailed(username)
+	if err != nil {
+		log.Printf("Error getting user %s: %v", username, err)
+		http.Error(w, `{"error":"failed to get user"}`, http.StatusInternalServerError)
+		return
+	}
+	if u == nil {
+		http.Error(w, `{"error":"user not found"}`, http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(u)
+}
+
+// handleUpdateUser handles PUT /api/users/{username}
+func (srv *server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	username := r.PathValue("username")
+	if username == "" {
+		http.Error(w, `{"error":"username required"}`, http.StatusBadRequest)
+		return
+	}
+
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSelf := user.Username == username
+
+	// Must be superadmin or self
+	if !isSuperAdmin && !isSelf {
+		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		return
+	}
+
+	// Parse the request body into a map to detect which fields were sent
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	var role, email, displayName *string
+	var isSuperAdminVal, isActive *bool
+
+	if v, ok := raw["role"]; ok {
+		var s string
+		if err := json.Unmarshal(v, &s); err == nil {
+			if s != "admin" && s != "viewer" {
+				http.Error(w, `{"error":"role must be admin or viewer"}`, http.StatusBadRequest)
+				return
+			}
+			role = &s
+		}
+	}
+	if v, ok := raw["email"]; ok {
+		var s string
+		if err := json.Unmarshal(v, &s); err == nil {
+			email = &s
+		}
+	}
+	if v, ok := raw["display_name"]; ok {
+		var s string
+		if err := json.Unmarshal(v, &s); err == nil {
+			displayName = &s
+		}
+	}
+	if v, ok := raw["is_superadmin"]; ok {
+		var b bool
+		if err := json.Unmarshal(v, &b); err == nil {
+			isSuperAdminVal = &b
+		}
+	}
+	if v, ok := raw["is_active"]; ok {
+		var b bool
+		if err := json.Unmarshal(v, &b); err == nil {
+			isActive = &b
+		}
+	}
+
+	// Non-superadmin users editing themselves can only change email and display_name
+	if !isSuperAdmin {
+		if role != nil || isSuperAdminVal != nil || isActive != nil {
+			http.Error(w, `{"error":"forbidden","message":"you can only update your own email and display name"}`, http.StatusForbidden)
+			return
+		}
+	}
+
+	// Prevent superadmin from removing their own superadmin status (lockout prevention)
+	if isSuperAdmin && isSelf && isSuperAdminVal != nil && !*isSuperAdminVal {
+		http.Error(w, `{"error":"cannot remove your own superadmin status"}`, http.StatusBadRequest)
+		return
+	}
+
+	if err := srv.db.UpdateUserByAdmin(username, role, email, displayName, isSuperAdminVal, isActive); err != nil {
+		log.Printf("Error updating user %s: %v", username, err)
+		http.Error(w, `{"error":"failed to update user"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Audit log
+	details := map[string]string{"target_user": username}
+	if role != nil {
+		details["role"] = *role
+	}
+	if isSuperAdminVal != nil {
+		details["is_superadmin"] = fmt.Sprintf("%v", *isSuperAdminVal)
+	}
+	if isActive != nil {
+		details["is_active"] = fmt.Sprintf("%v", *isActive)
+	}
+	_ = srv.db.CreateAuditLog(user.Username, "update", "user", username, r.RemoteAddr, r.UserAgent(), details)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
+}
+
+// handleDeactivateUser handles DELETE /api/users/{username}
+func (srv *server) handleDeactivateUser(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	if !isSuperAdmin {
+		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
+		return
+	}
+
+	username := r.PathValue("username")
+	if username == "" {
+		http.Error(w, `{"error":"username required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Cannot deactivate self
+	if user.Username == username {
+		http.Error(w, `{"error":"cannot deactivate your own account"}`, http.StatusBadRequest)
+		return
+	}
+
+	if err := srv.db.DeactivateUser(username); err != nil {
+		log.Printf("Error deactivating user %s: %v", username, err)
+		http.Error(w, `{"error":"failed to deactivate user"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Audit log
+	_ = srv.db.CreateAuditLog(user.Username, "deactivate", "user", username, r.RemoteAddr, r.UserAgent(), nil)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deactivated"})
+}
+
+// handleReactivateUser handles POST /api/users/{username}/reactivate
+func (srv *server) handleReactivateUser(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	if !isSuperAdmin {
+		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
+		return
+	}
+
+	username := r.PathValue("username")
+	if username == "" {
+		http.Error(w, `{"error":"username required"}`, http.StatusBadRequest)
+		return
+	}
+
+	if err := srv.db.ReactivateUser(username); err != nil {
+		log.Printf("Error reactivating user %s: %v", username, err)
+		http.Error(w, `{"error":"failed to reactivate user"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Audit log
+	_ = srv.db.CreateAuditLog(user.Username, "reactivate", "user", username, r.RemoteAddr, r.UserAgent(), nil)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "reactivated"})
+}

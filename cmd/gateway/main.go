@@ -2157,6 +2157,19 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	mux.Handle("POST /api/teams/{id}/projects", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGrantProjectAccess)))
 	mux.Handle("DELETE /api/teams/{id}/projects/{projectId}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleRevokeProjectAccess)))
 
+	// User Management API
+	mux.Handle("GET /api/users", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListUsers)))
+	mux.Handle("POST /api/users", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateUser)))
+	mux.Handle("GET /api/users/{username}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetUser)))
+	mux.Handle("PUT /api/users/{username}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleUpdateUser)))
+	mux.Handle("DELETE /api/users/{username}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleDeactivateUser)))
+	mux.Handle("POST /api/users/{username}/reactivate", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleReactivateUser)))
+
+	// SSO Configuration API
+	mux.Handle("GET /api/sso/config/{provider}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGetSSOConfig)))
+	mux.Handle("PUT /api/sso/config/{provider}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handlePutSSOConfig)))
+	mux.Handle("POST /api/sso/test/{provider}", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleTestSSOConfig)))
+
 	// Enrollment Tokens API
 	mux.Handle("GET /api/environments/{id}/enrollment-tokens", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleListEnrollmentTokens)))
 	mux.Handle("POST /api/environments/{id}/enrollment-tokens", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleCreateEnrollmentToken)))
@@ -2924,11 +2937,33 @@ type visitorAnalyticsFrontendShape struct {
 }
 
 // handleListAgents handles GET /api/servers
+// RBAC: superadmins see all agents; regular users see only agents in
+// environments their teams have access to (via GetVisibleAgentIDs).
 func (srv *server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 	resp, err := srv.ListAgents(r.Context(), &pb.ListAgentsRequest{})
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 		return
+	}
+
+	// Apply RBAC filtering if DB is available
+	user := middleware.GetUserFromContext(r.Context())
+	if user != nil && srv.db != nil {
+		isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+		if !isSuperAdmin {
+			visibleIDs, _ := srv.db.GetVisibleAgentIDs(user.Username)
+			visibleSet := make(map[string]struct{}, len(visibleIDs))
+			for _, id := range visibleIDs {
+				visibleSet[id] = struct{}{}
+			}
+			filtered := make([]*pb.AgentInfo, 0, len(resp.Agents))
+			for _, agent := range resp.Agents {
+				if _, ok := visibleSet[agent.AgentId]; ok {
+					filtered = append(filtered, agent)
+				}
+			}
+			resp.Agents = filtered
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

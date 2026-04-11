@@ -39,9 +39,15 @@ func (srv *server) handleInstallInfo(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	grpcAddr := ""
+	if srv.config != nil {
+		grpcAddr = srv.config.Server.ExternalGRPCAddr
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"version":         Version,
 		"tls_self_signed": selfSigned,
+		"grpc_addr":       grpcAddr,
 	})
 }

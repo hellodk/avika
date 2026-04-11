@@ -1,0 +1,69 @@
+{{- if .Values.haproxy.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "avika.fullname" . }}-haproxy
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+    component: haproxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "avika.selectorLabels" . | nindent 6 }}
+      component: haproxy
+  template:
+    metadata:
+      labels:
+        {{- include "avika.selectorLabels" . | nindent 8 }}
+        component: haproxy
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-haproxy.yaml") . | sha256sum }}
+    spec:
+      initContainers:
+        # HAProxy needs cert+key in a single PEM file
+        - name: combine-certs
+          image: busybox
+          command: ["sh", "-c", "cat /certs/tls.crt /certs/tls.key > /combined/avika.pem"]
+          volumeMounts:
+            - name: certs-raw
+              mountPath: /certs
+              readOnly: true
+            - name: certs-combined
+              mountPath: /combined
+      containers:
+        - name: haproxy
+          image: "haproxy:2.8-alpine"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /usr/local/etc/haproxy/haproxy.cfg
+              subPath: haproxy.cfg
+              readOnly: true
+            - name: certs-combined
+              mountPath: /etc/haproxy/certs
+              readOnly: true
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "avika.fullname" . }}-haproxy-config
+        - name: certs-raw
+          secret:
+            secretName: {{ include "avika.fullname" . }}-nginx-tls
+        - name: certs-combined
+          emptyDir: {}
+{{- end }}

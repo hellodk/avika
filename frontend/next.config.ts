@@ -116,24 +116,39 @@ const nextConfig: NextConfig = {
   // production, HAProxy handles this same path-based routing).
   async rewrites() {
     const gatewayUrl = process.env.GATEWAY_HTTP_URL || "http://localhost:5021";
-    return [
-      {
-        source: '/health',
-        destination: `${gatewayUrl}/health`,
-        basePath: false,
-      },
-      {
-        source: '/ready',
-        destination: `${gatewayUrl}/ready`,
-        basePath: false,
-      },
-      // /avika/updates/* → gateway /updates/* (binaries, deploy script, version.json, systemd unit)
-      // basePath defaults to true, so source matches with the /avika prefix in the browser.
-      {
-        source: '/updates/:path*',
-        destination: `${gatewayUrl}/updates/:path*`,
-      },
-    ];
+    return {
+      // beforeFiles: runs before Next.js checks filesystem/API routes
+      beforeFiles: [
+        {
+          source: '/health',
+          destination: `${gatewayUrl}/health`,
+          basePath: false,
+        },
+        {
+          source: '/ready',
+          destination: `${gatewayUrl}/ready`,
+          basePath: false,
+        },
+      ],
+      // afterFiles: checked after filesystem routes but before fallback
+      afterFiles: [],
+      // fallback: only checked when no page or API route matches.
+      // Next.js API route files (e.g., /api/servers/route.ts, /updates/install/route.ts)
+      // take precedence. Everything else falls through to the gateway.
+      fallback: [
+        {
+          source: '/api/:path*',
+          destination: `${gatewayUrl}/api/:path*`,
+        },
+        // /avika/updates/* → gateway /updates/* (binaries, deploy script, version.json,
+        // systemd unit). The /updates/install route.ts takes precedence for dynamic
+        // install script generation; all other /updates/* paths proxy to the gateway.
+        {
+          source: '/updates/:path*',
+          destination: `${gatewayUrl}/updates/:path*`,
+        },
+      ],
+    };
   },
 
   // Redirects - redirect root to basePath; legacy routes to new locations
