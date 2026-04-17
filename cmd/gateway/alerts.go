@@ -38,6 +38,9 @@ func NewAlertEngine(db *DB, ch *ClickHouseDB, cfg *config.Config) *AlertEngine {
 }
 
 func (e *AlertEngine) Start() {
+	// Restore cooldowns from DB so we don't spam alerts after a pod restart
+	e.loadCooldowns()
+
 	ticker := time.NewTicker(1 * time.Minute)
 	log.Printf("Starting Alert Engine (evaluation interval: 1m)")
 
@@ -52,6 +55,23 @@ func (e *AlertEngine) Start() {
 			}
 		}
 	}()
+}
+
+// loadCooldowns reads last_fired_at from the database into the in-memory map.
+func (e *AlertEngine) loadCooldowns() {
+	cooldowns, err := e.db.LoadAlertCooldowns()
+	if err != nil {
+		log.Printf("AlertEngine: failed to load cooldowns from DB: %v", err)
+		return
+	}
+	e.lastFiredMu.Lock()
+	for id, t := range cooldowns {
+		e.lastFired[id] = t
+	}
+	e.lastFiredMu.Unlock()
+	if len(cooldowns) > 0 {
+		log.Printf("AlertEngine: restored %d cooldown(s) from DB", len(cooldowns))
+	}
 }
 
 func (e *AlertEngine) Stop() {
@@ -274,11 +294,19 @@ func (e *AlertEngine) isInCooldown(ruleID string, cooldown time.Duration) bool {
 	return time.Since(lastTime) < cooldown
 }
 
-// recordFired records the current time as the last-fired time for a rule.
+// recordFired records the current time as the last-fired time for a rule
+// and persists it to the database so cooldowns survive pod restarts.
 func (e *AlertEngine) recordFired(ruleID string) {
+	now := time.Now()
 	e.lastFiredMu.Lock()
-	e.lastFired[ruleID] = time.Now()
+	e.lastFired[ruleID] = now
 	e.lastFiredMu.Unlock()
+
+	if e.db != nil {
+		if err := e.db.UpdateAlertLastFired(ruleID, now); err != nil {
+			log.Printf("AlertEngine: failed to persist last_fired_at for rule %s: %v", ruleID, err)
+		}
+	}
 }
 
 // queryDriftedAgentCount counts total drifted agents from the most recent drift report per group.

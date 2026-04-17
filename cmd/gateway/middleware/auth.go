@@ -48,8 +48,10 @@ type AuthConfig struct {
 	CookieDomain      string         `json:"cookie_domain"`
 	FirstTimeSetup    bool           `json:"first_time_setup"`    // True if using auto-generated password
 	RequirePassChange bool           `json:"require_pass_change"` // Force password change on first login
-	InitialSecretPath string         `json:"initial_secret_path"` // File to write initial secret
-	UserLookup        UserLookupFunc `json:"-"`                   // Function to look up users from database
+	InitialSecretPath    string         `json:"initial_secret_path"` // File to write initial secret
+	UserLookup           UserLookupFunc `json:"-"`                   // Function to look up users from database
+	UserPassChangeLookup func(username string) bool  `json:"-"` // DB check for require_pass_change flag
+	UserPassChangeClear  func(username string) error `json:"-"` // Clear require_pass_change in DB after change
 }
 
 // DefaultAuthConfig returns default auth configuration.
@@ -400,10 +402,14 @@ func (am *AuthManager) LoginHandler() http.HandlerFunc {
 			return
 		}
 
-		// Check if password change is required
+		// Check if password change is required (in-memory cache first, then DB)
 		am.mu.RLock()
 		requirePassChange := am.passwordChangeCache[req.Username]
+		passChangeLookup := am.config.UserPassChangeLookup
 		am.mu.RUnlock()
+		if !requirePassChange && passChangeLookup != nil {
+			requirePassChange = passChangeLookup(req.Username)
+		}
 
 		user := &User{
 			Username: req.Username,
@@ -544,7 +550,15 @@ func (am *AuthManager) ChangePasswordHandler(onPasswordChanged func(username, ne
 		am.config.PasswordHash = newHash
 		am.config.FirstTimeSetup = false
 		delete(am.passwordChangeCache, user.Username)
+		passChangeClear := am.config.UserPassChangeClear
 		am.mu.Unlock()
+
+		// Clear DB require_pass_change flag
+		if passChangeClear != nil {
+			if err := passChangeClear(user.Username); err != nil {
+				log.Printf("Warning: Failed to clear require_pass_change in DB for %s: %v", user.Username, err)
+			}
+		}
 
 		// Callback to persist new password hash
 		if onPasswordChanged != nil {

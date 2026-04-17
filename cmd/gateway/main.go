@@ -1812,6 +1812,8 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Set up user lookup function for multi-user auth from database
 	// Default users (admin/admin, superuser/superuser) are created by SQL migrations
 	var userLookup middleware.UserLookupFunc
+	var userPassChangeLookup func(string) bool
+	var userPassChangeClear func(string) error
 	if srv.db != nil {
 		userLookup = func(username string) (passwordHash string, role string, found bool) {
 			user, err := srv.db.GetUser(username)
@@ -1819,6 +1821,17 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 				return "", "", false
 			}
 			return user.PasswordHash, user.Role, true
+		}
+		userPassChangeLookup = func(username string) bool {
+			required, err := srv.db.GetUserPassChangeRequired(username)
+			if err != nil {
+				log.Printf("auth: GetUserPassChangeRequired(%s): %v", username, err)
+				return false
+			}
+			return required
+		}
+		userPassChangeClear = func(username string) error {
+			return srv.db.ClearUserPassChangeRequired(username)
 		}
 	}
 
@@ -1829,15 +1842,17 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	}
 
 	authManager := middleware.NewAuthManager(middleware.AuthConfig{
-		Enabled:      cfg.Auth.Enabled,
-		Username:     cfg.Auth.Username,
-		PasswordHash: passwordHash,
-		JWTSecret:    cfg.Auth.JWTSecret,
-		TokenExpiry:  tokenExpiry,
-		CookieName:   "avika_session",
-		CookieSecure: cfg.Auth.CookieSecure,
-		CookieDomain: cfg.Auth.CookieDomain,
-		UserLookup:   userLookup,
+		Enabled:              cfg.Auth.Enabled,
+		Username:             cfg.Auth.Username,
+		PasswordHash:         passwordHash,
+		JWTSecret:            cfg.Auth.JWTSecret,
+		TokenExpiry:          tokenExpiry,
+		CookieName:           "avika_session",
+		CookieSecure:         cfg.Auth.CookieSecure,
+		CookieDomain:         cfg.Auth.CookieDomain,
+		UserLookup:           userLookup,
+		UserPassChangeLookup: userPassChangeLookup,
+		UserPassChangeClear:  userPassChangeClear,
 	})
 
 	// Wire persistent session store so browser sessions survive pod restarts.
@@ -1942,6 +1957,10 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		if err != nil {
 			log.Printf("Warning: Failed to initialize OIDC provider: %v", err)
 		} else {
+			if srv.db != nil && srv.db.conn != nil {
+				oidcProvider.SetStateStore(NewPgOIDCStateStore(srv.db.conn))
+				log.Printf("OIDC: persistent state store enabled (postgres)")
+			}
 			mux.HandleFunc("/api/auth/oidc/login", oidcProvider.InitHandler())
 			mux.HandleFunc("/api/auth/oidc/callback", oidcProvider.CallbackHandler())
 			mux.HandleFunc("/api/auth/oidc/status", oidcProvider.StatusHandler())

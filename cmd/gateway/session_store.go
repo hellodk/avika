@@ -65,3 +65,51 @@ func (s *PgSessionStore) DeleteExpired() error {
 	_, err := s.db.Exec(`DELETE FROM sessions WHERE expires_at < NOW()`)
 	return err
 }
+
+// PgOIDCStateStore is a PostgreSQL-backed implementation of middleware.OIDCStateStore.
+type PgOIDCStateStore struct {
+	db *sql.DB
+}
+
+// NewPgOIDCStateStore creates a new persistent OIDC state store backed by Postgres.
+func NewPgOIDCStateStore(db *sql.DB) *PgOIDCStateStore {
+	return &PgOIDCStateStore{db: db}
+}
+
+// SaveState persists an OIDC CSRF state token.
+func (s *PgOIDCStateStore) SaveState(state, redirectURI string) error {
+	_, err := s.db.Exec(
+		`INSERT INTO oidc_states (state, redirect_uri, created_at)
+		 VALUES ($1, $2, NOW())
+		 ON CONFLICT (state) DO UPDATE SET redirect_uri = EXCLUDED.redirect_uri, created_at = EXCLUDED.created_at`,
+		state, redirectURI,
+	)
+	return err
+}
+
+// LoadState retrieves an OIDC state entry. Returns (_, _, false, nil) if not found.
+func (s *PgOIDCStateStore) LoadState(state string) (redirectURI string, createdAt time.Time, found bool, err error) {
+	err = s.db.QueryRow(
+		`SELECT redirect_uri, created_at FROM oidc_states WHERE state = $1`,
+		state,
+	).Scan(&redirectURI, &createdAt)
+	if err == sql.ErrNoRows {
+		return "", time.Time{}, false, nil
+	}
+	if err != nil {
+		return "", time.Time{}, false, err
+	}
+	return redirectURI, createdAt, true, nil
+}
+
+// DeleteState removes an OIDC state entry after it is consumed.
+func (s *PgOIDCStateStore) DeleteState(state string) error {
+	_, err := s.db.Exec(`DELETE FROM oidc_states WHERE state = $1`, state)
+	return err
+}
+
+// DeleteExpiredStates removes states older than 15 minutes.
+func (s *PgOIDCStateStore) DeleteExpiredStates() error {
+	_, err := s.db.Exec(`DELETE FROM oidc_states WHERE created_at < NOW() - INTERVAL '15 minutes'`)
+	return err
+}

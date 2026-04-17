@@ -122,6 +122,52 @@ func (db *DB) UpdateUserPassword(username, passwordHash string) error {
 	return err
 }
 
+// GetUserPassChangeRequired returns whether the user must change their password on next login.
+func (db *DB) GetUserPassChangeRequired(username string) (bool, error) {
+	var required bool
+	err := db.conn.QueryRow(
+		`SELECT COALESCE(require_pass_change, FALSE) FROM users WHERE username = $1`,
+		username,
+	).Scan(&required)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return required, err
+}
+
+// ClearUserPassChangeRequired clears the force-password-change flag for a user.
+func (db *DB) ClearUserPassChangeRequired(username string) error {
+	_, err := db.conn.Exec(`UPDATE users SET require_pass_change = FALSE, updated_at = CURRENT_TIMESTAMP WHERE username = $1`, username)
+	return err
+}
+
+// LoadAlertCooldowns returns all non-null last_fired_at values keyed by rule ID.
+// Used by AlertEngine at startup to restore cooldowns and prevent alert spam after restart.
+func (db *DB) LoadAlertCooldowns() (map[string]time.Time, error) {
+	rows, err := db.conn.Query(`SELECT id, last_fired_at FROM alert_rules WHERE last_fired_at IS NOT NULL`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]time.Time)
+	for rows.Next() {
+		var id string
+		var t time.Time
+		if err := rows.Scan(&id, &t); err != nil {
+			continue
+		}
+		result[id] = t
+	}
+	return result, nil
+}
+
+// UpdateAlertLastFired sets last_fired_at for the given alert rule.
+func (db *DB) UpdateAlertLastFired(ruleID string, t time.Time) error {
+	_, err := db.conn.Exec(`UPDATE alert_rules SET last_fired_at = $1 WHERE id = $2`, t, ruleID)
+	return err
+}
+
 // ListUsers returns all users
 func (db *DB) ListUsers() ([]*UserRecord, error) {
 	rows, err := db.conn.Query("SELECT username, password_hash, role FROM users")
