@@ -51,18 +51,18 @@ interface AgentFleetTableProps {
     onTerminal?: (agent: any) => void;
 }
 
-function getAgentStatus(lastSeenTimestamp: number | null): { color: string; icon: any; label: string; dotColor: string; priority: number } {
+function getAgentStatus(lastSeenTimestamp: number | null): { color: string; icon: any; label: string; dotColor: string; priority: number; variant: "online" | "warning" | "offline" } {
     if (!lastSeenTimestamp) {
-        return { color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20", icon: CheckCircle2, label: "Online", dotColor: "bg-emerald-500", priority: 3 };
+        return { color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20", icon: CheckCircle2, label: "Online", dotColor: "bg-emerald-500", priority: 3, variant: "online" };
     }
     const now = Math.floor(Date.now() / 1000);
     const secondsSinceLastSeen = now - lastSeenTimestamp;
     if (secondsSinceLastSeen < STATUS_THRESHOLDS.ONLINE) {
-        return { color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20", icon: CheckCircle2, label: "Online", dotColor: "bg-emerald-500", priority: 3 };
+        return { color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20", icon: CheckCircle2, label: "Online", dotColor: "bg-emerald-500", priority: 3, variant: "online" };
     } else if (secondsSinceLastSeen < STATUS_THRESHOLDS.STALE) {
-        return { color: "bg-amber-500/10 text-amber-600 border-amber-500/20", icon: AlertTriangle, label: "Stale", dotColor: "bg-amber-500", priority: 2 };
+        return { color: "bg-amber-500/10 text-amber-600 border-amber-500/20", icon: AlertTriangle, label: "Stale", dotColor: "bg-amber-500", priority: 2, variant: "warning" };
     } else {
-        return { color: "bg-red-500/10 text-red-600 border-red-500/20", icon: XCircle, label: "Offline", dotColor: "bg-red-500", priority: 1 };
+        return { color: "bg-red-500/10 text-red-600 border-red-500/20", icon: XCircle, label: "Offline", dotColor: "bg-red-500", priority: 1, variant: "offline" };
     }
 }
 
@@ -287,25 +287,11 @@ export function AgentFleetTable({
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>Online</p>
-                                <p className="text-3xl font-bold mt-1 text-emerald-500">{stats.online}</p>
+                                <p className="text-sm font-medium text-muted-foreground">Online</p>
+                                <p className="text-3xl font-bold mt-1 text-[#16A34A] dark:text-[#4ADE80]">{stats.online}</p>
                             </div>
-                            <div className="p-3 rounded-lg bg-emerald-500/10">
-                                <CheckCircle2 className="h-6 w-6 text-emerald-500" />
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
-                    <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>Offline</p>
-                                <p className="text-3xl font-bold mt-1 text-red-500">{stats.offline}</p>
-                            </div>
-                            <div className="p-3 rounded-lg bg-red-500/10">
-                                <XCircle className="h-6 w-6 text-red-500" />
+                            <div className="p-3 rounded-lg bg-green-100 dark:bg-green-900/30">
+                                <CheckCircle2 className="h-6 w-6 text-[#16A34A] dark:text-[#4ADE80]" />
                             </div>
                         </div>
                     </CardContent>
@@ -315,11 +301,25 @@ export function AgentFleetTable({
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>Needs Update</p>
-                                <p className="text-3xl font-bold mt-1 text-amber-500">{stats.needsUpdate}</p>
+                                <p className="text-sm font-medium text-muted-foreground">Offline</p>
+                                <p className="text-3xl font-bold mt-1 text-[#DC2626] dark:text-[#F87171]">{stats.offline}</p>
                             </div>
-                            <div className="p-3 rounded-lg bg-amber-500/10">
-                                <RefreshCw className="h-6 w-6 text-amber-500" />
+                            <div className="p-3 rounded-lg bg-red-100 dark:bg-red-900/30">
+                                <XCircle className="h-6 w-6 text-[#DC2626] dark:text-[#F87171]" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
+                    <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">Needs Update</p>
+                                <p className="text-3xl font-bold mt-1 text-[#D97706] dark:text-[#FCD34D]">{stats.needsUpdate}</p>
+                            </div>
+                            <div className="p-3 rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+                                <RefreshCw className="h-6 w-6 text-[#D97706] dark:text-[#FCD34D]" />
                             </div>
                         </div>
                     </CardContent>
@@ -555,13 +555,13 @@ export function AgentFleetTable({
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm" style={{ color: 'rgb(var(--theme-text))' }}>{instance.agent_version || "N/A"}</span>
                                                 {needsUpdate && (
-                                                    <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[10px]">Update</Badge>
+                                                    <Badge variant="warning" className="text-[10px]">Update</Badge>
                                                 )}
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <Badge variant="outline" className={`border-none ${statusInfo.color}`}>
-                                                <span className={`w-1.5 h-1.5 rounded-full mr-2 ${statusInfo.dotColor}`} />
+                                            <Badge variant={statusInfo.variant}>
+                                                <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotColor}`} />
                                                 {statusInfo.label}
                                             </Badge>
                                         </TableCell>

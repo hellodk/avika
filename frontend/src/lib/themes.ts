@@ -7,31 +7,31 @@
 export const themes = {
     dark: {
         name: "Dark",
-        background: "0 0 0",
-        surface: "26 26 26",
-        surfaceLight: "42 42 42",
-        text: "255 255 255",
-        textMuted: "188 188 188",
-        textDim: "150 150 150",
-        primary: "59 130 246",
-        success: "34 197 94",
-        warning: "251 191 36",
-        error: "239 68 68",
-        border: "64 64 64",
+        background: "11 15 25",       // #0B0F19
+        surface: "17 24 39",           // #111827
+        surfaceLight: "31 41 55",      // #1F2937
+        text: "249 250 251",           // #F9FAFB
+        textMuted: "203 213 225",      // #CBD5E1
+        textDim: "148 163 184",        // #94A3B8
+        primary: "59 130 246",         // #3B82F6
+        success: "74 222 128",         // #4ADE80
+        warning: "253 211 77",         // #FCD34D
+        error: "248 113 113",          // #F87171
+        border: "55 65 81",            // #374151
     },
     light: {
         name: "Light",
-        background: "255 255 255",
-        surface: "249 250 251",
-        surfaceLight: "243 244 246",
-        text: "17 24 39",
-        textMuted: "55 65 81",
-        textDim: "107 114 128",
-        primary: "37 99 235",
-        success: "22 163 74",
-        warning: "245 158 11",
-        error: "220 38 38",
-        border: "209 213 219",
+        background: "249 250 251",     // #F9FAFB
+        surface: "255 255 255",        // #FFFFFF  (cards)
+        surfaceLight: "243 244 246",   // #F3F4F6  (hover)
+        text: "17 24 39",              // #111827
+        textMuted: "75 85 99",         // #4B5563
+        textDim: "156 163 175",        // #9CA3AF
+        primary: "37 99 235",          // #2563EB
+        success: "22 163 74",          // #16A34A
+        warning: "217 119 6",          // #D97706
+        error: "220 38 38",            // #DC2626
+        border: "229 231 235",         // #E5E7EB
     },
     rocker: {
         name: "Rocker",
