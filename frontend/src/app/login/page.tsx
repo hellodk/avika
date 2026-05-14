@@ -8,11 +8,10 @@ import { Label } from "@/components/ui/label";
 import { AlertCircle, Loader2, Activity, Shield, Lock, Zap, Server, Eye, EyeOff, KeyRound } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getBasePath } from "@/lib/api";
-
-// Inlined at build; dev server can refresh VERSION before HMR updates the client bundle.
-const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "dev";
+import { useAppVersion } from "@/lib/use-app-version";
 
 export default function LoginPage() {
+  const APP_VERSION = useAppVersion();
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");

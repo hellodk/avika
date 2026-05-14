@@ -235,7 +235,7 @@ components:
     image:
       useGlobalRegistry: true
       repository: avika-gateway
-      tag: "1.112.0"
+      tag: "1.113.0"
       pullPolicy: Always
     terminationGracePeriodSeconds: 35
     
@@ -323,7 +323,7 @@ components:
     image:
       useGlobalRegistry: true
       repository: avika-frontend
-      tag: "1.112.0"
+      tag: "1.113.0"
       pullPolicy: Always
     
     ports:

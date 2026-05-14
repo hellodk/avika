@@ -26,8 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { GlobalSearch } from "@/components/global-search";
 import { CommandPalette } from "@/components/command-palette";
-
-const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "dev";
+import { useAppVersion } from "@/lib/use-app-version";
 
 interface NavSection {
     title: string;
@@ -102,6 +101,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname() ?? "";
     const router = useRouter();
     const { user, logout } = useAuth();
+    const APP_VERSION = useAppVersion();
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [expandedSections, setExpandedSections] = useState<string[]>(
         NAV_SECTIONS.map(s => s.title) // All expanded by default

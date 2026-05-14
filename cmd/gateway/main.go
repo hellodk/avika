@@ -1871,7 +1871,14 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		"/api/auth/login",
 		"/api/auth/logout",
 		"/api/auth/me",
+		"/api/system/version",
 	}
+
+	// Public version endpoint — no auth so the login page can display the live version.
+	mux.HandleFunc("GET /api/system/version", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"version": Version})
+	})
 
 	// Callback to persist password changes to database
 	onPasswordChanged := func(username, newHash string) error {
