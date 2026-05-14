@@ -235,7 +235,7 @@ components:
     image:
       useGlobalRegistry: true
       repository: avika-gateway
-      tag: "pr-206"
+      tag: "1.111.0"
       pullPolicy: Always
     terminationGracePeriodSeconds: 35
     
@@ -323,7 +323,7 @@ components:
     image:
       useGlobalRegistry: true
       repository: avika-frontend
-      tag: "pr-206"
+      tag: "pr-207"
       pullPolicy: Always
     
     ports:
@@ -433,6 +433,10 @@ components:
     env:
       POSTGRES_DB: "avika"
       POSTGRES_USER: "admin"
+      # Allow non-SSL connections from pods in the cluster (used during initdb only).
+      # Without this, PostgreSQL 16 creates pg_hba.conf with only local/loopback entries
+      # and the gateway pod (different IP) cannot connect.
+      POSTGRES_HOST_AUTH_METHOD: "scram-sha-256"
     
     livenessProbe:
       exec:
