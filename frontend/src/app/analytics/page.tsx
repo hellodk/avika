@@ -271,11 +271,11 @@ function AnalyticsView() {
             case "critical":
                 return isLight
                     ? { wrap: "border-red-200/90 bg-red-50/90", title: "text-red-900", body: "text-red-900/75", icon: AlertCircle }
-                    : { wrap: "border-red-500/25 bg-red-500/[0.06]", title: "text-red-200", body: "text-red-200/70", icon: AlertCircle };
+                    : { wrap: "border-red-500/25 bg-[#DC2626] dark:bg-[#F87171]/[0.06]", title: "text-red-200", body: "text-red-200/70", icon: AlertCircle };
             case "warning":
                 return isLight
                     ? { wrap: "border-amber-200/90 bg-amber-50/80", title: "text-amber-950", body: "text-amber-900/75", icon: TrendingUp }
-                    : { wrap: "border-amber-500/25 bg-amber-500/[0.06]", title: "text-amber-200", body: "text-amber-200/70", icon: TrendingUp };
+                    : { wrap: "border-amber-500/25 bg-[#D97706] dark:bg-[#FCD34D]/[0.06]", title: "text-amber-200", body: "text-amber-200/70", icon: TrendingUp };
             default:
                 return isLight
                     ? { wrap: "border-blue-200/90 bg-blue-50/80", title: "text-blue-950", body: "text-blue-900/75", icon: Activity }
@@ -497,7 +497,7 @@ function AnalyticsView() {
                                                     |
                                                 </span>
                                                 <span
-                                                    className={`text-sm font-medium ${(summary.error_rate ?? 0) > 1 ? "text-red-500" : "text-emerald-500"}`}
+                                                    className={`text-sm font-medium ${(summary.error_rate ?? 0) > 1 ? "text-[#DC2626] dark:text-[#F87171]" : "text-[#16A34A] dark:text-[#4ADE80]"}`}
                                                 >
                                                     {(summary.error_rate ?? 0).toFixed(2)}% errors
                                                 </span>
@@ -544,12 +544,12 @@ function AnalyticsView() {
                                                                     const code = s.code ?? s.Code ?? "";
                                                                     const count = s.count ?? s.Count ?? 0;
                                                                     const color = String(code).startsWith("2")
-                                                                        ? "text-emerald-500"
+                                                                        ? "text-[#16A34A] dark:text-[#4ADE80]"
                                                                         : String(code).startsWith("3")
                                                                           ? "text-blue-500"
                                                                           : String(code).startsWith("4")
-                                                                            ? "text-amber-500"
-                                                                            : "text-red-500";
+                                                                            ? "text-[#D97706] dark:text-[#FCD34D]"
+                                                                            : "text-[#DC2626] dark:text-[#F87171]";
                                                                     return (
                                                                         <button
                                                                             key={code}
@@ -741,7 +741,7 @@ function AnalyticsView() {
                                                         <span className="font-mono text-xs truncate max-w-[250px]" style={{ color: "rgb(var(--theme-text))" }} title={e.uri}>{e.uri}</span>
                                                         <div className="flex items-center gap-3 shrink-0 ml-3">
                                                             <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>{parseInt(e.requests).toLocaleString()}</span>
-                                                            <span className={`text-xs font-medium ${parseFloat(e.p95) > 200 ? 'text-amber-500' : ''}`}>{Math.round(parseFloat(e.p95 || 0))}ms</span>
+                                                            <span className={`text-xs font-medium ${parseFloat(e.p95) > 200 ? 'text-[#D97706] dark:text-[#FCD34D]' : ''}`}>{Math.round(parseFloat(e.p95 || 0))}ms</span>
                                                         </div>
                                                     </div>
                                                 ))}

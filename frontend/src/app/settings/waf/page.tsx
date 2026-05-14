@@ -105,7 +105,7 @@ export default function WAFSettingsPage() {
                                                     Active
                                                 </Badge>
                                             ) : (
-                                                <Badge className="bg-red-500/20 text-red-400 border-red-500/30 gap-1">
+                                                <Badge className="bg-[#DC2626] dark:bg-[#F87171]/20 text-red-400 border-red-500/30 gap-1">
                                                     <XCircle className="h-3 w-3" />
                                                     Disabled
                                                 </Badge>

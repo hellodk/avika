@@ -138,8 +138,8 @@ export default function GrafanaPage() {
                         borderColor: "rgb(var(--theme-border))"
                     }}
                 >
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-500/10 flex items-center justify-center">
-                        <AlertTriangle className="h-8 w-8 text-amber-500" />
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
+                        <AlertTriangle className="h-8 w-8 text-[#D97706] dark:text-[#FCD34D]" />
                     </div>
                     <h2 className="text-xl font-semibold mb-2" style={{ color: "rgb(var(--theme-text))" }}>
                         Grafana Connection Error

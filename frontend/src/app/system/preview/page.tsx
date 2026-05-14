@@ -77,7 +77,7 @@ export default function SystemPreviewPage() {
     <div className="space-y-6 pb-8">
       {/* Banner: this is a preview */}
       <div
-        className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm"
+        className="rounded-lg border border-amber-500/40 bg-yellow-100 dark:bg-yellow-900/30 px-4 py-2 text-sm"
         style={{ color: "rgb(var(--theme-text))" }}
       >
         <strong>Preview:</strong> This is the proposed System dashboard layout (mock data).{" "}

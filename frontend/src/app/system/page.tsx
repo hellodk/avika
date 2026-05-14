@@ -151,9 +151,9 @@ function SystemHealthPageContent() {
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'healthy': return 'bg-emerald-500/25 text-emerald-300 border-emerald-500/40';
-            case 'degraded': return 'bg-amber-500/25 text-amber-300 border-amber-500/40';
-            case 'critical': return 'bg-red-500/25 text-red-300 border-red-500/40';
+            case 'healthy': return 'bg-[#16A34A] dark:bg-[#4ADE80]/25 text-emerald-300 border-emerald-500/40';
+            case 'degraded': return 'bg-[#D97706] dark:bg-[#FCD34D]/25 text-amber-300 border-amber-500/40';
+            case 'critical': return 'bg-[#DC2626] dark:bg-[#F87171]/25 text-red-300 border-red-500/40';
             default: return 'bg-slate-500/25 text-slate-300 border-slate-500/40';
         }
     };
@@ -192,8 +192,8 @@ function SystemHealthPageContent() {
                     <Badge
                         variant="outline"
                         className={stats.active === stats.total && stats.total > 0
-                            ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/40"
-                            : "bg-amber-500/25 text-amber-300 border-amber-500/40"}
+                            ? "bg-[#16A34A] dark:bg-[#4ADE80]/25 text-emerald-300 border-emerald-500/40"
+                            : "bg-[#D97706] dark:bg-[#FCD34D]/25 text-amber-300 border-amber-500/40"}
                         role="status"
                         aria-label={`${stats.active} of ${stats.total} agents online`}
                     >
@@ -216,10 +216,10 @@ function SystemHealthPageContent() {
 
             {/* Error Alert */}
             {error && (
-                <Card className="border-red-500/20 bg-red-500/5">
+                <Card className="border-red-500/20 bg-[#DC2626] dark:bg-[#F87171]/5">
                     <CardContent className="flex items-center gap-3 py-4">
-                        <AlertCircle className="h-5 w-5 text-red-500" />
-                        <span className="text-red-600">{error}</span>
+                        <AlertCircle className="h-5 w-5 text-[#DC2626] dark:text-[#F87171]" />
+                        <span className="text-[#DC2626] dark:text-[#F87171]">{error}</span>
                         <Button variant="outline" size="sm" onClick={fetchAll} className="ml-auto">
                             Retry
                         </Button>
@@ -254,12 +254,12 @@ function SystemHealthPageContent() {
                                 <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>
                                     Active Agents
                                 </p>
-                                <p className="text-3xl font-bold mt-1 text-emerald-500">
+                                <p className="text-3xl font-bold mt-1 text-[#16A34A] dark:text-[#4ADE80]">
                                     {stats.active}
                                 </p>
                             </div>
-                            <div className="p-3 rounded-lg bg-emerald-500/10">
-                                <Activity className="h-6 w-6 text-emerald-500" />
+                            <div className="p-3 rounded-lg bg-green-100 dark:bg-green-900/30">
+                                <Activity className="h-6 w-6 text-[#16A34A] dark:text-[#4ADE80]" />
                             </div>
                         </div>
                     </CardContent>
@@ -294,8 +294,8 @@ function SystemHealthPageContent() {
                                     {latestVersion || 'N/A'}
                                 </p>
                             </div>
-                            <div className="p-3 rounded-lg bg-amber-500/10">
-                                <Zap className="h-6 w-6 text-amber-500" />
+                            <div className="p-3 rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+                                <Zap className="h-6 w-6 text-[#D97706] dark:text-[#FCD34D]" />
                             </div>
                         </div>
                     </CardContent>
@@ -316,15 +316,15 @@ function SystemHealthPageContent() {
                         </div>
                         <div className="flex items-center gap-4 text-xs" style={{ color: "rgb(var(--theme-text-muted))" }} role="img" aria-label="Status legend">
                             <span className="inline-flex items-center gap-1.5">
-                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" aria-hidden />
+                                <span className="w-2.5 h-2.5 rounded-full bg-[#16A34A] dark:bg-[#4ADE80]" aria-hidden />
                                 Healthy
                             </span>
                             <span className="inline-flex items-center gap-1.5">
-                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" aria-hidden />
+                                <span className="w-2.5 h-2.5 rounded-full bg-[#D97706] dark:bg-[#FCD34D]" aria-hidden />
                                 Warning
                             </span>
                             <span className="inline-flex items-center gap-1.5">
-                                <span className="w-2.5 h-2.5 rounded-full bg-red-500" aria-hidden />
+                                <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626] dark:bg-[#F87171]" aria-hidden />
                                 Down
                             </span>
                         </div>

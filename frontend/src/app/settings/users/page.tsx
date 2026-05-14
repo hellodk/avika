@@ -341,7 +341,7 @@ export default function UsersPage() {
                                                     {user.display_name ||
                                                         user.username}
                                                     {user.is_superadmin && (
-                                                        <ShieldCheck className="h-3.5 w-3.5 text-amber-500" />
+                                                        <ShieldCheck className="h-3.5 w-3.5 text-[#D97706] dark:text-[#FCD34D]" />
                                                     )}
                                                 </div>
                                                 <div
@@ -431,8 +431,8 @@ export default function UsersPage() {
                                                     }
                                                     className={
                                                         user.is_active
-                                                            ? "text-red-500 focus:text-red-500"
-                                                            : "text-emerald-500 focus:text-emerald-500"
+                                                            ? "text-[#DC2626] dark:text-[#F87171] focus:text-[#DC2626] dark:text-[#F87171]"
+                                                            : "text-[#16A34A] dark:text-[#4ADE80] focus:text-[#16A34A] dark:text-[#4ADE80]"
                                                     }
                                                 >
                                                     {user.is_active ? (

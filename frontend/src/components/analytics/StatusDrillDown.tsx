@@ -26,10 +26,10 @@ interface Props {
 
 function statusColor(code: number | string): string {
   const c = typeof code === "string" ? parseInt(code) : code;
-  if (c >= 500) return "text-red-500";
-  if (c >= 400) return "text-amber-500";
+  if (c >= 500) return "text-[#DC2626] dark:text-[#F87171]";
+  if (c >= 400) return "text-[#D97706] dark:text-[#FCD34D]";
   if (c >= 300) return "text-blue-500";
-  return "text-emerald-500";
+  return "text-[#16A34A] dark:text-[#4ADE80]";
 }
 
 function formatNumber(n: number): string {
@@ -190,7 +190,7 @@ export function StatusDrillDown({ window, agentId, statusChartData, initialClass
             </div>
           ) : error ? (
             <div className="text-center py-6 space-y-2">
-              <p className="text-sm text-red-500">Failed to load data</p>
+              <p className="text-sm text-[#DC2626] dark:text-[#F87171]">Failed to load data</p>
               <p className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>{error}</p>
               <Button variant="outline" size="sm" onClick={fetchData}>Retry</Button>
             </div>
@@ -337,7 +337,7 @@ export function StatusDrillDown({ window, agentId, statusChartData, initialClass
                           {t.country && <span className="ml-1 opacity-60">({t.country})</span>}
                         </TableCell>
                         <TableCell className="text-xs truncate max-w-[140px]" title={t.user_agent}>{t.user_agent?.split(" ")[0] || "—"}</TableCell>
-                        <TableCell className={`text-right text-sm font-medium ${t.latency_ms > 500 ? "text-red-500" : t.latency_ms > 200 ? "text-amber-500" : ""}`}>
+                        <TableCell className={`text-right text-sm font-medium ${t.latency_ms > 500 ? "text-[#DC2626] dark:text-[#F87171]" : t.latency_ms > 200 ? "text-[#D97706] dark:text-[#FCD34D]" : ""}`}>
                           {Math.round(t.latency_ms)}ms
                         </TableCell>
                       </motion.tr>

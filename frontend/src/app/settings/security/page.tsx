@@ -13,7 +13,7 @@ const securitySections = [
     },
     {
         href: "/settings/ldap",
-        icon: <Key className="h-5 w-5 text-emerald-500" />,
+        icon: <Key className="h-5 w-5 text-[#16A34A] dark:text-[#4ADE80]" />,
         title: "LDAP",
         description: "Configure LDAP directory integration for user authentication and group sync.",
     },
@@ -25,7 +25,7 @@ const securitySections = [
     },
     {
         href: "/settings/waf",
-        icon: <Lock className="h-5 w-5 text-amber-500" />,
+        icon: <Lock className="h-5 w-5 text-[#D97706] dark:text-[#FCD34D]" />,
         title: "WAF Policies",
         description: "Manage Web Application Firewall rule sets and distribution across your NGINX fleet.",
     },

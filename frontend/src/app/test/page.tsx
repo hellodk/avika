@@ -83,7 +83,7 @@ export default function TestPage() {
                     <Card key={i} className={`border-l-4 ${r.status === 'PASS' ? 'border-l-green-500' : 'border-l-red-500'}`}>
                         <CardHeader className="flex flex-row items-center space-y-0 pb-2">
                             <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                                {r.status === 'PASS' ? <CheckCircle className="text-green-500" /> : <XCircle className="text-red-500" />}
+                                {r.status === 'PASS' ? <CheckCircle className="text-green-500" /> : <XCircle className="text-[#DC2626] dark:text-[#F87171]" />}
                                 {r.name}
                             </CardTitle>
                         </CardHeader>

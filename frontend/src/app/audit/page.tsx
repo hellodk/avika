@@ -60,7 +60,7 @@ export default function AuditPage() {
     };
 
     if (loading) return <div className="flex items-center justify-center h-64" style={{ color: "rgb(var(--theme-text))" }}>Loading audit logs...</div>;
-    if (error) return <div className="p-4 bg-red-500/10 text-red-400 rounded-lg">{error}</div>;
+    if (error) return <div className="p-4 bg-red-100 dark:bg-red-900/30 text-red-400 rounded-lg">{error}</div>;
 
     return (
         <div className="space-y-6">

@@ -41,7 +41,7 @@ const templates: ProvisionTemplate[] = [
         title: "Health Checks",
         description: "Configure active/passive health checks for your upstream servers.",
         icon: HeartPulse,
-        color: "text-red-500 bg-red-500/10"
+        color: "text-[#DC2626] dark:text-[#F87171] bg-red-100 dark:bg-red-900/30"
     },
     {
         id: "location-blocks",
@@ -55,14 +55,14 @@ const templates: ProvisionTemplate[] = [
         title: "Custom Error Pages",
         description: "Map standard HTTP error codes to branded HTML pages.",
         icon: AlertCircle,
-        color: "text-amber-500 bg-amber-500/10"
+        color: "text-[#D97706] dark:text-[#FCD34D] bg-yellow-100 dark:bg-yellow-900/30"
     },
     {
         id: "custom",
         title: "Custom Provision",
         description: "Define custom blocks manually.",
         icon: Zap,
-        color: "text-gray-500 bg-gray-500/10"
+        color: "text-muted-foreground bg-gray-500/10"
     }
 ];
 

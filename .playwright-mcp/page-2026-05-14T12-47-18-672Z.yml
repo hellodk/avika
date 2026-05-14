@@ -1,0 +1,192 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - img [ref=e5]
+      - generic [ref=e7]: Avika
+      - generic [ref=e8]: UI Design Preview
+    - button "🌙 Dark Mode" [ref=e9] [cursor=pointer]:
+      - generic [ref=e10]: 🌙
+      - generic [ref=e11]: Dark Mode
+  - generic [ref=e12]:
+    - generic [ref=e13]:
+      - heading "Sample 1 — Metric Cards" [level=2] [ref=e14]
+      - paragraph [ref=e15]: KPI cards with trend badges. Used on the dashboard overview.
+      - generic [ref=e16]:
+        - generic [ref=e17]:
+          - paragraph [ref=e18]: Monthly Revenue
+          - paragraph [ref=e19]: $48,320
+          - generic [ref=e20]: ↑ +12% vs last month
+        - generic [ref=e21]:
+          - paragraph [ref=e22]: Active Agents
+          - paragraph [ref=e23]: "142"
+          - generic [ref=e24]: ↑ 8 new this week
+        - generic [ref=e25]:
+          - paragraph [ref=e26]: Error Rate
+          - paragraph [ref=e27]: 0.31%
+          - generic [ref=e28]: ↑ +0.04% this hour
+        - generic [ref=e29]:
+          - paragraph [ref=e30]: SLO Compliance
+          - paragraph [ref=e31]: 99.91%
+          - generic [ref=e32]: ⚠ 0.09% budget left
+    - generic [ref=e33]:
+      - heading "Sample 2 — Data Table" [level=2] [ref=e34]
+      - paragraph [ref=e35]: Agent fleet table with status badges, actions, and hover states.
+      - generic [ref=e36]:
+        - generic [ref=e37]:
+          - heading "NGINX Agents" [level=3] [ref=e38]
+          - generic [ref=e39]: 142 total · 138 online
+        - table [ref=e40]:
+          - rowgroup [ref=e41]:
+            - row "Hostname IP Address Status Version Last Seen Actions" [ref=e42]:
+              - columnheader "Hostname" [ref=e43]
+              - columnheader "IP Address" [ref=e44]
+              - columnheader "Status" [ref=e45]
+              - columnheader "Version" [ref=e46]
+              - columnheader "Last Seen" [ref=e47]
+              - columnheader "Actions" [ref=e48]
+          - rowgroup [ref=e49]:
+            - row "nginx-prod-01 10.0.1.12 Online 1.25.3 2s ago View →" [ref=e50]:
+              - cell "nginx-prod-01" [ref=e51]
+              - cell "10.0.1.12" [ref=e52]
+              - cell "Online" [ref=e53]:
+                - generic [ref=e54]: Online
+              - cell "1.25.3" [ref=e56]
+              - cell "2s ago" [ref=e57]
+              - cell "View →" [ref=e58]:
+                - button "View →" [ref=e59] [cursor=pointer]
+            - row "nginx-prod-02 10.0.1.13 Warning 1.25.1 4m ago View →" [ref=e60]:
+              - cell "nginx-prod-02" [ref=e61]
+              - cell "10.0.1.13" [ref=e62]
+              - cell "Warning" [ref=e63]:
+                - generic [ref=e64]: Warning
+              - cell "1.25.1" [ref=e66]
+              - cell "4m ago" [ref=e67]
+              - cell "View →" [ref=e68]:
+                - button "View →" [ref=e69] [cursor=pointer]
+            - row "nginx-prod-03 10.0.1.14 Offline 1.24.0 2h ago View →" [ref=e70]:
+              - cell "nginx-prod-03" [ref=e71]
+              - cell "10.0.1.14" [ref=e72]
+              - cell "Offline" [ref=e73]:
+                - generic [ref=e74]: Offline
+              - cell "1.24.0" [ref=e76]
+              - cell "2h ago" [ref=e77]
+              - cell "View →" [ref=e78]:
+                - button "View →" [ref=e79] [cursor=pointer]
+            - row "nginx-staging-01 10.0.2.10 Online 1.25.3 12s ago View →" [ref=e80]:
+              - cell "nginx-staging-01" [ref=e81]
+              - cell "10.0.2.10" [ref=e82]
+              - cell "Online" [ref=e83]:
+                - generic [ref=e84]: Online
+              - cell "1.25.3" [ref=e86]
+              - cell "12s ago" [ref=e87]
+              - cell "View →" [ref=e88]:
+                - button "View →" [ref=e89] [cursor=pointer]
+    - generic [ref=e90]:
+      - heading "Sample 3 — Sidebar Navigation" [level=2] [ref=e91]
+      - paragraph [ref=e92]: Left nav with active, idle, and hover states. Includes project/environment selectors.
+      - generic [ref=e93]:
+        - complementary [ref=e94]:
+          - button "A Production" [ref=e96] [cursor=pointer]:
+            - generic [ref=e97]:
+              - generic [ref=e99]: A
+              - generic [ref=e100]: Production
+            - img [ref=e101]
+          - navigation [ref=e103]:
+            - paragraph [ref=e104]: Overview
+            - link "Dashboard" [ref=e105] [cursor=pointer]:
+              - /url: "#"
+              - img [ref=e106]
+              - text: Dashboard
+            - link "Servers 142" [ref=e108] [cursor=pointer]:
+              - /url: "#"
+              - img [ref=e109]
+              - text: Servers
+              - generic [ref=e111]: "142"
+            - link "Analytics" [ref=e112] [cursor=pointer]:
+              - /url: "#"
+              - img [ref=e113]
+              - text: Analytics
+            - link "Alerts 3" [ref=e115] [cursor=pointer]:
+              - /url: "#"
+              - img [ref=e116]
+              - text: Alerts
+              - generic [ref=e118]: "3"
+            - paragraph [ref=e119]: Config
+            - link "Configurations" [ref=e120] [cursor=pointer]:
+              - /url: "#"
+              - img [ref=e121]
+              - text: Configurations
+            - link "Drift Detection" [ref=e123] [cursor=pointer]:
+              - /url: "#"
+              - img [ref=e124]
+              - text: Drift Detection
+          - link "Settings" [ref=e127] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e128]
+            - text: Settings
+        - main [ref=e131]:
+          - generic [ref=e132]:
+            - heading "Dashboard" [level=1] [ref=e133]
+            - paragraph [ref=e134]: Production · All environments
+          - generic [ref=e135]:
+            - generic [ref=e136]:
+              - paragraph [ref=e137]: Requests / sec
+              - paragraph [ref=e138]: 3,482
+            - generic [ref=e139]:
+              - paragraph [ref=e140]: P95 Latency
+              - paragraph [ref=e141]: 42ms
+          - generic [ref=e142]:
+            - img [ref=e143]
+            - generic [ref=e145]:
+              - paragraph [ref=e146]: nginx-prod-02 is in warning state
+              - paragraph [ref=e147]: High memory usage detected · 4m ago
+    - generic [ref=e148]:
+      - heading "Sample 4 — Alerts, Badges & Buttons" [level=2] [ref=e149]
+      - paragraph [ref=e150]: Action elements. All pass WCAG AA on both themes.
+      - generic [ref=e151]:
+        - generic [ref=e152]:
+          - img [ref=e153]
+          - paragraph [ref=e155]: Deployment to production completed successfully.
+        - generic [ref=e156]:
+          - img [ref=e157]
+          - paragraph [ref=e159]: "Config validation failed: invalid upstream block on line 42."
+        - generic [ref=e160]:
+          - button "Primary Action" [ref=e161] [cursor=pointer]
+          - button "Secondary" [ref=e162] [cursor=pointer]
+          - button "Destructive" [ref=e163] [cursor=pointer]
+          - button "Ghost" [ref=e164] [cursor=pointer]
+          - button "Disabled" [disabled] [ref=e165]
+        - generic [ref=e166]:
+          - generic [ref=e167]: ● Online
+          - generic [ref=e168]: ⚠ Warning
+          - generic [ref=e169]: ✕ Offline
+          - generic [ref=e170]: → Deploying
+          - generic [ref=e171]: v1.25.3
+    - generic [ref=e172]:
+      - heading "Color Token Reference" [level=2] [ref=e173]
+      - paragraph [ref=e174]: All combinations pass WCAG AA (4.5:1 normal text, 3:1 large/bold).
+      - generic [ref=e175]:
+        - generic [ref=e176]:
+          - paragraph [ref=e178]: Primary Text
+          - paragraph [ref=e179]: "#111827"
+        - generic [ref=e180]:
+          - paragraph [ref=e182]: Secondary Text
+          - paragraph [ref=e183]: "#4B5563"
+        - generic [ref=e184]:
+          - paragraph [ref=e186]: Accent / Blue
+          - paragraph [ref=e187]: "#2563EB"
+        - generic [ref=e188]:
+          - paragraph [ref=e190]: Success
+          - paragraph [ref=e191]: "#16A34A"
+        - generic [ref=e192]:
+          - paragraph [ref=e194]: Warning
+          - paragraph [ref=e195]: "#D97706"
+        - generic [ref=e196]:
+          - paragraph [ref=e198]: Error
+          - paragraph [ref=e199]: "#DC2626"
+        - generic [ref=e200]:
+          - paragraph [ref=e202]: Dark BG
+          - paragraph [ref=e203]: "#0B0F19"
+        - generic [ref=e204]:
+          - paragraph [ref=e206]: Light BG
+          - paragraph [ref=e207]: "#F9FAFB"

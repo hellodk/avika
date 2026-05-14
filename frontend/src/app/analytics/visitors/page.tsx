@@ -122,10 +122,10 @@ function formatBytes(bytes: string | number): string {
 }
 
 function statusColor(code: number): string {
-  if (code >= 500) return "text-red-500";
-  if (code >= 400) return "text-amber-500";
+  if (code >= 500) return "text-[#DC2626] dark:text-[#F87171]";
+  if (code >= 400) return "text-[#D97706] dark:text-[#FCD34D]";
   if (code >= 300) return "text-blue-500";
-  return "text-emerald-500";
+  return "text-[#16A34A] dark:text-[#4ADE80]";
 }
 
 export default function VisitorsPage() {
@@ -212,9 +212,9 @@ export default function VisitorsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { title: "Unique Visitors", value: formatNumber(data?.summary?.unique_visitors || "0"), icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-          { title: "Human Traffic", value: formatNumber(humanHits), icon: Activity, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-          { title: "Bot Traffic", value: `${botPct}%`, icon: Bot, color: "text-amber-500", bg: "bg-amber-500/10" },
-          { title: "404 Errors", value: formatNumber(data?.not_found?.reduce((sum: number, nf: any) => sum + parseInt(nf.hits || "0"), 0) || 0), icon: Search, color: "text-red-500", bg: "bg-red-500/10" },
+          { title: "Human Traffic", value: formatNumber(humanHits), icon: Activity, color: "text-[#16A34A] dark:text-[#4ADE80]", bg: "bg-green-100 dark:bg-green-900/30" },
+          { title: "Bot Traffic", value: `${botPct}%`, icon: Bot, color: "text-[#D97706] dark:text-[#FCD34D]", bg: "bg-yellow-100 dark:bg-yellow-900/30" },
+          { title: "404 Errors", value: formatNumber(data?.not_found?.reduce((sum: number, nf: any) => sum + parseInt(nf.hits || "0"), 0) || 0), icon: Search, color: "text-[#DC2626] dark:text-[#F87171]", bg: "bg-red-100 dark:bg-red-900/30" },
         ].map((kpi) => (
           <Card key={kpi.title} style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
             <CardContent className="pt-6">
@@ -302,8 +302,8 @@ export default function VisitorsPage() {
                   <span>Bot ({formatNumber(botHits)})</span>
                 </div>
                 <div className="h-2 rounded-full overflow-hidden flex" style={{ background: "rgb(var(--theme-border))" }}>
-                  <div className="h-full bg-emerald-500" style={{ width: `${100 - parseFloat(botPct)}%` }} />
-                  <div className="h-full bg-amber-500" style={{ width: `${botPct}%` }} />
+                  <div className="h-full bg-[#16A34A] dark:bg-[#4ADE80]" style={{ width: `${100 - parseFloat(botPct)}%` }} />
+                  <div className="h-full bg-[#D97706] dark:bg-[#FCD34D]" style={{ width: `${botPct}%` }} />
                 </div>
               </div>
             )}
@@ -414,7 +414,7 @@ export default function VisitorsPage() {
         <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
-              <AlertTriangle className="h-4 w-4 text-amber-500" /> 404 Errors
+              <AlertTriangle className="h-4 w-4 text-[#D97706] dark:text-[#FCD34D]" /> 404 Errors
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -477,7 +477,7 @@ export default function VisitorsPage() {
         <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
-              <Clock className="h-4 w-4 text-amber-500" /> Slowest Endpoints
+              <Clock className="h-4 w-4 text-[#D97706] dark:text-[#FCD34D]" /> Slowest Endpoints
             </CardTitle>
             <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>By average response time</CardDescription>
           </CardHeader>

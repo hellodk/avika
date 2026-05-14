@@ -204,8 +204,8 @@ function InventoryPageContent() {
     if (error && instances.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
-                <div className="p-4 rounded-full bg-red-500/10">
-                    <XCircle className="h-12 w-12 text-red-500" />
+                <div className="p-4 rounded-full bg-red-100 dark:bg-red-900/30">
+                    <XCircle className="h-12 w-12 text-[#DC2626] dark:text-[#F87171]" />
                 </div>
                 <div className="text-center space-y-2">
                     <h2 className="text-xl font-semibold" style={{ color: 'rgb(var(--theme-text))' }}>Unable to load inventory</h2>
@@ -254,7 +254,7 @@ function InventoryPageContent() {
                                 setTimeout(() => setCopied(false), 2000);
                             }}
                         >
-                            {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                            {copied ? <Check className="h-4 w-4 text-[#16A34A] dark:text-[#4ADE80]" /> : <Copy className="h-4 w-4" />}
                         </Button>
                     </div>
                     <div className="flex justify-end gap-2 mt-4">
@@ -346,9 +346,9 @@ function InventoryPageContent() {
                 }).length;
                 if (unclassifiedCount === 0) return null;
                 return (
-                    <div className="flex items-center gap-3 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5">
-                        <div className="p-2 rounded-lg bg-amber-500/10">
-                            <FolderKanban className="h-5 w-5 text-amber-500" />
+                    <div className="flex items-center gap-3 p-3 rounded-lg border border-amber-500/30 bg-[#D97706] dark:bg-[#FCD34D]/5">
+                        <div className="p-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+                            <FolderKanban className="h-5 w-5 text-[#D97706] dark:text-[#FCD34D]" />
                         </div>
                         <div className="flex-1">
                             <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text))" }}>

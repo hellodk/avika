@@ -95,7 +95,7 @@ const MetricCard: React.FC<MetricCardProps> = ({ title, value, subValue, icon, t
                         <TooltipProvider>
                             <UITooltip>
                                 <TooltipTrigger asChild>
-                                    <Info className="h-3.5 w-3.5 text-slate-500 cursor-help" />
+                                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                                 </TooltipTrigger>
                                 <TooltipContent className="bg-slate-900 border-slate-800 text-slate-200 max-w-[200px] text-xs font-normal">
                                     <p>{infoTooltip}</p>
@@ -776,13 +776,13 @@ function MonitoringPageContent() {
                                             <TableCell style={{ color: "rgb(var(--theme-text-muted))" }}>{stat.requests.toLocaleString()}</TableCell>
                                             <TableCell style={{ color: "rgb(var(--theme-text-muted))" }}>{typeof stat.traffic === 'number' ? formatBandwidth(stat.traffic) : (stat.traffic ?? '—')}</TableCell>
                                             <TableCell>
-                                                <Badge className={stat.avgLatency > 150 ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"}>
+                                                <Badge className={stat.avgLatency > 150 ? "bg-[#D97706] dark:bg-[#FCD34D]/15 text-amber-400 border-amber-500/30" : "bg-[#16A34A] dark:bg-[#4ADE80]/15 text-emerald-400 border-emerald-500/30"}>
                                                     {stat.avgLatency}ms
                                                 </Badge>
                                             </TableCell>
                                             <TableCell>
                                                 {stat.errors > 0 ? (
-                                                    <Badge className="bg-red-500/15 text-red-400 border-red-500/30">{stat.errors}</Badge>
+                                                    <Badge className="bg-[#DC2626] dark:bg-[#F87171]/15 text-red-400 border-red-500/30">{stat.errors}</Badge>
                                                 ) : (
                                                     <span style={{ color: "rgb(var(--theme-text-muted))" }}>0</span>
                                                 )}
@@ -843,7 +843,7 @@ function MonitoringPageContent() {
                                         <TableRow key={idx} style={{ borderColor: "rgb(var(--theme-border))" }}>
                                             <TableCell className="font-mono text-sm" style={{ color: "rgb(var(--theme-text))" }}>{endpoint.uri}</TableCell>
                                             <TableCell>
-                                                <Badge className="bg-red-500/15 text-red-400 border-red-500/30">{endpoint.errors}</Badge>
+                                                <Badge className="bg-[#DC2626] dark:bg-[#F87171]/15 text-red-400 border-red-500/30">{endpoint.errors}</Badge>
                                             </TableCell>
                                             <TableCell style={{ color: "rgb(var(--theme-text-muted))" }}>
                                                 {((endpoint.errors / endpoint.requests) * 100).toFixed(2)}%
@@ -971,8 +971,8 @@ function MonitoringPageContent() {
                                                     <Badge
                                                         variant="outline"
                                                         className={agent.last_seen && (Date.now() / 1000 - parseInt(agent.last_seen)) < 180
-                                                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                                                            : "bg-red-500/10 text-red-400 border-red-500/20"
+                                                            ? "bg-green-100 dark:bg-green-900/30 text-emerald-400 border-emerald-500/20"
+                                                            : "bg-red-100 dark:bg-red-900/30 text-red-400 border-red-500/20"
                                                         }
                                                     >
                                                         {agent.last_seen && (Date.now() / 1000 - parseInt(agent.last_seen)) < 180 ? 'Online' : 'Offline'}
@@ -1237,7 +1237,7 @@ function MonitoringPageContent() {
                                         <TableRow key={idx} style={{ borderColor: "rgb(var(--theme-border))" }}>
                                             <TableCell className="font-mono text-sm" style={{ color: "rgb(var(--theme-text))" }}>{endpoint.uri}</TableCell>
                                             <TableCell>
-                                                <Badge className={endpoint.avgLatency > 150 ? "bg-red-500/15 text-red-400" : endpoint.avgLatency > 100 ? "bg-amber-500/15 text-amber-400" : "bg-emerald-500/15 text-emerald-400"}>
+                                                <Badge className={endpoint.avgLatency > 150 ? "bg-[#DC2626] dark:bg-[#F87171]/15 text-red-400" : endpoint.avgLatency > 100 ? "bg-[#D97706] dark:bg-[#FCD34D]/15 text-amber-400" : "bg-[#16A34A] dark:bg-[#4ADE80]/15 text-emerald-400"}>
                                                     {endpoint.avgLatency}ms
                                                 </Badge>
                                             </TableCell>
@@ -1400,7 +1400,7 @@ function MonitoringPageContent() {
                                                     Apply Configuration
                                                 </Button>
                                                 {augmentResult && (
-                                                    <div className={`text-sm p-2 rounded w-full ${augmentResult.includes('Success') ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                                                    <div className={`text-sm p-2 rounded w-full ${augmentResult.includes('Success') ? 'bg-[#16A34A] dark:bg-[#4ADE80]/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
                                                         {augmentResult}
                                                     </div>
                                                 )}
@@ -1435,7 +1435,7 @@ function MonitoringPageContent() {
                                                 {formatTsTime(log.timestamp)}
                                             </TableCell>
                                             <TableCell>
-                                                <Badge className={log.request_method === 'GET' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'}>
+                                                <Badge className={log.request_method === 'GET' ? 'bg-blue-500/20 text-blue-400' : 'bg-[#D97706] dark:bg-[#FCD34D]/20 text-amber-400'}>
                                                     {log.request_method}
                                                 </Badge>
                                             </TableCell>
@@ -1445,8 +1445,8 @@ function MonitoringPageContent() {
                                             <TableCell>
                                                 <Badge className={
                                                     log.status >= 500 ? 'bg-rose-500/20 text-rose-400' :
-                                                        log.status >= 400 ? 'bg-amber-500/20 text-amber-400' :
-                                                            'bg-emerald-500/20 text-emerald-400'
+                                                        log.status >= 400 ? 'bg-[#D97706] dark:bg-[#FCD34D]/20 text-amber-400' :
+                                                            'bg-[#16A34A] dark:bg-[#4ADE80]/20 text-emerald-400'
                                                 }>
                                                     {log.status}
                                                 </Badge>

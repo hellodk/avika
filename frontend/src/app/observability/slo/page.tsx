@@ -287,7 +287,7 @@ export default function SLOPage() {
                                     <div>
                                         <CardTitle className="text-lg text-white capitalize flex items-center gap-2">
                                             {r.target.entity_type} — {sloTypeLabel(r.target.slo_type)}
-                                            {isViolating && <ShieldAlert className="h-4 w-4 text-red-500" />}
+                                            {isViolating && <ShieldAlert className="h-4 w-4 text-[#DC2626] dark:text-[#F87171]" />}
                                         </CardTitle>
                                         <CardDescription className="text-neutral-400 mt-1">
                                             {r.target.entity_type === 'global' ? 'All traffic' : r.target.entity_id} • {r.target.time_window}
@@ -362,7 +362,7 @@ export default function SLOPage() {
                                             </div>
                                             <div className="w-full bg-neutral-950 rounded-full h-2.5 overflow-hidden">
                                                 <div 
-                                                    className={`h-2.5 rounded-full ${budget.percentage > 25 ? 'bg-green-500' : budget.percentage > 0 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                                    className={`h-2.5 rounded-full ${budget.percentage > 25 ? 'bg-green-500' : budget.percentage > 0 ? 'bg-[#D97706] dark:bg-[#FCD34D]' : 'bg-[#DC2626] dark:bg-[#F87171]'}`}
                                                     style={{ width: `${Math.min(Math.max(budget.percentage, 0), 100)}%` }}
                                                 ></div>
                                             </div>

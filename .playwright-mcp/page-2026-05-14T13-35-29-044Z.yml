@@ -1,0 +1,236 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e101]:
+    - generic [ref=e102]:
+      - heading "Command Palette" [level=2] [ref=e103]
+      - paragraph [ref=e104]: Search for a command to run...
+    - navigation "Main navigation" [ref=e105]:
+      - link "Avika v1.111.0" [ref=e107] [cursor=pointer]:
+        - /url: /avika
+        - img [ref=e109]
+        - generic [ref=e111]:
+          - generic [ref=e112]: Avika
+          - generic [ref=e113]: v1.111.0
+      - navigation [ref=e114]:
+        - generic [ref=e115]:
+          - button "Operations" [ref=e116]:
+            - generic [ref=e117]: Operations
+            - img [ref=e118]
+          - generic [ref=e120]:
+            - link "Dashboard" [ref=e121] [cursor=pointer]:
+              - /url: /avika
+              - img [ref=e123]
+              - generic [ref=e128]: Dashboard
+            - link "System Health" [ref=e129] [cursor=pointer]:
+              - /url: /avika/system
+              - img [ref=e131]
+              - generic [ref=e133]: System Health
+            - link "Alerts" [ref=e134] [cursor=pointer]:
+              - /url: /avika/alerts
+              - img [ref=e136]
+              - generic [ref=e138]: Alerts
+            - link "Reports" [ref=e139] [cursor=pointer]:
+              - /url: /avika/reports
+              - img [ref=e141]
+              - generic [ref=e144]: Reports
+        - generic [ref=e145]:
+          - button "Observability" [ref=e146]:
+            - generic [ref=e147]: Observability
+            - img [ref=e148]
+          - generic [ref=e150]:
+            - link "Monitoring" [ref=e151] [cursor=pointer]:
+              - /url: /avika/monitoring
+              - img [ref=e153]
+              - generic [ref=e156]: Monitoring
+            - link "Analytics" [ref=e157] [cursor=pointer]:
+              - /url: /avika/analytics
+              - img [ref=e159]
+              - generic [ref=e160]: Analytics
+            - link "SLOs & SLIs" [ref=e161] [cursor=pointer]:
+              - /url: /avika/observability/slo
+              - img [ref=e163]
+              - generic [ref=e165]: SLOs & SLIs
+        - generic [ref=e166]:
+          - button "Management" [ref=e167]:
+            - generic [ref=e168]: Management
+            - img [ref=e169]
+          - generic [ref=e171]:
+            - link "Inventory" [ref=e172] [cursor=pointer]:
+              - /url: /avika/inventory
+              - img [ref=e174]
+              - generic [ref=e177]: Inventory
+            - link "Provisions" [ref=e178] [cursor=pointer]:
+              - /url: /avika/provisions
+              - img [ref=e180]
+              - generic [ref=e184]: Provisions
+            - link "AI Tuner Beta" [ref=e185] [cursor=pointer]:
+              - /url: /avika/optimization
+              - img [ref=e187]
+              - generic [ref=e189]: AI Tuner
+              - generic [ref=e190]: Beta
+            - link "Maintenance" [ref=e191] [cursor=pointer]:
+              - /url: /avika/maintenance
+              - img [ref=e193]
+              - generic [ref=e195]: Maintenance
+            - link "Audit Logs" [ref=e196] [cursor=pointer]:
+              - /url: /avika/audit
+              - img [ref=e198]
+              - generic [ref=e201]: Audit Logs
+        - generic [ref=e202]:
+          - button "Settings" [ref=e203]:
+            - generic [ref=e204]: Settings
+            - img [ref=e205]
+          - link "Settings" [ref=e208] [cursor=pointer]:
+            - /url: /avika/settings
+            - img [ref=e210]
+            - generic [ref=e213]: Settings
+      - button "Collapse" [ref=e215]:
+        - img [ref=e216]
+        - generic [ref=e217]: Collapse
+    - generic [ref=e218]:
+      - banner [ref=e219]:
+        - combobox [ref=e221]:
+          - generic [ref=e222]:
+            - img
+            - generic [ref=e223]: All Projects
+          - img
+        - generic [ref=e225]:
+          - generic [ref=e228]:
+            - generic [ref=e229]:
+              - img
+              - textbox "Search instances, pages, settings" [ref=e230]:
+                - /placeholder: Search instances, pages, settings…
+            - button "Search" [ref=e231]:
+              - img [ref=e232]
+          - button "Help and documentation" [ref=e235]:
+            - img [ref=e236]
+          - link "View alerts" [ref=e239] [cursor=pointer]:
+            - /url: /avika/alerts
+            - img [ref=e240]
+          - button "admin admin" [ref=e244]:
+            - img [ref=e246]
+            - generic [ref=e249]:
+              - paragraph [ref=e250]: admin
+              - paragraph [ref=e251]: admin
+            - img [ref=e252]
+      - main "Main content" [ref=e254]:
+        - generic [ref=e255]:
+          - alert [ref=e256]:
+            - img [ref=e257]
+            - heading "Dashboard metrics unavailable" [level=5] [ref=e259]
+            - generic [ref=e260]: "Metrics unavailable: 14 UNAVAILABLE: No connection established. Last error: Error: connect ECONNREFUSED 127.0.0.1:5020. Resolution note: — verify GATEWAY_GRPC_ADDR (and TLS/mTLS if enabled) for the Next.js server, and that ClickHouse is wired on the gateway."
+          - generic [ref=e261]:
+            - generic [ref=e262]:
+              - heading "Dashboard" [level=1] [ref=e263]
+              - paragraph [ref=e264]: Overview of your NGINX infrastructure
+            - generic [ref=e265]:
+              - button "Customize (4 pinned)" [ref=e266]:
+                - img
+                - text: Customize (4 pinned)
+              - button "Last 1 hour" [ref=e267]:
+                - img
+                - text: Last 1 hour
+              - generic "1 of 1 agents online" [ref=e268]: 1/1 Agents Online
+              - button "Refresh dashboard data" [ref=e270]:
+                - img
+                - generic [ref=e271]: Refresh
+          - generic [ref=e272]:
+            - generic [ref=e275]:
+              - generic [ref=e276]:
+                - paragraph [ref=e278]: Total Requests
+                - paragraph [ref=e279]: "0"
+                - paragraph [ref=e281]: Last 1 hour
+              - img [ref=e284]
+            - generic [ref=e289]:
+              - generic [ref=e290]:
+                - paragraph [ref=e292]: Request Rate
+                - paragraph [ref=e293]: 0/s
+                - paragraph [ref=e295]: Average
+              - img [ref=e298]
+            - generic [ref=e302]:
+              - generic [ref=e303]:
+                - generic [ref=e304]:
+                  - paragraph [ref=e305]: Error Rate
+                  - img [ref=e306]
+                - paragraph [ref=e308]: 0%
+                - paragraph [ref=e310]: No 5xx errors
+              - img [ref=e313]
+            - generic [ref=e317]:
+              - generic [ref=e318]:
+                - paragraph [ref=e320]: Avg Latency
+                - paragraph [ref=e321]: 0ms
+                - paragraph [ref=e323]: P50 response time
+              - img [ref=e326]
+          - generic [ref=e329]:
+            - generic [ref=e330]:
+              - generic [ref=e332]:
+                - generic [ref=e333]:
+                  - generic [ref=e334]: Traffic Overview
+                  - generic [ref=e335]: Requests and errors - Last 1 hour
+                - link "View detailed analytics" [ref=e336] [cursor=pointer]:
+                  - /url: /avika/analytics
+                  - button "View detailed analytics" [ref=e337]:
+                    - text: View Details
+                    - img
+              - generic [ref=e341]:
+                - img [ref=e342]
+                - paragraph [ref=e344]: No traffic data yet
+                - paragraph [ref=e345]: Waiting for traffic data from connected agents.
+            - generic [ref=e346]:
+              - generic [ref=e347]:
+                - generic [ref=e348]: Response Codes
+                - generic [ref=e349]: HTTP status distribution
+              - generic [ref=e350]:
+                - generic [ref=e352]:
+                  - generic [ref=e353]: 2xx Success
+                  - generic [ref=e354]: 0 (0%)
+                - generic [ref=e357]:
+                  - generic [ref=e358]: 3xx Redirect
+                  - generic [ref=e359]: 0 (0%)
+                - generic [ref=e362]:
+                  - generic [ref=e363]: 4xx Client Error
+                  - generic [ref=e364]: 0 (0%)
+                - generic [ref=e367]:
+                  - generic [ref=e368]: 5xx Server Error
+                  - generic [ref=e369]: 0 (0%)
+          - generic [ref=e371]:
+            - generic [ref=e372]:
+              - generic [ref=e374]:
+                - generic [ref=e375]:
+                  - generic [ref=e376]: Top Endpoints
+                  - generic [ref=e377]: Most requested URLs
+                - link "View All" [ref=e378] [cursor=pointer]:
+                  - /url: /avika/analytics
+                  - button "View All" [ref=e379]:
+                    - text: View All
+                    - img
+              - generic [ref=e381]:
+                - img [ref=e382]
+                - paragraph [ref=e385]: No endpoint data yet
+            - generic [ref=e386]:
+              - generic [ref=e387]:
+                - generic [ref=e388]: System Insights
+                - generic [ref=e389]: Recent observations and recommendations
+              - generic [ref=e390]:
+                - generic [ref=e392]:
+                  - img [ref=e393]
+                  - generic [ref=e396]:
+                    - paragraph [ref=e397]: Fleet Status
+                    - paragraph [ref=e398]: All 1 agents are reporting normally
+                - generic [ref=e400]:
+                  - img [ref=e401]
+                  - generic [ref=e403]:
+                    - paragraph [ref=e404]: Error Rate Normal
+                    - paragraph [ref=e405]: Current error rate of 0% is within acceptable limits.
+  - region "Notifications alt+T"
+  - generic [ref=e86] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e87]:
+      - img [ref=e88]
+    - generic [ref=e91]:
+      - button "Open issues overlay" [ref=e92]:
+        - generic [ref=e93]:
+          - generic [ref=e94]: "0"
+          - generic [ref=e95]: "1"
+        - generic [ref=e96]: Issue
+      - button "Collapse issues badge" [ref=e97]:
+        - img [ref=e98]
+  - alert [ref=e100]: Avika - AI NGINX Manager

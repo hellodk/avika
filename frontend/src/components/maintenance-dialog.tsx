@@ -90,7 +90,7 @@ export function MaintenanceDialog({ open, onOpenChange, template, onSuccess, pro
             <DialogContent className="max-w-4xl bg-[rgb(var(--theme-surface))] border-[rgb(var(--theme-border))]">
                 <DialogHeader>
                     <DialogTitle className="text-xl flex items-center gap-2">
-                        <Layout className="h-5 w-5 text-amber-500" />
+                        <Layout className="h-5 w-5 text-[#D97706] dark:text-[#FCD34D]" />
                         {template ? "Edit Template" : "New Maintenance Template"}
                     </DialogTitle>
                     <DialogDescription>
@@ -190,7 +190,7 @@ export function MaintenanceDialog({ open, onOpenChange, template, onSuccess, pro
 
                 <DialogFooter className="border-t border-[rgb(var(--theme-border))] pt-4">
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button onClick={handleSave} disabled={loading} className="bg-amber-500 hover:bg-amber-600 text-black font-medium min-w-[100px]">
+                    <Button onClick={handleSave} disabled={loading} className="bg-[#D97706] dark:bg-[#FCD34D] hover:bg-amber-600 text-black font-medium min-w-[100px]">
                         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (template ? "Update" : "Create")}
                     </Button>
                 </DialogFooter>

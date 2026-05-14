@@ -172,7 +172,7 @@ export default function AlertsPage() {
             case "warning":
                 return {
                     border: "border-l-amber-500",
-                    badge: "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                    badge: "bg-[#D97706] dark:bg-[#FCD34D]/20 text-amber-400 border-amber-500/30"
                 };
             default:
                 return {
@@ -187,10 +187,10 @@ export default function AlertsPage() {
             case "active":
                 return <Badge className="bg-rose-500/20 text-rose-400 border-rose-500/30">Active</Badge>;
             case "acknowledged":
-                return <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">Acknowledged</Badge>;
+                return <Badge className="bg-[#D97706] dark:bg-[#FCD34D]/20 text-amber-400 border-amber-500/30">Acknowledged</Badge>;
             default:
                 return (
-                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                    <Badge className="bg-[#16A34A] dark:bg-[#4ADE80]/20 text-emerald-400 border-emerald-500/30">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                         Resolved
                     </Badge>
@@ -291,8 +291,8 @@ export default function AlertsPage() {
                                 <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>Critical</p>
                                 <p className="text-3xl font-bold mt-1" style={{ color: criticalCount > 0 ? "#ef4444" : "rgb(var(--theme-text))" }}>{criticalCount}</p>
                             </div>
-                            <div className="p-3 rounded-lg bg-red-500/10">
-                                <XCircle className="h-6 w-6 text-red-500" />
+                            <div className="p-3 rounded-lg bg-red-100 dark:bg-red-900/30">
+                                <XCircle className="h-6 w-6 text-[#DC2626] dark:text-[#F87171]" />
                             </div>
                         </div>
                     </CardContent>
@@ -304,8 +304,8 @@ export default function AlertsPage() {
                                 <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>Warning</p>
                                 <p className="text-3xl font-bold mt-1" style={{ color: warningCount > 0 ? "#f59e0b" : "rgb(var(--theme-text))" }}>{warningCount}</p>
                             </div>
-                            <div className="p-3 rounded-lg bg-amber-500/10">
-                                <AlertTriangle className="h-6 w-6 text-amber-500" />
+                            <div className="p-3 rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+                                <AlertTriangle className="h-6 w-6 text-[#D97706] dark:text-[#FCD34D]" />
                             </div>
                         </div>
                     </CardContent>
@@ -315,10 +315,10 @@ export default function AlertsPage() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text-muted))" }}>Resolved</p>
-                                <p className="text-3xl font-bold mt-1 text-emerald-500">{resolvedCount}</p>
+                                <p className="text-3xl font-bold mt-1 text-[#16A34A] dark:text-[#4ADE80]">{resolvedCount}</p>
                             </div>
-                            <div className="p-3 rounded-lg bg-emerald-500/10">
-                                <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+                            <div className="p-3 rounded-lg bg-green-100 dark:bg-green-900/30">
+                                <CheckCircle2 className="h-6 w-6 text-[#16A34A] dark:text-[#4ADE80]" />
                             </div>
                         </div>
                     </CardContent>
@@ -360,7 +360,7 @@ export default function AlertsPage() {
                                             {alert.severity === "critical" ? (
                                                 <XCircle className="h-5 w-5 text-rose-500 mt-0.5" />
                                             ) : alert.severity === "warning" ? (
-                                                <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
+                                                <AlertTriangle className="h-5 w-5 text-[#D97706] dark:text-[#FCD34D] mt-0.5" />
                                             ) : (
                                                 <Bell className="h-5 w-5 text-blue-500 mt-0.5" />
                                             )}

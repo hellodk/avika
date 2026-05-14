@@ -130,9 +130,9 @@ function SecretField({ label, field, row, onChange }: { label: string; field: st
 
 const securitySections = [
     { href: "/settings/sso", icon: <KeyRound className="h-5 w-5 text-blue-500" />, title: "SSO Integration", description: "Configure OpenID Connect, manage single sign-on." },
-    { href: "/settings/ldap", icon: <Key className="h-5 w-5 text-emerald-500" />, title: "LDAP", description: "LDAP directory integration for user authentication and group sync." },
+    { href: "/settings/ldap", icon: <Key className="h-5 w-5 text-[#16A34A] dark:text-[#4ADE80]" />, title: "LDAP", description: "LDAP directory integration for user authentication and group sync." },
     { href: "/settings/saml", icon: <ShieldCheck className="h-5 w-5 text-purple-500" />, title: "SAML 2.0", description: "SAML-based single sign-on with your identity provider." },
-    { href: "/settings/waf", icon: <Lock className="h-5 w-5 text-amber-500" />, title: "WAF Policies", description: "Web Application Firewall rule sets and fleet distribution." },
+    { href: "/settings/waf", icon: <Lock className="h-5 w-5 text-[#D97706] dark:text-[#FCD34D]" />, title: "WAF Policies", description: "Web Application Firewall rule sets and fleet distribution." },
     { href: "/settings/llm", icon: <Zap className="h-5 w-5 text-cyan-500" />, title: "LLM / AI Providers", description: "AI providers (OpenAI, Anthropic, Ollama) for error analysis." },
 ];
 

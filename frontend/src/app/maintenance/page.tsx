@@ -124,7 +124,7 @@ function MaintenancePageContent() {
                         aria-label="Refresh maintenance data"
                     />
                     <Button 
-                        className="bg-amber-500 hover:bg-amber-600 text-black font-medium"
+                        className="bg-[#D97706] dark:bg-[#FCD34D] hover:bg-amber-600 text-black font-medium"
                         onClick={handleCreateTemplate}
                     >
                         <Plus className="h-4 w-4 mr-2" />
@@ -135,15 +135,15 @@ function MaintenancePageContent() {
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="bg-[rgb(var(--theme-surface))] border-[rgb(var(--theme-border))] border">
-                    <TabsTrigger value="templates" className="data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-500">
+                    <TabsTrigger value="templates" className="data-[state=active]:bg-yellow-100 dark:bg-yellow-900/30 data-[state=active]:text-[#D97706] dark:text-[#FCD34D]">
                         <Layout className="h-4 w-4 mr-2" />
                         Templates
                     </TabsTrigger>
-                    <TabsTrigger value="active" className="data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-500">
+                    <TabsTrigger value="active" className="data-[state=active]:bg-yellow-100 dark:bg-yellow-900/30 data-[state=active]:text-[#D97706] dark:text-[#FCD34D]">
                         <Play className="h-4 w-4 mr-2" />
                         Active Windows ({states.filter(s => s.active).length})
                     </TabsTrigger>
-                    <TabsTrigger value="scheduled" className="data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-500">
+                    <TabsTrigger value="scheduled" className="data-[state=active]:bg-yellow-100 dark:bg-yellow-900/30 data-[state=active]:text-[#D97706] dark:text-[#FCD34D]">
                         <Clock className="h-4 w-4 mr-2" />
                         Scheduled
                     </TabsTrigger>
@@ -153,7 +153,7 @@ function MaintenancePageContent() {
                     <Card className="bg-[rgb(var(--theme-surface))] border-[rgb(var(--theme-border))] border-none shadow-xl overflow-hidden">
                         <CardHeader className="border-b border-[rgb(var(--theme-border))] bg-white/[0.02]">
                             <CardTitle className="text-lg flex items-center gap-2">
-                                <Layout className="h-5 w-5 text-amber-500" />
+                                <Layout className="h-5 w-5 text-[#D97706] dark:text-[#FCD34D]" />
                                 Maintenance Templates
                             </CardTitle>
                             <CardDescription>
@@ -192,7 +192,7 @@ function MaintenancePageContent() {
                                                 </TableCell>
                                                 <TableCell>
                                                     {template.is_default ? (
-                                                        <Badge className="bg-emerald-500/10 text-emerald-500 border-none">Default</Badge>
+                                                        <Badge className="bg-green-100 dark:bg-green-900/30 text-[#16A34A] dark:text-[#4ADE80] border-none">Default</Badge>
                                                     ) : (
                                                         <span className="text-xs text-[rgb(var(--theme-text-muted))]">-</span>
                                                     )}
@@ -218,7 +218,7 @@ function MaintenancePageContent() {
                                                             <Button 
                                                                 size="icon" 
                                                                 variant="ghost" 
-                                                                className="h-8 w-8 hover:bg-red-500/10 text-red-400"
+                                                                className="h-8 w-8 hover:bg-red-100 dark:bg-red-900/30 text-red-400"
                                                                 onClick={() => handleDeleteTemplate(template.id)}
                                                             >
                                                                 <Trash2 className="h-4 w-4" />
@@ -248,8 +248,8 @@ function MaintenancePageContent() {
                                     <CardContent className="pt-6">
                                         <div className="flex justify-between items-start mb-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="p-2 rounded-lg bg-amber-500/10">
-                                                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                                                <div className="p-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+                                                    <AlertTriangle className="h-5 w-5 text-[#D97706] dark:text-[#FCD34D]" />
                                                 </div>
                                                 <div>
                                                     <h3 className="font-semibold text-[rgb(var(--theme-text))] text-lg leading-tight uppercase">
@@ -258,7 +258,7 @@ function MaintenancePageContent() {
                                                     <p className="text-xs text-[rgb(var(--theme-text-muted))]">Scope: {state.scope}</p>
                                                 </div>
                                             </div>
-                                            <Badge className="bg-amber-500 text-black animate-pulse">Live</Badge>
+                                            <Badge className="bg-[#D97706] dark:bg-[#FCD34D] text-black animate-pulse">Live</Badge>
                                         </div>
                                         <div className="space-y-3">
                                             <div className="flex justify-between text-sm">
@@ -272,7 +272,7 @@ function MaintenancePageContent() {
                                             <div className="pt-4 flex gap-2">
                                                 <Button 
                                                     variant="destructive" 
-                                                    className="flex-1 bg-red-500/10 border border-red-500/50 hover:bg-red-500 text-red-500 hover:text-white"
+                                                    className="flex-1 bg-red-100 dark:bg-red-900/30 border border-red-500/50 hover:bg-[#DC2626] dark:bg-[#F87171] text-[#DC2626] dark:text-[#F87171] hover:text-white"
                                                     onClick={() => handleDisableMaintenance(state.scope, state.scope_id)}
                                                 >
                                                     <Square className="h-4 w-4 mr-2" />

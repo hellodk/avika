@@ -240,7 +240,7 @@ export default function TeamsPage() {
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          className="text-red-500 focus:text-red-500"
+                          className="text-[#DC2626] dark:text-[#F87171] focus:text-[#DC2626] dark:text-[#F87171]"
                           onClick={() => handleDeleteTeam(team.id, team.name)}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />

@@ -177,7 +177,7 @@ export default function AgentConfigPage({ params }: { params: Promise<{ id: stri
       </div>
 
       {lastUpdateResult?.requires_restart && (
-        <Card className="border-amber-500/30 bg-amber-500/10">
+        <Card className="border-amber-500/30 bg-yellow-100 dark:bg-yellow-900/30">
           <CardContent className="pt-6 flex items-center gap-3">
             <ShieldAlert className="h-5 w-5 text-amber-400" />
             <div>
@@ -262,7 +262,7 @@ export default function AgentConfigPage({ params }: { params: Promise<{ id: stri
                   size="icon"
                   variant="ghost"
                   onClick={() => removeLabel(idx)}
-                  className="text-red-400 hover:bg-red-500/10"
+                  className="text-red-400 hover:bg-red-100 dark:bg-red-900/30"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

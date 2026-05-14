@@ -128,7 +128,7 @@ export function VisitorDrillDown({ window, category, initialGroup, onClose }: Pr
             </div>
           ) : error ? (
             <div className="text-center py-6 space-y-2">
-              <p className="text-sm text-red-500">Failed to load data</p>
+              <p className="text-sm text-[#DC2626] dark:text-[#F87171]">Failed to load data</p>
               <p className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>{error}</p>
               <Button variant="outline" size="sm" onClick={fetchData}>Retry</Button>
             </div>
@@ -176,7 +176,7 @@ export function VisitorDrillDown({ window, category, initialGroup, onClose }: Pr
                         <TableCell className="text-right font-medium">{formatNumber(d.count)}</TableCell>
                         <TableCell className="text-right">{formatNumber(d.visitors)}</TableCell>
                         <TableCell className="text-right" style={{ color: "rgb(var(--theme-text-muted))" }}>{d.percentage.toFixed(1)}%</TableCell>
-                        <TableCell className={`text-right ${d.avg_latency_ms > 200 ? "text-amber-500" : ""}`}>{Math.round(d.avg_latency_ms)}ms</TableCell>
+                        <TableCell className={`text-right ${d.avg_latency_ms > 200 ? "text-[#D97706] dark:text-[#FCD34D]" : ""}`}>{Math.round(d.avg_latency_ms)}ms</TableCell>
                       </motion.tr>
                     ))}
                   </TableBody>
@@ -199,7 +199,7 @@ export function VisitorDrillDown({ window, category, initialGroup, onClose }: Pr
                       <motion.tr key={u.uri} custom={i} variants={rowVariants} initial="hidden" animate="visible" className="border-b" style={{ borderColor: "rgb(var(--theme-border))" }}>
                         <TableCell className="font-mono text-xs truncate max-w-[250px]" title={u.uri}><FileText className="h-3 w-3 inline mr-1" />{u.uri}</TableCell>
                         <TableCell className="text-right font-medium">{formatNumber(u.count)}</TableCell>
-                        <TableCell className={`text-right ${u.avg_latency_ms > 200 ? "text-amber-500" : ""}`}>{Math.round(u.avg_latency_ms)}ms</TableCell>
+                        <TableCell className={`text-right ${u.avg_latency_ms > 200 ? "text-[#D97706] dark:text-[#FCD34D]" : ""}`}>{Math.round(u.avg_latency_ms)}ms</TableCell>
                         <TableCell className="text-right text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>{formatBytes(u.bandwidth)}</TableCell>
                       </motion.tr>
                     ))}

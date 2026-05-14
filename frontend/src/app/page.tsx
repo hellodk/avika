@@ -252,7 +252,7 @@ export default function Home() {
         return (
             <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
                 <div className="p-4 rounded-full" style={{ background: "rgba(239, 68, 68, 0.1)" }}>
-                    <XCircle className="h-12 w-12 text-red-500" />
+                    <XCircle className="h-12 w-12 text-[#DC2626] dark:text-[#F87171]" />
                 </div>
                 <div className="text-center space-y-2">
                     <h2 className="text-xl font-semibold" style={{ color: "rgb(var(--theme-text))" }}>
@@ -288,7 +288,7 @@ export default function Home() {
                         background: "rgba(245, 158, 11, 0.06)",
                     }}
                 >
-                    <Info className="h-4 w-4 text-amber-600" />
+                    <Info className="h-4 w-4 text-[#D97706] dark:text-[#FCD34D]" />
                     <AlertTitle style={{ color: "rgb(var(--theme-text))" }}>Dashboard metrics unavailable</AlertTitle>
                     <AlertDescription style={{ color: "rgb(var(--theme-text-muted))" }} className="text-sm">
                         {metricsBackendError}
@@ -314,12 +314,12 @@ export default function Home() {
                     <Badge
                         variant="outline"
                         className={onlineAgents === agentCount && agentCount > 0
-                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                            : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                            ? "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800"
+                            : "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800"
                         }
                         aria-label={`${onlineAgents} of ${agentCount} agents online`}
                     >
-                        <span className={`w-2 h-2 rounded-full mr-2 ${onlineAgents === agentCount && agentCount > 0 ? 'bg-emerald-500' : 'bg-amber-500'}`} aria-hidden="true" />
+                        <span className={`w-2 h-2 rounded-full mr-2 ${onlineAgents === agentCount && agentCount > 0 ? 'bg-[#16A34A] dark:bg-[#4ADE80]' : 'bg-[#D97706] dark:bg-[#FCD34D]'}`} aria-hidden="true" />
                         {onlineAgents}/{agentCount} Agents Online
                     </Badge>
                     {loading && !refreshing ? (
@@ -364,8 +364,8 @@ export default function Home() {
                     value={`${stats.requestRate}/s`}
                     subValue="Average"
                     icon={<Activity className="h-5 w-5" />}
-                    iconBg="bg-emerald-500/10"
-                    iconColor="text-emerald-500"
+                    iconBg="bg-green-100 dark:bg-green-900/30"
+                    iconColor="text-[#16A34A] dark:text-[#4ADE80]"
                     loading={loading}
                     trend={trends.requestRate}
                     trendLabel={getPreviousPeriodLabel(timeRange)}
@@ -377,10 +377,10 @@ export default function Home() {
                     value={`${stats.errorRate}%`}
                     subValue={stats.statusCounts.serverError > 0 ? `${stats.statusCounts.serverError} 5xx errors` : "No 5xx errors"}
                     icon={<AlertTriangle className="h-5 w-5" />}
-                    iconBg="bg-red-500/10"
-                    iconColor="text-red-500"
+                    iconBg="bg-red-100 dark:bg-red-900/30"
+                    iconColor="text-[#DC2626] dark:text-[#F87171]"
                     loading={loading}
-                    valueColor={parseFloat(stats.errorRate) > 1 ? "text-red-500" : undefined}
+                    valueColor={parseFloat(stats.errorRate) > 1 ? "text-[#DC2626] dark:text-[#F87171]" : undefined}
                     trend={trends.errorRate}
                     trendLabel={getPreviousPeriodLabel(timeRange)}
                     trendPositiveIsGood={false}
@@ -396,7 +396,7 @@ export default function Home() {
                     iconBg="bg-purple-500/10"
                     iconColor="text-purple-500"
                     loading={loading}
-                    valueColor={parseInt(stats.avgLatency) > 200 ? "text-amber-500" : undefined}
+                    valueColor={parseInt(stats.avgLatency) > 200 ? "text-[#D97706] dark:text-[#FCD34D]" : undefined}
                     trend={trends.latency}
                     trendLabel={getPreviousPeriodLabel(timeRange)}
                     trendPositiveIsGood={false}
@@ -531,7 +531,7 @@ export default function Home() {
                             label="2xx Success"
                             count={stats.statusCounts.success}
                             percent={getPercent(stats.statusCounts.success)}
-                            color="bg-emerald-500"
+                            color="bg-[#16A34A] dark:bg-[#4ADE80]"
                             loading={loading}
                         />
                         <StatusBar
@@ -545,14 +545,14 @@ export default function Home() {
                             label="4xx Client Error"
                             count={stats.statusCounts.clientError}
                             percent={getPercent(stats.statusCounts.clientError)}
-                            color="bg-amber-500"
+                            color="bg-[#D97706] dark:bg-[#FCD34D]"
                             loading={loading}
                         />
                         <StatusBar
                             label="5xx Server Error"
                             count={stats.statusCounts.serverError}
                             percent={getPercent(stats.statusCounts.serverError)}
-                            color="bg-red-500"
+                            color="bg-[#DC2626] dark:bg-[#F87171]"
                             loading={loading}
                         />
                     </CardContent>
@@ -603,11 +603,11 @@ export default function Home() {
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-3 ml-4">
-                                            <Badge className={url.p95 > 200 ? "bg-amber-500/10 text-amber-500" : "bg-emerald-500/10 text-emerald-500"}>
+                                            <Badge className={url.p95 > 200 ? "bg-yellow-100 dark:bg-yellow-900/30 text-[#D97706] dark:text-[#FCD34D]" : "bg-green-100 dark:bg-green-900/30 text-[#16A34A] dark:text-[#4ADE80]"}>
                                                 {url.p95}ms
                                             </Badge>
                                             {url.errors > 0 && (
-                                                <Badge className="bg-red-500/10 text-red-500">
+                                                <Badge className="bg-red-100 dark:bg-red-900/30 text-[#DC2626] dark:text-[#F87171]">
                                                     {url.errors} err
                                                 </Badge>
                                             )}
@@ -707,7 +707,7 @@ function KPICard({ title, value, subValue, icon, iconBg, iconColor, loading, val
     const hasTrend = trend !== undefined && trend !== 0;
     const isPositive = trend !== undefined && trend > 0;
     const isGood = trendPositiveIsGood ? isPositive : !isPositive;
-    const trendColor = hasTrend ? (isGood ? 'text-emerald-500' : 'text-red-500') : 'text-gray-500';
+    const trendColor = hasTrend ? (isGood ? 'text-[#16A34A] dark:text-[#4ADE80]' : 'text-[#DC2626] dark:text-[#F87171]') : 'text-muted-foreground';
     const TrendIcon = isPositive ? TrendingUp : TrendingDown;
     const trendValue = trendIsAbsolute
         ? `${isPositive ? '+' : ''}${trend?.toFixed(2)}%`
@@ -726,7 +726,7 @@ function KPICard({ title, value, subValue, icon, iconBg, iconColor, loading, val
                                 <TooltipProvider>
                                     <UITooltip>
                                         <TooltipTrigger asChild>
-                                            <Info className="h-3.5 w-3.5 text-slate-500 cursor-help" />
+                                            <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                                         </TooltipTrigger>
                                         <TooltipContent className="max-w-[200px] text-xs" style={{ background: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))', color: 'rgb(var(--theme-text))' }}>
                                             <p>{infoTooltip}</p>
@@ -799,9 +799,9 @@ function InsightCard({ type, title, description }: {
     description: string;
 }) {
     const styles = {
-        success: { bg: "bg-emerald-500/10", border: "border-emerald-500/20", icon: CheckCircle2, iconColor: "text-emerald-500" },
-        warning: { bg: "bg-amber-500/10", border: "border-amber-500/20", icon: AlertTriangle, iconColor: "text-amber-500" },
-        error: { bg: "bg-red-500/10", border: "border-red-500/20", icon: XCircle, iconColor: "text-red-500" },
+        success: { bg: "bg-green-100 dark:bg-green-900/30", border: "border-emerald-500/20", icon: CheckCircle2, iconColor: "text-[#16A34A] dark:text-[#4ADE80]" },
+        warning: { bg: "bg-yellow-100 dark:bg-yellow-900/30", border: "border-amber-500/20", icon: AlertTriangle, iconColor: "text-[#D97706] dark:text-[#FCD34D]" },
+        error: { bg: "bg-red-100 dark:bg-red-900/30", border: "border-red-500/20", icon: XCircle, iconColor: "text-[#DC2626] dark:text-[#F87171]" },
         info: { bg: "bg-blue-500/10", border: "border-blue-500/20", icon: Activity, iconColor: "text-blue-500" },
     };
 

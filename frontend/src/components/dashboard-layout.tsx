@@ -346,7 +346,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                                 <DropdownMenuSeparator style={{ background: "rgb(var(--theme-border))" }} />
                                 <DropdownMenuItem
                                     onClick={logout}
-                                    className="flex items-center cursor-pointer text-red-400 focus:text-red-400 focus:bg-red-500/10"
+                                    className="flex items-center cursor-pointer text-red-400 focus:text-red-400 focus:bg-red-100 dark:bg-red-900/30"
                                 >
                                     <LogOut className="mr-2 h-4 w-4" />
                                     Logout

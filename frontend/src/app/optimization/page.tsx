@@ -287,7 +287,7 @@ export default function OptimizationPage() {
 
                 {recommendations.length > 0 && appliedIds.length === recommendations.length && (
                     <div className="text-center py-10">
-                        <div className="inline-flex items-center justify-center p-4 bg-emerald-500/20 rounded-full mb-4">
+                        <div className="inline-flex items-center justify-center p-4 bg-[#16A34A] dark:bg-[#4ADE80]/20 rounded-full mb-4">
                             <CheckCircle2 className="h-8 w-8 text-emerald-400" />
                         </div>
                         <h3 className="text-lg font-medium" style={{ color: "rgb(var(--theme-text))" }}>
@@ -380,7 +380,7 @@ export default function OptimizationPage() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-3 flex items-start gap-3 my-2">
+                    <div className="bg-yellow-100 dark:bg-yellow-900/30 border border-amber-500/30 rounded-md p-3 flex items-start gap-3 my-2">
                         <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
                         <div className="text-sm text-amber-300">
                             Safe mode is enabled. If the configuration fails validation, NGINX will automatically revert to the previous working configuration.

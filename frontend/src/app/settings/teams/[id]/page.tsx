@@ -367,7 +367,7 @@ export default function TeamDetailPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="text-red-500 hover:text-red-600"
+                          className="text-[#DC2626] dark:text-[#F87171] hover:text-[#DC2626] dark:text-[#F87171]"
                           onClick={() => handleRemoveMember(member.username)}
                         >
                           <UserMinus className="h-4 w-4" />
@@ -480,7 +480,7 @@ export default function TeamDetailPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="text-red-500 hover:text-red-600"
+                          className="text-[#DC2626] dark:text-[#F87171] hover:text-[#DC2626] dark:text-[#F87171]"
                           onClick={() => handleRevokeAccess(access.project_id)}
                         >
                           <Trash2 className="h-4 w-4" />

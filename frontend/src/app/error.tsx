@@ -22,8 +22,8 @@ export default function Error({
       style={{ background: "rgb(var(--theme-background))" }}
     >
       <div className="flex flex-col items-center max-w-md text-center gap-6">
-        <div className="p-4 rounded-full bg-amber-500/10">
-          <AlertTriangle className="h-12 w-12 text-amber-500" />
+        <div className="p-4 rounded-full bg-yellow-100 dark:bg-yellow-900/30">
+          <AlertTriangle className="h-12 w-12 text-[#D97706] dark:text-[#FCD34D]" />
         </div>
         <div className="space-y-2">
           <h1 className="text-xl font-semibold" style={{ color: "rgb(var(--theme-text))" }}>

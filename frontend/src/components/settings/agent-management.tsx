@@ -138,7 +138,7 @@ export function AgentManagement() {
                         <Terminal className="h-4 w-4" style={{ color: 'rgb(var(--theme-text-muted))' }} />
                         <Label style={{ color: 'rgb(var(--theme-text))' }}>Install Agent</Label>
                     </div>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-muted-foreground">
                         Run this on any host to enroll it with this gateway.
                     </p>
 
@@ -155,7 +155,7 @@ export function AgentManagement() {
                             className="absolute top-2 right-2 h-7 w-7"
                             aria-label="Copy install command"
                         >
-                            {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                            {copied ? <Check className="h-3.5 w-3.5 text-[#16A34A] dark:text-[#4ADE80]" /> : <Copy className="h-3.5 w-3.5" />}
                         </Button>
                     </div>
 
@@ -175,7 +175,7 @@ export function AgentManagement() {
                             )}
                         </Button>
                         {reachability.status === "ok" && (
-                            <span className="text-xs flex items-center gap-1 text-emerald-500">
+                            <span className="text-xs flex items-center gap-1 text-[#16A34A] dark:text-[#4ADE80]">
                                 <Check className="h-3.5 w-3.5" />
                                 Update server reachable — gateway v{reachability.version}
                             </span>
@@ -192,7 +192,7 @@ export function AgentManagement() {
                 {/* ── Cleanup ──────────────────────────────────────────── */}
                 <div className="space-y-2">
                     <Label style={{ color: 'rgb(var(--theme-text))' }}>Cleanup</Label>
-                    <p className="text-sm text-slate-500 mb-2">Remove agents that are currently offline from the inventory.</p>
+                    <p className="text-sm text-muted-foreground mb-2">Remove agents that are currently offline from the inventory.</p>
                     <Button
                         variant="destructive"
                         onClick={handleDeleteOfflineAgents}
@@ -212,7 +212,7 @@ export function AgentManagement() {
                         )}
                     </Button>
                     {deletionMessage && (
-                        <p className={`text-sm mt-2 ${deletionMessage.includes("Error") ? "text-rose-500" : "text-emerald-500"}`}>
+                        <p className={`text-sm mt-2 ${deletionMessage.includes("Error") ? "text-rose-500" : "text-[#16A34A] dark:text-[#4ADE80]"}`}>
                             {deletionMessage}
                         </p>
                     )}

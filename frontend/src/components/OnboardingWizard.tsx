@@ -41,8 +41,8 @@ const steps: StepDef[] = [
         hint: "Run this on your NGINX server (adjust the host if this UI uses localhost or a cluster-only address):",
         cta: "I've installed the agent",
         link: { label: "View Enrollment Guide →", href: "/settings" },
-        iconColor: "text-emerald-500",
-        iconBg: "bg-emerald-500/10",
+        iconColor: "text-[#16A34A] dark:text-[#4ADE80]",
+        iconBg: "bg-green-100 dark:bg-green-900/30",
     },
     {
         id: "project",
@@ -51,8 +51,8 @@ const steps: StepDef[] = [
         description: "Projects and environments help you group agents logically — e.g., 'Production' → 'US-East', 'EU-West'. You can assign agents in the Inventory page.",
         cta: "Create a Project",
         link: { label: "Skip for now", href: null },
-        iconColor: "text-amber-500",
-        iconBg: "bg-amber-500/10",
+        iconColor: "text-[#D97706] dark:text-[#FCD34D]",
+        iconBg: "bg-yellow-100 dark:bg-yellow-900/30",
     },
     {
         id: "monitor",
@@ -166,7 +166,7 @@ export function OnboardingWizard() {
                                 />
                             ))}
                         </div>
-                        <button type="button" onClick={handleComplete} className="text-gray-500 hover:text-gray-300 transition-colors" aria-label="Dismiss onboarding">
+                        <button type="button" onClick={handleComplete} className="text-muted-foreground hover:text-gray-300 transition-colors" aria-label="Dismiss onboarding">
                             <X className="h-4 w-4" />
                         </button>
                     </div>

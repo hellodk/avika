@@ -198,7 +198,7 @@ export function ProjectSelector({ showAllOption = true, className }: ProjectSele
                               <span className="h-2 w-2 rounded-full mr-2 shrink-0" style={{ background: env.color || "#6366f1" }} />
                               <span className="flex-1 text-left truncate">{env.name}</span>
                               {env.is_production && (
-                                <span className="text-[9px] px-1 rounded bg-emerald-500/20 text-emerald-500 ml-1">PROD</span>
+                                <span className="text-[9px] px-1 rounded bg-[#16A34A] dark:bg-[#4ADE80]/20 text-[#16A34A] dark:text-[#4ADE80] ml-1">PROD</span>
                               )}
                               {isEnvSelected && <Check className="h-3 w-3 ml-1 shrink-0" />}
                             </button>
