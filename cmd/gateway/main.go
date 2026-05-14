@@ -1889,7 +1889,10 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	}
 
 	// Auth endpoints (always available)
-	mux.HandleFunc("/api/auth/login", authManager.LoginHandler())
+	// Login is rate-limited independently from the general API rate limiter.
+	// A tighter burst (20 req) prevents brute-force and credential-stuffing attacks.
+	loginRateLimiter := middleware.NewRateLimiter(5, 20) // 5 req/s sustained, burst 20
+	mux.Handle("/api/auth/login", middleware.RateLimitMiddleware(loginRateLimiter, true)(http.HandlerFunc(authManager.LoginHandler())))
 	mux.HandleFunc("/api/auth/logout", authManager.LogoutHandler())
 	// /api/auth/me — public path, manually validates token to return user info + is_superadmin
 	mux.HandleFunc("/api/auth/me", func(w http.ResponseWriter, r *http.Request) {
@@ -1931,10 +1934,11 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 			}
 		}
 
+		// Do NOT return the token in the response body — it is already in the
+		// HttpOnly session cookie and should not be exposed to JS or logs.
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"authenticated": true,
 			"user":          user,
-			"token":         token,
 			"is_superadmin": isSuperAdmin,
 		})
 	})

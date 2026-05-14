@@ -46,7 +46,7 @@ func (srv *server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		log.Printf("Error listing projects for user %s (superadmin=%v): %v", user.Username, isSuperAdmin, err)
-		http.Error(w, fmt.Sprintf(`{"error":"Failed to fetch projects","message":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
+		http.Error(w, `{"error":"failed to list projects"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -614,7 +614,16 @@ func (srv *server) handleListServerAssignments(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	assignments, err := srv.db.ListAllServerAssignments()
+	// Superadmins see all assignments; regular users only see assignments
+	// for projects they belong to (via team membership).
+	var assignments []ServerAssignmentWithDetails
+	var err error
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	if isSuperAdmin {
+		assignments, err = srv.db.ListAllServerAssignments()
+	} else {
+		assignments, err = srv.db.ListServerAssignmentsForUser(user.Username)
+	}
 	if err != nil {
 		http.Error(w, `{"error":"failed to list server assignments"}`, http.StatusInternalServerError)
 		return
@@ -1351,7 +1360,10 @@ func (srv *server) handleValidateEnrollmentToken(w http.ResponseWriter, r *http.
 
 	envID, err := srv.db.ValidateEnrollmentToken(req.Token)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusUnauthorized)
+		// Log the real error server-side; return a generic message to the agent
+		// so internal DB details (table names, SQL errors) are not exposed.
+		log.Printf("enrollment token validation failed: %v", err)
+		http.Error(w, `{"error":"invalid, expired, or exhausted enrollment token"}`, http.StatusUnauthorized)
 		return
 	}
 

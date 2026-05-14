@@ -115,8 +115,9 @@ func NewAuthManager(config AuthConfig) *AuthManager {
 	if config.JWTSecret == "" {
 		secret := make([]byte, 32)
 		if _, err := rand.Read(secret); err != nil {
-			log.Printf("Warning: failed to generate JWT secret: %v", err)
-			config.JWTSecret = base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("avika-fallback-%d", time.Now().UnixNano())))
+			// crypto/rand failure is a fatal OS-level error; a predictable fallback
+			// would silently weaken all session security.
+			panic(fmt.Sprintf("auth: crypto/rand unavailable, cannot generate JWT secret: %v", err))
 		} else {
 			config.JWTSecret = base64.StdEncoding.EncodeToString(secret)
 		}
@@ -153,9 +154,12 @@ func NewAuthManager(config AuthConfig) *AuthManager {
 		log.Println("")
 		log.Printf("    Username: %s", config.Username)
 		if config.InitialSecretPath != "" {
-			log.Printf("    Password written to: %s", config.InitialSecretPath)
+			log.Printf("    Password written to: %s (chmod 600)", config.InitialSecretPath)
 		} else {
+			// Only print to stdout when there is no secure file path — operator
+			// must retrieve it from container logs and change it immediately.
 			log.Printf("    Initial password: %s", defaultPassword)
+			log.Printf("    WARNING: password is visible in container logs; change it immediately")
 		}
 		log.Println("")
 		log.Println("  You will be required to change your password on first login.")
@@ -293,16 +297,24 @@ func (am *AuthManager) ValidateToken(token string) (*User, bool) {
 }
 
 // RevokeToken invalidates a token in both cache and persistent store.
+// Store is deleted first so that a concurrent cache-miss falls through to the
+// store and finds nothing; the cache entry is removed afterwards.
 func (am *AuthManager) RevokeToken(token string) {
-	am.mu.Lock()
-	delete(am.tokenCache, token)
+	am.mu.RLock()
 	store := am.sessionStore
-	am.mu.Unlock()
+	am.mu.RUnlock()
+
+	// Delete from persistent store first — any concurrent request that misses
+	// the cache will query the store and correctly get "not found".
 	if store != nil {
 		if err := store.Delete(token); err != nil {
 			log.Printf("auth: session store delete failed: %v", err)
 		}
 	}
+
+	am.mu.Lock()
+	delete(am.tokenCache, token)
+	am.mu.Unlock()
 }
 
 
@@ -489,6 +501,35 @@ func (am *AuthManager) GenerateTokenWithFlags(user *User, requirePassChange bool
 	return token, expiresAt, nil
 }
 
+// validatePasswordComplexity returns an error message if the password does not
+// meet minimum security requirements, or "" if it is acceptable.
+func validatePasswordComplexity(password string) string {
+	if len(password) < 8 {
+		return "Password must be at least 8 characters"
+	}
+	var hasUpper, hasLower, hasDigit bool
+	for _, ch := range password {
+		switch {
+		case ch >= 'A' && ch <= 'Z':
+			hasUpper = true
+		case ch >= 'a' && ch <= 'z':
+			hasLower = true
+		case ch >= '0' && ch <= '9':
+			hasDigit = true
+		}
+	}
+	if !hasUpper {
+		return "Password must contain at least one uppercase letter"
+	}
+	if !hasLower {
+		return "Password must contain at least one lowercase letter"
+	}
+	if !hasDigit {
+		return "Password must contain at least one digit"
+	}
+	return ""
+}
+
 // ChangePasswordHandler returns an HTTP handler for password change requests.
 // The callback receives username and newHash to persist to database.
 func (am *AuthManager) ChangePasswordHandler(onPasswordChanged func(username, newHash string) error) http.HandlerFunc {
@@ -533,13 +574,13 @@ func (am *AuthManager) ChangePasswordHandler(onPasswordChanged func(username, ne
 			return
 		}
 
-		// Validate new password
-		if len(req.NewPassword) < 8 {
+		// Validate new password — must meet minimum complexity requirements.
+		if msg := validatePasswordComplexity(req.NewPassword); msg != "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			_ = json.NewEncoder(w).Encode(ChangePasswordResponse{
 				Success: false,
-				Message: "New password must be at least 8 characters",
+				Message: msg,
 			})
 			return
 		}

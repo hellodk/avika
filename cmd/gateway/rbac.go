@@ -615,6 +615,50 @@ func (db *DB) ListAllServerAssignments() ([]ServerAssignmentWithDetails, error) 
 	return assignments, nil
 }
 
+// ListServerAssignmentsForUser returns only assignments belonging to projects
+// the given user can access via team membership. Superadmins should use
+// ListAllServerAssignments instead.
+func (db *DB) ListServerAssignmentsForUser(username string) ([]ServerAssignmentWithDetails, error) {
+	query := `
+		SELECT sa.agent_id, sa.environment_id, e.name as env_name, p.id as project_id, p.name as project_name,
+		       sa.display_name, sa.tags, sa.assigned_by, sa.assigned_at
+		FROM server_assignments sa
+		LEFT JOIN environments e ON sa.environment_id = e.id
+		LEFT JOIN projects p ON e.project_id = p.id
+		WHERE p.id IN (
+			SELECT DISTINCT tpa.project_id
+			FROM team_project_access tpa
+			JOIN team_members tm ON tpa.team_id = tm.team_id
+			WHERE tm.username = $1
+		)
+		ORDER BY p.name, e.name, sa.assigned_at
+	`
+	rows, err := db.conn.Query(query, username)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var assignments []ServerAssignmentWithDetails
+	for rows.Next() {
+		var sa ServerAssignmentWithDetails
+		var envID, envName, projID, projName, dispName, assignBy sql.NullString
+		var tagsArray pq.StringArray
+		if err := rows.Scan(&sa.AgentID, &envID, &envName, &projID, &projName, &dispName, &tagsArray, &assignBy, &sa.AssignedAt); err != nil {
+			return nil, err
+		}
+		sa.EnvironmentID = envID.String
+		sa.EnvironmentName = envName.String
+		sa.ProjectID = projID.String
+		sa.ProjectName = projName.String
+		sa.DisplayName = dispName.String
+		sa.AssignedBy = assignBy.String
+		sa.Tags = tagsArray
+		assignments = append(assignments, sa)
+	}
+	return assignments, nil
+}
+
 // UpdateServerTags updates tags for a server
 func (db *DB) UpdateServerTags(agentID string, tags []string) error {
 	query := `UPDATE server_assignments SET tags = $1, updated_at = CURRENT_TIMESTAMP WHERE agent_id = $2`
@@ -1184,15 +1228,33 @@ func (db *DB) ValidateEnrollmentToken(token string) (string, error) {
 		return "", fmt.Errorf("token has expired")
 	}
 
-	// Check max uses
-	if maxUses.Valid && useCount >= int(maxUses.Int32) {
-		return "", fmt.Errorf("token has reached maximum uses")
-	}
-
-	// Increment use count
-	_, err = db.conn.Exec("UPDATE enrollment_tokens SET use_count = use_count + 1, last_used_at = CURRENT_TIMESTAMP WHERE id = $1", id)
-	if err != nil {
-		return "", err
+	// Atomically increment use_count only if the token has not exceeded
+	// max_uses. Using a conditional UPDATE prevents the TOCTOU race where
+	// two concurrent requests both pass the check then both increment.
+	var updated int64
+	if maxUses.Valid {
+		res, err2 := db.conn.Exec(
+			`UPDATE enrollment_tokens
+			 SET use_count = use_count + 1, last_used_at = CURRENT_TIMESTAMP
+			 WHERE id = $1 AND use_count < max_uses`,
+			id,
+		)
+		if err2 != nil {
+			return "", err2
+		}
+		updated, _ = res.RowsAffected()
+		if updated == 0 {
+			return "", fmt.Errorf("token has reached maximum uses")
+		}
+	} else {
+		// No max_uses cap — just increment.
+		_, err = db.conn.Exec(
+			`UPDATE enrollment_tokens SET use_count = use_count + 1, last_used_at = CURRENT_TIMESTAMP WHERE id = $1`,
+			id,
+		)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	return envID, nil
