@@ -253,3 +253,5 @@ gateway-local.yaml
 
 # Business & monetization planning (local only)
 MONETIZATION.md
+.playwright-mcp/
+*.png
