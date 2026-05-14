@@ -216,20 +216,20 @@ export default function SLOPage() {
     };
 
     return (
-        <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6 lg:p-8 text-neutral-200">
+        <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                    <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
                         <Target className="h-6 w-6 text-sky-400" />
                         Service Level Objectives (SLO)
                     </h1>
-                    <p className="text-neutral-400 mt-1">
+                    <p className="text-muted-foreground mt-1">
                         Track availability, success rate, and latency targets across your fleet.
                     </p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:items-center">
                     <Select value={newSloType} onValueChange={setNewSloType}>
-                        <SelectTrigger className="w-full sm:w-[280px] bg-neutral-900 border-neutral-700 text-neutral-200">
+                        <SelectTrigger className="w-full sm:w-[280px]">
                             <SelectValue placeholder="SLO type" />
                         </SelectTrigger>
                         <SelectContent>
@@ -256,8 +256,8 @@ export default function SLOPage() {
                     <CardContent className="flex flex-col items-center justify-center p-12 text-center space-y-4">
                         <ShieldAlert className="h-12 w-12 text-neutral-600" />
                         <div>
-                            <h3 className="text-lg font-medium text-white mb-2">No SLOs defined</h3>
-                            <p className="text-neutral-400 max-w-sm">
+                            <h3 className="text-lg font-medium text-foreground mb-2">No SLOs defined</h3>
+                            <p className="text-muted-foreground max-w-sm">
                                 Create an SLO target to start tracking reliability and error budgets.
                             </p>
                         </div>
@@ -282,44 +282,44 @@ export default function SLOPage() {
                             Math.abs(draftNum - r.target.target_value) > 1e-9;
 
                         return (
-                            <Card key={r.target.id} className="bg-neutral-900 border-neutral-800 flex flex-col">
+                            <Card key={r.target.id} className="flex flex-col">
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                                     <div>
-                                        <CardTitle className="text-lg text-white capitalize flex items-center gap-2">
+                                        <CardTitle className="text-lg text-foreground capitalize flex items-center gap-2">
                                             {r.target.entity_type} — {sloTypeLabel(r.target.slo_type)}
                                             {isViolating && <ShieldAlert className="h-4 w-4 text-[#DC2626] dark:text-[#F87171]" />}
                                         </CardTitle>
-                                        <CardDescription className="text-neutral-400 mt-1">
+                                        <CardDescription className="text-muted-foreground mt-1">
                                             {r.target.entity_type === 'global' ? 'All traffic' : r.target.entity_id} • {r.target.time_window}
                                         </CardDescription>
                                     </div>
-                                    <Button variant="ghost" size="icon" onClick={() => deleteSLO(r.target.id)} className="text-neutral-500 hover:text-red-400">
+                                    <Button variant="ghost" size="icon" onClick={() => deleteSLO(r.target.id)} className="text-muted-foreground hover:text-[#DC2626] dark:hover:text-[#F87171]">
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </CardHeader>
                                 <CardContent className="pt-4 flex-1">
                                     <div className="grid grid-cols-2 gap-4 mb-6">
-                                        <div className="bg-neutral-950 p-4 rounded-lg border border-neutral-800">
-                                            <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Current SLI</p>
+                                        <div className="bg-muted/50 p-4 rounded-lg border">
+                                            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Current SLI</p>
                                             <p className={`text-2xl font-bold ${isViolating ? 'text-red-400' : 'text-green-400'}`}>
                                                 {latency
                                                     ? `${r.sli.toFixed(2)}ms`
                                                     : `${r.sli.toFixed(3)}%`}
                                             </p>
                                         </div>
-                                        <div className="bg-neutral-950 p-4 rounded-lg border border-neutral-800">
-                                            <p className="text-xs text-neutral-500 uppercase tracking-wider mb-2">Target SLO</p>
+                                        <div className="bg-muted/50 p-4 rounded-lg border">
+                                            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Target SLO</p>
                                             <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
                                                 <div className="flex flex-1 items-center gap-2 min-w-0">
                                                     {latency && (
-                                                        <span className="text-sm text-neutral-500 shrink-0">&lt;</span>
+                                                        <span className="text-sm text-muted-foreground shrink-0">&lt;</span>
                                                     )}
                                                     <Input
                                                         type="number"
                                                         step={latency ? "1" : "0.01"}
                                                         min={latency ? "0.001" : "0"}
                                                         max={latency ? undefined : "100"}
-                                                        className="bg-neutral-900 border-neutral-700 text-white font-mono h-10"
+                                                        className="font-mono h-10"
                                                         value={draftStr}
                                                         onChange={(e) =>
                                                             setTargetDrafts((s) => ({
@@ -329,7 +329,7 @@ export default function SLOPage() {
                                                         }
                                                         aria-label="Target SLO value"
                                                     />
-                                                    <span className="text-sm text-neutral-400 shrink-0 whitespace-nowrap">
+                                                    <span className="text-sm text-muted-foreground shrink-0 whitespace-nowrap">
                                                         {latency ? "ms" : "%"}
                                                     </span>
                                                 </div>
@@ -344,7 +344,7 @@ export default function SLOPage() {
                                                     {savingTargetId === r.target.id ? "Saving…" : "Save target"}
                                                 </Button>
                                             </div>
-                                            <p className="text-xs text-neutral-500 mt-2">
+                                            <p className="text-xs text-muted-foreground mt-2">
                                                 {latency
                                                     ? "SLI must stay at or below this latency."
                                                     : "SLI should meet or exceed this percentage."}
@@ -355,12 +355,12 @@ export default function SLOPage() {
                                     {usesErrorBudget(r.target.slo_type) && (
                                         <div className="space-y-2">
                                             <div className="flex justify-between text-sm">
-                                                <span className="text-neutral-400">Error Budget Remaining</span>
+                                                <span className="text-muted-foreground">Error Budget Remaining</span>
                                                 <span className={budget.percentage > 0 ? "text-green-400" : "text-red-400"}>
                                                     {budget.percentage.toFixed(1)}%
                                                 </span>
                                             </div>
-                                            <div className="w-full bg-neutral-950 rounded-full h-2.5 overflow-hidden">
+                                            <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
                                                 <div 
                                                     className={`h-2.5 rounded-full ${budget.percentage > 25 ? 'bg-green-500' : budget.percentage > 0 ? 'bg-[#D97706] dark:bg-[#FCD34D]' : 'bg-[#DC2626] dark:bg-[#F87171]'}`}
                                                     style={{ width: `${Math.min(Math.max(budget.percentage, 0), 100)}%` }}

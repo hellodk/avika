@@ -27,7 +27,11 @@ function MaintenancePageContent() {
     const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
 
     const fetchTemplates = useCallback(async () => {
-        if (!selectedProject) return;
+        if (!selectedProject) {
+            setTemplates([]);
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         try {
             const res = await apiFetch(`/api/maintenance/templates?project_id=${selectedProject.id}`);

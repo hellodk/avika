@@ -493,7 +493,7 @@ function MonitoringPageContent() {
                             value={`${Math.round(summary.avg_latency || 0)}ms`}
                             icon={<Timer className="h-4 w-4" />}
                             colorClass="text-amber-400"
-                            subValue="p50 response time"
+                            subValue="p95 response time"
                         />
                         <MetricCard
                             title="Bandwidth"
@@ -523,7 +523,8 @@ function MonitoringPageContent() {
                                             contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: "0.5rem", color: tooltipText }}
                                             itemStyle={{ color: tooltipText }}
                                         />
-                                        <Legend />
+                                        {/* Only show legend when there is data to describe */}
+                                        {(data?.request_rate?.length ?? 0) > 0 && <Legend />}
                                         <Area type="monotone" dataKey="requests" stroke={chartColors.info} fill={chartColors.info} fillOpacity={0.2} name="Requests" />
                                         <Area type="monotone" dataKey="errors" stroke={chartColors.error} fill={chartColors.error} fillOpacity={0.2} name="Errors" />
                                     </AreaChart>

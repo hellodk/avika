@@ -586,11 +586,15 @@ export function AgentFleetTable({
                                         </TableCell>
                                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex items-center justify-end gap-0.5">
+                                                <TooltipProvider>
+                                                <Tooltip><TooltipTrigger asChild>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }} asChild>
                                                     <Link href={`/servers/${encodeURIComponent(serverIdForDisplay(instance.agent_id || ""))}`}>
                                                         <ExternalLink className="h-4 w-4" />
                                                     </Link>
                                                 </Button>
+                                                </TooltipTrigger><TooltipContent>View details</TooltipContent></Tooltip>
+                                                <Tooltip><TooltipTrigger asChild>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -599,25 +603,33 @@ export function AgentFleetTable({
                                                 >
                                                     <Terminal className="h-4 w-4" />
                                                 </Button>
+                                                </TooltipTrigger><TooltipContent>Open terminal</TooltipContent></Tooltip>
+                                                <Tooltip><TooltipTrigger asChild>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }} asChild>
                                                     <Link href={`/servers/${encodeURIComponent(serverIdForDisplay(instance.agent_id || ""))}?tab=drift`}>
                                                         <GitCompare className="h-4 w-4" />
                                                     </Link>
                                                 </Button>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }} asChild title="Edit agent config">
+                                                </TooltipTrigger><TooltipContent>Check config drift</TooltipContent></Tooltip>
+                                                <Tooltip><TooltipTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 hover:opacity-80" style={{ color: 'rgb(var(--theme-text-muted))' }} asChild>
                                                     <Link href={`/agents/${encodeURIComponent(serverIdForDisplay(instance.agent_id || ""))}/config`}>
                                                         <Settings className="h-4 w-4" />
                                                     </Link>
                                                 </Button>
+                                                </TooltipTrigger><TooltipContent>Agent config</TooltipContent></Tooltip>
+                                                </TooltipProvider>
                                                 {onDelete && (
+                                                    <TooltipProvider><Tooltip><TooltipTrigger asChild>
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-8 w-8 text-red-500 hover:bg-red-500/10"
+                                                        className="h-8 w-8 text-[#DC2626] dark:text-[#F87171] hover:bg-red-100 dark:hover:bg-red-900/30"
                                                         onClick={() => onDelete(instance)}
                                                     >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
+                                                    </TooltipTrigger><TooltipContent>Remove agent</TooltipContent></Tooltip></TooltipProvider>
                                                 )}
                                             </div>
                                         </TableCell>

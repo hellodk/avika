@@ -340,7 +340,7 @@ export default function AlertsPage() {
                         <AlertSkeleton />
                         <AlertSkeleton />
                     </>
-                ) : listAlerts.length === 0 ? (
+                ) : listAlerts.length === 0 && !error ? (
                     <EmptyState />
                 ) : (
                     listAlerts.map((alert) => {
