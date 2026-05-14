@@ -346,16 +346,18 @@ function InventoryPageContent() {
                 }).length;
                 if (unclassifiedCount === 0) return null;
                 return (
-                    <div className="flex items-center gap-3 p-3 rounded-lg border border-amber-500/30 bg-[#D97706] dark:bg-[#FCD34D]/5">
-                        <div className="p-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+                    <div className="flex items-start gap-3 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/10">
+                        <div className="p-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 shrink-0">
                             <FolderKanban className="h-5 w-5 text-[#D97706] dark:text-[#FCD34D]" />
                         </div>
-                        <div className="flex-1">
-                            <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text))" }}>
-                                {unclassifiedCount} unclassified agent{unclassifiedCount > 1 ? "s" : ""}
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-foreground">
+                                {unclassifiedCount} agent{unclassifiedCount > 1 ? "s are" : " is"} not assigned to a project
                             </p>
-                            <p className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                These agents need to be assigned to a project and environment. Select them and use the assign action, or configure LABEL_project and LABEL_environment in their agent config.
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                <strong>Step 1:</strong> Check the checkbox next to each unassigned agent in the table below.{" "}
+                                <strong>Step 2:</strong> Click the <em>Assign</em> button that appears in the toolbar.
+                                Alternatively, set <code className="text-xs bg-muted px-1 rounded">LABEL_project</code> and <code className="text-xs bg-muted px-1 rounded">LABEL_environment</code> in the agent config for automatic assignment.
                             </p>
                         </div>
                     </div>

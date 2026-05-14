@@ -21,6 +21,7 @@ import {
     DropdownMenuSeparator, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { EnvironmentBadge } from "@/components/environment-tabs";
 import { serverIdForDisplay } from "@/lib/api";
@@ -560,10 +561,25 @@ export function AgentFleetTable({
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <Badge variant={statusInfo.variant}>
-                                                <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotColor}`} />
-                                                {statusInfo.label}
-                                            </Badge>
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <span>
+                                                            <Badge variant={statusInfo.variant}>
+                                                                <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotColor}`} />
+                                                                {statusInfo.label}
+                                                            </Badge>
+                                                        </span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="top">
+                                                        <p className="text-xs">
+                                                            {statusInfo.label === "Online" && "Last seen < 3 minutes ago"}
+                                                            {statusInfo.label === "Stale" && "Last seen 3–10 minutes ago — may need attention"}
+                                                            {statusInfo.label === "Offline" && "Last seen > 10 minutes ago — agent is unreachable"}
+                                                        </p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
                                         </TableCell>
                                         <TableCell className="text-xs" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                                             {instance.last_seen ? formatLastSeen(instance.last_seen) : "N/A"}

@@ -1021,6 +1021,15 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 </DialogContent>
             </Dialog>
 
+            {/* Breadcrumb / back navigation */}
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-1">
+                <Link href="/inventory" className="hover:text-foreground transition-colors flex items-center gap-1">
+                    <Server className="h-3.5 w-3.5" /> Inventory
+                </Link>
+                <span>/</span>
+                <span className="text-foreground font-medium">{serverInfo?.hostname || serverIdForDisplay(id)}</span>
+            </div>
+
             <div className="flex items-start justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight" style={{ color: `rgb(var(--theme-text))` }}>{serverInfo?.hostname || serverIdForDisplay(id)}</h1>

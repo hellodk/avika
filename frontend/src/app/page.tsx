@@ -58,6 +58,7 @@ export default function Home() {
     const { selectedProject, selectedEnvironment } = useProject();
     const { widgets, pinnedWidgets, togglePin } = useDashboardWidgets();
     const [loading, setLoading] = useState(true);
+    const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
     const [refreshing, setRefreshing] = useState(false);
     const [agentCount, setAgentCount] = useState<number>(0);
@@ -236,6 +237,7 @@ export default function Home() {
             setError(err instanceof Error ? err.message : String(err));
         } finally {
             setLoading(false);
+            setLastRefreshed(new Date());
         }
     }, [timeRange, selectedProject, selectedEnvironment]);
 
@@ -329,16 +331,23 @@ export default function Home() {
                             aria-hidden="true"
                         />
                     ) : (
-                        <RefreshButton
-                            loading={loading}
-                            refreshing={refreshing}
-                            onRefresh={() => {
-                                setRefreshing(true);
-                                fetchStats().finally(() => setRefreshing(false));
-                            }}
-                            disabled={loading}
-                            aria-label="Refresh dashboard data"
-                        />
+                        <div className="flex items-center gap-2">
+                            {lastRefreshed && (
+                                <span className="text-xs text-muted-foreground hidden sm:block">
+                                    Updated {lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                </span>
+                            )}
+                            <RefreshButton
+                                loading={loading}
+                                refreshing={refreshing}
+                                onRefresh={() => {
+                                    setRefreshing(true);
+                                    fetchStats().finally(() => setRefreshing(false));
+                                }}
+                                disabled={loading}
+                                aria-label="Refresh dashboard data"
+                            />
+                        </div>
                     )}
                 </div>
             </div>

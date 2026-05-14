@@ -98,6 +98,19 @@ export function AlertConfiguration() {
         }
     };
 
+    const getMetricUnit = (metricType?: string): string => {
+        switch (metricType) {
+            case "cpu":        return "%";
+            case "memory":     return "%";
+            case "error_rate": return "%";
+            case "rps":        return " req/s";
+            case "latency":    return " ms";
+            case "connections":return " conns";
+            case "config_drift": return " agents";
+            default:           return "";
+        }
+    };
+
     const getSeverityVariant = (sev?: string): "offline" | "warning" | "info" | "secondary" => {
         switch (sev?.toLowerCase()) {
             case "critical": return "offline";
@@ -216,7 +229,9 @@ export function AlertConfiguration() {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2">
-                                    <Label htmlFor="threshold">Threshold</Label>
+                                    <Label htmlFor="threshold">
+                                        Threshold{editingRule?.metric_type ? ` (${getMetricUnit(editingRule.metric_type).trim() || "value"})` : ""}
+                                    </Label>
                                     <Input
                                         id="threshold"
                                         type="number"
@@ -293,10 +308,10 @@ export function AlertConfiguration() {
                                                 <Badge variant="outline" className="text-indigo-600 border-indigo-200 bg-indigo-50">
                                                     {rule.metric_type.toUpperCase()}
                                                 </Badge>
-                                                <span className="text-slate-500">{getComparisonLabel(rule.comparison)}</span>
-                                                <span className="font-semibold">{rule.threshold}</span>
+                                                <span className="text-muted-foreground">{getComparisonLabel(rule.comparison)}</span>
+                                                <span className="font-semibold">{rule.threshold}{getMetricUnit(rule.metric_type)}</span>
                                             </div>
-                                            <div className="text-[10px] text-slate-400 mt-1">Window: {rule.window_sec}s</div>
+                                            <div className="text-[10px] text-muted-foreground mt-1">Window: {rule.window_sec}s</div>
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant={getSeverityVariant(rule.severity)}>

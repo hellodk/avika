@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { apiFetch, serverIdForDisplay } from "@/lib/api";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -117,8 +118,11 @@ export default function ProvisionsPage() {
         return (
             <div className="space-y-6">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight" style={{ color: `rgb(var(--theme-text))` }}>HTTP Provisions</h1>
-                    <p className="text-sm" style={{ color: `rgb(var(--theme-text-muted))` }}>Guided configuration templates for common NGINX patterns</p>
+                    <h1 className="text-2xl font-bold tracking-tight" style={{ color: `rgb(var(--theme-text))` }}>Config Provisions</h1>
+                    <p className="text-sm" style={{ color: `rgb(var(--theme-text-muted))` }}>
+                        Push pre-built NGINX configuration blocks to one or more agents in your fleet.
+                        Pick a template, fill in the values, preview the output, then apply.
+                    </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -453,14 +457,17 @@ export default function ProvisionsPage() {
                                         });
 
                                         if (res.ok) {
-                                            const data = await res.json();
-                                            alert(`Provision applied successfully!\n\nPreview:\n${data.preview}`);
+                                            toast.success("Provision applied successfully", {
+                                                description: "The configuration has been pushed to the selected agents.",
+                                            });
                                             reset();
                                         } else {
-                                            alert('Failed to apply provision');
+                                            toast.error("Failed to apply provision", {
+                                                description: "Check that the agents are online and reachable.",
+                                            });
                                         }
                                     } catch (err) {
-                                        alert('Error: ' + err);
+                                        toast.error("Provision error", { description: String(err) });
                                     }
                                 }}>
                                     Confirm & Apply <Play className="h-4 w-4 ml-2" />

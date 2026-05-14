@@ -3,6 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
     Server,
     Trash2,
     Loader2,
@@ -28,6 +38,9 @@ export function AgentManagement() {
     const [basePath, setBasePath] = useState<string>("");
     const [copied, setCopied] = useState(false);
     const [reachability, setReachability] = useState<ReachabilityState>({ status: "idle" });
+    // Confirmation dialog state: null = closed, number = offline agent count to confirm
+    const [pendingDeleteCount, setPendingDeleteCount] = useState<number | null>(null);
+    const [offlineAgentIds, setOfflineAgentIds] = useState<string[]>([]);
 
     useEffect(() => {
         if (typeof window !== "undefined") {
@@ -82,48 +95,67 @@ export function AgentManagement() {
         }
     };
 
+    // Step 1: fetch offline agents and show confirmation dialog
     const handleDeleteOfflineAgents = async () => {
         setIsDeletingAgents(true);
-        setDeletionMessage("");
         try {
             const res = await apiFetch('/api/servers');
             if (!res.ok) throw new Error("Failed to fetch agents");
             const data = await res.json();
             const agents = data.agents || [];
-
             const now = Math.floor(Date.now() / 1000);
-            const offlineAgents = agents.filter((a: any) => {
-                if (!a.last_seen) return false;
-                return (now - parseInt(a.last_seen)) > 600;
-            });
-
-            if (offlineAgents.length === 0) {
+            const offline = agents.filter((a: any) => a.last_seen && (now - parseInt(a.last_seen)) > 600);
+            if (offline.length === 0) {
                 toast.info("No offline agents found", { description: "All agents are currently online." });
-                setIsDeletingAgents(false);
                 return;
             }
-
-            let deletedCount = 0;
-            for (const agent of offlineAgents) {
-                const id = agent.agent_id || agent.id;
-                if (!id) continue;
-                const delRes = await apiFetch(`/api/servers/${encodeURIComponent(id)}`, { method: 'DELETE' });
-                if (delRes.ok) deletedCount++;
-            }
-
-            toast.success("Cleanup complete", { description: `Successfully deleted ${deletedCount} offline agents.` });
-            setDeletionMessage(`Successfully deleted ${deletedCount} agents.`);
-            setTimeout(() => setDeletionMessage(""), 3000);
+            setOfflineAgentIds(offline.map((a: any) => a.agent_id || a.id).filter(Boolean));
+            setPendingDeleteCount(offline.length);
         } catch (error: any) {
-            console.error(error);
-            toast.error("Cleanup failed", { description: error.message });
-            setDeletionMessage("Error occurred during cleanup.");
+            toast.error("Could not fetch agents", { description: error.message });
         } finally {
             setIsDeletingAgents(false);
         }
     };
 
+    // Step 2: user confirmed — actually delete
+    const handleConfirmDelete = async () => {
+        setIsDeletingAgents(true);
+        setPendingDeleteCount(null);
+        let deletedCount = 0;
+        try {
+            for (const id of offlineAgentIds) {
+                const delRes = await apiFetch(`/api/servers/${encodeURIComponent(id)}`, { method: 'DELETE' });
+                if (delRes.ok) deletedCount++;
+            }
+            toast.success("Cleanup complete", { description: `Deleted ${deletedCount} offline agent${deletedCount !== 1 ? "s" : ""}.` });
+        } catch (error: any) {
+            toast.error("Cleanup failed", { description: error.message });
+        } finally {
+            setIsDeletingAgents(false);
+            setOfflineAgentIds([]);
+        }
+    };
+
     return (
+        <>
+        <AlertDialog open={pendingDeleteCount !== null} onOpenChange={(open) => { if (!open) setPendingDeleteCount(null); }}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Delete {pendingDeleteCount} offline agent{pendingDeleteCount !== 1 ? "s" : ""}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This will permanently remove {pendingDeleteCount} agent{pendingDeleteCount !== 1 ? "s" : ""} that have been offline for more than 10 minutes.
+                        Their configuration and history will be lost. This cannot be undone.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-white hover:bg-destructive/90">
+                        Delete {pendingDeleteCount} agent{pendingDeleteCount !== 1 ? "s" : ""}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
         <Card style={{ backgroundColor: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
             <CardHeader>
                 <div className="flex items-center gap-2">
@@ -211,13 +243,9 @@ export function AgentManagement() {
                             </>
                         )}
                     </Button>
-                    {deletionMessage && (
-                        <p className={`text-sm mt-2 ${deletionMessage.includes("Error") ? "text-rose-500" : "text-[#16A34A] dark:text-[#4ADE80]"}`}>
-                            {deletionMessage}
-                        </p>
-                    )}
                 </div>
             </CardContent>
         </Card>
+        </>
     );
 }
