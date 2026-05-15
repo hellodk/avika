@@ -303,8 +303,14 @@ function MaintenancePageContent() {
                                     Schedule future downtime for automated orchestration.
                                 </p>
                             </div>
-                            <Button className="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-medium">
-                                Schedule Window
+                            <Button
+                                className="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-medium"
+                                onClick={() => {
+                                    setActiveTab("templates");
+                                    toast.info("Create a template first, then activate it as a maintenance window from the Templates tab.");
+                                }}
+                            >
+                                Create Template to Schedule
                             </Button>
                         </div>
                     </Card>

@@ -1,15 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Palette, Check, Moon, Sun, ChevronDown } from "lucide-react";
+import { Palette, Check, Moon, Sun } from "lucide-react";
 import { useTheme } from "@/lib/theme-provider";
 import { themes, ThemeName, THEME_IDS } from "@/lib/themes";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 const themeIcons: Record<string, typeof Moon> = {
     dark: Moon,
@@ -18,8 +11,6 @@ const themeIcons: Record<string, typeof Moon> = {
 
 export function AppearanceSettings() {
     const { theme, setTheme } = useTheme();
-    const ActiveThemeIcon = themeIcons[theme as ThemeName] || Palette;
-    const activeThemeName = themes[theme as ThemeName]?.name || "Select Theme";
 
     return (
         <Card style={{ backgroundColor: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
@@ -89,3 +80,4 @@ export function AppearanceSettings() {
         </Card>
     );
 }
+

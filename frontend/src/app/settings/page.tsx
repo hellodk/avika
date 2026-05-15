@@ -212,7 +212,9 @@ function SettingsContent() {
             await apiFetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ integrations: { grafana_url: grafanaUrl.trim(), prometheus_url: prometheusUrl.trim(), clickhouse_url: clickhouseUrl.trim() }, collection_interval: parseInt(collectionInterval), retention_days: parseInt(retentionDays), anomaly_threshold: parseFloat(anomalyThreshold), window_size: parseInt(windowSize) }) });
             setSaveSuccess(true);
             toast.success("Settings saved");
-        } catch { setSaveSuccess(true); toast.success("Settings saved locally"); } finally { setIsSaving(false); setTimeout(() => setSaveSuccess(false), 3000); }
+        } catch {
+            toast.error("Failed to save settings", { description: "Local changes applied. Server sync failed — check connectivity." });
+        } finally { setIsSaving(false); setTimeout(() => setSaveSuccess(false), 3000); }
     };
 
     const handleResetDefaults = () => {

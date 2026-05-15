@@ -329,7 +329,7 @@ export default function Home() {
                         aria-label={`${onlineAgents} of ${agentCount} agents online`}
                     >
                         <span className={`w-2 h-2 rounded-full mr-2 ${onlineAgents === agentCount && agentCount > 0 ? 'bg-[#16A34A] dark:bg-[#4ADE80]' : 'bg-[#D97706] dark:bg-[#FCD34D]'}`} aria-hidden="true" />
-                        {onlineAgents}/{agentCount} Agents Online
+                        {onlineAgents} of {agentCount} Online
                     </Badge>
                     {loading && !refreshing ? (
                         <Skeleton

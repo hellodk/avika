@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Activity, Plus, Target, Trash2, ShieldAlert } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -68,6 +69,7 @@ function targetDraftKey(r: SLOComplianceResult): string {
 export default function SLOPage() {
     const [results, setResults] = useState<SLOComplianceResult[]>([]);
     const [loading, setLoading] = useState(true);
+    const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
     const [newSloType, setNewSloType] = useState<string>(SLO_TYPE_OPTIONS[0].value);
     /** String values for target inputs, keyed by SLO row id */
     const [targetDrafts, setTargetDrafts] = useState<Record<string, string>>({});
@@ -108,7 +110,7 @@ export default function SLOPage() {
     }, []);
 
     const deleteSLO = async (id: string) => {
-        if (!confirm("Delete this SLO Target?")) return;
+        setPendingDeleteId(null);
         try {
             const res = await apiFetch(`/api/slo-targets?id=${id}`, {
                 method: "DELETE"
@@ -216,6 +218,23 @@ export default function SLOPage() {
     };
 
     return (
+        <>
+        <AlertDialog open={pendingDeleteId !== null} onOpenChange={(o) => { if (!o) setPendingDeleteId(null); }}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Delete SLO Target?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This SLO target and its compliance history will be permanently removed. This cannot be undone.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => pendingDeleteId && deleteSLO(pendingDeleteId)} className="bg-destructive text-white hover:bg-destructive/90">
+                        Delete
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
         <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -293,7 +312,7 @@ export default function SLOPage() {
                                             {r.target.entity_type === 'global' ? 'All traffic' : r.target.entity_id} • {r.target.time_window}
                                         </CardDescription>
                                     </div>
-                                    <Button variant="ghost" size="icon" onClick={() => deleteSLO(r.target.id)} className="text-muted-foreground hover:text-[#DC2626] dark:hover:text-[#F87171]">
+                                    <Button variant="ghost" size="icon" onClick={() => setPendingDeleteId(r.target.id)} className="text-muted-foreground hover:text-[#DC2626] dark:hover:text-[#F87171]" title="Delete SLO target">
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </CardHeader>
@@ -375,5 +394,6 @@ export default function SLOPage() {
                 </div>
             )}
         </div>
+        </>
     );
 }
