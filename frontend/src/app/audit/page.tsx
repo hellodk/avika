@@ -8,8 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api";
 import { formatTsShort } from "@/lib/format-timestamp";
-import { Shield, User, Globe, Clock, Info, ChevronLeft, ChevronRight } from "lucide-react";
+import { Shield, User, Globe, Clock, Info, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface AuditLog {
     id: string;
@@ -30,6 +32,8 @@ export default function AuditPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(0);
+    const [filterUser, setFilterUser] = useState("");
+    const [filterAction, setFilterAction] = useState("all");
 
     useEffect(() => {
         const fetchLogs = async () => {
@@ -59,6 +63,15 @@ export default function AuditPage() {
         return "blue";
     };
 
+    // Client-side filtering — no API call needed, data already loaded
+    const filteredLogs = logs.filter(log => {
+        const matchUser = !filterUser || log.username.toLowerCase().includes(filterUser.toLowerCase());
+        const matchAction = filterAction === "all" || log.action.startsWith(filterAction);
+        return matchUser && matchAction;
+    });
+
+    const uniqueActions = Array.from(new Set(logs.map(l => l.action.split("_")[0]))).sort();
+
     if (loading) return <div className="flex items-center justify-center h-64" style={{ color: "rgb(var(--theme-text))" }}>Loading audit logs...</div>;
     if (error) return <div className="p-4 bg-red-100 dark:bg-red-900/30 text-red-400 rounded-lg">{error}</div>;
 
@@ -76,21 +89,55 @@ export default function AuditPage() {
                 </div>
             </div>
 
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1 max-w-xs">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Filter by user…"
+                        value={filterUser}
+                        onChange={e => { setFilterUser(e.target.value); setPage(0); }}
+                        className="pl-9"
+                    />
+                    {filterUser && (
+                        <button onClick={() => setFilterUser("")} className="absolute right-2 top-1/2 -translate-y-1/2">
+                            <X className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                    )}
+                </div>
+                <Select value={filterAction} onValueChange={v => { setFilterAction(v); setPage(0); }}>
+                    <SelectTrigger className="w-[160px]">
+                        <SelectValue placeholder="Action type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All actions</SelectItem>
+                        {uniqueActions.map(a => (
+                            <SelectItem key={a} value={a} className="capitalize">{a}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                {(filterUser || filterAction !== "all") && (
+                    <span className="text-xs text-muted-foreground self-center">
+                        {filteredLogs.length} of {logs.length} entries
+                    </span>
+                )}
+            </div>
+
             <Card className="shadow-xl overflow-hidden" style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
                 <CardHeader className="border-b py-4 flex flex-row items-center justify-between" style={{ borderColor: "rgb(var(--theme-border))" }}>
                     <CardTitle className="text-sm font-medium flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
                         <Clock className="h-4 w-4 text-blue-400" />
-                        Recent Activities ({logs.length} entries)
+                        Recent Activities ({filteredLogs.length} entries)
                     </CardTitle>
-                    {logs.length > 25 && (
+                    {filteredLogs.length > 25 && (
                         <div className="flex items-center gap-2">
                             <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
                                 <ChevronLeft className="h-4 w-4" />
                             </Button>
                             <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                Page {page + 1} of {Math.ceil(logs.length / 25)}
+                                Page {page + 1} of {Math.ceil(filteredLogs.length / 25)}
                             </span>
-                            <Button variant="outline" size="sm" disabled={(page + 1) * 25 >= logs.length} onClick={() => setPage(p => p + 1)}>
+                            <Button variant="outline" size="sm" disabled={(page + 1) * 25 >= filteredLogs.length} onClick={() => setPage(p => p + 1)}>
                                 <ChevronRight className="h-4 w-4" />
                             </Button>
                         </div>
@@ -105,18 +152,20 @@ export default function AuditPage() {
                                 <TableHead>Action</TableHead>
                                 <TableHead>Resource</TableHead>
                                 <TableHead className="hidden md:table-cell">Details</TableHead>
-                                <TableHead className="text-right">Origin</TableHead>
+                                <TableHead className="text-right">IP Address</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {logs.length === 0 ? (
+                            {filteredLogs.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-8" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                        No audit entries found.
+                                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                                        {logs.length === 0
+                                            ? "No audit entries found. Administrative actions will appear here."
+                                            : "No entries match the current filters."}
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                logs.slice(page * 25, (page + 1) * 25).map((log) => (
+                                filteredLogs.slice(page * 25, (page + 1) * 25).map((log) => (
                                     <TableRow key={log.id} className="hover-surface" style={{ borderColor: "rgb(var(--theme-border))" }}>
                                         <TableCell className="font-mono text-xs whitespace-nowrap">
                                             {formatTsShort(log.timestamp)}

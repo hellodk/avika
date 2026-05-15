@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
     Activity, AlertTriangle, ArrowUpRight, RefreshCw,
-    Globe, Clock, CheckCircle2, XCircle, TrendingUp, TrendingDown, Info
+    Globe, Clock, CheckCircle2, XCircle, TrendingUp, TrendingDown, Info, X
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RefreshButton } from "@/components/ui/refresh-button";
@@ -284,7 +284,7 @@ export default function Home() {
             )}
             {metricsBackendError && (
                 <Alert
-                    className="border-amber-500/40"
+                    className="border-amber-500/40 relative pr-10"
                     style={{
                         borderColor: "rgba(245, 158, 11, 0.35)",
                         background: "rgba(245, 158, 11, 0.06)",
@@ -295,6 +295,13 @@ export default function Home() {
                     <AlertDescription style={{ color: "rgb(var(--theme-text-muted))" }} className="text-sm">
                         {metricsBackendError}
                     </AlertDescription>
+                    <button
+                        onClick={() => setMetricsBackendError(null)}
+                        className="absolute top-3 right-3 p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                        aria-label="Dismiss"
+                    >
+                        <X className="h-4 w-4 text-muted-foreground" />
+                    </button>
                 </Alert>
             )}
             {/* Header */}
