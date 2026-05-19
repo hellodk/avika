@@ -21,18 +21,16 @@ func GeneratePDFReport(report *pb.ReportResponse, start, end time.Time) ([]byte,
 	// Executive KPIs Row
 	pdf.SetY(50)
 	drawExecutiveKPIs(pdf, report.Summary)
+	drawMetricsFootnote(pdf)
 
-	// Charts Row
-	pdf.SetY(95)
-	
-	// Left: Traffic Distribution Pie Chart
-	drawTrafficPieChart(pdf, 15, 95, report)
-	
-	// Right: Top Endpoints Bar Chart
-	drawEndpointsBarChart(pdf, 110, 95, report.TopUris)
+	// Charts row: same Y for both section titles (was misaligned: pie used 95, bars used 102).
+	chartY := 102.0
+	pdf.SetY(chartY)
+	drawTrafficPieChart(pdf, 15, chartY, report)
+	drawEndpointsBarChart(pdf, 108, chartY, report.TopUris)
 
 	// Performance Summary
-	pdf.SetY(170)
+	pdf.SetY(185)
 	drawPerformanceSummary(pdf, report)
 
 	// Executive visibility (summary, period-over-period, availability, alerts, top issues, recommendations)
@@ -86,137 +84,153 @@ func drawExecutiveKPIs(pdf *gofpdf.Fpdf, summary *pb.ReportSummary) {
 	cardW := 42.0
 	gap := 5.0
 
-	// Card 1: Total Requests
-	drawMetricCard(pdf, 15, y, cardW, "REQUESTS", formatLargeNumber(summary.TotalRequests), 37, 99, 235, true)
-	
-	// Card 2: Error Rate with status
-	errStatus := summary.ErrorRate <= 1
+	// Card 1: traffic volume — neutral semantic (high volume is not "healthy" by itself)
+	drawMetricCard(pdf, 15, y, cardW, "REQUESTS", formatLargeNumber(summary.TotalRequests), 37, 99, 235, "neutral", "Volume, not health")
+
+	// Card 2: Error rate (5xx share)
+	errOK := summary.ErrorRate <= 1
 	errColor := []int{34, 197, 94}
-	if !errStatus {
+	if !errOK {
 		errColor = []int{239, 68, 68}
 	}
-	drawMetricCard(pdf, 15+cardW+gap, y, cardW, "ERROR RATE", fmt.Sprintf("%.2f%%", summary.ErrorRate), errColor[0], errColor[1], errColor[2], errStatus)
+	toneErr := "attention"
+	if errOK {
+		toneErr = "ok"
+	}
+	drawMetricCard(pdf, 15+cardW+gap, y, cardW, "ERROR RATE", fmt.Sprintf("%.2f%%", summary.ErrorRate), errColor[0], errColor[1], errColor[2], toneErr, "5xx / all reqs")
 
-	// Card 3: Latency
-	latStatus := summary.AvgLatency <= 200
+	// Card 3: Latency vs target
+	latOK := summary.AvgLatency <= 200
 	latColor := []int{245, 158, 11}
+	toneLat := "attention"
+	if latOK {
+		toneLat = "ok"
+	}
 	if summary.AvgLatency > 500 {
 		latColor = []int{239, 68, 68}
+		toneLat = "attention"
 	}
-	drawMetricCard(pdf, 15+(cardW+gap)*2, y, cardW, "AVG LATENCY", fmt.Sprintf("%.0fms", summary.AvgLatency), latColor[0], latColor[1], latColor[2], latStatus)
+	drawMetricCard(pdf, 15+(cardW+gap)*2, y, cardW, "AVG LATENCY", fmt.Sprintf("%.0fms", summary.AvgLatency), latColor[0], latColor[1], latColor[2], toneLat, "<=200ms target")
 
-	// Card 4: Uptime/Health Score
+	// Card 4: composite health score
 	healthScore := calculateHealth(summary)
 	healthColor := []int{34, 197, 94}
+	toneHealth := "ok"
 	if healthScore < 80 {
 		healthColor = []int{245, 158, 11}
+		toneHealth = "attention"
 	}
 	if healthScore < 60 {
 		healthColor = []int{239, 68, 68}
+		toneHealth = "attention"
 	}
-	drawMetricCard(pdf, 15+(cardW+gap)*3, y, cardW, "HEALTH", fmt.Sprintf("%d%%", healthScore), healthColor[0], healthColor[1], healthColor[2], healthScore >= 80)
+	if healthScore >= 80 {
+		toneHealth = "ok"
+	}
+	drawMetricCard(pdf, 15+(cardW+gap)*3, y, cardW, "HEALTH SCORE", fmt.Sprintf("%d%%", healthScore), healthColor[0], healthColor[1], healthColor[2], toneHealth, "Errors+latency")
 }
 
-func drawMetricCard(pdf *gofpdf.Fpdf, x, y, w float64, label, value string, r, g, b int, isGood bool) {
+// tone: ok | attention | neutral — footer is ASCII-only for reliable PDF fonts.
+func drawMetricCard(pdf *gofpdf.Fpdf, x, y, w float64, label, value string, r, g, b int, tone, footer string) {
 	h := 35.0
 
-	// Card background
 	pdf.SetFillColor(r, g, b)
 	pdf.RoundedRect(x, y, w, h, 2, "1234", "F")
 
-	// Status indicator circle
 	pdf.SetFillColor(255, 255, 255)
-	if isGood {
-		pdf.Circle(x+w-8, y+8, 4, "F")
+	pdf.Circle(x+w-8, y+8, 4, "F")
+	switch tone {
+	case "ok":
 		pdf.SetFillColor(34, 197, 94)
 		pdf.Circle(x+w-8, y+8, 2.5, "F")
-	} else {
-		pdf.Circle(x+w-8, y+8, 4, "F")
+	case "attention":
 		pdf.SetFillColor(239, 68, 68)
+		pdf.Circle(x+w-8, y+8, 2.5, "F")
+	default: // neutral
+		pdf.SetFillColor(203, 213, 225)
 		pdf.Circle(x+w-8, y+8, 2.5, "F")
 	}
 
-	// Label
 	pdf.SetTextColor(255, 255, 255)
 	pdf.SetFont("Arial", "", 7)
 	pdf.SetXY(x+4, y+5)
 	pdf.Cell(w-12, 4, label)
 
-	// Value
 	pdf.SetFont("Arial", "B", 18)
 	pdf.SetXY(x+4, y+14)
 	pdf.Cell(w-8, 12, value)
 
-	// Trend indicator
-	pdf.SetFont("Arial", "", 8)
+	pdf.SetFont("Arial", "", 7)
 	pdf.SetXY(x+4, y+27)
-	if isGood {
-		pdf.Cell(w-8, 4, "● Normal")
-	} else {
-		pdf.Cell(w-8, 4, "● Attention")
-	}
+	pdf.Cell(w-8, 4, footer)
+}
+
+func drawMetricsFootnote(pdf *gofpdf.Fpdf) {
+	pdf.SetFont("Arial", "", 7)
+	pdf.SetTextColor(100, 116, 139)
+	pdf.SetXY(15, 89)
+	pdf.MultiCell(180, 3, "Error rate is the share of responses with HTTP 5xx. Health score penalizes high 5xx rates and high average latency (see card footers). Times in UTC.", "", "", false)
 }
 
 func drawTrafficPieChart(pdf *gofpdf.Fpdf, x, y float64, report *pb.ReportResponse) {
-	// Section title
 	pdf.SetFont("Arial", "B", 10)
 	pdf.SetTextColor(30, 41, 59)
 	pdf.SetXY(x, y)
-	pdf.Cell(90, 6, "TRAFFIC DISTRIBUTION")
+	pdf.Cell(88, 6, "TRAFFIC DISTRIBUTION")
 
-	// Calculate distribution from URIs or use summary
+	if report.Summary == nil {
+		pdf.SetFont("Arial", "I", 9)
+		pdf.SetTextColor(100, 116, 139)
+		pdf.SetXY(x, y+14)
+		pdf.Cell(80, 6, "No summary data")
+		return
+	}
+
 	total := float64(report.Summary.TotalRequests)
 	if total == 0 {
 		total = 1
 	}
-	
-	// Calculate distribution from summary data
+
 	errors := float64(report.Summary.TotalRequests) * (float64(report.Summary.ErrorRate) / 100)
 	success := float64(report.Summary.TotalRequests) - errors
-	
+
 	successPct := (success / total) * 100
 	errorPct := (errors / total) * 100
 
-	// Draw pie chart
-	centerX := x + 35
-	centerY := y + 45
-	radius := 25.0
+	// Donut fits in left column; legend below (avoids collision with right column).
+	centerX := x + 32
+	centerY := y + 36
+	radius := 22.0
 
-	// Success slice (green)
 	pdf.SetFillColor(34, 197, 94)
 	drawPieSlice(pdf, centerX, centerY, radius, 0, successPct*3.6)
 
-	// Error slice (red)
 	pdf.SetFillColor(239, 68, 68)
 	drawPieSlice(pdf, centerX, centerY, radius, successPct*3.6, 360)
 
-	// Center circle (donut effect)
 	pdf.SetFillColor(255, 255, 255)
 	pdf.Circle(centerX, centerY, radius*0.5, "F")
 
-	// Center text
-	pdf.SetFont("Arial", "B", 14)
+	pdf.SetFont("Arial", "B", 12)
 	pdf.SetTextColor(30, 41, 59)
-	pdf.SetXY(centerX-15, centerY-5)
-	pdf.Cell(30, 6, fmt.Sprintf("%.1f%%", successPct))
+	pdf.SetXY(centerX-14, centerY-5)
+	pdf.Cell(28, 5, fmt.Sprintf("%.1f%%", successPct))
 	pdf.SetFont("Arial", "", 7)
-	pdf.SetXY(centerX-15, centerY+2)
-	pdf.Cell(30, 4, "Success")
+	pdf.SetXY(centerX-14, centerY+1)
+	pdf.Cell(28, 4, "Success")
 
-	// Legend
-	legendY := y + 10
+	legendY := y + 62
 	pdf.SetFont("Arial", "", 8)
-	
 	pdf.SetFillColor(34, 197, 94)
-	pdf.Rect(x+70, legendY, 4, 4, "F")
+	pdf.Rect(x, legendY, 3.5, 3.5, "F")
 	pdf.SetTextColor(30, 41, 59)
-	pdf.SetXY(x+76, legendY)
-	pdf.Cell(20, 4, fmt.Sprintf("Success %.1f%%", successPct))
+	pdf.SetXY(x+6, legendY-0.5)
+	pdf.Cell(78, 4, fmt.Sprintf("Success %.1f%%", successPct))
 
 	pdf.SetFillColor(239, 68, 68)
-	pdf.Rect(x+70, legendY+8, 4, 4, "F")
-	pdf.SetXY(x+76, legendY+8)
-	pdf.Cell(20, 4, fmt.Sprintf("Errors %.1f%%", errorPct))
+	pdf.Rect(x, legendY+6, 3.5, 3.5, "F")
+	pdf.SetXY(x+6, legendY+5.5)
+	pdf.Cell(78, 4, fmt.Sprintf("Errors %.1f%%", errorPct))
 }
 
 func drawPieSlice(pdf *gofpdf.Fpdf, cx, cy, r, startAngle, endAngle float64) {
@@ -246,21 +260,19 @@ func drawPieSlice(pdf *gofpdf.Fpdf, cx, cy, r, startAngle, endAngle float64) {
 }
 
 func drawEndpointsBarChart(pdf *gofpdf.Fpdf, x, y float64, uris []*pb.EndpointStat) {
-	// Section title
 	pdf.SetFont("Arial", "B", 10)
 	pdf.SetTextColor(30, 41, 59)
 	pdf.SetXY(x, y)
-	pdf.Cell(90, 6, "TOP ENDPOINTS")
+	pdf.Cell(82, 6, "TOP ENDPOINTS")
 
 	if len(uris) == 0 {
 		pdf.SetFont("Arial", "I", 9)
 		pdf.SetTextColor(100, 116, 139)
-		pdf.SetXY(x, y+30)
+		pdf.SetXY(x, y+14)
 		pdf.Cell(80, 6, "No endpoint data available")
 		return
 	}
 
-	// Find max for scaling
 	maxReq := int64(1)
 	for _, u := range uris {
 		if u.Requests > maxReq {
@@ -268,15 +280,16 @@ func drawEndpointsBarChart(pdf *gofpdf.Fpdf, x, y float64, uris []*pb.EndpointSt
 		}
 	}
 
-	barY := y + 10
-	barHeight := 10.0
-	maxBarWidth := 60.0
+	// Right column ~87mm wide (x=108 .. page edge 195); label + bar stacked per row.
+	maxBarW := 72.0
+	barH := 5.0
+	rowY := y + 9.0
 	colors := [][]int{
-		{37, 99, 235},   // Blue
-		{59, 130, 246},  // Light blue
-		{99, 102, 241},  // Indigo
-		{139, 92, 246},  // Violet
-		{168, 85, 247},  // Purple
+		{37, 99, 235},
+		{59, 130, 246},
+		{99, 102, 241},
+		{139, 92, 246},
+		{168, 85, 247},
 	}
 
 	count := len(uris)
@@ -286,51 +299,46 @@ func drawEndpointsBarChart(pdf *gofpdf.Fpdf, x, y float64, uris []*pb.EndpointSt
 
 	for i := 0; i < count; i++ {
 		uri := uris[i]
-		barWidth := (float64(uri.Requests) / float64(maxReq)) * maxBarWidth
+		uriLabel := uri.Uri
+		if len(uriLabel) > 52 {
+			uriLabel = uriLabel[:49] + "..."
+		}
+		line := fmt.Sprintf("#%d  %s   %s", i+1, formatRequestCountForReport(uri.Requests), uriLabel)
+		pdf.SetFont("Arial", "", 7)
+		pdf.SetTextColor(71, 85, 105)
+		pdf.SetXY(x, rowY)
+		pdf.Cell(82, 3.5, line)
+		rowY += 4.0
 
-		// Bar
+		barW := (float64(uri.Requests) / float64(maxReq)) * maxBarW
+		if barW < 1 {
+			barW = 1
+		}
 		c := colors[i%len(colors)]
 		pdf.SetFillColor(c[0], c[1], c[2])
-		pdf.RoundedRect(x, barY, barWidth, barHeight-2, 1, "1234", "F")
-
-		// Rank number
-		pdf.SetFont("Arial", "B", 8)
-		pdf.SetTextColor(255, 255, 255)
-		pdf.SetXY(x+2, barY+1)
-		pdf.Cell(8, 6, fmt.Sprintf("#%d", i+1))
-
-		// Value on bar
-		pdf.SetXY(x+barWidth-20, barY+1)
-		if barWidth > 25 {
-			pdf.Cell(18, 6, formatLargeNumber(uri.Requests))
-		}
-
-		// URI label (truncated)
-		pdf.SetFont("Arial", "", 7)
-		pdf.SetTextColor(100, 116, 139)
-		uriLabel := uri.Uri
-		if len(uriLabel) > 30 {
-			uriLabel = uriLabel[:27] + "..."
-		}
-		pdf.SetXY(x+maxBarWidth+5, barY+1)
-		pdf.Cell(30, 6, uriLabel)
-
-		barY += barHeight + 2
+		pdf.RoundedRect(x, rowY, barW, barH, 0.8, "1234", "F")
+		rowY += barH + 3.5
 	}
 }
 
 func drawPerformanceSummary(pdf *gofpdf.Fpdf, report *pb.ReportResponse) {
 	pdf.SetFont("Arial", "B", 10)
 	pdf.SetTextColor(30, 41, 59)
-	pdf.SetXY(15, 170)
+	pdf.SetX(15)
 	pdf.Cell(0, 6, "SERVER PERFORMANCE")
+	pdf.Ln(5)
+	pdf.SetFont("Arial", "", 8)
+	pdf.SetTextColor(100, 116, 139)
+	pdf.SetX(15)
+	pdf.Cell(0, 4, "Top 5 agents by request volume (this period)")
+	pdf.Ln(6)
+	pdf.SetTextColor(30, 41, 59)
 
 	if len(report.TopServers) == 0 {
 		return
 	}
 
 	// Simple table
-	pdf.SetY(178)
 	
 	// Header
 	pdf.SetFillColor(241, 245, 249)
@@ -354,7 +362,7 @@ func drawPerformanceSummary(pdf *gofpdf.Fpdf, report *pb.ReportResponse) {
 		pdf.SetX(15)
 		pdf.SetTextColor(30, 41, 59)
 		pdf.CellFormat(60, 7, srv.Hostname, "B", 0, "L", false, 0, "")
-		pdf.CellFormat(30, 7, formatLargeNumber(srv.Requests), "B", 0, "C", false, 0, "")
+		pdf.CellFormat(30, 7, formatRequestCountForReport(srv.Requests), "B", 0, "C", false, 0, "")
 		
 		// Error rate with color
 		if srv.ErrorRate > 1 {
@@ -364,11 +372,11 @@ func drawPerformanceSummary(pdf *gofpdf.Fpdf, report *pb.ReportResponse) {
 		}
 		pdf.CellFormat(30, 7, fmt.Sprintf("%.2f%%", srv.ErrorRate), "B", 0, "C", false, 0, "")
 		
-		// Status indicator
+		// Status indicator (ASCII for PDF portability)
 		pdf.SetTextColor(30, 41, 59)
-		status := "● Healthy"
+		status := "OK"
 		if srv.ErrorRate > 1 {
-			status = "● Warning"
+			status = "Warning"
 		}
 		pdf.CellFormat(30, 7, status, "B", 0, "C", false, 0, "")
 		pdf.Ln(-1)
@@ -391,19 +399,31 @@ func drawExecutiveVisibility(pdf *gofpdf.Fpdf, report *pb.ReportResponse) {
 	pdf.SetTextColor(51, 65, 85)
 	if report.ExecutiveSummary != "" {
 		pdf.MultiCell(0, 5, report.ExecutiveSummary, "", "", false)
-		pdf.Ln(4)
+		pdf.Ln(3)
 	}
 	if report.PeriodOverPeriod != "" {
-		pdf.Cell(0, 5, "Trend: "+report.PeriodOverPeriod)
-		pdf.Ln(5)
+		pdf.SetFont("Arial", "B", 9)
+		pdf.Cell(0, 5, "Period vs prior")
+		pdf.Ln(4)
+		pdf.SetFont("Arial", "", 9)
+		pdf.MultiCell(0, 5, report.PeriodOverPeriod, "", "", false)
+		pdf.Ln(2)
 	}
 	if report.AvailabilitySummary != "" {
-		pdf.Cell(0, 5, "Availability: "+report.AvailabilitySummary)
-		pdf.Ln(5)
+		pdf.SetFont("Arial", "B", 9)
+		pdf.Cell(0, 5, "Availability")
+		pdf.Ln(4)
+		pdf.SetFont("Arial", "", 9)
+		pdf.MultiCell(0, 5, report.AvailabilitySummary, "", "", false)
+		pdf.Ln(2)
 	}
 	if report.AlertsSummary != "" {
-		pdf.Cell(0, 5, "Alerts: "+report.AlertsSummary)
-		pdf.Ln(8)
+		pdf.SetFont("Arial", "B", 9)
+		pdf.Cell(0, 5, "Alerts")
+		pdf.Ln(4)
+		pdf.SetFont("Arial", "", 9)
+		pdf.MultiCell(0, 5, report.AlertsSummary, "", "", false)
+		pdf.Ln(4)
 	}
 	if len(report.TopIssues) > 0 {
 		pdf.SetFont("Arial", "B", 9)
@@ -411,9 +431,8 @@ func drawExecutiveVisibility(pdf *gofpdf.Fpdf, report *pb.ReportResponse) {
 		pdf.Ln(5)
 		pdf.SetFont("Arial", "", 8)
 		for _, s := range report.TopIssues {
-			pdf.Cell(5, 5, "")
-			pdf.Cell(0, 5, "• "+s)
-			pdf.Ln(5)
+			pdf.SetX(18)
+			pdf.MultiCell(0, 4, "- "+s, "", "", false)
 		}
 		pdf.Ln(3)
 	}
@@ -423,9 +442,8 @@ func drawExecutiveVisibility(pdf *gofpdf.Fpdf, report *pb.ReportResponse) {
 		pdf.Ln(5)
 		pdf.SetFont("Arial", "", 8)
 		for _, s := range report.Recommendations {
-			pdf.Cell(5, 5, "")
-			pdf.Cell(0, 5, "• "+s)
-			pdf.Ln(5)
+			pdf.SetX(18)
+			pdf.MultiCell(0, 4, "- "+s, "", "", false)
 		}
 	}
 }
@@ -440,7 +458,7 @@ func drawFooter(pdf *gofpdf.Fpdf) {
 	pdf.SetY(-20)
 	pdf.SetFont("Arial", "I", 8)
 	pdf.SetTextColor(148, 163, 184)
-	pdf.CellFormat(0, 10, "Avika NGINX Manager - Executive Report", "", 0, "L", false, 0, "")
+	pdf.CellFormat(0, 10, "Avika NGINX Manager - Executive Report (UTC)", "", 0, "L", false, 0, "")
 	pdf.CellFormat(0, 10, fmt.Sprintf("Page %d", pdf.PageNo()), "", 0, "R", false, 0, "")
 }
 
@@ -477,6 +495,20 @@ func formatLargeNumber(n int64) string {
 	}
 	if n >= 1000 {
 		return fmt.Sprintf("%.1fK", float64(n)/1000)
+	}
+	return fmt.Sprintf("%d", n)
+}
+
+// formatRequestCountForReport prefers extra precision so top endpoints do not all collapse to "1.0M".
+func formatRequestCountForReport(n int64) string {
+	if n >= 1_000_000 {
+		return fmt.Sprintf("%.2fM", float64(n)/1_000_000)
+	}
+	if n >= 100_000 {
+		return fmt.Sprintf("%.1fK", float64(n)/1000)
+	}
+	if n >= 1000 {
+		return fmt.Sprintf("%.2fK", float64(n)/1000)
 	}
 	return fmt.Sprintf("%d", n)
 }

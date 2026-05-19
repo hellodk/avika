@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getGatewayUrl } from '@/lib/gateway-url';
+import { gatewayProxyCookieHeaders } from '@/lib/gateway-proxy-headers';
 import { getAgentServiceClient } from '@/lib/grpc-client';
 import { normalizeServerId } from '@/lib/api';
+import { isGrpcExplicitFailure } from '@/lib/grpc-success';
+import { serversDeleteUsesGrpc } from '@/lib/servers-bff-transport';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,16 +97,40 @@ export async function POST(
         if (action === 'reload') {
             client.ReloadNginx({ instance_id: id }, (err: any, response: any) => {
                 if (err) return resolve(NextResponse.json({ error: err.message }, { status: 500 }));
+                if (isGrpcExplicitFailure(response)) {
+                    return resolve(
+                        NextResponse.json(
+                            { success: false, error: response?.error || 'Reload rejected by agent' },
+                            { status: 502 }
+                        )
+                    );
+                }
                 resolve(NextResponse.json(response));
             });
         } else if (action === 'restart') {
             client.RestartNginx({ instance_id: id }, (err: any, response: any) => {
                 if (err) return resolve(NextResponse.json({ success: false, error: err.message }, { status: 500 }));
+                if (isGrpcExplicitFailure(response)) {
+                    return resolve(
+                        NextResponse.json(
+                            { success: false, error: response?.error || 'Restart rejected by agent' },
+                            { status: 502 }
+                        )
+                    );
+                }
                 resolve(NextResponse.json({ success: response?.success ?? true, error: response?.error }));
             });
         } else if (action === 'stop') {
             client.StopNginx({ instance_id: id }, (err: any, response: any) => {
                 if (err) return resolve(NextResponse.json({ success: false, error: err.message }, { status: 500 }));
+                if (isGrpcExplicitFailure(response)) {
+                    return resolve(
+                        NextResponse.json(
+                            { success: false, error: response?.error || 'Stop rejected by agent' },
+                            { status: 502 }
+                        )
+                    );
+                }
                 resolve(NextResponse.json({ success: response?.success ?? true, error: response?.error }));
             });
         } else if (action === 'update_config') {
@@ -112,11 +140,27 @@ export async function POST(
                 backup: backup || true
             }, (err: any, response: any) => {
                 if (err) return resolve(NextResponse.json({ error: err.message }, { status: 500 }));
+                if (isGrpcExplicitFailure(response)) {
+                    return resolve(
+                        NextResponse.json(
+                            { success: false, error: response?.error || 'Config update rejected' },
+                            { status: 502 }
+                        )
+                    );
+                }
                 resolve(NextResponse.json(response));
             });
         } else if (action === 'update_agent') {
             client.UpdateAgent({ agent_id: id }, (err: any, response: any) => {
                 if (err) return resolve(NextResponse.json({ error: err.message }, { status: 500 }));
+                if (isGrpcExplicitFailure(response)) {
+                    return resolve(
+                        NextResponse.json(
+                            { error: response?.message || 'Update failed' },
+                            { status: 400 }
+                        )
+                    );
+                }
                 resolve(NextResponse.json(response));
             });
         } else {
@@ -126,23 +170,69 @@ export async function POST(
 }
 
 export async function DELETE(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id: rawId } = await params;
     const id = normalizeServerId(rawId);
-    const client = getAgentServiceClient();
-    console.log(`DELETE /api/servers/${id} - removing agent`);
+    if (!id) {
+        return NextResponse.json({ error: 'Agent ID required' }, { status: 400 });
+    }
 
-    return new Promise<NextResponse>((resolve) => {
-        client.RemoveAgent({ agent_id: id }, (err: any, response: any) => {
-            if (err) {
-                console.error('gRPC Error:', err);
-                return resolve(
-                    NextResponse.json({ error: 'Failed to remove agent' }, { status: 500 })
+    if (serversDeleteUsesGrpc()) {
+        let client;
+        try {
+            client = getAgentServiceClient();
+        } catch (e) {
+            console.error('GetAgentServiceClient failed:', e);
+            return NextResponse.json({ error: 'Agent service unavailable' }, { status: 503 });
+        }
+        console.log(`DELETE /api/servers/${id} - removing agent (gRPC)`);
+        return new Promise<NextResponse>((resolve) => {
+            client.RemoveAgent({ agent_id: id }, (err: unknown, response: Record<string, unknown>) => {
+                if (err) {
+                    console.error('gRPC Error:', err);
+                    return resolve(
+                        NextResponse.json({ error: 'Failed to remove agent' }, { status: 500 })
+                    );
+                }
+                if (isGrpcExplicitFailure(response)) {
+                    return resolve(
+                        NextResponse.json(
+                            { error: 'Gateway refused removal (agent not found or DB error)' },
+                            { status: 502 }
+                        )
+                    );
+                }
+                resolve(NextResponse.json({ success: true }));
+            });
+        });
+    }
+
+    const gatewayUrl = getGatewayUrl();
+    const url = `${gatewayUrl}/api/servers/${encodeURIComponent(id)}`;
+    console.log(`DELETE /api/servers/${id} - removing agent (HTTP → gateway)`);
+
+    try {
+        const gwRes = await fetch(url, {
+            method: 'DELETE',
+            headers: gatewayProxyCookieHeaders(request),
+        });
+        const text = await gwRes.text();
+        let body: Record<string, unknown> = {};
+        if (text) {
+            try {
+                body = JSON.parse(text) as Record<string, unknown>;
+            } catch {
+                return NextResponse.json(
+                    { error: 'Invalid JSON from gateway' },
+                    { status: 502 }
                 );
             }
-            resolve(NextResponse.json({ success: true }));
-        });
-    });
+        }
+        return NextResponse.json(body, { status: gwRes.status });
+    } catch (e) {
+        console.error('HTTP DELETE to gateway failed:', e);
+        return NextResponse.json({ error: 'Failed to connect to gateway' }, { status: 502 });
+    }
 }

@@ -100,8 +100,7 @@ var (
 
 var (
 	globalUpdater *updater.Updater
-	currentHostname, _ = os.Hostname()
-	currentIP       = getChosenIP()
+	currentIP     = getChosenIP()
 
 	startTime     = time.Now()
 	agentLabels   = make(map[string]string) // Labels for auto-assignment (project, environment, etc.)
@@ -1214,7 +1213,7 @@ func handleLogRequest(cmdID string, req *pb.LogRequest, ss *StreamSync, agentID 
 		log.Printf("Failed to start log follow: %v", err)
 		return
 	}
-	defer stop()
+	defer func() { _ = stop() }()
 
 	for entry := range followChan {
 		msg := &pb.AgentMessage{
@@ -1315,7 +1314,7 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 			}
 
 			// Dial with backoff? Simple wait for now
-			conn, err = grpc.Dial(targetAddr, dialOpts...)
+			conn, err = grpc.NewClient(targetAddr, dialOpts...)
 			if err != nil {
 				agentWarn("Connection failed: %v. Retrying in 5s...", err)
 				select {
@@ -1419,7 +1418,7 @@ func senderLoop(ctx context.Context, wal *buffer.FileBuffer, agentID string, gat
 		var msg pb.AgentMessage
 		if err := proto.Unmarshal(data, &msg); err != nil {
 			log.Printf("Corrupt message in buffer at offset %d, skipping: %v", offset, err)
-			wal.Ack(offset) // Skip corrupt message
+			_ = wal.Ack(offset) // Skip corrupt message
 			continue
 		}
 

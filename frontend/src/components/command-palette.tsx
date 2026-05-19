@@ -74,7 +74,7 @@ export function CommandPalette() {
             <FileText className="mr-2 h-4 w-4" />
             <span>Reports</span>
           </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => router.push("/settings/integrations"))}>
+          <CommandItem onSelect={() => runCommand(() => router.push("/settings?tab=integrations"))}>
             <PlugZap className="mr-2 h-4 w-4" />
             <span>Integrations</span>
           </CommandItem>

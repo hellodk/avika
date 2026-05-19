@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 
 import { getGatewayUrl } from '@/lib/gateway-url';
+import { gatewayProxyCookieHeaders } from "@/lib/gateway-proxy-headers";
 
 const GATEWAY_URL = getGatewayUrl();
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get("avika_session");
-
     const response = await fetch(`${GATEWAY_URL}/api/projects`, {
       headers: {
-        Cookie: sessionCookie ? `avika_session=${sessionCookie.value}` : "",
+        ...gatewayProxyCookieHeaders(request),
       },
     });
 
@@ -36,15 +33,13 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get("avika_session");
     const body = await request.json();
 
     const response = await fetch(`${GATEWAY_URL}/api/projects`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Cookie: sessionCookie ? `avika_session=${sessionCookie.value}` : "",
+        ...gatewayProxyCookieHeaders(request),
       },
       body: JSON.stringify(body),
     });

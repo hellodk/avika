@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"time"
 
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
 )
@@ -19,7 +19,15 @@ func (db *ClickHouseDB) InsertSystemMetrics(metrics *pb.SystemMetrics, agentID s
 	case db.sysChan <- sysBatchItem{entry: metrics, agentID: agentID}:
 		return nil
 	default:
-		return fmt.Errorf("system metrics queue full")
+		t := time.NewTimer(50 * time.Millisecond)
+		defer t.Stop()
+		select {
+		case db.sysChan <- sysBatchItem{entry: metrics, agentID: agentID}:
+			return nil
+		case <-t.C:
+			db.droppedSys.Add(1)
+			return nil
+		}
 	}
 }
 
@@ -31,7 +39,15 @@ func (db *ClickHouseDB) InsertNginxMetrics(metrics *pb.NginxMetrics, agentID str
 	case db.nginxChan <- nginxBatchItem{entry: metrics, agentID: agentID}:
 		return nil
 	default:
-		return fmt.Errorf("nginx metrics queue full")
+		t := time.NewTimer(50 * time.Millisecond)
+		defer t.Stop()
+		select {
+		case db.nginxChan <- nginxBatchItem{entry: metrics, agentID: agentID}:
+			return nil
+		case <-t.C:
+			db.droppedNginx.Add(1)
+			return nil
+		}
 	}
 }
 
@@ -43,6 +59,14 @@ func (db *ClickHouseDB) InsertGatewayMetrics(gatewayID string, metrics *pb.Gatew
 	case db.gwChan <- gwBatchItem{metrics: &gatewayMetrics{gatewayID: gatewayID, metrics: metrics}}:
 		return nil
 	default:
-		return fmt.Errorf("gateway metrics queue full")
+		t := time.NewTimer(50 * time.Millisecond)
+		defer t.Stop()
+		select {
+		case db.gwChan <- gwBatchItem{metrics: &gatewayMetrics{gatewayID: gatewayID, metrics: metrics}}:
+			return nil
+		case <-t.C:
+			db.droppedGw.Add(1)
+			return nil
+		}
 	}
 }

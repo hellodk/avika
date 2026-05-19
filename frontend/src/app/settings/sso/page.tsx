@@ -74,9 +74,9 @@ export default function SSOSettingsPage() {
                         >
                             <div className="flex items-center gap-3">
                                 {p.enabled ? (
-                                    <CheckCircle2 className="h-5 w-5 text-emerald-500" aria-hidden />
+                                    <CheckCircle2 className="h-5 w-5 text-[#16A34A] dark:text-[#4ADE80]" aria-hidden />
                                 ) : (
-                                    <XCircle className="h-5 w-5 text-slate-500" aria-hidden />
+                                    <XCircle className="h-5 w-5 text-muted-foreground" aria-hidden />
                                 )}
                                 <span className="font-medium" style={{ color: "rgb(var(--theme-text))" }}>
                                     {p.label}
@@ -85,7 +85,7 @@ export default function SSOSettingsPage() {
                             <div className="flex items-center gap-3">
                                 <Badge
                                     variant="outline"
-                                    className={p.enabled ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : "bg-slate-500/15 text-slate-400 border-slate-500/30"}
+                                    className={p.enabled ? "bg-[#16A34A] dark:bg-[#4ADE80]/15 text-emerald-400 border-emerald-500/30" : "bg-slate-500/15 text-muted-foreground border-slate-500/30"}
                                 >
                                     {p.enabled ? "Enabled" : "Disabled"}
                                 </Badge>

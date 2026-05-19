@@ -14,8 +14,6 @@ import { ProjectSelector } from "@/components/project-selector";
 import { EnvironmentTabs } from "@/components/environment-tabs";
 import { useProject } from "@/lib/project-context";
 import { Breadcrumb } from "@/components/breadcrumb";
-
-const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "dev";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-provider";
 import {
@@ -28,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { GlobalSearch } from "@/components/global-search";
 import { CommandPalette } from "@/components/command-palette";
+import { useAppVersion } from "@/lib/use-app-version";
 
 interface NavSection {
     title: string;
@@ -73,9 +72,7 @@ const NAV_SECTIONS: NavSection[] = [
     {
         title: "Settings",
         items: [
-            { href: "/settings", icon: <Settings />, label: "General" },
-            { href: "/settings/integrations", icon: <Globe />, label: "Integrations" },
-            { href: "/settings/security", icon: <Lock />, label: "Security" },
+            { href: "/settings", icon: <Settings />, label: "Settings" },
         ],
     },
 ];
@@ -104,6 +101,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname() ?? "";
     const router = useRouter();
     const { user, logout } = useAuth();
+    const APP_VERSION = useAppVersion();
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [expandedSections, setExpandedSections] = useState<string[]>(
         NAV_SECTIONS.map(s => s.title) // All expanded by default
@@ -168,7 +166,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                                 <span className="font-semibold text-lg leading-tight" style={{ color: "rgb(var(--theme-text))" }}>
                                     Avika
                                 </span>
-                                <span className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                <span
+                                    className="text-xs"
+                                    style={{ color: "rgb(var(--theme-text-muted))" }}
+                                    suppressHydrationWarning
+                                >
                                     v{APP_VERSION}
                                 </span>
                             </div>
@@ -251,7 +253,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 >
                     {/* Left: Project Selector and Breadcrumb */}
                     <div className="flex items-center gap-4">
-                        <ProjectSelector className="w-[180px]" />
+                        <ProjectSelector className="w-[240px]" />
                         <div className="w-px h-6 hidden md:block" style={{ background: "rgb(var(--theme-border))" }} />
                         <div className="hidden md:block">
                             <Breadcrumb />
@@ -344,7 +346,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                                 <DropdownMenuSeparator style={{ background: "rgb(var(--theme-border))" }} />
                                 <DropdownMenuItem
                                     onClick={logout}
-                                    className="flex items-center cursor-pointer text-red-400 focus:text-red-400 focus:bg-red-500/10"
+                                    className="flex items-center cursor-pointer text-red-400 focus:text-red-400 focus:bg-red-100 dark:bg-red-900/30"
                                 >
                                     <LogOut className="mr-2 h-4 w-4" />
                                     Logout

@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { formatTs, formatTsDate } from "@/lib/format-timestamp";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -646,7 +647,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 const newLog = JSON.parse(event.data) as LogEntry;
                 const ts = (newLog.timestamp as number) || Math.floor(Date.now() / 1000);
                 const date = new Date(ts * 1000);
-                (newLog as any).formattedTime = date.toLocaleString();
+                (newLog as any).formattedTime = formatTs(date);
                 if (!newLog.message && newLog.content) (newLog as any).message = newLog.content;
                 else if (!newLog.message) (newLog as any).message = `${newLog.request_method || ""} ${newLog.request_uri || ""} ${newLog.status ?? ""}`.trim() || "—";
                 setLogs((prev) => [newLog, ...prev].slice(0, Math.max(500, logTailLines)));
@@ -812,7 +813,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     if (serverInfo?.error) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 p-6">
-                <AlertTriangle className="h-12 w-12 text-amber-500" />
+                <AlertTriangle className="h-12 w-12 text-[#D97706] dark:text-[#FCD34D]" />
                 <h2 className="text-lg font-semibold" style={{ color: `rgb(var(--theme-text))` }}>Failed to load server</h2>
                 <p className="text-sm text-neutral-400 text-center max-w-md">{serverInfo.error}</p>
                 <Button variant="outline" onClick={() => { setIsLoading(true); setServerInfo(null); fetchDetails(); }}>
@@ -828,10 +829,10 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
     return (
         <div className="space-y-6">
             {projects.length > 0 && environments.length > 0 && (
-                <Card className="border border-amber-500/40 bg-amber-500/5">
+                <Card className="border border-amber-500/40 bg-[#D97706] dark:bg-[#FCD34D]/5">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-sm">
-                            <AlertCircle className="h-4 w-4 text-amber-500" />
+                            <AlertCircle className="h-4 w-4 text-[#D97706] dark:text-[#FCD34D]" />
                             Assign project and environment
                         </CardTitle>
                         <CardDescription className="text-xs text-neutral-400">
@@ -966,7 +967,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 <DialogContent className="bg-[rgb(var(--theme-surface))] border-[rgb(var(--theme-border))] text-[rgb(var(--theme-text))]">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <Construction className="h-5 w-5 text-amber-500" />
+                            <Construction className="h-5 w-5 text-[#D97706] dark:text-[#FCD34D]" />
                             {maintenanceMode ? "Disable Maintenance Mode" : "Enable Maintenance Mode"}
                         </DialogTitle>
                         <DialogDescription className="text-[rgb(var(--theme-text-muted))]">
@@ -1009,7 +1010,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsMaintenanceDialogOpen(false)}>Cancel</Button>
                         <Button 
-                            className={maintenanceMode ? "bg-red-600 hover:bg-red-700 text-white" : "bg-amber-500 hover:bg-amber-600 text-black font-medium"}
+                            className={maintenanceMode ? "bg-red-600 hover:bg-red-700 text-white" : "bg-[#D97706] dark:bg-[#FCD34D] hover:bg-amber-600 text-black font-medium"}
                             onClick={handleToggleMaintenance}
                             disabled={isSettingMaintenance}
                         >
@@ -1020,6 +1021,15 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 </DialogContent>
             </Dialog>
 
+            {/* Breadcrumb / back navigation */}
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-1">
+                <Link href="/inventory" className="hover:text-foreground transition-colors flex items-center gap-1">
+                    <Server className="h-3.5 w-3.5" /> Inventory
+                </Link>
+                <span>/</span>
+                <span className="text-foreground font-medium">{serverInfo?.hostname || serverIdForDisplay(id)}</span>
+            </div>
+
             <div className="flex items-start justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight" style={{ color: `rgb(var(--theme-text))` }}>{serverInfo?.hostname || serverIdForDisplay(id)}</h1>
@@ -1029,12 +1039,12 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                 </div>
                 <div className="flex items-center gap-2">
                     {maintenanceMode && (
-                        <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20">
+                        <Badge className="bg-yellow-100 dark:bg-yellow-900/30 text-amber-400 border-amber-500/20">
                             <Construction className="h-3 w-3 mr-1" />
                             Maintenance Mode
                         </Badge>
                     )}
-                    <Badge className={currentStatus === 'online' ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"}>
+                    <Badge className={currentStatus === 'online' ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-red-100 dark:bg-red-900/30 text-red-400 border-red-500/20"}>
                         {currentStatus === 'online' ? <CheckCircle2 className="h-3 w-3 mr-1" /> : <Activity className="h-3 w-3 mr-1" />}
                         {currentStatus}
                     </Badge>
@@ -1176,7 +1186,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                         <div className="flex flex-col items-end">
                                             <span className="text-xs text-neutral-500 uppercase font-semibold tracking-wider">Overall Score</span>
                                             <div className="flex items-baseline gap-1">
-                                                <span className={`text-4xl font-bold tracking-tighter ${configScore.score >= 90 ? 'text-green-500' : configScore.score >= 70 ? 'text-amber-500' : 'text-red-500'}`}>
+                                                <span className={`text-4xl font-bold tracking-tighter ${configScore.score >= 90 ? 'text-green-500' : configScore.score >= 70 ? 'text-[#D97706] dark:text-[#FCD34D]' : 'text-[#DC2626] dark:text-[#F87171]'}`}>
                                                     {configScore.score}
                                                 </span>
                                                 <span className="text-lg text-neutral-600 font-medium">/100</span>
@@ -1190,20 +1200,20 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                             <CardContent className="pt-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {configScore.checks.map((check: any, idx: number) => (
-                                        <div key={idx} className={`p-4 rounded-lg border ${check.passed ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'} flex flex-col gap-2 relative overflow-hidden group transition-colors hover:border-neutral-700`}>
-                                            <div className={`absolute top-0 right-0 w-16 h-16 -mr-8 -mt-8 rounded-full opacity-10 ${check.passed ? 'bg-green-500' : 'bg-red-500'} transition-transform group-hover:scale-150 duration-500`} />
+                                        <div key={idx} className={`p-4 rounded-lg border ${check.passed ? 'bg-green-500/5 border-green-500/20' : 'bg-[#DC2626] dark:bg-[#F87171]/5 border-red-500/20'} flex flex-col gap-2 relative overflow-hidden group transition-colors hover:border-neutral-700`}>
+                                            <div className={`absolute top-0 right-0 w-16 h-16 -mr-8 -mt-8 rounded-full opacity-10 ${check.passed ? 'bg-green-500' : 'bg-[#DC2626] dark:bg-[#F87171]'} transition-transform group-hover:scale-150 duration-500`} />
                                             
                                             <div className="flex items-start justify-between z-10">
                                                 <div className="flex items-center gap-2">
                                                     {check.passed ? (
                                                         <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
                                                     ) : (
-                                                        <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
+                                                        <AlertTriangle className="h-5 w-5 text-[#DC2626] dark:text-[#F87171] shrink-0" />
                                                     )}
                                                     <h4 className="font-semibold text-white/90 text-sm leading-tight">{check.rule.name}</h4>
                                                 </div>
                                                 {!check.passed && check.rule.impact_score > 0 && (
-                                                    <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20 text-[10px] px-1.5 py-0 h-5 font-mono">
+                                                    <Badge variant="outline" className="bg-red-100 dark:bg-red-900/30 text-red-400 border-red-500/20 text-[10px] px-1.5 py-0 h-5 font-mono">
                                                         -{check.rule.impact_score} pts
                                                     </Badge>
                                                 )}
@@ -1325,7 +1335,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <span className="text-xs text-neutral-500">
-                                                {b.created_at ? new Date(b.created_at).toLocaleString() : "—"}
+                                                {b.created_at ? formatTs(b.created_at) : "—"}
                                             </span>
                                             <Button
                                                 variant="outline"
@@ -1447,8 +1457,8 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <div className="text-right">
-                                                <div className="text-sm text-neutral-300">Expires: {new Date(cert.expiry_timestamp * 1000).toLocaleDateString()}</div>
-                                                <Badge className={cert.days_until_expiry < 30 ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-green-500/10 text-green-400 border-green-500/20"}>
+                                                <div className="text-sm text-neutral-300">Expires: {formatTsDate(cert.expiry_timestamp)}</div>
+                                                <Badge className={cert.days_until_expiry < 30 ? "bg-yellow-100 dark:bg-yellow-900/30 text-amber-400 border-amber-500/20" : "bg-green-500/10 text-green-400 border-green-500/20"}>
                                                     {cert.days_until_expiry < 30 && <AlertTriangle className="h-3 w-3 mr-1" />}
                                                     {cert.days_until_expiry} days left
                                                 </Badge>
@@ -1612,7 +1622,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                                 <div 
                                                     key={idx} 
                                                     id={`log-line-${idx}`}
-                                                    className={`p-1 rounded transition-colors ${(log.status ?? 0) >= 400 ? 'bg-red-500/10 text-red-400' : ''} ${isSelectedMatch ? 'bg-yellow-500/20 ring-1 ring-yellow-500/50' : isMatch ? 'bg-yellow-500/10' : ''}`} 
+                                                    className={`p-1 rounded transition-colors ${(log.status ?? 0) >= 400 ? 'bg-red-100 dark:bg-red-900/30 text-red-400' : ''} ${isSelectedMatch ? 'bg-yellow-500/20 ring-1 ring-yellow-500/50' : isMatch ? 'bg-yellow-500/10' : ''}`} 
                                                     style={{ color: (log.status ?? 0) >= 400 ? undefined : "rgb(var(--theme-text-muted))" }}
                                                 >
                                                     <span className="opacity-80">[{log.formattedTime || log.timestamp}]</span> {log.message}
@@ -1958,13 +1968,13 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                             <div className="flex items-center gap-4">
                                                 <div className="text-right">
                                                     <div className="text-xs text-neutral-400">P95</div>
-                                                    <Badge className={stat.p95 > 200 ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-green-500/10 text-green-400 border-green-500/20"}>
+                                                    <Badge className={stat.p95 > 200 ? "bg-yellow-100 dark:bg-yellow-900/30 text-amber-400 border-amber-500/20" : "bg-green-500/10 text-green-400 border-green-500/20"}>
                                                         {stat.p95?.toFixed(0)}ms
                                                     </Badge>
                                                 </div>
                                                 <div className="text-right">
                                                     <div className="text-xs text-neutral-400">Errors</div>
-                                                    {stat.errors > 0 ? <Badge className="bg-red-500/10 text-red-400 border-red-500/20">{stat.errors}</Badge> : <span className="text-neutral-500 text-sm">0</span>}
+                                                    {stat.errors > 0 ? <Badge className="bg-red-100 dark:bg-red-900/30 text-red-400 border-red-500/20">{stat.errors}</Badge> : <span className="text-neutral-500 text-sm">0</span>}
                                                 </div>
                                             </div>
                                         </div>
@@ -2025,13 +2035,13 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                             <div className="flex items-center gap-3">
                                                 <div className={`w-2 h-2 rounded-full ${report.status === 'UP' ? 'bg-green-400' : 'bg-red-400'}`} />
                                                 <div>
-                                                    <div className="text-sm font-medium text-white">{new Date(report.timestamp * 1000).toLocaleString()}</div>
+                                                    <div className="text-sm font-medium text-white">{formatTs(report.timestamp)}</div>
                                                     <div className="text-xs text-neutral-500">{report.check_type} • {report.target}</div>
                                                 </div>
                                             </div>
                                             <div className="text-right">
                                                 <div className="text-sm font-bold text-white">{report.latency_ms}ms</div>
-                                                <Badge className={report.status === 'UP' ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"}>
+                                                <Badge className={report.status === 'UP' ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-red-100 dark:bg-red-900/30 text-red-400 border-red-500/20"}>
                                                     {report.status}
                                                 </Badge>
                                             </div>
@@ -2083,8 +2093,8 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                                     g.status === "in_sync"
                                                         ? "bg-green-500/10 text-green-400 border-green-500/20"
                                                         : g.status === "drifted"
-                                                        ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                                                        : "bg-red-500/10 text-red-400 border-red-500/20"
+                                                        ? "bg-yellow-100 dark:bg-yellow-900/30 text-amber-400 border-amber-500/20"
+                                                        : "bg-red-100 dark:bg-red-900/30 text-red-400 border-red-500/20"
                                                 }
                                             >
                                                 {g.status === "in_sync" ? "In sync" : g.status === "drifted" ? "Drifted" : g.status}
@@ -2173,7 +2183,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                                     size="icon"
                                                     variant="ghost"
                                                     onClick={() => removeGatewayAddress(index)}
-                                                    className="text-red-400 hover:bg-red-500/10"
+                                                    className="text-red-400 hover:bg-red-100 dark:bg-red-900/30"
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
@@ -2384,7 +2394,7 @@ export default function ServerDetailPage({ params }: { params: Promise<{ id: str
                                         <li key={b.name} className="flex items-center justify-between p-2 rounded-lg bg-neutral-950 border border-neutral-800">
                                             <span className="font-mono text-sm text-white truncate" style={{ color: "rgb(var(--theme-text))" }}>{b.name}</span>
                                             <span className="text-xs text-neutral-500 shrink-0 ml-2" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                                {b.created_at ? new Date(b.created_at * 1000).toLocaleString() : "—"}
+                                                {b.created_at ? formatTs(b.created_at) : "—"}
                                             </span>
                                             <Button
                                                 variant="outline"

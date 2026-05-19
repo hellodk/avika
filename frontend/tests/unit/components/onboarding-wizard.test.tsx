@@ -12,18 +12,65 @@ vi.mock('next/link', () => ({
 
 const ONBOARDING_KEY = 'avika_onboarding_complete';
 
+function mockOnboardingFetch() {
+    vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: RequestInfo | URL) => {
+            const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+            if (url.includes('/api/servers')) {
+                return {
+                    ok: true,
+                    json: async () => ({ agents: [] }),
+                } as Response;
+            }
+            if (url.includes('/api/config')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        gateway: { httpUrl: 'http://127.0.0.1:5021', host: '127.0.0.1', grpcPort: '5020' },
+                    }),
+                } as Response;
+            }
+            return { ok: false, json: async () => ({}) } as Response;
+        })
+    );
+}
+
 describe('OnboardingWizard', () => {
     beforeEach(() => {
         // Clear localStorage before each test
         localStorage.removeItem(ONBOARDING_KEY);
         vi.clearAllMocks();
+        mockOnboardingFetch();
     });
 
     afterEach(() => {
         localStorage.removeItem(ONBOARDING_KEY);
+        vi.unstubAllGlobals();
     });
 
     describe('First Visit', () => {
+        it('does not open wizard when agents already exist', async () => {
+            vi.stubGlobal(
+                'fetch',
+                vi.fn(async (input: RequestInfo | URL) => {
+                    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+                    if (url.includes('/api/servers')) {
+                        return {
+                            ok: true,
+                            json: async () => ({ agents: [{ agent_id: 'a1' }] }),
+                        } as Response;
+                    }
+                    return { ok: false, json: async () => ({}) } as Response;
+                })
+            );
+            render(<OnboardingWizard />);
+            await waitFor(() => {
+                expect(localStorage.getItem(ONBOARDING_KEY)).toBe('true');
+            });
+            expect(screen.queryAllByText('Welcome to Avika NGINX Manager').length).toBe(0);
+        });
+
         it('shows the wizard on first visit (no localStorage key)', async () => {
             render(<OnboardingWizard />);
             
@@ -74,7 +121,8 @@ describe('OnboardingWizard', () => {
             await user.click(await screen.findByText('Get Started'));
 
             await waitFor(() => {
-                expect(screen.getByText(/curl -sSL/)).toBeInTheDocument();
+                expect(screen.getByText(/curl -fsSL/)).toBeInTheDocument();
+                expect(screen.getByText(/deploy-agent\.sh/)).toBeInTheDocument();
             });
         });
 

@@ -22,7 +22,7 @@ type OTLPExporter struct {
 }
 
 func NewOTLPExporter(endpoint string, agentID string, hostname string) (*OTLPExporter, error) {
-	conn, err := grpc.Dial(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}

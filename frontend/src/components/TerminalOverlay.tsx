@@ -154,8 +154,8 @@ export const TerminalOverlay: React.FC<TerminalOverlayProps> = ({ agentId, onClo
                 <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800 bg-neutral-950">
                     <div className="flex items-center gap-2">
                         <div className="flex gap-1.5">
-                            <div className="w-3 h-3 rounded-full bg-red-500/20 hover:bg-red-500 transition-colors cursor-pointer" onClick={onClose} title="Close" />
-                            <div className="w-3 h-3 rounded-full bg-amber-500/20" />
+                            <div className="w-3 h-3 rounded-full bg-[#DC2626] dark:bg-[#F87171]/20 hover:bg-[#DC2626] dark:bg-[#F87171] transition-colors cursor-pointer" onClick={onClose} title="Close" />
+                            <div className="w-3 h-3 rounded-full bg-[#D97706] dark:bg-[#FCD34D]/20" />
                             <div className="w-3 h-3 rounded-full bg-green-500/20" />
                         </div>
                         <span className="text-sm font-medium text-neutral-400 ml-2">Terminal: {agentId}</span>

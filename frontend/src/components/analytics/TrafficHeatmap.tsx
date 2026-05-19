@@ -15,9 +15,9 @@ interface TrafficHeatmapProps {
 }
 
 const COLORS: Record<string, string> = {
-    "2xx": "bg-emerald-500",
+    "2xx": "bg-[#16A34A] dark:bg-[#4ADE80]",
     "3xx": "bg-blue-500",
-    "4xx": "bg-amber-500",
+    "4xx": "bg-[#D97706] dark:bg-[#FCD34D]",
     "5xx": "bg-rose-500",
     "default": "bg-slate-400"
 };

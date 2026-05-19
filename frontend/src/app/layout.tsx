@@ -7,6 +7,7 @@ import { Toaster } from "@/components/themed-toaster";
 import { AuthProvider } from "@/lib/auth-provider";
 import { ProjectProvider } from "@/lib/project-context";
 import { UserSettingsProvider } from "@/lib/user-settings";
+import { AnalyticsProvider } from "@/lib/analytics-context";
 
 const inter = Inter({ subsets: ["latin"] });
 const orbitron = Orbitron({
@@ -32,7 +33,9 @@ export default function RootLayout({
           <AuthProvider>
             <ProjectProvider>
               <UserSettingsProvider>
-                <DashboardLayout>{children}</DashboardLayout>
+                <AnalyticsProvider>
+                  <DashboardLayout>{children}</DashboardLayout>
+                </AnalyticsProvider>
               </UserSettingsProvider>
             </ProjectProvider>
           </AuthProvider>

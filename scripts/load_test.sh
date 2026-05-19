@@ -22,17 +22,17 @@ COOLDOWN_DURATION="${COOLDOWN_DURATION:-30s}"
 
 # Simple mode: just run simulator and exit (no results dir, no harness)
 if [ "${SIMPLE}" = "1" ]; then
-    if [ ! -f "$PROJECT_ROOT/bin/simulator" ]; then
-        echo "Building simulator..."
-        go build -o "$PROJECT_ROOT/bin/simulator" "$PROJECT_ROOT/cmd/simulator/main.go"
-    fi
+    echo "Building simulator..."
+    go build -o "$PROJECT_ROOT/bin/simulator" "$PROJECT_ROOT/cmd/simulator/" 2>/dev/null
     echo "Load test: ${TOTAL_RPS} RPS, ${AGENT_COUNT} agents, ${DURATION}, target: ${GATEWAY_TARGET}"
+    # shellcheck disable=SC2086
     exec "$PROJECT_ROOT/bin/simulator" \
         -target "$GATEWAY_TARGET" \
         -rps "$TOTAL_RPS" \
         -agents "$AGENT_COUNT" \
         -duration "$DURATION" \
-        -batch "${BATCH_SIZE}"
+        -batch "${BATCH_SIZE}" \
+        ${SIMULATOR_TLS_FLAGS:-}
 fi
 
 # Full harness from here
@@ -96,12 +96,10 @@ check_prerequisites() {
     fi
     echo -e "${GREEN}✓ Gateway is reachable at $GATEWAY_TARGET${NC}"
     
-    # Build simulator if needed
-    if [ ! -f "$PROJECT_ROOT/bin/simulator" ]; then
-        echo -e "${YELLOW}  Building simulator...${NC}"
-        cd "$PROJECT_ROOT"
-        go build -o bin/simulator cmd/simulator/main.go
-    fi
+    # Always rebuild simulator to pick up code changes
+    echo -e "${YELLOW}  Building simulator...${NC}"
+    cd "$PROJECT_ROOT"
+    go build -o bin/simulator ./cmd/simulator/
     echo -e "${GREEN}✓ Simulator ready${NC}"
 }
 
@@ -192,12 +190,14 @@ run_warmup() {
     
     # Run simulator at 10% load for warmup
     WARMUP_RPS=$((TOTAL_RPS / 10))
+    # shellcheck disable=SC2086
     timeout ${WARMUP_DURATION} "$PROJECT_ROOT/bin/simulator" \
         -target "$GATEWAY_TARGET" \
         -agents 10 \
         -rps $WARMUP_RPS \
         -duration ${WARMUP_DURATION} \
-        -report 10s 2>&1 | tee "$TEST_DIR/warmup.log" || true
+        -report 10s \
+        ${SIMULATOR_TLS_FLAGS:-} 2>&1 | tee "$TEST_DIR/warmup.log" || true
     
     echo -e "${GREEN}✓ Warmup complete${NC}"
     sleep 5
@@ -214,12 +214,14 @@ run_load_test() {
     START_TIME=$(date +%s)
     
     # Run the simulator
+    # shellcheck disable=SC2086
     "$PROJECT_ROOT/bin/simulator" \
         -target "$GATEWAY_TARGET" \
         -agents $AGENT_COUNT \
         -rps $TOTAL_RPS \
         -duration $DURATION \
         -batch $BATCH_SIZE \
+        ${SIMULATOR_TLS_FLAGS:-} \
         -report $REPORT_INTERVAL 2>&1 | tee "$TEST_DIR/load_test.log"
     
     END_TIME=$(date +%s)
@@ -281,11 +283,14 @@ analyze_results() {
     # Parse simulator output
     if [ -f "$TEST_DIR/load_test.log" ]; then
         # Extract key metrics from log
-        TOTAL_SENT=$(grep "Total Sent:" "$TEST_DIR/load_test.log" | tail -1 | awk '{print $3}')
-        TOTAL_ERRORS=$(grep "Total Errors:" "$TEST_DIR/load_test.log" | tail -1 | awk '{print $3}')
-        AVG_RPS=$(grep "Avg RPS:" "$TEST_DIR/load_test.log" | tail -1 | awk '{print $3}')
-        AVG_LATENCY=$(grep "Avg Latency:" "$TEST_DIR/load_test.log" | tail -1 | awk '{print $3}')
-        SUCCESS_RATE=$(grep "Success Rate:" "$TEST_DIR/load_test.log" | tail -1 | awk '{print $3}')
+        # Simulator log format: "2026/04/04 23:47:41    Total Sent:    3722611 messages"
+        # Use sed to extract value after the colon, then trim whitespace and trailing words
+        extract_val() { grep "$1" "$TEST_DIR/load_test.log" | tail -1 | sed "s/.*$1//" | awk '{print $1}'; }
+        TOTAL_SENT=$(extract_val "Total Sent:")
+        TOTAL_ERRORS=$(extract_val "Total Errors:")
+        AVG_RPS=$(extract_val "Avg RPS:")
+        AVG_LATENCY=$(extract_val "Avg Latency:")
+        SUCCESS_RATE=$(extract_val "Success Rate:")
     fi
     
     # Analyze resource metrics
@@ -455,11 +460,15 @@ main() {
     # Display quick summary
     echo ""
     echo -e "${BLUE}Quick Summary:${NC}"
-    echo "  Total Sent:    ${TOTAL_SENT:-N/A} messages"
-    echo "  Total Errors:  ${TOTAL_ERRORS:-N/A}"
-    echo "  Average RPS:   ${AVG_RPS:-N/A}"
+    echo "  Total Sent:    ${TOTAL_SENT:-0} messages"
+    echo "  Total Errors:  ${TOTAL_ERRORS:-0}"
+    echo "  Average RPS:   ${AVG_RPS:-0}"
     echo "  Avg Latency:   ${AVG_LATENCY:-N/A}"
     echo "  Success Rate:  ${SUCCESS_RATE:-N/A}"
+    if [[ "${TOTAL_SENT:-0}" == "0" ]]; then
+        echo -e "  ${RED}Warning: No data captured. The simulator may have failed to connect.${NC}"
+        echo "  Check $TEST_DIR/load_test.log for details."
+    fi
     echo ""
 }
 

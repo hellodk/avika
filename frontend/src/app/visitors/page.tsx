@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { formatTs } from "@/lib/format-timestamp";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -534,7 +535,7 @@ export default function VisitorsPage() {
                           {formatNumber(nf.hits)}
                         </TableCell>
                         <TableCell className="text-right text-muted-foreground">
-                          {new Date(nf.last_seen).toLocaleString()}
+                          {formatTs(nf.last_seen)}
                         </TableCell>
                       </TableRow>
                     ))

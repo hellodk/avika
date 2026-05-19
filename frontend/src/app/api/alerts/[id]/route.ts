@@ -1,6 +1,6 @@
-
 import { NextResponse } from 'next/server';
 import { getAgentServiceClient } from '@/lib/grpc-client';
+import { isGrpcExplicitFailure } from '@/lib/grpc-success';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +20,12 @@ export async function DELETE(
                     NextResponse.json({ error: 'Failed to remove alert rule' }, { status: 500 })
                 );
             }
-            resolve(NextResponse.json({ success: response.success }));
+            if (isGrpcExplicitFailure(response)) {
+                return resolve(
+                    NextResponse.json({ error: 'Gateway refused to delete alert rule' }, { status: 502 })
+                );
+            }
+            resolve(NextResponse.json({ success: true }));
         });
     });
 }

@@ -48,8 +48,10 @@ type AuthConfig struct {
 	CookieDomain      string         `json:"cookie_domain"`
 	FirstTimeSetup    bool           `json:"first_time_setup"`    // True if using auto-generated password
 	RequirePassChange bool           `json:"require_pass_change"` // Force password change on first login
-	InitialSecretPath string         `json:"initial_secret_path"` // File to write initial secret
-	UserLookup        UserLookupFunc `json:"-"`                   // Function to look up users from database
+	InitialSecretPath    string         `json:"initial_secret_path"` // File to write initial secret
+	UserLookup           UserLookupFunc `json:"-"`                   // Function to look up users from database
+	UserPassChangeLookup func(username string) bool  `json:"-"` // DB check for require_pass_change flag
+	UserPassChangeClear  func(username string) error `json:"-"` // Clear require_pass_change in DB after change
 }
 
 // DefaultAuthConfig returns default auth configuration.
@@ -66,12 +68,39 @@ func DefaultAuthConfig() AuthConfig {
 	}
 }
 
+// SessionStore is an optional persistent backing for the in-memory token cache.
+// If set on AuthManager, tokens survive pod restarts: ValidateToken falls
+// through to the store on cache miss, and GenerateToken writes through to
+// both cache and store.
+//
+// Implementations must be safe for concurrent use.
+type SessionStore interface {
+	// Save persists a session. Called when a token is generated.
+	Save(token string, user *User, expiresAt time.Time, requirePassChange bool) error
+	// Load retrieves a session by token. Returns (nil, false, nil) if not found.
+	// Returns an error only on actual storage failures (e.g. DB unreachable).
+	Load(token string) (entry *PersistedSession, found bool, err error)
+	// Delete removes a session (used on logout).
+	Delete(token string) error
+	// DeleteExpired removes all expired sessions; called periodically.
+	DeleteExpired() error
+}
+
+// PersistedSession is the on-disk shape of a session entry.
+type PersistedSession struct {
+	Username          string
+	Role              string
+	ExpiresAt         time.Time
+	RequirePassChange bool
+}
+
 // AuthManager handles authentication operations.
 type AuthManager struct {
 	config              AuthConfig
 	mu                  sync.RWMutex
 	tokenCache          map[string]*tokenCacheEntry
 	passwordChangeCache map[string]bool // Tracks users who need to change password
+	sessionStore        SessionStore    // Optional persistent backing
 }
 
 type tokenCacheEntry struct {
@@ -86,8 +115,9 @@ func NewAuthManager(config AuthConfig) *AuthManager {
 	if config.JWTSecret == "" {
 		secret := make([]byte, 32)
 		if _, err := rand.Read(secret); err != nil {
-			log.Printf("Warning: failed to generate JWT secret: %v", err)
-			config.JWTSecret = base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("avika-fallback-%d", time.Now().UnixNano())))
+			// crypto/rand failure is a fatal OS-level error; a predictable fallback
+			// would silently weaken all session security.
+			panic(fmt.Sprintf("auth: crypto/rand unavailable, cannot generate JWT secret: %v", err))
 		} else {
 			config.JWTSecret = base64.StdEncoding.EncodeToString(secret)
 		}
@@ -124,9 +154,12 @@ func NewAuthManager(config AuthConfig) *AuthManager {
 		log.Println("")
 		log.Printf("    Username: %s", config.Username)
 		if config.InitialSecretPath != "" {
-			log.Printf("    Password written to: %s", config.InitialSecretPath)
+			log.Printf("    Password written to: %s (chmod 600)", config.InitialSecretPath)
 		} else {
+			// Only print to stdout when there is no secure file path — operator
+			// must retrieve it from container logs and change it immediately.
 			log.Printf("    Initial password: %s", defaultPassword)
+			log.Printf("    WARNING: password is visible in container logs; change it immediately")
 		}
 		log.Println("")
 		log.Println("  You will be required to change your password on first login.")
@@ -206,31 +239,86 @@ func (am *AuthManager) GenerateToken(user *User) (string, time.Time, error) {
 	return am.GenerateTokenWithFlags(user, false)
 }
 
-// ValidateToken checks if a token is valid and returns the associated user.
-func (am *AuthManager) ValidateToken(token string) (*User, bool) {
-	am.mu.RLock()
-	defer am.mu.RUnlock()
-
-	entry, exists := am.tokenCache[token]
-	if !exists {
-		return nil, false
-	}
-
-	if time.Now().After(entry.expiresAt) {
-		return nil, false
-	}
-
-	return entry.user, true
+// SetSessionStore enables persistent session storage. Must be called before
+// AuthManager is exposed to handlers. After this, ValidateToken falls through
+// to the store on cache miss, and GenerateToken writes through to both.
+func (am *AuthManager) SetSessionStore(store SessionStore) {
+	am.mu.Lock()
+	am.sessionStore = store
+	am.mu.Unlock()
 }
 
-// RevokeToken invalidates a token.
+// ValidateToken checks if a token is valid and returns the associated user.
+// Falls through to the persistent store on cache miss (if a store is configured)
+// so that browser sessions survive pod restarts.
+func (am *AuthManager) ValidateToken(token string) (*User, bool) {
+	// Fast path: in-memory cache
+	am.mu.RLock()
+	entry, exists := am.tokenCache[token]
+	store := am.sessionStore
+	am.mu.RUnlock()
+
+	if exists {
+		if time.Now().After(entry.expiresAt) {
+			return nil, false
+		}
+		return entry.user, true
+	}
+
+	// Slow path: check persistent store (after cache miss)
+	if store == nil {
+		return nil, false
+	}
+	persisted, found, err := store.Load(token)
+	if err != nil {
+		log.Printf("auth: session store load failed for token %s...: %v", token[:min(8, len(token))], err)
+		return nil, false
+	}
+	if !found {
+		return nil, false
+	}
+	if time.Now().After(persisted.ExpiresAt) {
+		// Expired in DB but not yet cleaned up
+		_ = store.Delete(token)
+		return nil, false
+	}
+
+	// Re-populate the in-memory cache so subsequent lookups are fast.
+	user := &User{Username: persisted.Username, Role: persisted.Role}
+	am.mu.Lock()
+	am.tokenCache[token] = &tokenCacheEntry{
+		user:              user,
+		expiresAt:         persisted.ExpiresAt,
+		requirePassChange: persisted.RequirePassChange,
+	}
+	am.mu.Unlock()
+
+	return user, true
+}
+
+// RevokeToken invalidates a token in both cache and persistent store.
+// Store is deleted first so that a concurrent cache-miss falls through to the
+// store and finds nothing; the cache entry is removed afterwards.
 func (am *AuthManager) RevokeToken(token string) {
+	am.mu.RLock()
+	store := am.sessionStore
+	am.mu.RUnlock()
+
+	// Delete from persistent store first — any concurrent request that misses
+	// the cache will query the store and correctly get "not found".
+	if store != nil {
+		if err := store.Delete(token); err != nil {
+			log.Printf("auth: session store delete failed: %v", err)
+		}
+	}
+
 	am.mu.Lock()
 	delete(am.tokenCache, token)
 	am.mu.Unlock()
 }
 
-// cleanupLoop removes expired tokens periodically.
+
+// cleanupLoop removes expired tokens periodically from both cache and store.
 func (am *AuthManager) cleanupLoop() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
@@ -243,7 +331,13 @@ func (am *AuthManager) cleanupLoop() {
 				delete(am.tokenCache, token)
 			}
 		}
+		store := am.sessionStore
 		am.mu.Unlock()
+		if store != nil {
+			if err := store.DeleteExpired(); err != nil {
+				log.Printf("auth: session store cleanup failed: %v", err)
+			}
+		}
 	}
 }
 
@@ -320,10 +414,14 @@ func (am *AuthManager) LoginHandler() http.HandlerFunc {
 			return
 		}
 
-		// Check if password change is required
+		// Check if password change is required (in-memory cache first, then DB)
 		am.mu.RLock()
 		requirePassChange := am.passwordChangeCache[req.Username]
+		passChangeLookup := am.config.UserPassChangeLookup
 		am.mu.RUnlock()
+		if !requirePassChange && passChangeLookup != nil {
+			requirePassChange = passChangeLookup(req.Username)
+		}
 
 		user := &User{
 			Username: req.Username,
@@ -369,6 +467,8 @@ func (am *AuthManager) LoginHandler() http.HandlerFunc {
 }
 
 // GenerateTokenWithFlags creates a new session token with additional flags.
+// Writes through to the persistent store (if configured) so the session
+// survives pod restarts.
 func (am *AuthManager) GenerateTokenWithFlags(user *User, requirePassChange bool) (string, time.Time, error) {
 	// Generate random token
 	tokenBytes := make([]byte, 32)
@@ -386,9 +486,48 @@ func (am *AuthManager) GenerateTokenWithFlags(user *User, requirePassChange bool
 		expiresAt:         expiresAt,
 		requirePassChange: requirePassChange,
 	}
+	store := am.sessionStore
 	am.mu.Unlock()
 
+	// Write through to persistent store. We log but don't fail the login if
+	// the store is unavailable — the token still works for the lifetime of
+	// this pod's memory cache.
+	if store != nil {
+		if err := store.Save(token, user, expiresAt, requirePassChange); err != nil {
+			log.Printf("auth: session store save failed (token still valid in memory): %v", err)
+		}
+	}
+
 	return token, expiresAt, nil
+}
+
+// validatePasswordComplexity returns an error message if the password does not
+// meet minimum security requirements, or "" if it is acceptable.
+func validatePasswordComplexity(password string) string {
+	if len(password) < 8 {
+		return "Password must be at least 8 characters"
+	}
+	var hasUpper, hasLower, hasDigit bool
+	for _, ch := range password {
+		switch {
+		case ch >= 'A' && ch <= 'Z':
+			hasUpper = true
+		case ch >= 'a' && ch <= 'z':
+			hasLower = true
+		case ch >= '0' && ch <= '9':
+			hasDigit = true
+		}
+	}
+	if !hasUpper {
+		return "Password must contain at least one uppercase letter"
+	}
+	if !hasLower {
+		return "Password must contain at least one lowercase letter"
+	}
+	if !hasDigit {
+		return "Password must contain at least one digit"
+	}
+	return ""
 }
 
 // ChangePasswordHandler returns an HTTP handler for password change requests.
@@ -435,13 +574,13 @@ func (am *AuthManager) ChangePasswordHandler(onPasswordChanged func(username, ne
 			return
 		}
 
-		// Validate new password
-		if len(req.NewPassword) < 8 {
+		// Validate new password — must meet minimum complexity requirements.
+		if msg := validatePasswordComplexity(req.NewPassword); msg != "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			_ = json.NewEncoder(w).Encode(ChangePasswordResponse{
 				Success: false,
-				Message: "New password must be at least 8 characters",
+				Message: msg,
 			})
 			return
 		}
@@ -452,7 +591,15 @@ func (am *AuthManager) ChangePasswordHandler(onPasswordChanged func(username, ne
 		am.config.PasswordHash = newHash
 		am.config.FirstTimeSetup = false
 		delete(am.passwordChangeCache, user.Username)
+		passChangeClear := am.config.UserPassChangeClear
 		am.mu.Unlock()
+
+		// Clear DB require_pass_change flag
+		if passChangeClear != nil {
+			if err := passChangeClear(user.Username); err != nil {
+				log.Printf("Warning: Failed to clear require_pass_change in DB for %s: %v", user.Username, err)
+			}
+		}
 
 		// Callback to persist new password hash
 		if onPasswordChanged != nil {

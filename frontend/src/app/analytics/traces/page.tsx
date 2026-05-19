@@ -85,7 +85,7 @@ export default function TracesPage() {
                         <CardTitle>Recent Traces</CardTitle>
                         {/* Time Range Selector - Grouped */}
                         <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-slate-400 mr-1">
+                            <span className="text-xs font-medium text-muted-foreground mr-1">
                                 <Clock className="inline h-3 w-3 mr-1" />
                                 Range:
                             </span>
@@ -112,14 +112,14 @@ export default function TracesPage() {
                         {/* Search Input */}
                         <form onSubmit={handleSearch} className="flex-1 flex gap-2">
                             <div className="relative flex-1 group">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-blue-500 transition-colors" />
                                 <input
                                     type="text"
                                     placeholder="Search by URI path (e.g., /api/users, /health)..."
                                     value={uriSearch}
                                     onChange={(e) => setUriSearch(e.target.value)}
                                     className="w-full pl-10 pr-10 py-2.5 text-sm rounded-lg border-2 transition-all duration-200
-                                        bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-400
+                                        bg-slate-800/50 border-slate-600/50 text-white placeholder:text-muted-foreground
                                         hover:border-slate-500 hover:bg-slate-800/70
                                         focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-slate-800"
                                 />
@@ -131,7 +131,7 @@ export default function TracesPage() {
                                         className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-slate-600/50 transition-colors"
                                         aria-label="Clear search"
                                     >
-                                        <XCircle className="h-4 w-4 text-slate-400 hover:text-slate-200" />
+                                        <XCircle className="h-4 w-4 text-muted-foreground hover:text-slate-200" />
                                     </button>
                                 )}
                             </div>
@@ -143,7 +143,7 @@ export default function TracesPage() {
                         {/* Filters */}
                         <div className="flex items-center gap-3">
                             <div className="text-xs font-semibold text-slate-300 uppercase flex items-center gap-1.5">
-                                <Filter className="h-4 w-4 text-slate-400" /> Filters:
+                                <Filter className="h-4 w-4 text-muted-foreground" /> Filters:
                             </div>
 
                             {/* Method Filter */}
@@ -192,7 +192,7 @@ export default function TracesPage() {
                                         setUriSearch("");
                                     }}
                                     className="flex items-center gap-1 px-3 py-2 text-xs font-semibold rounded-lg transition-all duration-200
-                                        text-red-400 hover:bg-red-500/10 hover:text-red-300 border border-red-500/30 hover:border-red-500/50"
+                                        text-red-400 hover:bg-red-100 dark:bg-red-900/30 hover:text-red-300 border border-red-500/30 hover:border-red-500/50"
                                 >
                                     <X className="h-3.5 w-3.5" /> Clear All
                                 </button>
@@ -218,7 +218,7 @@ export default function TracesPage() {
                                     <TableCell colSpan={7} className="text-center py-16">
                                         <div className="flex flex-col items-center gap-3">
                                             <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-600 border-t-blue-500"></div>
-                                            <span className="text-sm text-slate-400">Loading traces...</span>
+                                            <span className="text-sm text-muted-foreground">Loading traces...</span>
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -226,9 +226,9 @@ export default function TracesPage() {
                                 <TableRow>
                                     <TableCell colSpan={7} className="text-center py-16">
                                         <div className="flex flex-col items-center gap-3">
-                                            <FileSearch className="h-12 w-12 text-slate-500" />
+                                            <FileSearch className="h-12 w-12 text-muted-foreground" />
                                             <div className="text-sm font-medium text-slate-300">No traces found</div>
-                                            <div className="text-xs text-slate-500 max-w-sm">
+                                            <div className="text-xs text-muted-foreground max-w-sm">
                                                 No request traces found for the selected time range and filters.
                                                 Try adjusting the time window or clearing filters.
                                             </div>
@@ -260,7 +260,7 @@ export default function TracesPage() {
                                         <TableCell>
                                             <div className="flex items-center gap-2 group/id">
                                                 <span
-                                                    className="font-mono text-xs text-slate-400 cursor-pointer hover:text-slate-200 transition-colors"
+                                                    className="font-mono text-xs text-muted-foreground cursor-pointer hover:text-slate-200 transition-colors"
                                                     title={`Full ID: ${trace.request_id}\nClick to copy`}
                                                 >
                                                     {trace.request_id.substring(0, 8)}...
@@ -273,7 +273,7 @@ export default function TracesPage() {
                                                     {copiedId === trace.request_id ? (
                                                         <Check className="h-3 w-3 text-emerald-400" />
                                                     ) : (
-                                                        <Copy className="h-3 w-3 text-slate-400 hover:text-slate-200" />
+                                                        <Copy className="h-3 w-3 text-muted-foreground hover:text-slate-200" />
                                                     )}
                                                 </button>
                                             </div>
@@ -289,7 +289,7 @@ export default function TracesPage() {
                                                 {status}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell className={durationMs > 500 ? "text-amber-500 font-medium" : ""}>
+                                        <TableCell className={durationMs > 500 ? "text-[#D97706] dark:text-[#FCD34D] font-medium" : ""}>
                                             {durationMs.toFixed(2)} ms
                                         </TableCell>
                                         <TableCell className="text-right">

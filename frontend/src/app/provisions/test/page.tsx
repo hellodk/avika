@@ -147,7 +147,7 @@ export default function ProvisionsTestRunner() {
             case 'pending': return <div className="h-4 w-4 rounded-full bg-neutral-800" />;
             case 'running': return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
             case 'pass': return <Check className="h-4 w-4 text-green-500" />;
-            case 'fail': return <X className="h-4 w-4 text-red-500" />;
+            case 'fail': return <X className="h-4 w-4 text-[#DC2626] dark:text-[#F87171]" />;
             default: return null;
         }
     };

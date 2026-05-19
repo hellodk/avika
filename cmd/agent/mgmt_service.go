@@ -43,7 +43,7 @@ type mgmtServer struct {
 
 func newMgmtServer(configPath string) *mgmtServer {
 	// Ensure default cert directory exists
-	os.MkdirAll("/etc/nginx/ssl", 0755)
+	_ = os.MkdirAll("/etc/nginx/ssl", 0755)
 	return &mgmtServer{
 		configManager: config.NewManager(configPath),
 		certManager:   certs.NewManager([]string{"/etc/nginx/ssl", "/etc/ssl/certs"}),
@@ -68,7 +68,7 @@ func (s *mgmtServer) UploadCertificate(ctx context.Context, req *pb.UploadCertif
 	if _, err := os.Stat(certDir); os.IsNotExist(err) {
 		// Fallback to local certs if /etc/nginx/ssl is not writable or doesn't exist
 		certDir = "certs"
-		os.MkdirAll(certDir, 0755)
+		_ = os.MkdirAll(certDir, 0755)
 	}
 
 	certPath := filepath.Join(certDir, req.Domain+".crt")
@@ -290,7 +290,7 @@ func (s *mgmtServer) GetLogs(req *pb.LogRequest, stream pb.AgentService_GetLogsS
 	if err != nil {
 		return err
 	}
-	defer tailer.Stop()
+	defer func() { _ = tailer.Stop() }()
 
 	for entry := range entryChan {
 		if err := stream.Send(entry); err != nil {
@@ -361,7 +361,7 @@ func (s *mgmtServer) Execute(stream pb.AgentService_ExecuteServer) error {
 				ptmx.Close()
 			}
 			if cmd != nil && cmd.Process != nil {
-				cmd.Process.Kill()
+				_ = cmd.Process.Kill()
 			}
 			return nil
 		}
@@ -371,7 +371,7 @@ func (s *mgmtServer) Execute(stream pb.AgentService_ExecuteServer) error {
 				ptmx.Close()
 			}
 			if cmd != nil && cmd.Process != nil {
-				cmd.Process.Kill()
+				_ = cmd.Process.Kill()
 			}
 			return err
 		}

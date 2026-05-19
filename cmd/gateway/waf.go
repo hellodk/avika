@@ -18,7 +18,7 @@ func (srv *server) handleListWAFPolicies(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(policies)
+	_ = json.NewEncoder(w).Encode(policies)
 }
 
 // handleCreateWAFPolicy handles POST /api/waf/policies
@@ -49,12 +49,12 @@ func (srv *server) handleCreateWAFPolicy(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "create_waf_policy", "waf", p.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(user.Username, "create_waf_policy", "waf", p.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"name": p.Name,
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(p)
+	_ = json.NewEncoder(w).Encode(p)
 }
 
 // handleGetWAFPolicy handles GET /api/waf/policies/{id}
@@ -77,7 +77,7 @@ func (srv *server) handleGetWAFPolicy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(policy)
+	_ = json.NewEncoder(w).Encode(policy)
 }
 
 // handleUpdateWAFPolicy handles PUT /api/waf/policies/{id}
@@ -107,10 +107,10 @@ func (srv *server) handleUpdateWAFPolicy(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Audit log
-	srv.db.CreateAuditLog(user.Username, "update_waf_policy", "waf", p.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(user.Username, "update_waf_policy", "waf", p.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"name": p.Name,
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(p)
+	_ = json.NewEncoder(w).Encode(p)
 }

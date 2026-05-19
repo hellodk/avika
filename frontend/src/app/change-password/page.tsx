@@ -70,7 +70,7 @@ export default function ChangePasswordPage() {
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)" }}>
       {/* Animated Background */}
       <div className="absolute inset-0 opacity-10 pointer-events-none">
-        <div className="absolute top-20 left-20 w-72 h-72 bg-amber-500 rounded-full filter blur-3xl animate-pulse" />
+        <div className="absolute top-20 left-20 w-72 h-72 bg-[#D97706] dark:bg-[#FCD34D] rounded-full filter blur-3xl animate-pulse" />
         <div className="absolute bottom-20 right-20 w-96 h-96 bg-orange-500 rounded-full filter blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
       </div>
 
@@ -80,12 +80,12 @@ export default function ChangePasswordPage() {
           {/* Header */}
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-              <div className="p-4 bg-amber-500/20 rounded-full">
+              <div className="p-4 bg-[#D97706] dark:bg-[#FCD34D]/20 rounded-full">
                 <KeyRound className="h-10 w-10 text-amber-400" />
               </div>
             </div>
             <h2 className="text-2xl font-semibold text-white mb-2">Change Your Password</h2>
-            <p className="text-slate-400 text-sm">
+            <p className="text-muted-foreground text-sm">
               For security reasons, you must change your password before continuing.
             </p>
           </div>
@@ -111,12 +111,12 @@ export default function ChangePasswordPage() {
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   required
-                  className="h-12 bg-slate-900/50 border-slate-600/50 text-white placeholder:text-slate-500 focus:border-amber-500 focus:ring-amber-500/20 rounded-lg pr-12"
+                  className="h-12 bg-slate-900/50 border-slate-600/50 text-white placeholder:text-muted-foreground focus:border-amber-500 focus:ring-amber-500/20 rounded-lg pr-12"
                 />
                 <button
                   type="button"
                   onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-300 transition-colors"
                   tabIndex={-1}
                 >
                   {showCurrentPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -137,12 +137,12 @@ export default function ChangePasswordPage() {
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
                   minLength={8}
-                  className="h-12 bg-slate-900/50 border-slate-600/50 text-white placeholder:text-slate-500 focus:border-amber-500 focus:ring-amber-500/20 rounded-lg pr-12"
+                  className="h-12 bg-slate-900/50 border-slate-600/50 text-white placeholder:text-muted-foreground focus:border-amber-500 focus:ring-amber-500/20 rounded-lg pr-12"
                 />
                 <button
                   type="button"
                   onClick={() => setShowNewPassword(!showNewPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-300 transition-colors"
                   tabIndex={-1}
                 >
                   {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -162,12 +162,12 @@ export default function ChangePasswordPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
-                  className="h-12 bg-slate-900/50 border-slate-600/50 text-white placeholder:text-slate-500 focus:border-amber-500 focus:ring-amber-500/20 rounded-lg pr-12"
+                  className="h-12 bg-slate-900/50 border-slate-600/50 text-white placeholder:text-muted-foreground focus:border-amber-500 focus:ring-amber-500/20 rounded-lg pr-12"
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-300 transition-colors"
                   tabIndex={-1}
                 >
                   {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -177,14 +177,14 @@ export default function ChangePasswordPage() {
 
             {/* Password Requirements */}
             <div className="bg-slate-900/30 rounded-lg p-4 border border-slate-700/30">
-              <p className="text-xs text-slate-400 font-medium mb-2">Password Requirements:</p>
+              <p className="text-xs text-muted-foreground font-medium mb-2">Password Requirements:</p>
               <ul className="space-y-1">
-                <li className={`flex items-center gap-2 text-xs ${newPassword.length >= 8 ? 'text-emerald-400' : 'text-slate-500'}`}>
-                  <CheckCircle2 className={`h-3.5 w-3.5 ${newPassword.length >= 8 ? 'text-emerald-400' : 'text-slate-600'}`} />
+                <li className={`flex items-center gap-2 text-xs ${newPassword.length >= 8 ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+                  <CheckCircle2 className={`h-3.5 w-3.5 ${newPassword.length >= 8 ? 'text-emerald-400' : 'text-muted-foreground'}`} />
                   At least 8 characters
                 </li>
-                <li className={`flex items-center gap-2 text-xs ${newPassword === confirmPassword && newPassword.length > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
-                  <CheckCircle2 className={`h-3.5 w-3.5 ${newPassword === confirmPassword && newPassword.length > 0 ? 'text-emerald-400' : 'text-slate-600'}`} />
+                <li className={`flex items-center gap-2 text-xs ${newPassword === confirmPassword && newPassword.length > 0 ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+                  <CheckCircle2 className={`h-3.5 w-3.5 ${newPassword === confirmPassword && newPassword.length > 0 ? 'text-emerald-400' : 'text-muted-foreground'}`} />
                   Passwords match
                 </li>
               </ul>
@@ -208,7 +208,7 @@ export default function ChangePasswordPage() {
 
           {/* Security Note */}
           <div className="mt-6 pt-6 border-t border-slate-700/50 text-center">
-            <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
+            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
               <Shield className="h-3.5 w-3.5" />
               <span>Your password is securely encrypted</span>
             </div>

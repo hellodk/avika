@@ -144,7 +144,7 @@ func (s *Server) livenessHandler(w http.ResponseWriter, r *http.Request) {
 		Timestamp: time.Now(),
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // readinessHandler handles /readyz endpoint (readiness probe)
@@ -161,14 +161,14 @@ func (s *Server) readinessHandler(w http.ResponseWriter, r *http.Request) {
 			Status:    "ready",
 			Timestamp: time.Now(),
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	} else {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		resp := HealthResponse{
 			Status:    "not ready",
 			Timestamp: time.Now(),
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}
 }
 
@@ -217,5 +217,5 @@ func (s *Server) statsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(stats)
+	_ = json.NewEncoder(w).Encode(stats)
 }

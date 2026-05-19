@@ -916,7 +916,7 @@ func (s *server) handleListMaintenanceTemplates(w http.ResponseWriter, r *http.R
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp.Templates)
+	_ = json.NewEncoder(w).Encode(resp.Templates)
 }
 
 // handleCreateMaintenanceTemplate creates a new maintenance template
@@ -934,7 +934,7 @@ func (s *server) handleCreateMaintenanceTemplate(w http.ResponseWriter, r *http.
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleSetMaintenance enables or disables maintenance mode
@@ -952,7 +952,7 @@ func (s *server) handleSetMaintenance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleGetMaintenanceStatus returns the current maintenance status for a scope
@@ -974,7 +974,7 @@ func (s *server) handleGetMaintenanceStatus(w http.ResponseWriter, r *http.Reque
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(state)
+	_ = json.NewEncoder(w).Encode(state)
 }
 
 // handleListMaintenanceStates returns all active maintenance states
@@ -986,7 +986,7 @@ func (s *server) handleListMaintenanceStates(w http.ResponseWriter, r *http.Requ
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp.States)
+	_ = json.NewEncoder(w).Encode(resp.States)
 }
 
 // handleUpdateMaintenanceTemplate updates an existing maintenance template
@@ -1004,7 +1004,7 @@ func (s *server) handleUpdateMaintenanceTemplate(w http.ResponseWriter, r *http.
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleDeleteMaintenanceTemplate deletes a maintenance template
@@ -1024,5 +1024,5 @@ func (s *server) handleDeleteMaintenanceTemplate(w http.ResponseWriter, r *http.
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }

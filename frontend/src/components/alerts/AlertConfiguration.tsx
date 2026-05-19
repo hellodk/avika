@@ -98,12 +98,25 @@ export function AlertConfiguration() {
         }
     };
 
-    const getSeverityColor = (sev?: string) => {
+    const getMetricUnit = (metricType?: string): string => {
+        switch (metricType) {
+            case "cpu":        return "%";
+            case "memory":     return "%";
+            case "error_rate": return "%";
+            case "rps":        return " req/s";
+            case "latency":    return " ms";
+            case "connections":return " conns";
+            case "config_drift": return " agents";
+            default:           return "";
+        }
+    };
+
+    const getSeverityVariant = (sev?: string): "offline" | "warning" | "info" | "secondary" => {
         switch (sev?.toLowerCase()) {
-            case "critical": return "bg-rose-100 text-rose-700 border-rose-200";
-            case "warning": return "bg-amber-100 text-amber-700 border-amber-200";
-            case "info": return "bg-sky-100 text-sky-700 border-sky-200";
-            default: return "bg-slate-100 text-slate-700 border-slate-200";
+            case "critical": return "offline";
+            case "warning": return "warning";
+            case "info": return "info";
+            default: return "secondary";
         }
     };
 
@@ -216,7 +229,9 @@ export function AlertConfiguration() {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2">
-                                    <Label htmlFor="threshold">Threshold</Label>
+                                    <Label htmlFor="threshold">
+                                        Threshold{editingRule?.metric_type ? ` (${getMetricUnit(editingRule.metric_type).trim() || "value"})` : ""}
+                                    </Label>
                                     <Input
                                         id="threshold"
                                         type="number"
@@ -293,24 +308,24 @@ export function AlertConfiguration() {
                                                 <Badge variant="outline" className="text-indigo-600 border-indigo-200 bg-indigo-50">
                                                     {rule.metric_type.toUpperCase()}
                                                 </Badge>
-                                                <span className="text-slate-500">{getComparisonLabel(rule.comparison)}</span>
-                                                <span className="font-semibold">{rule.threshold}</span>
+                                                <span className="text-muted-foreground">{getComparisonLabel(rule.comparison)}</span>
+                                                <span className="font-semibold">{rule.threshold}{getMetricUnit(rule.metric_type)}</span>
                                             </div>
-                                            <div className="text-[10px] text-slate-400 mt-1">Window: {rule.window_sec}s</div>
+                                            <div className="text-[10px] text-muted-foreground mt-1">Window: {rule.window_sec}s</div>
                                         </TableCell>
                                         <TableCell>
-                                            <Badge className={`${getSeverityColor(rule.severity)} border font-medium`}>
+                                            <Badge variant={getSeverityVariant(rule.severity)}>
                                                 {rule.severity || "warning"}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell className="text-slate-600 text-sm">{rule.cooldown_sec || 300}s</TableCell>
+                                        <TableCell className="text-muted-foreground text-sm">{rule.cooldown_sec || 300}s</TableCell>
                                         <TableCell>
                                             {rule.enabled ? (
-                                                <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 flex items-center gap-1 w-fit">
+                                                <Badge variant="online" className="flex items-center gap-1 w-fit">
                                                     <CheckCircle2 className="w-3 h-3" /> Enabled
                                                 </Badge>
                                             ) : (
-                                                <Badge variant="secondary" className="bg-slate-100 text-slate-500 flex items-center gap-1 w-fit">
+                                                <Badge variant="secondary" className="flex items-center gap-1 w-fit">
                                                     Disabled
                                                 </Badge>
                                             )}

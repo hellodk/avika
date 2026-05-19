@@ -49,7 +49,7 @@ export function NginxCoreDashboard() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : ''}`} style={!isConnected ? { background: 'rgb(var(--theme-text-muted))', opacity: 0.7 } : undefined} />
+                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-[#16A34A] dark:bg-[#4ADE80] animate-pulse' : ''}`} style={!isConnected ? { background: 'rgb(var(--theme-text-muted))', opacity: 0.7 } : undefined} />
                     <span className="text-sm font-medium" style={{ color: 'rgb(var(--theme-text-muted))' }}>
                         {isConnected ? 'NGINX Core Stream Active' : 'Connecting...'}
                     </span>

@@ -20,7 +20,7 @@ export function TelemetrySettings({
         <Card style={{ backgroundColor: 'rgb(var(--theme-surface))', borderColor: 'rgb(var(--theme-border))' }}>
             <CardHeader>
                 <div className="flex items-center gap-2">
-                    <Activity className="h-5 w-5 text-emerald-500" />
+                    <Activity className="h-5 w-5 text-[#16A34A] dark:text-[#4ADE80]" />
                     <CardTitle className="text-base" style={{ color: 'rgb(var(--theme-text))' }}>Telemetry Settings</CardTitle>
                 </div>
             </CardHeader>

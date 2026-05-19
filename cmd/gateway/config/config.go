@@ -29,6 +29,13 @@ type ServerConfig struct {
 	Host        string `yaml:"host"`
 	UpdatesDir  string `yaml:"updates_dir"` // Directory for serving agent updates
 
+	// ExternalGRPCAddr is the host:port that agents should connect to for gRPC.
+	// Set this when the gateway is behind a reverse proxy (HAProxy, nginx, etc.)
+	// and the external gRPC port differs from the internal one.
+	// Examples: "ncn112.com:443" (HAProxy), "ncn112.com:8443" (nginx).
+	// If empty, the /updates/install endpoint falls back to Host:443.
+	ExternalGRPCAddr string `yaml:"external_grpc_addr"`
+
 	// Legacy fields for backward compatibility
 	Port   string `yaml:"port"`
 	WSPort string `yaml:"ws_port"`

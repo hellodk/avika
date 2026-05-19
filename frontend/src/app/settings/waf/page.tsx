@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatTsDate } from "@/lib/format-timestamp";
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from "@/components/ui/table";
@@ -104,7 +105,7 @@ export default function WAFSettingsPage() {
                                                     Active
                                                 </Badge>
                                             ) : (
-                                                <Badge className="bg-red-500/20 text-red-400 border-red-500/30 gap-1">
+                                                <Badge className="bg-[#DC2626] dark:bg-[#F87171]/20 text-red-400 border-red-500/30 gap-1">
                                                     <XCircle className="h-3 w-3" />
                                                     Disabled
                                                 </Badge>
@@ -117,7 +118,7 @@ export default function WAFSettingsPage() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                            {new Date(policy.created_at).toLocaleDateString()}
+                                            {formatTsDate(policy.created_at)}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">

@@ -109,9 +109,9 @@ export function DashboardBuilderButton({ widgets, onTogglePin }: DashboardBuilde
                                     }}
                                     onClick={() => onTogglePin(widget.id)}
                                 >
-                                    <GripVertical className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                                    <GripVertical className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                                     <div className={`p-2 rounded-lg flex-shrink-0 ${widget.pinned ? "bg-indigo-500/10" : "bg-gray-500/10"}`}>
-                                        <Icon className={`h-4 w-4 ${widget.pinned ? "text-indigo-400" : "text-gray-500"}`} />
+                                        <Icon className={`h-4 w-4 ${widget.pinned ? "text-indigo-400" : "text-muted-foreground"}`} />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium" style={{ color: "rgb(var(--theme-text))" }}>{widget.label}</p>
@@ -124,7 +124,7 @@ export function DashboardBuilderButton({ widgets, onTogglePin }: DashboardBuilde
                                                 Pinned
                                             </Badge>
                                         ) : (
-                                            <Badge variant="outline" className="text-gray-500 flex items-center gap-1">
+                                            <Badge variant="outline" className="text-muted-foreground flex items-center gap-1">
                                                 <PinOff className="h-3 w-3" />
                                                 Hidden
                                             </Badge>

@@ -63,7 +63,7 @@ export function AutoRefreshSelector({ value, onChange }: AutoRefreshSelectorProp
                         }`}
                 >
                     <RefreshCw
-                        className={`h-4 w-4 mr-2 ${isRefreshing && value.enabled ? 'animate-spin text-blue-600' : 'text-slate-500'
+                        className={`h-4 w-4 mr-2 ${isRefreshing && value.enabled ? 'animate-spin text-blue-600' : 'text-muted-foreground'
                             }`}
                     />
                     {value.enabled ? `Auto-refresh: ${value.label}` : 'Auto-refresh: Off'}

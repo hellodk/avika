@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { FileText, Download, Calendar, Loader2, FileSpreadsheet, ChevronDown } from "lucide-react";
 import {
     DropdownMenu,
@@ -14,9 +13,76 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { apiFetch, apiUrl } from "@/lib/api";
 import { TimeRangePicker, TimeRange } from "@/components/ui/time-range-picker";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { toast } from "sonner";
 import { useTheme } from "@/lib/theme-provider";
+
+/** Mirrors gateway calculateHealth (error rate + avg latency penalties). */
+type ReportServerRow = {
+    hostname?: string;
+    requests?: number;
+    error_rate?: number;
+    errorRate?: number;
+};
+
+type TrafficTrendPoint = { time?: string; requests?: number; errors?: number };
+type TopUriRow = { uri?: string; requests?: number };
+
+type ReportPayload = {
+    summary?: {
+        totalRequests?: number;
+        errorRate?: number;
+        totalBandwidth?: number;
+        avgLatency?: number;
+        uniqueVisitors?: number;
+        peakRps?: number;
+        prevPeriodRequests?: number;
+        prevPeriodErrorRate?: number;
+    };
+    trafficTrend?: TrafficTrendPoint[];
+    topUris?: TopUriRow[];
+    topServers?: ReportServerRow[];
+    executiveSummary?: string;
+    topIssues?: string[];
+    recommendations?: string[];
+    periodOverPeriod?: string;
+    availabilitySummary?: string;
+    alertsSummary?: string;
+};
+
+/** Shape returned by GET /api/reports (gRPC JSON). */
+type GenerateReportApiResponse = {
+    summary?: {
+        total_requests?: number;
+        error_rate?: number;
+        total_bandwidth?: number;
+        avg_latency?: number;
+        unique_visitors?: number;
+        peak_rps?: number;
+        prev_period_requests?: number;
+        prev_period_error_rate?: number;
+    };
+    traffic_trend?: TrafficTrendPoint[];
+    top_uris?: TopUriRow[];
+    top_servers?: ReportServerRow[];
+    executive_summary?: string;
+    top_issues?: string[];
+    recommendations?: string[];
+    period_over_period?: string;
+    availability_summary?: string;
+    alerts_summary?: string;
+};
+
+function computeHealthScore(errorRate: number, avgLatencyMs: number): number {
+    let score = 100;
+    if (errorRate > 5) score -= 40;
+    else if (errorRate > 2) score -= 25;
+    else if (errorRate > 1) score -= 10;
+    if (avgLatencyMs > 1000) score -= 30;
+    else if (avgLatencyMs > 500) score -= 20;
+    else if (avgLatencyMs > 200) score -= 10;
+    return Math.max(0, score);
+}
 
 // Skeleton components
 function SummarySkeleton() {
@@ -68,7 +134,7 @@ export default function ReportsPage() {
         label: 'Last 7 days'
     });
     const [loading, setLoading] = useState(false);
-    const [reportData, setReportData] = useState<any>(null);
+    const [reportData, setReportData] = useState<ReportPayload | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     const generateReport = async () => {
@@ -96,8 +162,8 @@ export default function ReportsPage() {
             const res = await apiFetch(`/api/reports?${queryParams}`);
             if (!res.ok) throw new Error(`Failed to generate report: ${res.status}`);
             
-            const data = await res.json();
-            const mappedData = {
+            const data = (await res.json()) as GenerateReportApiResponse;
+            const mappedData: ReportPayload = {
                 summary: {
                     totalRequests: data.summary?.total_requests,
                     errorRate: data.summary?.error_rate,
@@ -108,7 +174,7 @@ export default function ReportsPage() {
                     prevPeriodRequests: data.summary?.prev_period_requests,
                     prevPeriodErrorRate: data.summary?.prev_period_error_rate
                 },
-                trafficTrend: data.traffic_trend?.map((t: any) => ({
+                trafficTrend: data.traffic_trend?.map((t) => ({
                     time: t.time,
                     requests: t.requests,
                     errors: t.errors
@@ -124,10 +190,11 @@ export default function ReportsPage() {
             };
             setReportData(mappedData);
             toast.success("Report generated", { description: `${timeRange.label} report ready` });
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            setError(err.message);
-            toast.error("Failed to generate report", { description: err.message });
+            const msg = err instanceof Error ? err.message : "Unknown error";
+            setError(msg);
+            toast.error("Failed to generate report", { description: msg });
         } finally {
             setLoading(false);
         }
@@ -152,7 +219,7 @@ export default function ReportsPage() {
 
     type ReportFormat = 'pdf' | 'csv' | 'excel' | 'json';
 
-    function reportDataToCSV(data: any): string {
+    function reportDataToCSV(data: ReportPayload): string {
         const rows: string[] = [];
         const escape = (v: unknown) => {
             const s = String(v ?? '');
@@ -204,7 +271,7 @@ export default function ReportsPage() {
         const dateStr = new Date().toISOString().slice(0, 10);
         if (format === 'json' || format === 'csv') {
             if (!reportData) {
-                toast.error('Generate a report first', { description: 'Click "Generate Report" to load data, then download.' });
+                toast.error('Generate a report first', { description: 'Click Generate Report to load data, then download.' });
                 return;
             }
             if (format === 'json') {
@@ -269,8 +336,9 @@ export default function ReportsPage() {
             document.body.removeChild(a);
             URL.revokeObjectURL(a.href);
             toast.success(`Report downloaded as ${format.toUpperCase()}`);
-        } catch (e: any) {
-            toast.error(`Download failed: ${e?.message || 'Unknown error'}`);
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : "Unknown error";
+            toast.error(`Download failed: ${msg}`);
         }
     };
 
@@ -352,42 +420,58 @@ export default function ReportsPage() {
                         <CardHeader>
                             <CardTitle className="text-lg font-semibold flex items-center gap-2" style={{ color: "rgb(var(--theme-text))" }}>
                                 <Calendar className="h-5 w-5 text-blue-500" />
-                                Executive Summary
+                                Key metrics
                             </CardTitle>
+                            <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                Error rate is 5xx share; health score blends errors and latency (same as PDF).
+                            </CardDescription>
                         </CardHeader>
-                        <CardContent>
-                            <div className="grid grid-cols-4 gap-6 text-center">
+                        <CardContent className="space-y-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
                                 <div>
-                                    <p className="text-sm mb-1" style={{ color: "rgb(var(--theme-text-muted))" }}>Total Requests</p>
+                                    <p className="text-sm mb-1" style={{ color: "rgb(var(--theme-text-muted))" }}>Request volume</p>
                                     <p className="text-3xl font-bold" style={{ color: "rgb(var(--theme-text))" }}>
                                         {(Number(reportData.summary?.totalRequests) || 0).toLocaleString()}
                                     </p>
+                                    <p className="text-xs mt-1" style={{ color: "rgb(var(--theme-text-muted))" }}>Traffic count, not health</p>
                                 </div>
                                 <div>
-                                    <p className="text-sm mb-1" style={{ color: "rgb(var(--theme-text-muted))" }}>Error Rate</p>
+                                    <p className="text-sm mb-1" style={{ color: "rgb(var(--theme-text-muted))" }}>Error rate (5xx)</p>
                                     <p className={`text-3xl font-bold ${(reportData.summary?.errorRate || 0) > 1 ? "text-rose-400" : "text-emerald-400"}`}>
                                         {(Number(reportData.summary?.errorRate) || 0).toFixed(2)}%
                                     </p>
                                 </div>
                                 <div>
-                                    <p className="text-sm mb-1" style={{ color: "rgb(var(--theme-text-muted))" }}>Avg Latency</p>
-                                    <p className="text-3xl font-bold text-amber-400">
+                                    <p className="text-sm mb-1" style={{ color: "rgb(var(--theme-text-muted))" }}>Avg latency</p>
+                                    <p className={`text-3xl font-bold ${(Number(reportData.summary?.avgLatency) || 0) <= 200 ? "text-emerald-400" : (Number(reportData.summary?.avgLatency) || 0) > 500 ? "text-rose-400" : "text-amber-400"}`}>
                                         {(Number(reportData.summary?.avgLatency) || 0).toFixed(0)}ms
                                     </p>
+                                    <p className="text-xs mt-1" style={{ color: "rgb(var(--theme-text-muted))" }}>Target ≤200ms</p>
                                 </div>
                                 <div>
-                                    <p className="text-sm mb-1" style={{ color: "rgb(var(--theme-text-muted))" }}>Unique Visitors</p>
-                                    <p className="text-3xl font-bold text-blue-400">
-                                        {(Number(reportData.summary?.uniqueVisitors) || 0).toLocaleString()}
+                                    <p className="text-sm mb-1" style={{ color: "rgb(var(--theme-text-muted))" }}>Health score</p>
+                                    <p className={`text-3xl font-bold ${
+                                        computeHealthScore(Number(reportData.summary?.errorRate) || 0, Number(reportData.summary?.avgLatency) || 0) >= 80
+                                            ? "text-emerald-400"
+                                            : computeHealthScore(Number(reportData.summary?.errorRate) || 0, Number(reportData.summary?.avgLatency) || 0) >= 60
+                                              ? "text-amber-400"
+                                              : "text-rose-400"
+                                    }`}>
+                                        {computeHealthScore(Number(reportData.summary?.errorRate) || 0, Number(reportData.summary?.avgLatency) || 0)}%
                                     </p>
+                                    <p className="text-xs mt-1" style={{ color: "rgb(var(--theme-text-muted))" }}>Composite</p>
                                 </div>
+                            </div>
+                            <div className="flex flex-wrap gap-6 justify-center text-sm border-t pt-4" style={{ borderColor: "rgb(var(--theme-border))", color: "rgb(var(--theme-text-muted))" }}>
+                                <span>
+                                    <span className="font-medium" style={{ color: "rgb(var(--theme-text))" }}>Unique visitors:</span>{" "}
+                                    {(Number(reportData.summary?.uniqueVisitors) || 0).toLocaleString()}
+                                </span>
                                 {(reportData.summary?.peakRps != null && Number(reportData.summary.peakRps) > 0) && (
-                                    <div>
-                                        <p className="text-sm mb-1" style={{ color: "rgb(var(--theme-text-muted))" }}>Peak RPS</p>
-                                        <p className="text-3xl font-bold" style={{ color: "rgb(var(--theme-text))" }}>
-                                            {Number(reportData.summary.peakRps).toFixed(1)}
-                                        </p>
-                                    </div>
+                                    <span>
+                                        <span className="font-medium" style={{ color: "rgb(var(--theme-text))" }}>Peak RPS:</span>{" "}
+                                        {Number(reportData.summary.peakRps).toFixed(1)}
+                                    </span>
                                 )}
                             </div>
                         </CardContent>
@@ -411,9 +495,10 @@ export default function ReportsPage() {
                                     </p>
                                 )}
                                 {reportData.periodOverPeriod && (
-                                    <p className="text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                        <span className="font-medium" style={{ color: "rgb(var(--theme-text))" }}>Trend:</span> {reportData.periodOverPeriod}
-                                    </p>
+                                    <div className="text-sm space-y-1" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                        <p className="font-medium" style={{ color: "rgb(var(--theme-text))" }}>Period vs prior</p>
+                                        <p className="leading-relaxed">{reportData.periodOverPeriod}</p>
+                                    </div>
                                 )}
                                 {(reportData.availabilitySummary || reportData.alertsSummary) && (
                                     <div className="flex flex-wrap gap-4 text-sm" style={{ color: "rgb(var(--theme-text-muted))" }}>
@@ -421,21 +506,21 @@ export default function ReportsPage() {
                                         {reportData.alertsSummary && <span><span className="font-medium" style={{ color: "rgb(var(--theme-text))" }}>Alerts:</span> {reportData.alertsSummary}</span>}
                                     </div>
                                 )}
-                                {reportData.topIssues?.length > 0 && (
+                                {(reportData.topIssues ?? []).length > 0 && (
                                     <div>
                                         <p className="text-sm font-medium mb-1" style={{ color: "rgb(var(--theme-text))" }}>Top issues</p>
                                         <ul className="list-disc list-inside text-sm space-y-1" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                            {reportData.topIssues.map((issue: string, i: number) => (
+                                            {(reportData.topIssues ?? []).map((issue: string, i: number) => (
                                                 <li key={i}>{issue}</li>
                                             ))}
                                         </ul>
                                     </div>
                                 )}
-                                {reportData.recommendations?.length > 0 && (
+                                {(reportData.recommendations ?? []).length > 0 && (
                                     <div>
                                         <p className="text-sm font-medium mb-1" style={{ color: "rgb(var(--theme-text))" }}>Recommendations</p>
                                         <ul className="list-disc list-inside text-sm space-y-1" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                            {reportData.recommendations.map((rec: string, i: number) => (
+                                            {(reportData.recommendations ?? []).map((rec: string, i: number) => (
                                                 <li key={i}>{rec}</li>
                                             ))}
                                         </ul>
@@ -489,8 +574,8 @@ export default function ReportsPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {reportData.topUris?.length > 0 ? (
-                                            reportData.topUris.map((u: any, i: number) => (
+                                        {(reportData.topUris ?? []).length > 0 ? (
+                                            (reportData.topUris ?? []).map((u: TopUriRow, i: number) => (
                                                 <TableRow key={i} style={{ borderColor: "rgb(var(--theme-border))" }}>
                                                     <TableCell 
                                                         className="font-mono text-xs truncate max-w-[200px]" 
@@ -518,29 +603,36 @@ export default function ReportsPage() {
 
                         <Card style={{ background: "rgb(var(--theme-surface))", borderColor: "rgb(var(--theme-border))" }}>
                             <CardHeader>
-                                <CardTitle style={{ color: "rgb(var(--theme-text))" }}>Top Servers</CardTitle>
+                                <CardTitle style={{ color: "rgb(var(--theme-text))" }}>Top servers</CardTitle>
+                                <CardDescription style={{ color: "rgb(var(--theme-text-muted))" }}>By request volume this period</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <Table>
                                     <TableHeader>
                                         <TableRow style={{ borderColor: "rgb(var(--theme-border))" }}>
                                             <TableHead style={{ color: "rgb(var(--theme-text-muted))" }}>Host</TableHead>
-                                            <TableHead className="text-right" style={{ color: "rgb(var(--theme-text-muted))" }}>Traffic</TableHead>
+                                            <TableHead className="text-right" style={{ color: "rgb(var(--theme-text-muted))" }}>Requests</TableHead>
+                                            <TableHead className="text-right" style={{ color: "rgb(var(--theme-text-muted))" }}>Error rate</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {reportData.topServers?.length > 0 ? (
-                                            reportData.topServers.map((s: any, i: number) => (
+                                        {(reportData.topServers ?? []).length > 0 ? (
+                                            (reportData.topServers ?? []).map((s: ReportServerRow, i: number) => {
+                                                const errRate = Number(s.error_rate ?? s.errorRate) || 0;
+                                                return (
                                                 <TableRow key={i} style={{ borderColor: "rgb(var(--theme-border))" }}>
                                                     <TableCell style={{ color: "rgb(var(--theme-text))" }}>{s.hostname}</TableCell>
                                                     <TableCell className="text-right" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                                        {Number(s.requests).toLocaleString()} reqs
+                                                        {Number(s.requests).toLocaleString()}
+                                                    </TableCell>
+                                                    <TableCell className={`text-right font-medium ${errRate > 1 ? "text-rose-400" : "text-emerald-400"}`}>
+                                                        {errRate.toFixed(2)}%
                                                     </TableCell>
                                                 </TableRow>
-                                            ))
+                                            )})
                                         ) : (
                                             <TableRow>
-                                                <TableCell colSpan={2} className="text-center py-4" style={{ color: "rgb(var(--theme-text-muted))" }}>
+                                                <TableCell colSpan={3} className="text-center py-4" style={{ color: "rgb(var(--theme-text-muted))" }}>
                                                     No server data available
                                                 </TableCell>
                                             </TableRow>
@@ -566,7 +658,7 @@ export default function ReportsPage() {
                         No Report Generated
                     </h3>
                     <p style={{ color: "rgb(var(--theme-text-muted))" }}>
-                        Select a date range and click "Generate Report"
+                        Select a date range and click Generate Report
                     </p>
                 </div>
             )}

@@ -43,22 +43,46 @@ fi
 UPDATE_SERVER="${UPDATE_SERVER:-}"
 GATEWAY_SERVER="${GATEWAY_SERVER:-localhost:50051}"
 INSECURE_CURL="${INSECURE_CURL:-false}"
+# Optional: assign the agent to a project + environment by slug.
+# These get written to the agent config as LABEL_project / LABEL_environment,
+# which the gateway's auto-assign logic uses to place the agent in the right env.
+PROJECT_SLUG="${PROJECT_SLUG:-}"
+ENVIRONMENT_SLUG="${ENVIRONMENT_SLUG:-}"
 INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/avika"
 SERVICE_NAME="avika-agent"
 AGENT_USER="${AGENT_USER:-root}"
 
+# ── Normalize GATEWAY_SERVER: strip scheme prefix, add default port ──────────
+GATEWAY_SERVER=$(echo "$GATEWAY_SERVER" | sed 's|^https\?://||;s|/$||')
+if ! echo "$GATEWAY_SERVER" | grep -qE ':[0-9]+$'; then
+    GATEWAY_SERVER="${GATEWAY_SERVER}:443"
+fi
+
 CURL_OPTS="-fsSL"
 if [ "$INSECURE_CURL" = "true" ]; then
     CURL_OPTS="-kfsSL"
-    log_warn "Running strictly with insecure curl (-k). Not recommended for production!"
+    log_warn "Running with insecure curl (-k). Not recommended for production!"
 fi
 
 # Validate required configuration
 if [ -z "$UPDATE_SERVER" ]; then
     log_error "UPDATE_SERVER environment variable is required"
-    log_error "Example: curl -fsSL http://<GATEWAY_HOST>:5021/updates/deploy-agent.sh | UPDATE_SERVER=http://<GATEWAY_HOST>:5021/updates GATEWAY_SERVER=<GATEWAY_HOST>:5020 sudo -E bash"
+    log_error "Example: curl -kfsSL https://<HOST>/avika/updates/install | sudo bash"
     exit 1
+fi
+
+# ── Auto-detect self-signed cert if INSECURE_CURL wasn't set ─────────────────
+# Try a quick fetch; if it fails with an SSL error but succeeds with -k,
+# the server has a self-signed cert → switch to insecure mode automatically.
+if [ "$INSECURE_CURL" != "true" ]; then
+    if ! curl -fsSL --connect-timeout 5 "$UPDATE_SERVER/version.json" -o /dev/null 2>/dev/null; then
+        if curl -kfsSL --connect-timeout 5 "$UPDATE_SERVER/version.json" -o /dev/null 2>/dev/null; then
+            INSECURE_CURL="true"
+            CURL_OPTS="-kfsSL"
+            log_warn "Self-signed certificate detected — switching to insecure mode"
+        fi
+    fi
 fi
 
 # Check if running as root
@@ -150,9 +174,10 @@ if [ "$INSTALLED_VERSION" != "$LATEST_VERSION" ]; then
     log_warn "Installed version ($INSTALLED_VERSION) differs from latest ($LATEST_VERSION). You may be running an older gateway; rebuild/redeploy the gateway to serve binaries with the correct version."
 fi
 
-# Detect TLS requirement from gateway URL or port
+# Detect TLS requirement: if INSECURE_CURL is true (self-signed cert detected),
+# the gateway is serving over TLS. Also check for known TLS ports.
 TLS_CONFIG="false"
-if [[ "$GATEWAY_SERVER" == https://* ]] || [[ "$GATEWAY_SERVER" == *:443 ]]; then
+if [ "$INSECURE_CURL" = "true" ] || [[ "$GATEWAY_SERVER" == *:443 ]] || [[ "$GATEWAY_SERVER" == *:8443 ]]; then
     TLS_CONFIG="true"
 fi
 
@@ -167,7 +192,7 @@ GATEWAYS="$GATEWAY_SERVER"
 
 # TLS Configuration
 TLS="$TLS_CONFIG"
-TLS_INSECURE="$TLS_CONFIG"
+TLS_INSECURE="$INSECURE_CURL"
 
 # Agent Identity (leave empty for auto-detection: hostname-ip)
 AGENT_ID=""
@@ -195,6 +220,17 @@ BACKUP_DIR="/var/lib/nginx-manager/backups"
 LOG_LEVEL="info"
 LOG_FILE="/var/log/avika-agent/agent.log"
 EOF
+
+# Append project/environment labels (drives auto-assignment in the gateway).
+if [ -n "$PROJECT_SLUG" ]; then
+    echo "" >> "$CONFIG_DIR/avika-agent.conf"
+    echo "# Project / Environment assignment (set at install time)" >> "$CONFIG_DIR/avika-agent.conf"
+    echo "LABEL_project=$PROJECT_SLUG" >> "$CONFIG_DIR/avika-agent.conf"
+    if [ -n "$ENVIRONMENT_SLUG" ]; then
+        echo "LABEL_environment=$ENVIRONMENT_SLUG" >> "$CONFIG_DIR/avika-agent.conf"
+    fi
+    log_info "Agent will report labels: project=$PROJECT_SLUG environment=${ENVIRONMENT_SLUG:-<none>}"
+fi
 
 chmod 644 "$CONFIG_DIR/avika-agent.conf"
 log_success "Configuration file created at $CONFIG_DIR/avika-agent.conf"

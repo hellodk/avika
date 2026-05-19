@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAgentServiceClient } from '@/lib/grpc-client';
 import { normalizeServerId } from '@/lib/api';
+import { isGrpcExplicitFailure } from '@/lib/grpc-success';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,9 +23,9 @@ export async function POST(
                 );
             }
 
-            if (!response.success) {
+            if (isGrpcExplicitFailure(response)) {
                 return resolve(
-                    NextResponse.json({ error: response.message || 'Update failed' }, { status: 400 })
+                    NextResponse.json({ error: response?.message || 'Update failed' }, { status: 400 })
                 );
             }
 

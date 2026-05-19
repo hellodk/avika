@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { apiFetch } from "@/lib/api";
 import { Plus, Users, ChevronRight, Search, MoreHorizontal, Trash2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,7 +48,7 @@ export default function TeamsPage() {
 
   const fetchTeams = async () => {
     try {
-      const response = await fetch("/api/teams", { credentials: "include" });
+      const response = await apiFetch("/api/teams", { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch teams");
       const data = await response.json();
       setTeams(data || []);
@@ -71,7 +72,7 @@ export default function TeamsPage() {
 
     setIsCreating(true);
     try {
-      const response = await fetch("/api/teams", {
+      const response = await apiFetch("/api/teams", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -100,7 +101,7 @@ export default function TeamsPage() {
     }
 
     try {
-      const response = await fetch(`/api/teams/${teamId}`, {
+      const response = await apiFetch(`/api/teams/${teamId}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -239,7 +240,7 @@ export default function TeamsPage() {
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          className="text-red-500 focus:text-red-500"
+                          className="text-[#DC2626] dark:text-[#F87171] focus:text-[#DC2626] dark:text-[#F87171]"
                           onClick={() => handleDeleteTeam(team.id, team.name)}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />

@@ -29,7 +29,14 @@ const routeLabels: Record<string, string> = {
     audit: "Audit Logs",
     agents: "Agents",
     config: "Configuration",
-    servers: "Servers"
+    servers: "Servers",
+    slo: "SLOs & SLIs",
+    drift: "Drift Detection",
+    groups: "Groups",
+    logs: "Log Stream",
+    security: "Security",
+    sso: "SSO Configuration",
+    users: "Users"
 };
 
 const formatSegment = (segment: string) => {

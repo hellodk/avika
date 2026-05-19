@@ -222,8 +222,8 @@ export default function DriftComparePage() {
                                                                 item.status === "in_sync"
                                                                     ? "bg-green-500/10 text-green-400 border-green-500/20"
                                                                     : item.status === "drifted"
-                                                                    ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                                                                    : "bg-red-500/10 text-red-400 border-red-500/20"
+                                                                    ? "bg-yellow-100 dark:bg-yellow-900/30 text-amber-400 border-amber-500/20"
+                                                                    : "bg-red-100 dark:bg-red-900/30 text-red-400 border-red-500/20"
                                                             }
                                                         >
                                                             {item.status === "in_sync"

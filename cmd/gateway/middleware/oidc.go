@@ -31,6 +31,16 @@ type OIDCConfig struct {
 	AutoProvision bool
 }
 
+// OIDCStateStore persists CSRF state tokens so in-flight OIDC logins survive
+// pod restarts. Without this, a restart between redirect and callback loses the
+// state and the user sees "Invalid or expired state parameter".
+type OIDCStateStore interface {
+	SaveState(state, redirectURI string) error
+	LoadState(state string) (redirectURI string, createdAt time.Time, found bool, err error)
+	DeleteState(state string) error
+	DeleteExpiredStates() error
+}
+
 // OIDCProvider handles OpenID Connect authentication
 type OIDCProvider struct {
 	config          OIDCConfig
@@ -47,6 +57,7 @@ type OIDCProvider struct {
 	// State management for CSRF protection
 	stateMu    sync.RWMutex
 	stateCache map[string]stateEntry
+	stateStore OIDCStateStore // optional persistent backing
 }
 
 type stateEntry struct {
@@ -175,6 +186,15 @@ func (p *OIDCProvider) discoverMetadata() error {
 	return nil
 }
 
+// SetStateStore enables persistent OIDC state storage. Must be called before
+// the provider handles requests. After this, generateState writes through to
+// both cache and store, and validateState falls back to the store on cache miss.
+func (p *OIDCProvider) SetStateStore(store OIDCStateStore) {
+	p.stateMu.Lock()
+	p.stateStore = store
+	p.stateMu.Unlock()
+}
+
 // generateState creates a cryptographically random state parameter
 func (p *OIDCProvider) generateState(redirectURI string) string {
 	b := make([]byte, 32)
@@ -188,7 +208,15 @@ func (p *OIDCProvider) generateState(redirectURI string) string {
 		createdAt:   time.Now(),
 		redirectURI: redirectURI,
 	}
+	store := p.stateStore
 	p.stateMu.Unlock()
+
+	// Write through to persistent store
+	if store != nil {
+		if err := store.SaveState(state, redirectURI); err != nil {
+			log.Printf("OIDC: failed to persist state to store: %v", err)
+		}
+	}
 
 	return state
 }
@@ -196,24 +224,41 @@ func (p *OIDCProvider) generateState(redirectURI string) string {
 // validateState checks if a state is valid and returns the original redirect URI
 func (p *OIDCProvider) validateState(state string) (string, bool) {
 	p.stateMu.Lock()
-	defer p.stateMu.Unlock()
-
 	entry, exists := p.stateCache[state]
-	if !exists {
-		return "", false
+	if exists {
+		delete(p.stateCache, state)
+	}
+	store := p.stateStore
+	p.stateMu.Unlock()
+
+	if exists {
+		if time.Since(entry.createdAt) > 10*time.Minute {
+			return "", false
+		}
+		return entry.redirectURI, true
 	}
 
-	delete(p.stateCache, state)
-
-	// States are valid for 10 minutes
-	if time.Since(entry.createdAt) > 10*time.Minute {
+	// Cache miss: fall through to persistent store (after pod restart)
+	if store == nil {
 		return "", false
 	}
-
-	return entry.redirectURI, true
+	redirectURI, createdAt, found, err := store.LoadState(state)
+	if err != nil {
+		log.Printf("OIDC: state store load failed: %v", err)
+		return "", false
+	}
+	if !found {
+		return "", false
+	}
+	if time.Since(createdAt) > 10*time.Minute {
+		_ = store.DeleteState(state)
+		return "", false
+	}
+	_ = store.DeleteState(state)
+	return redirectURI, true
 }
 
-// cleanupStates removes expired states periodically
+// cleanupStates removes expired states periodically from both cache and store.
 func (p *OIDCProvider) cleanupStates() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
@@ -225,7 +270,13 @@ func (p *OIDCProvider) cleanupStates() {
 				delete(p.stateCache, state)
 			}
 		}
+		store := p.stateStore
 		p.stateMu.Unlock()
+		if store != nil {
+			if err := store.DeleteExpiredStates(); err != nil {
+				log.Printf("OIDC: state store cleanup failed: %v", err)
+			}
+		}
 	}
 }
 

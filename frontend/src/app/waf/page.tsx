@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatTsDate } from "@/lib/format-timestamp";
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from "@/components/ui/table";
@@ -22,6 +23,7 @@ interface WAFPolicy {
 export default function WAFPage() {
     const [policies, setPolicies] = useState<WAFPolicy[]>([]);
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchPolicies = async () => {
@@ -30,7 +32,11 @@ export default function WAFPage() {
                 if (res.ok) {
                     const data = await res.json();
                     setPolicies(data || []);
+                } else {
+                    setFetchError(`Failed to load WAF policies (HTTP ${res.status})`);
                 }
+            } catch (err) {
+                setFetchError(err instanceof Error ? err.message : "Connection error");
             } finally {
                 setLoading(false);
             }
@@ -40,6 +46,15 @@ export default function WAFPage() {
     }, []);
 
     if (loading) return <div className="flex items-center justify-center h-64" style={{ color: "rgb(var(--theme-text))" }}>Loading WAF policies...</div>;
+    if (fetchError) return (
+        <div className="p-6 rounded-lg bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-[#DC2626] dark:text-[#F87171] flex items-center gap-3">
+            <XCircle className="h-5 w-5 shrink-0" />
+            <div>
+                <p className="font-medium">Failed to load WAF policies</p>
+                <p className="text-sm mt-0.5 text-muted-foreground">{fetchError}</p>
+            </div>
+        </div>
+    );
 
     return (
         <div className="space-y-6">
@@ -104,7 +119,7 @@ export default function WAFPage() {
                                                     Active
                                                 </Badge>
                                             ) : (
-                                                <Badge className="bg-red-500/20 text-red-400 border-red-500/30 gap-1">
+                                                <Badge className="bg-[#DC2626] dark:bg-[#F87171]/20 text-red-400 border-red-500/30 gap-1">
                                                     <XCircle className="h-3 w-3" />
                                                     Disabled
                                                 </Badge>
@@ -117,7 +132,7 @@ export default function WAFPage() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-xs" style={{ color: "rgb(var(--theme-text-muted))" }}>
-                                            {new Date(policy.created_at).toLocaleDateString()}
+                                            {formatTsDate(policy.created_at)}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">

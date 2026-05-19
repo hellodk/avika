@@ -102,20 +102,12 @@ func (c *LogCollector) consume(input <-chan *pb.LogEntry) {
 
 			// Forward to OTLP
 			if c.exporter != nil {
-				go func(e *pb.LogEntry) {
-					if err := c.exporter.Export(e); err != nil {
-						// Suppress frequent errors
-					}
-				}(entry)
+				go func(e *pb.LogEntry) { _ = c.exporter.Export(e) }(entry)
 			}
 
 			// Forward to Syslog (SIEM fan-out)
 			if c.syslogForwarder != nil {
-				go func(e *pb.LogEntry) {
-					if err := c.syslogForwarder.Forward(e); err != nil {
-						// Suppress frequent errors
-					}
-				}(entry)
+				go func(e *pb.LogEntry) { _ = c.syslogForwarder.Forward(e) }(entry)
 			}
 
 		case <-c.ctx.Done():
@@ -127,10 +119,10 @@ func (c *LogCollector) consume(input <-chan *pb.LogEntry) {
 func (c *LogCollector) Stop() {
 	c.cancel()
 	if c.accessTailer != nil {
-		c.accessTailer.Stop()
+		_ = c.accessTailer.Stop()
 	}
 	if c.errorTailer != nil {
-		c.errorTailer.Stop()
+		_ = c.errorTailer.Stop()
 	}
 	c.wg.Wait()
 	close(c.gatewayChan)

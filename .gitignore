@@ -9,6 +9,7 @@
 .env.production
 .env.development
 .env.test
+*.https-snippet
 
 # Credentials and secrets
 credentials.json
@@ -248,3 +249,9 @@ WEB_TERMINAL_TEST_GUIDE.md
 
 # Extracted agent instructions (from Cursor transcripts)
 agent-instructions-extract.txt
+gateway-local.yaml
+
+# Business & monetization planning (local only)
+MONETIZATION.md
+.playwright-mcp/
+*.png

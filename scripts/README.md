@@ -13,9 +13,23 @@ This directory contains scripts for local development, builds, deployment, testi
 ./scripts/restart.sh    # Stop then start
 ```
 
+Interactive HTTPS + env snippet (gateway URLs, optional DB/ClickHouse, gRPC TLS/mTLS, cert generation):
+
+```bash
+./scripts/dev-https-local.sh
+```
+
+Writes `frontend/.env.local.https-snippet` (gitignored via `*.https-snippet`) — merge into `frontend/.env.local`. See [docs/QUICK_REFERENCE.md](../docs/QUICK_REFERENCE.md).
+
 ---
 
 ## Script Reference (how to use each)
+
+### Local HTTPS / environment snippet
+
+| Script | Purpose | How to use |
+|--------|---------|------------|
+| **dev-https-local.sh** | Prompts for gateway HTTP/gRPC URLs, optional `NEXT_PUBLIC_BASE_PATH`, gRPC TLS + optional mTLS paths, optional DB/ClickHouse reference lines, and whether to create dev certs under `certs/local/` (mkcert or openssl). Writes **`frontend/.env.local.https-snippet`**. Does not overwrite `.env.local`. | `./scripts/dev-https-local.sh` from repo root (interactive). Merge the snippet, then run Next with `--experimental-https` using the printed key/cert paths. |
 
 ### Service management
 

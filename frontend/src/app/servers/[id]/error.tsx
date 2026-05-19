@@ -13,7 +13,7 @@ export default function ServerDetailError({
 }) {
     return (
         <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 p-6">
-            <AlertTriangle className="h-12 w-12 text-amber-500" />
+            <AlertTriangle className="h-12 w-12 text-[#D97706] dark:text-[#FCD34D]" />
             <h2 className="text-lg font-semibold" style={{ color: `rgb(var(--theme-text))` }}>
                 Something went wrong
             </h2>

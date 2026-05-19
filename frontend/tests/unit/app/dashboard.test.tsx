@@ -3,6 +3,11 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Home from '@/app/page';
 
+// Onboarding wizard opens a modal and locks scroll — breaks queries for header controls
+vi.mock('@/components/OnboardingWizard', () => ({
+    OnboardingWizard: () => null,
+}));
+
 // Mock project context (Home requires it)
 vi.mock('@/lib/project-context', () => ({
     useProject: () => ({

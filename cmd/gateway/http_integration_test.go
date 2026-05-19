@@ -309,6 +309,54 @@ func TestRemoveAgentIntegration(t *testing.T) {
 	}
 }
 
+// RemoveAgent must accept normalized ids (same rules as resolveAgentID) and still report success.
+func TestRemoveAgentWithNormalizedIDIntegration(t *testing.T) {
+	srv, db := setupTestServer(t)
+	defer db.conn.Close()
+	defer cleanupTestDB(t, db)
+
+	canonicalID := "zabbix2+10.0.2.15"
+	normalizedID := "zabbix2-10-0-2-15"
+
+	testAgent := &AgentSession{
+		id:             canonicalID,
+		hostname:       "norm-test-host",
+		version:        "1.24.0",
+		agentVersion:   "0.2.0",
+		instancesCount: 1,
+		uptime:         "100s",
+		ip:             "10.0.2.15",
+		status:         "offline",
+		lastActive:     time.Now(),
+		logChans:       make(map[string]chan *pb.LogEntry),
+	}
+
+	if err := db.UpsertAgent(testAgent); err != nil {
+		t.Fatalf("Failed to create test agent in DB: %v", err)
+	}
+	srv.sessions.Store(canonicalID, testAgent)
+
+	ctx := context.Background()
+	resp, err := srv.RemoveAgent(ctx, &pb.RemoveAgentRequest{AgentId: normalizedID})
+	if err != nil {
+		t.Fatalf("RemoveAgent failed: %v", err)
+	}
+	if !resp.Success {
+		t.Fatal("Expected successful removal for normalized agent id")
+	}
+	if _, ok := srv.sessions.Load(canonicalID); ok {
+		t.Error("Agent should be removed from sessions")
+	}
+	var count int
+	err = db.conn.QueryRow("SELECT COUNT(*) FROM agents WHERE agent_id = $1", canonicalID).Scan(&count)
+	if err != nil {
+		t.Fatalf("Failed to query agent: %v", err)
+	}
+	if count != 0 {
+		t.Error("Agent should be removed from database")
+	}
+}
+
 func TestAlertRulesIntegration(t *testing.T) {
 	srv, db := setupTestServer(t)
 	defer db.conn.Close()
