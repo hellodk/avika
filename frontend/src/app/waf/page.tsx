@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { formatTsDate } from "@/lib/format-timestamp";
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow
@@ -99,7 +100,14 @@ export default function WAFPage() {
                                         <div className="flex flex-col items-center gap-2" style={{ color: "rgb(var(--theme-text-muted))" }}>
                                             <Shield className="h-12 w-12 opacity-20" />
                                             <p>No WAF policies defined yet.</p>
-                                            <Button variant="outline" size="sm" className="mt-2">Deploy OWASP Core Rule Set</Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="mt-2"
+                                                onClick={() => toast.info("OWASP Core Rule Set deployment coming soon", {
+                                                    description: "Create a WAF policy above, then deploy it to your agents."
+                                                })}
+                                            >Deploy OWASP Core Rule Set</Button>
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -139,7 +147,14 @@ export default function WAFPage() {
                                                 <Button variant="ghost" size="sm" className="hover:bg-purple-500/10 text-purple-400">
                                                     <Settings className="h-4 w-4" />
                                                 </Button>
-                                                <Button variant="ghost" size="sm" className="hover:bg-blue-500/10 text-blue-400">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="hover:bg-blue-500/10 text-blue-400"
+                                                    onClick={() => toast.info("WAF deployment coming soon", {
+                                                        description: "Policy distribution to agents is on the roadmap. Policies are stored and ready to deploy."
+                                                    })}
+                                                >
                                                     Deploy
                                                 </Button>
                                             </div>

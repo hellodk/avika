@@ -493,7 +493,7 @@ function SystemHealthPageContent() {
 }
 
 function isOnline(lastSeen: any) {
-    if (!lastSeen) return true;
+    if (!lastSeen) return false; // no heartbeat = not online
     const now = Math.floor(Date.now() / 1000);
     return (now - parseInt(lastSeen)) < 180;
 }

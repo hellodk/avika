@@ -1,0 +1,286 @@
+---
+# ServiceMonitor: tells Prometheus to scrape Avika gateway metrics.
+# Prometheus (kube-prometheus-stack) uses serviceMonitorSelector: {} so it
+# picks up ServiceMonitors from every namespace automatically.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: avika-gateway
+  namespace: avika
+  labels:
+    app: avika-gateway
+    release: monitoring          # required by some kube-prometheus-stack installs
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: avika
+      component: gateway
+  endpoints:
+    - port: http                 # gateway serves /metrics on the HTTP port (5021), not the metrics port (5022)
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    matchNames:
+      - avika
+
+---
+# ServiceMonitor: scrape Avika frontend metrics (Next.js /api/metrics endpoint)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: avika-frontend
+  namespace: avika
+  labels:
+    app: avika-frontend
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: avika
+      component: frontend
+  endpoints:
+    - port: http
+      path: /avika/api/metrics
+      interval: 30s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    matchNames:
+      - avika
+
+---
+# PrometheusRule: alert rules for Avika
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: avika-alerts
+  namespace: avika
+  labels:
+    release: monitoring
+    app: avika
+spec:
+  groups:
+    - name: avika.gateway
+      interval: 30s
+      rules:
+
+        # Gateway down
+        - alert: AvikaGatewayDown
+          expr: absent(nginx_gateway_info)
+          for: 2m
+          labels:
+            severity: critical
+            team: avika
+          annotations:
+            summary: "Avika gateway is not reachable"
+            description: "nginx_gateway_info has been absent for 2 minutes — the gateway pod is likely down or the metrics endpoint is unreachable."
+
+        # High HTTP error rate (5xx)
+        - alert: AvikaHighErrorRate
+          expr: |
+            sum(rate(avika_http_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(avika_http_requests_total[5m])) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            team: avika
+          annotations:
+            summary: "Avika gateway error rate > 5%"
+            description: "5xx responses are {{ $value | humanizePercentage }} of all requests over the last 5 minutes."
+
+        # API latency p95 > 2s
+        - alert: AvikaHighLatency
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(avika_http_request_duration_seconds_bucket[5m])) by (le, path))
+            > 2
+          for: 5m
+          labels:
+            severity: warning
+            team: avika
+          annotations:
+            summary: "Avika API p95 latency > 2s on {{ $labels.path }}"
+            description: "p95 latency is {{ $value | humanizeDuration }} on {{ $labels.path }}."
+
+        # All agents offline
+        - alert: AvikaAllAgentsOffline
+          expr: nginx_gateway_agents_total{status="online"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            team: avika
+          annotations:
+            summary: "All Avika agents are offline"
+            description: "No agents have been seen online for 5 minutes. Fleet is unreachable."
+
+        # Agent count dropped > 20%
+        - alert: AvikaAgentsDroppingOff
+          expr: |
+            nginx_gateway_agents_total{status="online"}
+            < (nginx_gateway_agents_total{status="online"} offset 15m) * 0.8
+          for: 5m
+          labels:
+            severity: warning
+            team: avika
+          annotations:
+            summary: "Avika online agent count dropped > 20%"
+            description: "Online agents dropped from {{ $value }} to current value. Possible network or agent crash."
+
+        # High memory usage
+        - alert: AvikaGatewayHighMemory
+          expr: nginx_gateway_memory_alloc_bytes > 500 * 1024 * 1024
+          for: 10m
+          labels:
+            severity: warning
+            team: avika
+          annotations:
+            summary: "Avika gateway memory > 500MB"
+            description: "Gateway is allocating {{ $value | humanize1024 }}B — possible memory leak."
+
+        # Goroutine leak
+        - alert: AvikaGoroutineLeak
+          expr: nginx_gateway_goroutines > 1000
+          for: 15m
+          labels:
+            severity: warning
+            team: avika
+          annotations:
+            summary: "Avika gateway goroutine count > 1000"
+            description: "{{ $value }} goroutines running — possible leak. Investigate with pprof."
+
+        # DB latency spike
+        - alert: AvikaSlowDatabase
+          expr: nginx_gateway_db_latency_avg_ms > 200
+          for: 5m
+          labels:
+            severity: warning
+            team: avika
+          annotations:
+            summary: "Avika DB average latency > 200ms"
+            description: "Average DB operation latency is {{ $value }}ms. Check PostgreSQL."
+
+---
+# Grafana dashboard for Avika — loaded via ConfigMap sidecar
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: avika-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"      # picked up by Grafana sidecar provisioner
+data:
+  avika-overview.json: |
+    {
+      "title": "Avika — Gateway Overview",
+      "uid": "avika-gateway-overview",
+      "tags": ["avika"],
+      "timezone": "browser",
+      "schemaVersion": 38,
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1, "type": "stat", "title": "Gateway Up",
+          "gridPos": {"x":0,"y":0,"w":4,"h":3},
+          "targets": [{"expr": "nginx_gateway_info", "legendFormat": "v{{version}}"}],
+          "options": {"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"background","graphMode":"none"},
+          "fieldConfig": {"defaults":{"mappings":[{"type":"value","options":{"1":{"text":"UP","color":"green"}}}]}}
+        },
+        {
+          "id": 2, "type": "stat", "title": "Online Agents",
+          "gridPos": {"x":4,"y":0,"w":4,"h":3},
+          "targets": [{"expr": "nginx_gateway_agents_total{status=\"online\"}", "legendFormat": "Online"}],
+          "options": {"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"background","graphMode":"none"},
+          "fieldConfig": {"defaults":{"thresholds":{"steps":[{"value":0,"color":"red"},{"value":1,"color":"green"}]},"color":{"mode":"thresholds"}}}
+        },
+        {
+          "id": 3, "type": "stat", "title": "Goroutines",
+          "gridPos": {"x":8,"y":0,"w":4,"h":3},
+          "targets": [{"expr": "nginx_gateway_goroutines", "legendFormat": "goroutines"}],
+          "options": {"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"background","graphMode":"none"},
+          "fieldConfig": {"defaults":{"thresholds":{"steps":[{"value":0,"color":"green"},{"value":500,"color":"yellow"},{"value":1000,"color":"red"}]},"color":{"mode":"thresholds"}}}
+        },
+        {
+          "id": 4, "type": "stat", "title": "Memory Alloc",
+          "gridPos": {"x":12,"y":0,"w":4,"h":3},
+          "targets": [{"expr": "nginx_gateway_memory_alloc_bytes", "legendFormat": "alloc"}],
+          "options": {"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"background","graphMode":"none"},
+          "fieldConfig": {"defaults":{"unit":"bytes","thresholds":{"steps":[{"value":0,"color":"green"},{"value":262144000,"color":"yellow"},{"value":524288000,"color":"red"}]},"color":{"mode":"thresholds"}}}
+        },
+        {
+          "id": 5, "type": "stat", "title": "DB Avg Latency",
+          "gridPos": {"x":16,"y":0,"w":4,"h":3},
+          "targets": [{"expr": "nginx_gateway_db_latency_avg_ms", "legendFormat": "ms"}],
+          "options": {"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"background","graphMode":"none"},
+          "fieldConfig": {"defaults":{"unit":"ms","thresholds":{"steps":[{"value":0,"color":"green"},{"value":100,"color":"yellow"},{"value":200,"color":"red"}]},"color":{"mode":"thresholds"}}}
+        },
+        {
+          "id": 6, "type": "stat", "title": "Error Rate",
+          "gridPos": {"x":20,"y":0,"w":4,"h":3},
+          "targets": [{"expr": "sum(rate(avika_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(avika_http_requests_total[5m])) * 100", "legendFormat": "%"}],
+          "options": {"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"background","graphMode":"none"},
+          "fieldConfig": {"defaults":{"unit":"percent","thresholds":{"steps":[{"value":0,"color":"green"},{"value":1,"color":"yellow"},{"value":5,"color":"red"}]},"color":{"mode":"thresholds"}}}
+        },
+        {
+          "id": 10, "type": "timeseries", "title": "HTTP Request Rate by Path",
+          "gridPos": {"x":0,"y":3,"w":12,"h":8},
+          "targets": [{"expr": "sum(rate(avika_http_requests_total[2m])) by (path, method)", "legendFormat": "{{method}} {{path}}"}],
+          "fieldConfig": {"defaults":{"unit":"reqps"}}
+        },
+        {
+          "id": 11, "type": "timeseries", "title": "HTTP Latency p50 / p95 / p99",
+          "gridPos": {"x":12,"y":3,"w":12,"h":8},
+          "targets": [
+            {"expr": "histogram_quantile(0.50, sum(rate(avika_http_request_duration_seconds_bucket[2m])) by (le, path))", "legendFormat": "p50 {{path}}"},
+            {"expr": "histogram_quantile(0.95, sum(rate(avika_http_request_duration_seconds_bucket[2m])) by (le, path))", "legendFormat": "p95 {{path}}"},
+            {"expr": "histogram_quantile(0.99, sum(rate(avika_http_request_duration_seconds_bucket[2m])) by (le, path))", "legendFormat": "p99 {{path}}"}
+          ],
+          "fieldConfig": {"defaults":{"unit":"s"}}
+        },
+        {
+          "id": 12, "type": "timeseries", "title": "HTTP Status Codes",
+          "gridPos": {"x":0,"y":11,"w":12,"h":6},
+          "targets": [{"expr": "sum(rate(avika_http_requests_total[2m])) by (status)", "legendFormat": "HTTP {{status}}"}],
+          "fieldConfig": {"defaults":{"unit":"reqps"}}
+        },
+        {
+          "id": 13, "type": "timeseries", "title": "Memory — Alloc vs Sys",
+          "gridPos": {"x":12,"y":11,"w":12,"h":6},
+          "targets": [
+            {"expr": "nginx_gateway_memory_alloc_bytes", "legendFormat": "Heap alloc"},
+            {"expr": "nginx_gateway_memory_sys_bytes", "legendFormat": "Sys total"}
+          ],
+          "fieldConfig": {"defaults":{"unit":"bytes"}}
+        },
+        {
+          "id": 14, "type": "timeseries", "title": "Goroutines over time",
+          "gridPos": {"x":0,"y":17,"w":12,"h":6},
+          "targets": [{"expr": "nginx_gateway_goroutines", "legendFormat": "goroutines"}],
+          "fieldConfig": {"defaults":{"unit":"short"}}
+        },
+        {
+          "id": 15, "type": "timeseries", "title": "Agent Fleet Status",
+          "gridPos": {"x":12,"y":17,"w":12,"h":6},
+          "targets": [
+            {"expr": "nginx_gateway_agents_total{status=\"online\"}", "legendFormat": "Online"},
+            {"expr": "nginx_gateway_agents_total{status=\"offline\"}", "legendFormat": "Offline"}
+          ],
+          "fieldConfig": {"defaults":{"unit":"short"}}
+        },
+        {
+          "id": 16, "type": "timeseries", "title": "DB Operations & Latency",
+          "gridPos": {"x":0,"y":23,"w":12,"h":6},
+          "targets": [
+            {"expr": "rate(nginx_gateway_db_operations_total[2m])", "legendFormat": "DB ops/s"},
+            {"expr": "nginx_gateway_db_latency_avg_ms", "legendFormat": "Avg latency (ms)"}
+          ]
+        },
+        {
+          "id": 17, "type": "timeseries", "title": "GC Pause Time",
+          "gridPos": {"x":12,"y":23,"w":12,"h":6},
+          "targets": [{"expr": "rate(nginx_gateway_gc_pause_total_ns[2m]) / 1e6", "legendFormat": "GC pause ms/s"}],
+          "fieldConfig": {"defaults":{"unit":"ms"}}
+        }
+      ]
+    }
