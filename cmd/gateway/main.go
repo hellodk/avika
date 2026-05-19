@@ -2074,8 +2074,12 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		srv.handleTerminal(w, r, upgrader)
 	})))
 
-	// Export report endpoint with rate limiting and auth
-	mux.Handle("/export-report", authManager.AuthMiddleware(publicPaths)(middleware.RateLimitMiddleware(rateLimiter, cfg.Security.EnableRateLimit)(http.HandlerFunc(srv.handleExportReport))))
+	// Export report endpoint with rate limiting and auth.
+	// Registered at both legacy path (/export-report) and the canonical API path
+	// (/api/reports/download) that the frontend uses.
+	exportReportHandler := authManager.AuthMiddleware(publicPaths)(middleware.RateLimitMiddleware(rateLimiter, cfg.Security.EnableRateLimit)(http.HandlerFunc(srv.handleExportReport)))
+	mux.Handle("/export-report", exportReportHandler)
+	mux.Handle("GET /api/reports/download", exportReportHandler)
 
 	// Geo API endpoint
 	mux.Handle("/api/geo", authManager.AuthMiddleware(publicPaths)(http.HandlerFunc(srv.handleGeoData)))

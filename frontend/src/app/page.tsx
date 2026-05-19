@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -26,12 +27,13 @@ import { OnboardingWizard } from "@/components/OnboardingWizard";
 import { DashboardBuilderButton, useDashboardWidgets } from "@/components/DashboardBuilder";
 
 
-// Convert time range value to API window parameter
+// Convert time range value to API window parameter.
+// Absolute date ranges are not yet supported by the analytics API — it accepts
+// only relative windows (1h, 7d, etc.). We fall back to 1h and warn the user.
 function getWindowParam(timeRange: TimeRange): string {
     if (timeRange.type === 'relative' && timeRange.value) {
         return timeRange.value;
     }
-    // Default to 1h for absolute ranges (API would need to support from/to params)
     return '1h';
 }
 
@@ -76,10 +78,11 @@ export default function Home() {
         label: 'Last 1 hour'
     });
 
+    const [statsLoaded, setStatsLoaded] = useState(false);
     const [stats, setStats] = useState({
-        requestRate: "0",
-        errorRate: "0",
-        avgLatency: "0",
+        requestRate: "—",
+        errorRate: "—",
+        avgLatency: "—",
         trafficHistory: [] as any[],
         statusCounts: { success: 0, redirect: 0, clientError: 0, serverError: 0 },
         topUrls: [] as any[],
@@ -207,6 +210,7 @@ export default function Home() {
                     topUrls,
                     totalRequests: totalReqs,
                 });
+                setStatsLoaded(true);
 
                 // Store current stats as baseline for next refresh cycle's trend comparison.
                 // On subsequent fetches, prevStats holds the real data from the previous poll,
@@ -318,7 +322,15 @@ export default function Home() {
                     <DashboardBuilderButton widgets={widgets} onTogglePin={togglePin} />
                     <TimeRangePicker
                         value={timeRange}
-                        onChange={setTimeRange}
+                        onChange={(tr) => {
+                            if (tr.type === 'absolute') {
+                                toast.warning("Absolute date ranges not yet supported", {
+                                    description: "The analytics API accepts relative windows only (1h, 24h, 7d). Showing last 1 hour instead.",
+                                    duration: 5000,
+                                });
+                            }
+                            setTimeRange(tr);
+                        }}
                     />
                     <Badge
                         variant="outline"
