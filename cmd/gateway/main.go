@@ -33,6 +33,7 @@ import (
 	"github.com/prometheus/common/expfmt"
 	"github.com/rs/zerolog"
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -1492,6 +1493,17 @@ func main() {
 	srv.startGatewayMonitoring()
 	srv.alerts.Start()
 
+	// ── Distributed tracing (OpenTelemetry) ─────────────────────────────
+	shutdownTracer, err := initTracer("avika-gateway", Version)
+	if err != nil {
+		log.Printf("Warning: tracer init failed: %v", err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = shutdownTracer(ctx)
+	}()
+
 	// ── HTTP server ─────────────────────────────────────────────────────
 	httpServer := srv.createHTTPServer(cfg)
 	go func() {
@@ -2314,11 +2326,21 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	}
 	handler := metricsAndLogMiddleware(gatewayLog, false)(mux)
 
+	// Wrap with OpenTelemetry HTTP instrumentation — creates one span per request
+	// with http.method, http.route, http.status_code, net.peer.ip attributes.
+	// Spans are exported to the OTel collector (otel-gateway in monitoring namespace).
+	tracedHandler := otelhttp.NewHandler(handler, "avika-gateway",
+		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+			// Use "METHOD /path" as the span name so Grafana Tempo groups correctly
+			return r.Method + " " + r.URL.Path
+		}),
+	)
+
 	// Wrap with a global request body size limiter (10MB) to prevent DoS via large payloads.
 	// Streaming endpoints (SSE, WebSocket) are not affected as they use different read patterns.
 	limitedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024) // 10MB
-		handler.ServeHTTP(w, r)
+		tracedHandler.ServeHTTP(w, r)
 	})
 
 	return &http.Server{
