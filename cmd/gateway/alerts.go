@@ -59,6 +59,9 @@ func (e *AlertEngine) Start() {
 
 // loadCooldowns reads last_fired_at from the database into the in-memory map.
 func (e *AlertEngine) loadCooldowns() {
+	if e.db == nil {
+		return
+	}
 	cooldowns, err := e.db.LoadAlertCooldowns()
 	if err != nil {
 		log.Printf("AlertEngine: failed to load cooldowns from DB: %v", err)
