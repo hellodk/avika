@@ -1501,7 +1501,7 @@ func (db *DB) UpdateUserByAdmin(username string, role, email, displayName *strin
 
 	if len(args) == 0 {
 		// Nothing to update besides updated_at
-		query := fmt.Sprintf("UPDATE users SET updated_at = NOW() WHERE username = $1")
+		query := "UPDATE users SET updated_at = NOW() WHERE username = $1"
 		_, err := db.conn.Exec(query, username)
 		return err
 	}
