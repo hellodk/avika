@@ -74,8 +74,10 @@ data:
     processors:
       memory_limiter:
         check_interval: 1s
-        limit_mib: 512
-        spike_limit_mib: 128
+        # 768Mi = 75% of 1Gi container limit; leaves headroom for tail_sampling
+        # buffer which sits outside the memory_limiter's accounting.
+        limit_mib: 768
+        spike_limit_mib: 192
 
       # Enriches spans with k8s.pod.name, k8s.namespace.name, k8s.node.name
       # so every span in Tempo shows which pod/node it came from.
@@ -90,14 +92,15 @@ data:
             - k8s.deployment.name
             - k8s.node.name
 
-      # Tail sampling — buffer traces for 30s then decide:
+      # Tail sampling — buffer traces for up to 30s then decide:
       #   - Always keep errors (100%)
       #   - Always keep slow traces >500ms (100%)
       #   - Keep 5% of fast, successful traces as baseline
-      # This is strictly better than head sampling: captures all problems
-      # while keeping similar storage cost.
+      # num_traces caps in-memory buffer to prevent OOM at high request rates.
       tail_sampling:
         decision_wait: 30s
+        num_traces: 100000
+        expected_new_traces_per_sec: 200
         policies:
           - name: always-sample-errors
             type: status_code
@@ -175,6 +178,9 @@ spec:
             - name: otlp-http
               containerPort: 4318
               protocol: TCP
+            - name: prom-self
+              containerPort: 8888
+              protocol: TCP
             - name: health
               containerPort: 13133
               protocol: TCP
@@ -193,10 +199,12 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 256Mi
+              memory: 384Mi
             limits:
               cpu: 500m
-              memory: 640Mi
+              # 1Gi: memory_limiter stops at 768Mi, leaving 256Mi headroom for
+              # tail_sampling's internal buffer which is outside limiter accounting.
+              memory: 1Gi
           volumeMounts:
             - name: config
               mountPath: /conf
@@ -223,13 +231,18 @@ spec:
     - name: otlp-http
       port: 4318
       targetPort: 4318
+    - name: prom-self
+      port: 8888
+      targetPort: 8888
     - name: health
       port: 13133
       targetPort: 13133
 
 ---
-# ServiceMonitor — scrapes both the spanmetrics RED metrics (:8889) and
-# the collector's self-metrics (:8888) for kube-prometheus-stack
+# ServiceMonitor — scrapes the OTel Collector's own self-metrics (:8888).
+# The collector exposes pipeline throughput, dropped spans, queue depth, etc.
+# Note: spanmetrics connector (RED metrics from traces) is a future Phase 4
+# addition that requires the connector API — not configured yet.
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -242,6 +255,6 @@ spec:
     matchLabels:
       app.kubernetes.io/name: otel-gateway
   endpoints:
-    - port: spanmetrics
+    - port: prom-self
       path: /metrics
       interval: 15s

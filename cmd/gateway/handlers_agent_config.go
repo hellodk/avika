@@ -158,7 +158,7 @@ func (srv *server) handleGetAgentRuntimeConfig(w http.ResponseWriter, r *http.Re
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	if !srv.canUserAccessAgent(user.Username, resolved) {
+	if !srv.canUserAccessAgent(r.Context(), user.Username, resolved) {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -206,7 +206,7 @@ func (srv *server) handleUpdateAgentRuntimeConfig(w http.ResponseWriter, r *http
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	if !srv.canUserAccessAgent(user.Username, resolved) {
+	if !srv.canUserAccessAgent(r.Context(), user.Username, resolved) {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -254,7 +254,7 @@ func (srv *server) handleUpdateAgentRuntimeConfig(w http.ResponseWriter, r *http
 		}
 
 		// Log audit event
-		if err := srv.db.CreateAuditLog(user.Username, "update_runtime_config", "agent", agentID, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
+		if err := srv.db.CreateAuditLog(r.Context(), user.Username, "update_runtime_config", "agent", agentID, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
 			"persist":    body.Persist,
 			"hot_reload": body.HotReload,
 			"updates":    updates,
@@ -286,7 +286,7 @@ func (srv *server) handleListAgentConfigBackups(w http.ResponseWriter, r *http.R
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	if !srv.canUserAccessAgent(user.Username, resolved) {
+	if !srv.canUserAccessAgent(r.Context(), user.Username, resolved) {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -324,7 +324,7 @@ func (srv *server) handleRestoreAgentConfigBackup(w http.ResponseWriter, r *http
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	if !srv.canUserAccessAgent(user.Username, resolved) {
+	if !srv.canUserAccessAgent(r.Context(), user.Username, resolved) {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -353,7 +353,7 @@ func (srv *server) handleRestoreAgentConfigBackup(w http.ResponseWriter, r *http
 		return
 	}
 	if srv.db != nil {
-		if err := srv.db.CreateAuditLog(user.Username, "restore_agent_config_backup", "agent", resolved, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
+		if err := srv.db.CreateAuditLog(r.Context(), user.Username, "restore_agent_config_backup", "agent", resolved, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
 			"backup_name": body.BackupName,
 		}); err != nil {
 			log.Printf("handleRestoreAgentConfigBackup: failed to create audit log for user %s agent %s: %v", user.Username, resolved, err)
@@ -383,7 +383,7 @@ func (srv *server) handleTestAgentConfigConnection(w http.ResponseWriter, r *htt
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	if !srv.canUserAccessAgent(user.Username, resolved) {
+	if !srv.canUserAccessAgent(r.Context(), user.Username, resolved) {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -414,14 +414,14 @@ func (srv *server) handleTestAgentConfigConnection(w http.ResponseWriter, r *htt
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-func (srv *server) canUserAccessAgent(username, agentID string) bool {
+func (srv *server) canUserAccessAgent(ctx context.Context, username, agentID string) bool {
 	// Superadmins can access all agents
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(ctx, username)
 	if isSuperAdmin {
 		return true
 	}
 
-	visibleAgents, err := srv.db.GetVisibleAgentIDs(username)
+	visibleAgents, err := srv.db.GetVisibleAgentIDs(ctx, username)
 	if err != nil {
 		log.Printf("RBAC visible agents error for user %s: %v", username, err)
 		return false

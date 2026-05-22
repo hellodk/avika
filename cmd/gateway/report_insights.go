@@ -20,7 +20,7 @@ func (s *server) enrichReportInsights(ctx context.Context, report *pb.ReportResp
 
 	// Availability
 	if s.db != nil {
-		total, online, err := s.db.GetAgentCounts()
+		total, online, err := s.db.GetAgentCounts(ctx)
 		if err == nil {
 			if total == 0 {
 				report.AvailabilitySummary = "No agents registered."
@@ -34,7 +34,7 @@ func (s *server) enrichReportInsights(ctx context.Context, report *pb.ReportResp
 			report.AvailabilitySummary = "Availability data unavailable."
 		}
 		// Alerts
-		rules, err := s.db.ListAlertRules()
+		rules, err := s.db.ListAlertRules(ctx)
 		if err == nil {
 			enabled := 0
 			for _, r := range rules {

@@ -33,7 +33,7 @@ func (srv *server) handleListNginxConfigBackups(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if !srv.canUserAccessAgent(user.Username, resolved) {
+	if !srv.canUserAccessAgent(r.Context(), user.Username, resolved) {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -81,7 +81,7 @@ func (srv *server) handleRestoreNginxConfigBackup(w http.ResponseWriter, r *http
 	}
 
 	user := middleware.GetUserFromContext(r.Context())
-	if user == nil || !srv.canUserAccessAgent(user.Username, resolved) {
+	if user == nil || !srv.canUserAccessAgent(r.Context(), user.Username, resolved) {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -145,7 +145,7 @@ func (srv *server) handleRestoreNginxConfigBackup(w http.ResponseWriter, r *http
 	}
 
 	if srv.db != nil {
-		_ = srv.db.CreateAuditLog(user.Username, "restore_nginx_config_backup", "agent", resolved, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
+		_ = srv.db.CreateAuditLog(r.Context(), user.Username, "restore_nginx_config_backup", "agent", resolved, r.RemoteAddr, r.UserAgent(), map[string]interface{}{
 			"backup_id":   reqBody.BackupID,
 			"config_path": reqBody.ConfigPath,
 			"success":     updateResp.Success,

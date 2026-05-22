@@ -19,8 +19,8 @@ import (
 // initTracer sets up the OpenTelemetry trace provider and returns a shutdown
 // function that flushes and closes the exporter cleanly.
 //
-// Endpoint is read from OTEL_EXPORTER_OTLP_ENDPOINT (default: avika-otel-gateway
-// in monitoring namespace on port 4317). Set to "" to disable tracing.
+// Endpoint is read from OTEL_EXPORTER_OTLP_ENDPOINT (default: otel-gateway
+// in monitoring namespace on port 4317). Set to "disabled" to disable tracing.
 func initTracer(serviceName, version string) (shutdown func(context.Context) error, err error) {
 	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	if endpoint == "" {
@@ -34,36 +34,46 @@ func initTracer(serviceName, version string) (shutdown func(context.Context) err
 		return func(context.Context) error { return nil }, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
+	// grpc.NewClient is lazy — it does not dial immediately. We set a timeout
+	// only for the exporter handshake below, not for the dial itself.
 	conn, err := grpc.NewClient(endpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		log.Printf("Tracing: could not connect to OTel collector at %s: %v — tracing disabled", endpoint, err)
+		// grpc.NewClient almost never errors (connection is lazy), but handle it.
+		log.Printf("Tracing: could not create gRPC client for OTel collector at %s: %v — tracing disabled", endpoint, err)
 		otel.SetTracerProvider(sdktrace.NewTracerProvider())
 		return func(context.Context) error { return nil }, nil
 	}
 
-	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
+	// Use a separate context for exporter creation only; cancel after New() returns.
+	exportCtx, exportCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	exporter, err := otlptracegrpc.New(exportCtx, otlptracegrpc.WithGRPCConn(conn))
+	exportCancel() // cancel only after New() — not deferred, to avoid premature cancellation
 	if err != nil {
 		log.Printf("Tracing: could not create OTLP exporter: %v — tracing disabled", err)
 		otel.SetTracerProvider(sdktrace.NewTracerProvider())
 		return func(context.Context) error { return nil }, nil
 	}
 
-	res := resource.NewWithAttributes(
-		semconv.SchemaURL,
-		semconv.ServiceName(serviceName),
-		semconv.ServiceVersion(version),
-		semconv.DeploymentEnvironmentKey.String(getEnv("DEPLOYMENT_ENV", "production")),
+	// Merge with resource.Default() so telemetry.sdk.* and host.name are present,
+	// as required by the OTel spec and expected by Grafana Tempo's service graph.
+	res, _ := resource.Merge(
+		resource.Default(),
+		resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceName(serviceName),
+			semconv.ServiceVersion(version),
+			semconv.DeploymentEnvironmentKey.String(getEnv("DEPLOYMENT_ENV", "production")),
+		),
 	)
 
 	tp := sdktrace.NewTracerProvider(
-		// Sample 100% in development, 10% in production to keep overhead low.
-		// Override with OTEL_TRACES_SAMPLER=parentbased_always_on for full sampling.
-		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(getSampleRate()))),
+		// AlwaysSample: send 100% of spans to the Collector, which applies
+		// tail sampling (keep all errors/slow traces, 5% of fast ones).
+		// ParentBased would propagate "sampled=0" from upstream services,
+		// which is wrong for a tail-sampling architecture.
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 		sdktrace.WithBatcher(exporter,
 			sdktrace.WithBatchTimeout(5*time.Second),
 			sdktrace.WithMaxExportBatchSize(512),
@@ -79,24 +89,10 @@ func initTracer(serviceName, version string) (shutdown func(context.Context) err
 	))
 	otel.SetTracerProvider(tp)
 
-	log.Printf("Tracing: enabled → %s (service=%s version=%s sampleRate=%.0f%%)",
-		endpoint, serviceName, version, getSampleRate()*100)
+	log.Printf("Tracing: enabled → %s (service=%s version=%s sampler=always)",
+		endpoint, serviceName, version)
 
 	return tp.Shutdown, nil
-}
-
-func getSampleRate() float64 {
-	env := os.Getenv("OTEL_SAMPLE_RATE")
-	switch env {
-	case "0", "0.0", "never":
-		return 0.0
-	case "0.1", "10":
-		return 0.10
-	}
-	// Default: 100% — send all spans to the Collector, which applies
-	// tail sampling (keep 100% of errors/slow traces, 5% of fast ones).
-	// Head sampling here would blind the Collector to 90% of slow requests.
-	return 1.0
 }
 
 func getEnv(key, fallback string) string {

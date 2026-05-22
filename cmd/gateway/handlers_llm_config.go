@@ -78,7 +78,7 @@ func (srv *server) handlePutLLMConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Enforce superadmin only
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return

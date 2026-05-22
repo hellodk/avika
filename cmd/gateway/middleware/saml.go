@@ -105,18 +105,18 @@ func (p *SAMLProvider) determineRole(groups []string) string {
 }
 
 // syncTeamMembership updates team membership
-func (p *SAMLProvider) syncTeamMembership(username string, groups []string) error {
+func (p *SAMLProvider) syncTeamMembership(ctx context.Context, username string, groups []string) error {
 	if p.teamMapper == nil {
 		return nil
 	}
 
-	if err := p.teamMapper.RemoveUserFromAllTeams(username); err != nil {
+	if err := p.teamMapper.RemoveUserFromAllTeams(ctx, username); err != nil {
 		return err
 	}
 
 	for _, group := range groups {
 		if teamName, ok := p.config.GroupMapping[group]; ok {
-			if err := p.teamMapper.AddUserToTeamByName(username, teamName); err != nil {
+			if err := p.teamMapper.AddUserToTeamByName(ctx, username, teamName); err != nil {
 				log.Printf("SAML: Failed to add %s to team %s: %v", username, teamName, err)
 			}
 		}
@@ -179,18 +179,18 @@ func (p *SAMLProvider) finalizeSAMLSession(w http.ResponseWriter, r *http.Reques
 	role := p.determineRole(groups)
 
 	if p.config.AutoProvision && p.userProvisioner != nil {
-		existing, err := p.userProvisioner.GetUserInfo(username)
+		existing, err := p.userProvisioner.GetUserInfo(r.Context(), username)
 		if err != nil {
 			log.Printf("SAML provision error checking user %s: %v", username, err)
 		} else if existing == nil {
-			if err := p.userProvisioner.CreateUser(username, email, role); err != nil {
+			if err := p.userProvisioner.CreateUser(r.Context(), username, email, role); err != nil {
 				log.Printf("SAML failed to create user %s: %v", username, err)
 			}
 		} else if existing.Email != email {
-			_ = p.userProvisioner.UpdateUserEmail(username, email)
+			_ = p.userProvisioner.UpdateUserEmail(r.Context(), username, email)
 		}
 
-		_ = p.syncTeamMembership(username, groups)
+		_ = p.syncTeamMembership(r.Context(), username, groups)
 	}
 
 	user := &User{

@@ -67,9 +67,9 @@ type stateEntry struct {
 
 // UserProvisioner creates users in the database
 type UserProvisioner interface {
-	GetUserInfo(username string) (*UserInfo, error)
-	CreateUser(username, email, role string) error
-	UpdateUserEmail(username, email string) error
+	GetUserInfo(ctx context.Context, username string) (*UserInfo, error)
+	CreateUser(ctx context.Context, username, email, role string) error
+	UpdateUserEmail(ctx context.Context, username, email string) error
 }
 
 // UserInfo represents a user from the database
@@ -81,9 +81,9 @@ type UserInfo struct {
 
 // TeamMapper handles mapping OIDC groups to teams
 type TeamMapper interface {
-	AddUserToTeamByName(username, teamName string) error
-	RemoveUserFromAllTeams(username string) error
-	GetTeamByName(name string) (*TeamInfo, error)
+	AddUserToTeamByName(ctx context.Context, username, teamName string) error
+	RemoveUserFromAllTeams(ctx context.Context, username string) error
+	GetTeamByName(ctx context.Context, name string) (*TeamInfo, error)
 }
 
 // TeamInfo represents a team
@@ -347,7 +347,7 @@ func (p *OIDCProvider) HandleCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Provision user if auto-provisioning is enabled
 	if p.config.AutoProvision {
-		if err := p.provisionUser(username, userInfo); err != nil {
+		if err := p.provisionUser(r.Context(), username, userInfo); err != nil {
 			log.Printf("OIDC user provisioning failed for %s: %v", username, err)
 			http.Error(w, "Failed to provision user", http.StatusInternalServerError)
 			return
@@ -453,13 +453,12 @@ func (p *OIDCProvider) getUserInfo(ctx context.Context, accessToken string) (*OI
 }
 
 // provisionUser creates or updates a user in the system
-func (p *OIDCProvider) provisionUser(username string, info *OIDCUserInfo) error {
+func (p *OIDCProvider) provisionUser(ctx context.Context, username string, info *OIDCUserInfo) error {
 	if p.userProvisioner == nil {
 		return nil
 	}
 
-	// Check if user already exists
-	existing, err := p.userProvisioner.GetUserInfo(username)
+	existing, err := p.userProvisioner.GetUserInfo(ctx, username)
 	if err != nil {
 		return fmt.Errorf("failed to check existing user: %w", err)
 	}
@@ -467,21 +466,18 @@ func (p *OIDCProvider) provisionUser(username string, info *OIDCUserInfo) error 
 	role := p.determineRole(info.Groups)
 
 	if existing == nil {
-		// Create new user
-		if err := p.userProvisioner.CreateUser(username, info.Email, role); err != nil {
+		if err := p.userProvisioner.CreateUser(ctx, username, info.Email, role); err != nil {
 			return fmt.Errorf("failed to create user: %w", err)
 		}
 		log.Printf("OIDC: Provisioned new user %s with role %s", username, role)
 	} else if existing.Email != info.Email {
-		// Update email if changed
-		if err := p.userProvisioner.UpdateUserEmail(username, info.Email); err != nil {
+		if err := p.userProvisioner.UpdateUserEmail(ctx, username, info.Email); err != nil {
 			return fmt.Errorf("failed to update user email: %w", err)
 		}
 	}
 
-	// Sync team membership based on groups
 	if p.teamMapper != nil {
-		if err := p.syncTeamMembership(username, info.Groups); err != nil {
+		if err := p.syncTeamMembership(ctx, username, info.Groups); err != nil {
 			log.Printf("OIDC: Warning - failed to sync team membership for %s: %v", username, err)
 		}
 	}
@@ -490,16 +486,14 @@ func (p *OIDCProvider) provisionUser(username string, info *OIDCUserInfo) error 
 }
 
 // syncTeamMembership updates team membership based on OIDC groups
-func (p *OIDCProvider) syncTeamMembership(username string, groups []string) error {
-	// Remove from all teams first to ensure clean state
-	if err := p.teamMapper.RemoveUserFromAllTeams(username); err != nil {
+func (p *OIDCProvider) syncTeamMembership(ctx context.Context, username string, groups []string) error {
+	if err := p.teamMapper.RemoveUserFromAllTeams(ctx, username); err != nil {
 		return err
 	}
 
-	// Add to teams based on group mappings
 	for _, group := range groups {
 		if teamName, ok := p.config.GroupMapping[group]; ok {
-			if err := p.teamMapper.AddUserToTeamByName(username, teamName); err != nil {
+			if err := p.teamMapper.AddUserToTeamByName(ctx, username, teamName); err != nil {
 				log.Printf("OIDC: Failed to add %s to team %s: %v", username, teamName, err)
 			}
 		}

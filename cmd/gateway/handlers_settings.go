@@ -65,7 +65,7 @@ func (srv *server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Override from DB if present
-	if raw, err := srv.db.GetSetting(settingsKeyIntegrations); err == nil && raw != "" {
+	if raw, err := srv.db.GetSetting(r.Context(), settingsKeyIntegrations); err == nil && raw != "" {
 		var stored integrationsPayload
 		if json.Unmarshal([]byte(raw), &stored) == nil {
 			if stored.GrafanaURL != "" {
@@ -125,7 +125,7 @@ func (srv *server) handlePostSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	raw, _ := json.Marshal(integrations)
-	if err := srv.db.SetSetting(settingsKeyIntegrations, string(raw)); err != nil {
+	if err := srv.db.SetSetting(r.Context(), settingsKeyIntegrations, string(raw)); err != nil {
 		http.Error(w, `{"error":"failed to save settings"}`, http.StatusInternalServerError)
 		return
 	}

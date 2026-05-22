@@ -65,7 +65,13 @@ func metricsAndLogMiddleware(logger zerolog.Logger, logRequests bool) func(http.
 			next.ServeHTTP(rec, r)
 			duration := time.Since(start)
 			method := r.Method
-			path := r.URL.Path
+			// Use matched route pattern to avoid high-cardinality labels from agent
+			// IDs / project IDs / UUIDs embedded in paths. r.Pattern is set by
+			// Go 1.22's ServeMux after dispatch; falls back to raw path for unmatched routes.
+			path := r.Pattern
+			if path == "" {
+				path = r.URL.Path
+			}
 			if path == "" {
 				path = "/"
 			}
@@ -75,14 +81,15 @@ func metricsAndLogMiddleware(logger zerolog.Logger, logRequests bool) func(http.
 			avikaHTTPRequestsTotal.WithLabelValues(method, path, statusStr).Inc()
 
 			// Record histogram with exemplar so Grafana can navigate metric → trace.
+			obs := avikaHTTPRequestDurationSeconds.WithLabelValues(method, path)
 			span := trace.SpanFromContext(r.Context())
-			if span.SpanContext().IsValid() && span.SpanContext().IsSampled() {
-				avikaHTTPRequestDurationSeconds.WithLabelValues(method, path).(prometheus.ExemplarObserver).ObserveWithExemplar(
+			if eo, ok := obs.(prometheus.ExemplarObserver); ok && span.SpanContext().IsValid() && span.SpanContext().IsSampled() {
+				eo.ObserveWithExemplar(
 					duration.Seconds(),
 					prometheus.Labels{"traceID": span.SpanContext().TraceID().String()},
 				)
 			} else {
-				avikaHTTPRequestDurationSeconds.WithLabelValues(method, path).Observe(duration.Seconds())
+				obs.Observe(duration.Seconds())
 			}
 
 			if logRequests && logger.GetLevel() <= zerolog.InfoLevel {
