@@ -88,13 +88,15 @@ func initTracer(serviceName, version string) (shutdown func(context.Context) err
 func getSampleRate() float64 {
 	env := os.Getenv("OTEL_SAMPLE_RATE")
 	switch env {
-	case "1", "100", "always":
-		return 1.0
 	case "0", "0.0", "never":
 		return 0.0
+	case "0.1", "10":
+		return 0.10
 	}
-	// Default: 10% sampling in production — enough to catch patterns without overhead
-	return 0.10
+	// Default: 100% — send all spans to the Collector, which applies
+	// tail sampling (keep 100% of errors/slow traces, 5% of fast ones).
+	// Head sampling here would blind the Collector to 90% of slow requests.
+	return 1.0
 }
 
 func getEnv(key, fallback string) string {

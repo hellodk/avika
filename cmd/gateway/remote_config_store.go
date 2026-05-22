@@ -16,6 +16,7 @@ import (
 	"time"
 
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
+	"go.opentelemetry.io/otel/codes"
 )
 
 type LLMConfigRow struct {
@@ -49,6 +50,8 @@ const (
 )
 
 func (db *DB) GetActiveLLMClientConfig(ctx context.Context) (*LLMConfig, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "llm_config")
+	defer span.End()
 	row := db.conn.QueryRowContext(ctx, `
 		SELECT provider, api_key_encrypted, COALESCE(model,''), COALESCE(base_url,''),
 		       COALESCE(max_tokens,4096), COALESCE(temperature,0.7), COALESCE(timeout_seconds,30),
@@ -70,6 +73,8 @@ func (db *DB) GetActiveLLMClientConfig(ctx context.Context) (*LLMConfig, error) 
 		return nil, nil
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
@@ -95,6 +100,8 @@ func (db *DB) GetActiveLLMClientConfig(ctx context.Context) (*LLMConfig, error) 
 }
 
 func (db *DB) UpsertActiveLLMConfig(ctx context.Context, in *LLMConfigRow) error {
+	ctx, span := db.dbSpan(ctx, "INSERT", "llm_config")
+	defer span.End()
 	if in == nil {
 		return fmt.Errorf("llm config is required")
 	}
@@ -109,6 +116,8 @@ func (db *DB) UpsertActiveLLMConfig(ctx context.Context, in *LLMConfigRow) error
 
 	// Make all existing rows inactive to ensure single active config.
 	if _, err := db.conn.ExecContext(ctx, `UPDATE llm_config SET is_active = false WHERE is_active = true`); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
@@ -125,16 +134,24 @@ func (db *DB) UpsertActiveLLMConfig(ctx context.Context, in *LLMConfigRow) error
 		defaultInt(in.RateLimitRPM, 60), nullIfEmptyText(in.FallbackProvider), in.EnableCaching, defaultInt(in.CacheTTLMinutes, 60),
 		in.Enabled,
 	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 func (db *DB) ListIntegrations(ctx context.Context) ([]IntegrationConfigRow, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "integration_config")
+	defer span.End()
 	rows, err := db.conn.QueryContext(ctx, `
 		SELECT type, config, is_enabled, updated_at, last_tested_at, test_result
 		FROM integration_config
 		ORDER BY type ASC
 	`)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -180,6 +197,8 @@ func (db *DB) ListIntegrations(ctx context.Context) ([]IntegrationConfigRow, err
 }
 
 func (db *DB) GetIntegration(ctx context.Context, t string) (*IntegrationConfigRow, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "integration_config")
+	defer span.End()
 	t = strings.TrimSpace(strings.ToLower(t))
 	if t == "" {
 		return nil, fmt.Errorf("type is required")
@@ -200,6 +219,8 @@ func (db *DB) GetIntegration(ctx context.Context, t string) (*IntegrationConfigR
 		return &IntegrationConfigRow{Type: t, Config: map[string]interface{}{}, IsEnabled: false}, nil
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
@@ -226,6 +247,8 @@ func (db *DB) GetIntegration(ctx context.Context, t string) (*IntegrationConfigR
 }
 
 func (db *DB) UpsertIntegration(ctx context.Context, row *IntegrationConfigRow) error {
+	ctx, span := db.dbSpan(ctx, "INSERT", "integration_config")
+	defer span.End()
 	if row == nil {
 		return fmt.Errorf("integration is required")
 	}
@@ -246,10 +269,16 @@ func (db *DB) UpsertIntegration(ctx context.Context, row *IntegrationConfigRow) 
 		  is_enabled = EXCLUDED.is_enabled,
 		  updated_at = NOW()
 	`, t, b, row.IsEnabled)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 func (db *DB) SetIntegrationTestResult(ctx context.Context, t string, success bool, details map[string]interface{}) error {
+	ctx, span := db.dbSpan(ctx, "UPDATE", "integration_config")
+	defer span.End()
 	t = strings.TrimSpace(strings.ToLower(t))
 	if t == "" {
 		return fmt.Errorf("type is required")
@@ -266,10 +295,16 @@ func (db *DB) SetIntegrationTestResult(ctx context.Context, t string, success bo
 		SET last_tested_at = NOW(), test_result = $2, updated_at = NOW()
 		WHERE type = $1
 	`, t, b)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 func (db *DB) UpsertAgentConfigCache(ctx context.Context, agentID string, cfg *pb.GetAgentConfigResponse) error {
+	ctx, span := db.dbSpan(ctx, "INSERT", "agent_config_cache")
+	defer span.End()
 	agentID = strings.TrimSpace(agentID)
 	if agentID == "" {
 		return fmt.Errorf("agent_id is required")
@@ -285,6 +320,10 @@ func (db *DB) UpsertAgentConfigCache(ctx context.Context, agentID string, cfg *p
 		  config = EXCLUDED.config,
 		  last_synced_at = NOW()
 	`, agentID, b)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 

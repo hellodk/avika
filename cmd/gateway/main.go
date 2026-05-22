@@ -33,7 +33,9 @@ import (
 	"github.com/prometheus/common/expfmt"
 	"github.com/rs/zerolog"
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -150,11 +152,22 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 			return nil
 		}
 		if err != nil {
+			span := trace.SpanFromContext(stream.Context())
+			traceID := span.SpanContext().TraceID().String()
+			spanID := span.SpanContext().SpanID().String()
 			if currentSession != nil {
 				agentLog := logging.WithAgent(gatewayLog, currentSession.id, currentSession.hostname, currentSession.ip)
-				agentLog.Error().Err(err).Msg("Stream error")
+				ev := agentLog.Error().Err(err)
+				if span.SpanContext().IsValid() {
+					ev = ev.Str("trace_id", traceID).Str("span_id", spanID)
+				}
+				ev.Msg("Stream error")
 			} else {
-				gatewayLog.Error().Err(err).Msg("Stream error (no agent session yet)")
+				ev := gatewayLog.Error().Err(err)
+				if span.SpanContext().IsValid() {
+					ev = ev.Str("trace_id", traceID).Str("span_id", spanID)
+				}
+				ev.Msg("Stream error (no agent session yet)")
 			}
 			return err
 		}
@@ -977,7 +990,10 @@ func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.Cl
 	}
 	log.Printf("Found session for %s, dialing %s", agentID, target)
 
-	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(target,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to agent %s: %v", agentID, err)
 	}
@@ -1424,11 +1440,14 @@ func main() {
 		gatewayLog.Info().Bool("mtls", cfg.Security.RequireClientCert).Msg("TLS enabled for gRPC")
 	}
 
+	// OTel stats handler — traces all agent RPCs in Grafana Tempo via stats API (v0.68+)
+	grpcOpts = append(grpcOpts, grpc.StatsHandler(otelgrpc.NewServerHandler()))
+
 	// Add PSK interceptors if enabled
 	if cfg.PSK.Enabled {
 		grpcOpts = append(grpcOpts,
-			grpc.UnaryInterceptor(pskManager.UnaryPSKInterceptor()),
-			grpc.StreamInterceptor(pskManager.StreamPSKInterceptor()),
+			grpc.ChainUnaryInterceptor(pskManager.UnaryPSKInterceptor()),
+			grpc.ChainStreamInterceptor(pskManager.StreamPSKInterceptor()),
 		)
 		gatewayLog.Info().Msg("PSK authentication enabled for agent connections")
 	}

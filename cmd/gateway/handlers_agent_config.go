@@ -13,6 +13,7 @@ import (
 	"github.com/avika-ai/avika/cmd/gateway/config"
 	"github.com/avika-ai/avika/cmd/gateway/middleware"
 	pb "github.com/avika-ai/avika/internal/common/proto/agent"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -121,6 +122,7 @@ func (s *server) getAgentConfigClient(agentID string) (pb.AgentConfigServiceClie
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
+	dialOpts = append(dialOpts, grpc.WithStatsHandler(otelgrpc.NewClientHandler()))
 	conn, err := grpc.NewClient(target, dialOpts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to agent %s: %v", agentID, err)
