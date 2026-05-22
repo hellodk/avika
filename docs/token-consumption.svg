@@ -1,864 +1,321 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="2000" viewBox="0 0 1200 2000">
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="0 0 1200 1900">
 <defs>
   <style>
-    /* ── Keyframes ── */
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(18px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes seg0 { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @keyframes seg1 { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @keyframes seg2 { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @keyframes seg3 { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @keyframes fillBar {
-      from { transform: scaleX(0); }
-      to   { transform: scaleX(1); }
-    }
-    @keyframes ctxFill40  { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @keyframes ctxFill65  { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @keyframes ctxFill85  { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @keyframes ctxFill30  { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @keyframes ctxFillA   { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @keyframes ctxFillB   { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @keyframes ctxFillC   { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    .bar-anim { transform-origin: left center; animation: growBar 1.2s ease-out both; }
+    @keyframes growBar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    .fade-in { animation: fadeIn 0.8s ease both; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes compactFlash {
       0%   { opacity: 1; }
-      25%  { opacity: 0.15; fill: #F59E0B; }
-      50%  { opacity: 1; fill: #F59E0B; }
+      25%  { opacity: 0.3; }
+      50%  { opacity: 1; }
       75%  { opacity: 0.3; }
       100% { opacity: 1; }
     }
-    @keyframes dashDraw {
-      from { stroke-dashoffset: 400; }
-      to   { stroke-dashoffset: 0; }
-    }
-    @keyframes barGrow1 { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @keyframes barGrow2 { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @keyframes barGrow3 { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @keyframes barGrow4 { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @keyframes cardIn {
-      from { opacity: 0; transform: translateY(14px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.55; }
-    }
-    @keyframes floatUp {
-      0%, 100% { transform: translateY(0); }
-      50%       { transform: translateY(-4px); }
-    }
-
-    /* ── Classes ── */
-    .sec-fade { animation: fadeUp 0.7s ease-out both; }
-
-    .seg-sys  { animation: seg0 1.2s cubic-bezier(0.22,1,0.36,1) 0.3s both; transform-origin: left center; }
-    .seg-hist { animation: seg1 1.2s cubic-bezier(0.22,1,0.36,1) 0.5s both; transform-origin: left center; }
-    .seg-file { animation: seg2 1.2s cubic-bezier(0.22,1,0.36,1) 0.7s both; transform-origin: left center; }
-    .seg-resp { animation: seg3 1.2s cubic-bezier(0.22,1,0.36,1) 0.9s both; transform-origin: left center; }
-
-    .ctx-bar-1 { animation: ctxFill40 1.4s ease-out 0.4s both; transform-origin: left center; }
-    .ctx-bar-2 { animation: ctxFill65 1.4s ease-out 0.6s both; transform-origin: left center; }
-    .ctx-bar-3 { animation: ctxFill85 1.4s ease-out 0.8s both; transform-origin: left center; }
-    .ctx-bar-c { animation: ctxFill30 1.4s ease-out 1.2s both; transform-origin: left center; }
-
-    .agent-bar-a { animation: ctxFillA 1.4s ease-out 0.5s both; transform-origin: left center; }
-    .agent-bar-b { animation: ctxFillB 1.4s ease-out 0.7s both; transform-origin: left center; }
-    .agent-bar-c { animation: ctxFillC 1.4s ease-out 0.9s both; transform-origin: left center; }
-
-    .compact-flash { animation: compactFlash 0.9s ease 1.8s both; }
-
-    .dash-line-a { stroke-dasharray: 5,4; animation: dashDraw 1.8s ease-out 1.0s both; }
-    .dash-line-b { stroke-dasharray: 5,4; animation: dashDraw 1.8s ease-out 1.2s both; }
-    .dash-line-c { stroke-dasharray: 5,4; animation: dashDraw 1.8s ease-out 1.4s both; }
-
-    .card-0 { animation: cardIn 0.6s ease-out 0.20s both; }
-    .card-1 { animation: cardIn 0.6s ease-out 0.35s both; }
-    .card-2 { animation: cardIn 0.6s ease-out 0.50s both; }
-    .card-3 { animation: cardIn 0.6s ease-out 0.65s both; }
-    .card-4 { animation: cardIn 0.6s ease-out 0.80s both; }
-
-    .bar-s1 { animation: barGrow1 1.5s cubic-bezier(0.22,1,0.36,1) 0.3s both; transform-origin: left center; }
-    .bar-s2 { animation: barGrow2 1.5s cubic-bezier(0.22,1,0.36,1) 0.5s both; transform-origin: left center; }
-    .bar-s3 { animation: barGrow3 1.5s cubic-bezier(0.22,1,0.36,1) 0.7s both; transform-origin: left center; }
-    .bar-s4 { animation: barGrow4 1.5s cubic-bezier(0.22,1,0.36,1) 0.9s both; transform-origin: left center; }
-
-    .badge-pulse { animation: pulse 2.2s ease-in-out infinite; }
-    .agent-float { animation: floatUp 3s ease-in-out infinite; }
-
-    /* ── Typography ── */
-    text { font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif; }
-    .t-title {
-      font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
-      font-weight: 700;
-      font-size: 22px;
-      fill: #111827;
-    }
-    .t-title-sub {
-      font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
-      font-size: 14px;
-      fill: #4B5563;
-    }
-    .t-heading {
-      font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
-      font-weight: 700;
-      font-size: 17px;
-      fill: #111827;
-    }
-    .t-subhead {
-      font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
-      font-weight: 600;
-      font-size: 13px;
-      fill: #374151;
-    }
-    .t-body {
-      font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
-      font-weight: 400;
-      font-size: 13px;
-      fill: #4B5563;
-    }
-    .t-label {
-      font-family: ui-monospace, 'SF Mono', monospace;
-      font-weight: 500;
-      font-size: 11px;
-      fill: #6B7280;
-    }
-    .t-badge {
-      font-family: ui-monospace, 'SF Mono', monospace;
-      font-weight: 700;
-      font-size: 10px;
-      fill: #FFFFFF;
-    }
-    .t-pct {
-      font-family: ui-monospace, 'SF Mono', monospace;
-      font-weight: 600;
-      font-size: 12px;
-      fill: #FFFFFF;
-    }
-    .t-num {
-      font-family: ui-monospace, 'SF Mono', monospace;
-      font-weight: 700;
-      font-size: 12px;
-      fill: #111827;
-    }
-    .t-tip {
-      font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
-      font-size: 12px;
-      fill: #4B5563;
-    }
-    .t-section-num {
-      font-family: ui-monospace, 'SF Mono', monospace;
-      font-weight: 700;
-      font-size: 11px;
-      fill: #9CA3AF;
-      letter-spacing: 1.5px;
-    }
-    .t-stat {
-      font-family: ui-monospace, 'SF Mono', monospace;
-      font-weight: 700;
-      font-size: 30px;
-      fill: #111827;
-    }
-
-    /* Utility fills */
-    .fill-bg    { fill: #F9FAFB; }
-    .fill-card  { fill: #FFFFFF; }
-    .fill-sys   { fill: #6B7280; }
-    .fill-hist  { fill: #2563EB; }
-    .fill-file  { fill: #D97706; }
-    .fill-resp  { fill: #16A34A; }
-    .fill-blue  { fill: #2563EB; }
-    .fill-purple{ fill: #7C3AED; }
-    .fill-teal  { fill: #0D9488; }
-    .fill-warn  { fill: #D97706; }
-    .fill-err   { fill: #DC2626; }
-    .fill-ok    { fill: #16A34A; }
-    .stroke-border { stroke: #E5E7EB; }
+    .compact-flash { animation: compactFlash 1.5s ease-in-out infinite; }
   </style>
-
-  <!-- Gradients -->
-  <linearGradient id="grad-blue" x1="0%" y1="0%" x2="100%" y2="0%">
-    <stop offset="0%"   stop-color="#2563EB" />
-    <stop offset="100%" stop-color="#3B82F6" />
-  </linearGradient>
-  <linearGradient id="grad-orange" x1="0%" y1="0%" x2="100%" y2="0%">
-    <stop offset="0%"   stop-color="#D97706" />
-    <stop offset="100%" stop-color="#F59E0B" />
-  </linearGradient>
-  <linearGradient id="grad-green" x1="0%" y1="0%" x2="100%" y2="0%">
-    <stop offset="0%"   stop-color="#16A34A" />
-    <stop offset="100%" stop-color="#22C55E" />
-  </linearGradient>
-  <linearGradient id="grad-purple" x1="0%" y1="0%" x2="100%" y2="0%">
-    <stop offset="0%"   stop-color="#7C3AED" />
-    <stop offset="100%" stop-color="#A78BFA" />
-  </linearGradient>
-  <linearGradient id="grad-teal" x1="0%" y1="0%" x2="100%" y2="0%">
-    <stop offset="0%"   stop-color="#0D9488" />
-    <stop offset="100%" stop-color="#2DD4BF" />
-  </linearGradient>
-  <linearGradient id="grad-bg" x1="0%" y1="0%" x2="0%" y2="100%">
-    <stop offset="0%"   stop-color="#F9FAFB" />
-    <stop offset="100%" stop-color="#F3F4F6" />
-  </linearGradient>
-  <linearGradient id="grad-header" x1="0%" y1="0%" x2="100%" y2="100%">
-    <stop offset="0%"   stop-color="#1E3A5F" />
-    <stop offset="60%"  stop-color="#1E3A8A" />
-    <stop offset="100%" stop-color="#312E81" />
-  </linearGradient>
-
-  <!-- Drop shadow filters -->
-  <filter id="shadow-sm" x="-5%" y="-5%" width="115%" height="130%">
-    <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000014" />
-  </filter>
-  <filter id="shadow-card" x="-5%" y="-5%" width="115%" height="130%">
-    <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#0000001A" />
-  </filter>
-
-  <!-- Dot pattern -->
-  <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-    <circle cx="12" cy="12" r="1" fill="#E5E7EB" opacity="0.5" />
-  </pattern>
 </defs>
 
-<!-- ═══ BACKGROUND ═══ -->
-<rect width="1200" height="2000" fill="url(#grad-bg)" />
-<rect width="1200" height="2000" fill="url(#dots)" />
-
-<!-- ═══════════════════════════════════════════════════
-     HEADER BANNER  (y: 0 – 90)
-═══════════════════════════════════════════════════ -->
-<g class="sec-fade" style="animation-delay:0s">
-  <rect x="0" y="0" width="1200" height="90" fill="url(#grad-header)" />
-  <line x1="0" y1="90" x2="1200" y2="90" stroke="#3B82F6" stroke-width="2" />
-
-  <!-- Token icon -->
-  <rect x="36" y="28" width="30" height="30" rx="6" fill="#3B82F6" opacity="0.3" />
-  <circle cx="51" cy="43" r="8" fill="none" stroke="#93C5FD" stroke-width="1.5" />
-  <circle cx="51" cy="43" r="3" fill="#BFDBFE" />
-  <line x1="43" y1="43" x2="36" y2="43" stroke="#93C5FD" stroke-width="1.5" />
-  <line x1="59" y1="43" x2="66" y2="43" stroke="#93C5FD" stroke-width="1.5" />
-  <line x1="51" y1="35" x2="51" y2="28" stroke="#93C5FD" stroke-width="1.5" />
-  <line x1="51" y1="51" x2="51" y2="58" stroke="#93C5FD" stroke-width="1.5" />
-
-  <text x="76" y="40" class="t-title" fill="#FFFFFF">Claude Code — Token Consumption</text>
-  <text x="76" y="62" class="t-title-sub" fill="#93C5FD">How context fills, where tokens go, and how to keep costs under control</text>
-
-  <!-- Badges -->
-  <rect x="1010" y="28" width="82" height="22" rx="4" fill="#1D4ED8" />
-  <text x="1051" y="43" class="t-badge" text-anchor="middle">LIGHT THEME</text>
-  <rect x="1104" y="28" width="72" height="22" rx="4" fill="#065F46" />
-  <text x="1140" y="43" class="t-badge" text-anchor="middle">CSS ANIM</text>
-</g>
-
-<!-- ═══════════════════════════════════════════════════
-     SECTION 1 — What counts as tokens?  (y: 108 – 290)
-     Card: x=30, y=108, w=1140, h=182
-═══════════════════════════════════════════════════ -->
-<g class="sec-fade" style="animation-delay:0.15s">
-  <rect x="30" y="108" width="1140" height="182" rx="12" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" filter="url(#shadow-sm)" />
-  <rect x="30" y="108" width="5" height="182" rx="2" fill="#2563EB" />
-
-  <!-- y=126: section label -->
-  <text x="54" y="126" class="t-section-num">SECTION 01</text>
-  <!-- y=148: heading -->
-  <text x="54" y="148" class="t-heading">What counts as tokens?</text>
-  <!-- y=168: body -->
-  <text x="54" y="168" class="t-body">Every byte that enters Claude's context window costs tokens — here is how a typical Claude Code session breaks down.</text>
-
-  <!-- Context window label: y=188 (small, above bar) -->
-  <text x="600" y="188" class="t-label" text-anchor="middle" fill="#9CA3AF">200k token context window</text>
-  <line x1="54"  y1="189" x2="510" y2="189" stroke="#D1D5DB" stroke-width="0.5" stroke-dasharray="3,3" />
-  <line x1="690" y1="189" x2="1146" y2="189" stroke="#D1D5DB" stroke-width="0.5" stroke-dasharray="3,3" />
-
-  <!-- Context bar container: y=196, h=36, x=54 to x=1146 = 1092px wide -->
-  <rect x="54" y="196" width="1092" height="36" rx="6" fill="#F3F4F6" stroke="#E5E7EB" stroke-width="1" />
-
-  <!--
-    Segment breakdown (% of 1092px):
-      System  15% = 163.8 → 164px  x=54
-      History 30% = 327.6 → 328px  x=218
-      File    35% = 382.2 → 382px  x=546
-      Resp    20% = 218.4 → 218px  x=928
-  -->
-  <clipPath id="cp-s0"><rect x="54" y="196" width="164" height="36" rx="6" /></clipPath>
-  <rect x="54" y="196" width="164" height="36" rx="6" fill="#6B7280" class="seg-sys" clip-path="url(#cp-s0)" />
-
-  <clipPath id="cp-s1"><rect x="218" y="196" width="328" height="36" /></clipPath>
-  <rect x="218" y="196" width="328" height="36" fill="url(#grad-blue)" class="seg-hist" clip-path="url(#cp-s1)" />
-
-  <clipPath id="cp-s2"><rect x="546" y="196" width="382" height="36" /></clipPath>
-  <rect x="546" y="196" width="382" height="36" fill="url(#grad-orange)" class="seg-file" clip-path="url(#cp-s2)" />
-
-  <clipPath id="cp-s3"><rect x="928" y="196" width="218" height="36" rx="6" /></clipPath>
-  <rect x="928" y="196" width="218" height="36" rx="6" fill="url(#grad-green)" class="seg-resp" clip-path="url(#cp-s3)" />
-
-  <!-- Segment % labels inside bar — y=219 (baseline at mid-bar) -->
-  <text x="136" y="220" class="t-pct" text-anchor="middle">15%</text>
-  <text x="382" y="220" class="t-pct" text-anchor="middle">30%</text>
-  <text x="737" y="220" class="t-pct" text-anchor="middle">35%</text>
-  <text x="1037" y="220" class="t-pct" text-anchor="middle">20%</text>
-
-  <!--
-    Legend row: y=252 (rect top), y=263 (text baseline)
-    4 items spread across 1092px: step = 1092/4 = 273px
-    Item centers at: 54+136=190, 54+410=464, 54+683=737, 54+956=1010
-    But we lay them out with fixed positions, left-aligned:
-      item1 x=54, item2 x=330, item3 x=600, item4 x=870
-  -->
-  <rect x="54"  y="252" width="12" height="12" rx="2" fill="#6B7280" />
-  <text x="72"  y="263" class="t-label">System prompt</text>
-
-  <rect x="300" y="252" width="12" height="12" rx="2" fill="#2563EB" />
-  <text x="318" y="263" class="t-label">Conversation history</text>
-
-  <rect x="590" y="252" width="12" height="12" rx="2" fill="#D97706" />
-  <text x="608" y="263" class="t-label">File reads / tool outputs — usually the biggest cost driver</text>
-
-  <rect x="970" y="252" width="12" height="12" rx="2" fill="#16A34A" />
-  <text x="988" y="263" class="t-label">Assistant responses</text>
-</g>
-
-<!-- ═══════════════════════════════════════════════════
-     SECTIONS 2 + 3 — SIDE BY SIDE  (y: 308 – 700)
-     Left:  x=30, w=535
-     Right: x=635, w=535
-═══════════════════════════════════════════════════ -->
-
-<!-- ── SECTION 2: Main Conversation (left) ── -->
-<g class="sec-fade" style="animation-delay:0.25s">
-  <rect x="30" y="308" width="535" height="392" rx="12" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" filter="url(#shadow-sm)" />
-  <rect x="30" y="308" width="5" height="392" rx="2" fill="#D97706" />
-
-  <!-- y=328: section num -->
-  <text x="54" y="328" class="t-section-num">SECTION 02</text>
-  <!-- y=350: heading -->
-  <text x="54" y="350" class="t-heading">Main Conversation — How it fills up</text>
-  <!-- y=372: body -->
-  <text x="54" y="372" class="t-body">Each message grows the context. Heavy tool use accelerates it.</text>
-
-  <!-- Vertical timeline spine: x=86, y=390 to y=660 -->
-  <line x1="86" y1="390" x2="86" y2="660" stroke="#E5E7EB" stroke-width="2" stroke-dasharray="4,3" />
-
-  <!--
-    Timeline steps. Bar width available: x=106 to x=540 = 434px.
-    Step vertical spacing: each step takes ~60px (circle+label+body+bar+gap)
-    Step 1 base y=400, Step 2 base y=465, Step 3 base y=530, Step 4 base y=595
-  -->
-
-  <!-- Step 1: y base=400 -->
-  <circle cx="86" cy="405" r="10" fill="#2563EB" />
-  <text x="86" y="409" class="t-badge" text-anchor="middle">1</text>
-  <!-- subhead y=401, body y=417, bar y=424 -->
-  <text x="106" y="401" class="t-subhead">Message 1 — reads 3 source files</text>
-  <text x="106" y="417" class="t-body">~12k tokens ingested via file reads</text>
-  <rect x="106" y="424" width="434" height="14" rx="4" fill="#F3F4F6" />
-  <clipPath id="cpc1"><rect x="106" y="424" width="434" height="14" rx="4" /></clipPath>
-  <rect x="106" y="424" width="434" height="14" rx="4" fill="url(#grad-blue)" class="ctx-bar-1" clip-path="url(#cpc1)" />
-  <!-- pct label y=435 -->
-  <text x="544" y="435" class="t-label" text-anchor="end" fill="#2563EB">40%</text>
-
-  <!-- Step 2: y base=456 -->
-  <circle cx="86" cy="464" r="10" fill="#D97706" />
-  <text x="86" y="468" class="t-badge" text-anchor="middle">2</text>
-  <text x="106" y="460" class="t-subhead">Message 2 — bash output (large JSON blob)</text>
-  <text x="106" y="476" class="t-body">~28k additional tokens; history accumulates</text>
-  <rect x="106" y="483" width="434" height="14" rx="4" fill="#F3F4F6" />
-  <clipPath id="cpc2"><rect x="106" y="483" width="434" height="14" rx="4" /></clipPath>
-  <!-- Blue 40% portion -->
-  <rect x="106" y="483" width="174" height="14" rx="4" fill="#2563EB" />
-  <!-- Orange delta to 65% -->
-  <rect x="280" y="483" width="109" height="14" fill="url(#grad-orange)" class="ctx-bar-2" clip-path="url(#cpc2)" />
-  <text x="544" y="495" class="t-label" text-anchor="end" fill="#D97706">65%</text>
-  <!-- warning badge y=502+14=516 bottom, badge rect y=502 -->
-  <rect x="106" y="502" width="108" height="16" rx="4" fill="#FEF3C7" stroke="#FCD34D" stroke-width="0.5" />
-  <text x="160" y="513" class="t-label" fill="#92400E" text-anchor="middle">approaching 70%</text>
-
-  <!-- Step 3: y base=530 -->
-  <circle cx="86" cy="534" r="10" fill="#DC2626" />
-  <text x="86" y="538" class="t-badge" text-anchor="middle">3</text>
-  <text x="106" y="530" class="t-subhead">Message 3 — more reads + analysis</text>
-  <text x="106" y="546" class="t-body">~42k additional tokens; near compaction threshold</text>
-  <rect x="106" y="553" width="434" height="14" rx="4" fill="#F3F4F6" />
-  <clipPath id="cpc3"><rect x="106" y="553" width="434" height="14" rx="4" /></clipPath>
-  <rect x="106" y="553" width="174" height="14" rx="4" fill="#2563EB" />
-  <rect x="280" y="553" width="109" height="14" fill="#D97706" />
-  <rect x="389" y="553" width="79"  height="14" fill="#DC2626" class="ctx-bar-3" clip-path="url(#cpc3)" />
-  <text x="544" y="565" class="t-label" text-anchor="end" fill="#DC2626">85% — danger zone</text>
-
-  <!-- Step 4: y base=590 -->
-  <circle cx="86" cy="598" r="10" fill="#7C3AED" />
-  <text x="86" y="602" class="t-badge" text-anchor="middle">!</text>
-  <text x="106" y="594" class="t-subhead" fill="#7C3AED">Compaction fires automatically</text>
-  <text x="106" y="610" class="t-body">A summary replaces history — nuance and detail are lost</text>
-  <rect x="106" y="617" width="434" height="14" rx="4" fill="#F3F4F6" />
-  <clipPath id="cpc4"><rect x="106" y="617" width="434" height="14" rx="4" /></clipPath>
-  <rect x="106" y="617" width="130" height="14" rx="4" fill="#7C3AED" class="ctx-bar-c compact-flash" clip-path="url(#cpc4)" />
-  <text x="544" y="629" class="t-label" text-anchor="end" fill="#7C3AED">30% after compaction</text>
-
-  <!-- Compaction warning note: y=643 to y=695 -->
-  <rect x="54" y="643" width="490" height="48" rx="8" fill="#FEF2F2" stroke="#FECACA" stroke-width="1" />
-  <text x="72" y="659" class="t-subhead" fill="#991B1B">Compaction trade-off</text>
-  <text x="72" y="675" class="t-body" fill="#7F1D1D">Automatic compaction preserves the gist but can lose critical detail: earlier decisions,</text>
-  <text x="72" y="689" class="t-body" fill="#7F1D1D">code context, error patterns. Run /compact proactively to control timing.</text>
-</g>
-
-<!-- ── SECTION 3: Background Agents (right) ── -->
-<g class="sec-fade" style="animation-delay:0.35s">
-  <rect x="635" y="308" width="535" height="392" rx="12" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" filter="url(#shadow-sm)" />
-  <rect x="635" y="308" width="5" height="392" rx="2" fill="#0D9488" />
-
-  <text x="659" y="328" class="t-section-num">SECTION 03</text>
-  <text x="659" y="350" class="t-heading">Background Agents — Token isolation</text>
-  <text x="659" y="370" class="t-body">Sub-agents run in their own context. Only summaries return to the main thread.</text>
-
-  <!-- Main context indicator: y=386 label, y=395 bar -->
-  <text x="900" y="386" class="t-label" text-anchor="middle">Main context</text>
-  <rect x="800" y="392" width="200" height="14" rx="4" fill="#F3F4F6" stroke="#E5E7EB" stroke-width="1" />
-  <rect x="800" y="392" width="40"  height="14" rx="4" fill="#2563EB" />
-  <text x="845" y="403" class="t-label" fill="#2563EB">stays small</text>
-
-  <!--
-    Three agent bubbles. Available width: x=659 to x=1145 = 486px, but cards are 220px wide.
-    Bubbles at x=659, each h=98px.
-    Agent A: y=414 to y=512
-    Agent B: y=518 to y=616
-    Agent C: y=622 to y=690 (slightly taller, fits within 308+392=700)
-  -->
-
-  <!-- Agent A: y=414 -->
-  <g class="agent-float" style="animation-delay: 0s">
-    <rect x="659" y="414" width="220" height="96" rx="10" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1.5" filter="url(#shadow-sm)" />
-    <rect x="659" y="414" width="220" height="4" rx="2" fill="#16A34A" />
-    <!-- y=430: subhead, y=444: body1, y=458: body2, y=466: bar, y=480: badge -->
-    <text x="673" y="430" class="t-subhead" fill="#15803D">Agent A — File Analysis</text>
-    <text x="673" y="444" class="t-body">Reads 15 source files</text>
-    <text x="673" y="458" class="t-body">Runs grep, tree, wc -l</text>
-    <rect x="673" y="464" width="192" height="8" rx="3" fill="#DCFCE7" />
-    <rect x="673" y="464" width="86"  height="8" rx="3" fill="#16A34A" class="agent-bar-a" />
-    <text x="869" y="471" class="t-label" text-anchor="end" fill="#15803D">45%</text>
-    <rect x="673" y="478" width="106" height="16" rx="4" fill="#16A34A" class="badge-pulse" />
-    <text x="726" y="489" class="t-badge" text-anchor="middle">62k tokens isolated</text>
-    <rect x="785" y="478" width="86" height="16" rx="4" fill="#DCFCE7" stroke="#86EFAC" stroke-width="1" />
-    <text x="828" y="489" class="t-label" fill="#166534" text-anchor="middle">no main impact</text>
-  </g>
-
-  <!-- Agent B: y=518 -->
-  <g class="agent-float" style="animation-delay: 0.8s">
-    <rect x="659" y="518" width="220" height="96" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5" filter="url(#shadow-sm)" />
-    <rect x="659" y="518" width="220" height="4" rx="2" fill="#2563EB" />
-    <text x="673" y="534" class="t-subhead" fill="#1D4ED8">Agent B — Test Runner</text>
-    <text x="673" y="548" class="t-body">Executes full test suite</text>
-    <text x="673" y="562" class="t-body">Captures stdout (verbose)</text>
-    <rect x="673" y="568" width="192" height="8" rx="3" fill="#DBEAFE" />
-    <rect x="673" y="568" width="106" height="8" rx="3" fill="#2563EB" class="agent-bar-b" />
-    <text x="869" y="575" class="t-label" text-anchor="end" fill="#1D4ED8">55%</text>
-    <rect x="673" y="582" width="106" height="16" rx="4" fill="#2563EB" class="badge-pulse" />
-    <text x="726" y="593" class="t-badge" text-anchor="middle">78k tokens isolated</text>
-    <rect x="785" y="582" width="86" height="16" rx="4" fill="#DBEAFE" stroke="#93C5FD" stroke-width="1" />
-    <text x="828" y="593" class="t-label" fill="#1E40AF" text-anchor="middle">no main impact</text>
-  </g>
-
-  <!-- Agent C: y=622 -->
-  <g class="agent-float" style="animation-delay: 1.6s">
-    <rect x="659" y="622" width="220" height="68" rx="10" fill="#F5F3FF" stroke="#C4B5FD" stroke-width="1.5" filter="url(#shadow-sm)" />
-    <rect x="659" y="622" width="220" height="4" rx="2" fill="#7C3AED" />
-    <text x="673" y="638" class="t-subhead" fill="#6D28D9">Agent C — DB Migration</text>
-    <text x="673" y="652" class="t-body">Reads schema, generates SQL</text>
-    <rect x="673" y="658" width="192" height="8" rx="3" fill="#EDE9FE" />
-    <rect x="673" y="658" width="115" height="8" rx="3" fill="#7C3AED" class="agent-bar-c" />
-    <text x="869" y="665" class="t-label" text-anchor="end" fill="#6D28D9">60%</text>
-    <rect x="673" y="672" width="106" height="16" rx="4" fill="#7C3AED" class="badge-pulse" />
-    <text x="726" y="683" class="t-badge" text-anchor="middle">46k tokens isolated</text>
-  </g>
-
-  <!--
-    Summary arrows from agents to main context bar (at y=392+7=399, x~=900)
-    Arrow from A (right edge ~879, y~462) to main bar
-    Arrow from B (right edge ~879, y~566) to main bar
-    Arrow from C (right edge ~879, y~666) to main bar
-  -->
-  <path d="M 879 462 Q 940 440 900 406" fill="none" stroke="#16A34A" stroke-width="1.5" class="dash-line-a" />
-  <path d="M 879 566 Q 950 490 900 406" fill="none" stroke="#2563EB" stroke-width="1.5" class="dash-line-b" />
-  <path d="M 879 666 Q 960 540 900 406" fill="none" stroke="#7C3AED" stroke-width="1.5" class="dash-line-c" />
-
-  <!-- Arrowhead at main context -->
-  <polygon points="900,406 894,416 906,416" fill="#0D9488" />
-
-  <!-- Summary label -->
-  <rect x="904" y="455" width="80" height="16" rx="3" fill="#F0FDFA" stroke="#99F6E4" stroke-width="1" />
-  <text x="944" y="466" class="t-label" fill="#0D9488" text-anchor="middle">summary only</text>
-
-  <!-- Total isolation badge at bottom of section -->
-  <rect x="880" y="648" width="178" height="26" rx="6" fill="url(#grad-teal)" />
-  <text x="969" y="665" class="t-badge" text-anchor="middle" font-size="11">186k tokens isolated total</text>
-</g>
-
-<!-- ═══════════════════════════════════════════════════
-     SECTION 4 — 5 Ways to Save  (y: 718 – 960)
-     Header band: y=718, h=50
-     Cards: y=778, h=172
-═══════════════════════════════════════════════════ -->
-<g class="sec-fade" style="animation-delay:0.45s">
-  <!-- Section header band -->
-  <rect x="30" y="718" width="1140" height="50" rx="12" fill="#1E3A5F" />
-  <rect x="30" y="718" width="5" height="50" rx="2" fill="#0D9488" />
-  <text x="54" y="736" class="t-section-num" fill="#60A5FA">SECTION 04</text>
-  <text x="54" y="758" class="t-heading" fill="#FFFFFF">5 Ways to save tokens</text>
-  <text x="380" y="758" class="t-body" fill="#93C5FD">Five high-impact strategies to reduce context consumption</text>
-
-  <!--
-    5 cards across 1140px with 20px gaps:
-    total gap = 4 * 20 = 80px
-    card width = (1140 - 80) / 5 = 212px
-    card x positions: 30, 262, 494, 726, 958
-    card y=778, h=172 (bottom=950)
-  -->
-
-  <!-- Card 1: Background agents — x=30 -->
-  <g class="card-0">
-    <rect x="30" y="778" width="212" height="172" rx="12" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" filter="url(#shadow-card)" />
-    <rect x="30" y="778" width="212" height="4" rx="2" fill="#0D9488" />
-    <!-- Icon area: y=790 -->
-    <rect x="48" y="790" width="32" height="32" rx="8" fill="#F0FDFA" />
-    <circle cx="64" cy="799" r="5" fill="none" stroke="#0D9488" stroke-width="1.5" />
-    <circle cx="54" cy="812" r="4" fill="none" stroke="#0D9488" stroke-width="1.5" />
-    <circle cx="74" cy="812" r="4" fill="none" stroke="#0D9488" stroke-width="1.5" />
-    <line x1="60" y1="804" x2="56" y2="808" stroke="#0D9488" stroke-width="1" />
-    <line x1="68" y1="804" x2="72" y2="808" stroke="#0D9488" stroke-width="1" />
-    <!-- subhead y=836, body lines y=852,866,880 -->
-    <text x="48" y="836" class="t-subhead">Background agents</text>
-    <text x="48" y="852" class="t-tip">Isolate heavy work — file</text>
-    <text x="48" y="866" class="t-tip">reads, bash, analysis —</text>
-    <text x="48" y="880" class="t-tip">into sub-agents.</text>
-    <!-- badge y=896 -->
-    <rect x="48" y="896" width="80" height="18" rx="4" fill="#F0FDFA" stroke="#99F6E4" stroke-width="1" />
-    <text x="88" y="907" class="t-label" fill="#0D9488" text-anchor="middle">High impact</text>
-  </g>
-
-  <!-- Card 2: /compact — x=262 -->
-  <g class="card-1">
-    <rect x="262" y="778" width="212" height="172" rx="12" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" filter="url(#shadow-card)" />
-    <rect x="262" y="778" width="212" height="4" rx="2" fill="#7C3AED" />
-    <rect x="280" y="790" width="32" height="32" rx="8" fill="#F5F3FF" />
-    <line x1="284" y1="796" x2="294" y2="806" stroke="#7C3AED" stroke-width="1.5" />
-    <line x1="294" y1="796" x2="284" y2="806" stroke="#7C3AED" stroke-width="1.5" />
-    <line x1="302" y1="808" x2="312" y2="818" stroke="#7C3AED" stroke-width="1.5" />
-    <line x1="312" y1="808" x2="302" y2="818" stroke="#7C3AED" stroke-width="1.5" />
-    <text x="280" y="836" class="t-subhead">/compact command</text>
-    <text x="280" y="852" class="t-tip">Summarise history before</text>
-    <text x="280" y="866" class="t-tip">it fills up. Run proactively</text>
-    <text x="280" y="880" class="t-tip">before complex sessions.</text>
-    <rect x="280" y="896" width="88" height="18" rx="4" fill="#F5F3FF" stroke="#C4B5FD" stroke-width="1" />
-    <text x="324" y="907" class="t-label" fill="#7C3AED" text-anchor="middle">High impact</text>
-  </g>
-
-  <!-- Card 3: Targeted reads — x=494 -->
-  <g class="card-2">
-    <rect x="494" y="778" width="212" height="172" rx="12" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" filter="url(#shadow-card)" />
-    <rect x="494" y="778" width="212" height="4" rx="2" fill="#D97706" />
-    <rect x="512" y="790" width="32" height="32" rx="8" fill="#FFFBEB" />
-    <circle cx="528" cy="806" r="8" fill="none" stroke="#D97706" stroke-width="1.5" />
-    <circle cx="528" cy="806" r="3" fill="#D97706" />
-    <line x1="520" y1="806" x2="514" y2="806" stroke="#D97706" stroke-width="1" />
-    <line x1="536" y1="806" x2="542" y2="806" stroke="#D97706" stroke-width="1" />
-    <line x1="528" y1="798" x2="528" y2="792" stroke="#D97706" stroke-width="1" />
-    <line x1="528" y1="814" x2="528" y2="820" stroke="#D97706" stroke-width="1" />
-    <text x="512" y="836" class="t-subhead">Targeted reads</text>
-    <text x="512" y="852" class="t-tip">Read only specific lines</text>
-    <text x="512" y="866" class="t-tip">you need, not entire files.</text>
-    <text x="512" y="880" class="t-tip">Specify offset + limit.</text>
-    <rect x="512" y="896" width="92" height="18" rx="4" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1" />
-    <text x="558" y="907" class="t-label" fill="#D97706" text-anchor="middle">Medium impact</text>
-  </g>
-
-  <!-- Card 4: Grep over Read — x=726 -->
-  <g class="card-3">
-    <rect x="726" y="778" width="212" height="172" rx="12" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" filter="url(#shadow-card)" />
-    <rect x="726" y="778" width="212" height="4" rx="2" fill="#2563EB" />
-    <rect x="744" y="790" width="32" height="32" rx="8" fill="#EFF6FF" />
-    <circle cx="756" cy="802" r="6" fill="none" stroke="#2563EB" stroke-width="1.5" />
-    <line x1="761" y1="807" x2="768" y2="815" stroke="#2563EB" stroke-width="2" stroke-linecap="round" />
-    <text x="744" y="836" class="t-subhead">Grep over Read</text>
-    <text x="744" y="852" class="t-tip">Grep for symbols instead</text>
-    <text x="744" y="866" class="t-tip">of reading whole files.</text>
-    <text x="744" y="880" class="t-tip">10x fewer tokens on avg.</text>
-    <rect x="744" y="896" width="92" height="18" rx="4" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1" />
-    <text x="790" y="907" class="t-label" fill="#2563EB" text-anchor="middle">Medium impact</text>
-  </g>
-
-  <!-- Card 5: Playwright sparingly — x=958 -->
-  <g class="card-4">
-    <rect x="958" y="778" width="212" height="172" rx="12" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" filter="url(#shadow-card)" />
-    <rect x="958" y="778" width="212" height="4" rx="2" fill="#DC2626" />
-    <rect x="976" y="790" width="32" height="32" rx="8" fill="#FEF2F2" />
-    <rect x="979" y="794" width="26" height="18" rx="2" fill="none" stroke="#DC2626" stroke-width="1.5" />
-    <rect x="985" y="812" width="6" height="3" rx="1" fill="#DC2626" />
-    <line x1="982" y1="815" x2="992" y2="815" stroke="#DC2626" stroke-width="1" />
-    <text x="976" y="836" class="t-subhead">Playwright sparingly</text>
-    <text x="976" y="852" class="t-tip">Screenshots cost 1-3k</text>
-    <text x="976" y="866" class="t-tip">tokens each. Use only</text>
-    <text x="976" y="880" class="t-tip">for UI checks. Prefer DOM.</text>
-    <rect x="976" y="896" width="80" height="18" rx="4" fill="#FEF2F2" stroke="#FECACA" stroke-width="1" />
-    <text x="1016" y="907" class="t-label" fill="#DC2626" text-anchor="middle">High cost</text>
-  </g>
-</g>
-
-<!-- ═══════════════════════════════════════════════════
-     SECTION 5 — Playwright costs  (y: 978 – 1200)
-     Card: x=30, y=978, w=1140, h=222
-     Bars from x=380 (after labels) to x=1170
-     Label area x=30–360 (330px), bar area x=380–1170 (790px)
-     Scale: 5000 tok = 790px → 1 tok = 0.158px
-       2500 = 395px, 3000 = 474px, 200 = 32px, 5000 = 790px
-═══════════════════════════════════════════════════ -->
-<g class="sec-fade" style="animation-delay:0.55s">
-  <rect x="30" y="978" width="1140" height="222" rx="12" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" filter="url(#shadow-sm)" />
-  <rect x="30" y="978" width="5" height="222" rx="2" fill="#DC2626" />
-
-  <text x="54" y="998" class="t-section-num">SECTION 05</text>
-  <text x="54" y="1018" class="t-heading">Playwright — Token cost per operation</text>
-  <text x="54" y="1038" class="t-body">Not all browser actions are equal. Choose the cheapest tool that validates your goal.</text>
-
-  <!-- Column header labels: y=1056 -->
-  <text x="54"  y="1056" class="t-label">Operation</text>
-  <text x="370" y="1056" class="t-label" text-anchor="end">Cost</text>
-  <text x="1170" y="1056" class="t-label" text-anchor="end">Approx. tokens</text>
-
-  <!-- Grid lines at x=380, 538 (1k), 696 (2k), 854 (3k), 1012 (4k), 1170 (5k) -->
-  <!-- Each 1k = 158px -->
-  <line x1="380" y1="1062" x2="380" y2="1178" stroke="#E5E7EB" stroke-width="1" />
-  <line x1="538" y1="1062" x2="538" y2="1178" stroke="#F3F4F6" stroke-width="1" />
-  <line x1="696" y1="1062" x2="696" y2="1178" stroke="#F3F4F6" stroke-width="1" />
-  <line x1="854" y1="1062" x2="854" y2="1178" stroke="#F3F4F6" stroke-width="1" />
-  <line x1="1012" y1="1062" x2="1012" y2="1178" stroke="#F3F4F6" stroke-width="1" />
-  <line x1="1170" y1="1062" x2="1170" y2="1178" stroke="#E5E7EB" stroke-width="1" />
-
-  <!-- Scale tick labels: y=1060 -->
-  <text x="380"  y="1060" class="t-label" text-anchor="middle">0</text>
-  <text x="538"  y="1060" class="t-label" text-anchor="middle">1k</text>
-  <text x="696"  y="1060" class="t-label" text-anchor="middle">2k</text>
-  <text x="854"  y="1060" class="t-label" text-anchor="middle">3k</text>
-  <text x="1012" y="1060" class="t-label" text-anchor="middle">4k</text>
-  <text x="1170" y="1060" class="t-label" text-anchor="middle">5k tok</text>
-
-  <!--
-    Row layout: each row h=28px, gap=8px between rows
-    Row 1 y=1068 (bar rect), label baseline y=1086
-    Row 2 y=1104, label baseline y=1122
-    Row 3 y=1140, label baseline y=1158
-    Row 4 y=1176, (but section ends at 978+222=1200, need bar+label inside)
-         actually row 4 bar y=1164, bottom=1192, label y=1182 — fits
-  -->
-
-  <!-- Row 1: Screenshot ~2500 tok = 395px — orange -->
-  <text x="370" y="1086" class="t-body" text-anchor="end">Screenshot (1 image)</text>
-  <rect x="380" y="1068" width="790" height="26" rx="4" fill="#F9FAFB" />
-  <clipPath id="cb1"><rect x="380" y="1068" width="395" height="26" rx="4" /></clipPath>
-  <rect x="380" y="1068" width="395" height="26" rx="4" fill="url(#grad-orange)" class="bar-s1" clip-path="url(#cb1)" />
-  <text x="784" y="1085" class="t-num">~2,500 tok</text>
-
-  <!-- Row 2: DOM snapshot ~3000 tok = 474px — orange -->
-  <text x="370" y="1122" class="t-body" text-anchor="end">Browser snapshot (DOM)</text>
-  <rect x="380" y="1104" width="790" height="26" rx="4" fill="#F9FAFB" />
-  <clipPath id="cb2"><rect x="380" y="1104" width="474" height="26" rx="4" /></clipPath>
-  <rect x="380" y="1104" width="474" height="26" rx="4" fill="url(#grad-orange)" class="bar-s2" clip-path="url(#cb2)" />
-  <text x="862" y="1121" class="t-num">~3,000 tok</text>
-
-  <!-- Row 3: Targeted CSS check ~200 tok = 32px — green -->
-  <text x="370" y="1158" class="t-body" text-anchor="end">Targeted CSS check</text>
-  <rect x="380" y="1140" width="790" height="26" rx="4" fill="#F9FAFB" />
-  <clipPath id="cb3"><rect x="380" y="1140" width="32" height="26" rx="4" /></clipPath>
-  <rect x="380" y="1140" width="32" height="26" rx="4" fill="url(#grad-green)" class="bar-s3" clip-path="url(#cb3)" />
-  <text x="420" y="1157" class="t-num" fill="#16A34A">~200 tok</text>
-  <!-- Best choice badge -->
-  <rect x="510" y="1142" width="174" height="18" rx="4" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1" />
-  <text x="514" y="1154" class="t-label" fill="#15803D">Best choice: targeted CSS check</text>
-
-  <!-- Row 4: Background agent ~5000 tok = 790px — purple -->
-  <text x="370" y="1194" class="t-body" text-anchor="end">Background agent UI test</text>
-  <rect x="380" y="1176" width="790" height="26" rx="4" fill="#F9FAFB" />
-  <clipPath id="cb4"><rect x="380" y="1176" width="790" height="26" rx="4" /></clipPath>
-  <rect x="380" y="1176" width="790" height="26" rx="4" fill="url(#grad-purple)" class="bar-s4" clip-path="url(#cb4)" />
-  <!-- "isolated" badge inside bar -->
-  <rect x="930" y="1181" width="166" height="16" rx="4" fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.5)" stroke-width="1" />
-  <text x="1013" y="1193" class="t-badge" text-anchor="middle">isolated — no main impact</text>
-</g>
-
-<!-- ═══════════════════════════════════════════════════
-     SECTION 6 — Token math  (y: 1218 – 1440)
-     3 stat cards spanning full width
-     Card w = (1140 - 2*20) / 3 = 366.7 → 366px
-     Gaps: 20px each
-     x positions: 30, 416, 802
-     Card h = 180
-═══════════════════════════════════════════════════ -->
-<g class="sec-fade" style="animation-delay:0.65s">
-  <!-- Section header -->
-  <rect x="30" y="1218" width="1140" height="40" rx="10" fill="#1E3A5F" />
-  <rect x="30" y="1218" width="5" height="40" rx="2" fill="#6B7280" />
-  <text x="54" y="1233" class="t-section-num" fill="#60A5FA">SECTION 06</text>
-  <text x="54" y="1250" class="t-heading" fill="#FFFFFF">Token math — real numbers</text>
-  <text x="360" y="1250" class="t-body" fill="#93C5FD">How quickly tokens add up in a typical session</text>
-
-  <!-- Card 1: System prompt — x=30 -->
-  <rect x="30" y="1270" width="366" height="154" rx="12" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" filter="url(#shadow-sm)" />
-  <rect x="30" y="1270" width="5" height="154" rx="2" fill="#6B7280" />
-  <!-- y=1294: subhead, y=1330: big number, y=1360: label line 1, y=1378: label line 2 -->
-  <text x="54" y="1294" class="t-subhead">Typical system prompt</text>
-  <text x="54" y="1334" class="t-stat">~3,000</text>
-  <text x="54" y="1356" class="t-label">tokens</text>
-  <text x="54" y="1376" class="t-body">Fixed per-session overhead — always present regardless of conversation length.</text>
-  <text x="54" y="1396" class="t-label" fill="#9CA3AF">always present in every request</text>
-
-  <!-- Card 2: File read — x=416 -->
-  <rect x="416" y="1270" width="366" height="154" rx="12" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" filter="url(#shadow-sm)" />
-  <rect x="416" y="1270" width="5" height="154" rx="2" fill="#D97706" />
-  <text x="440" y="1294" class="t-subhead">Full file read (1000 LOC)</text>
-  <text x="440" y="1334" class="t-stat" fill="#D97706">~4,000</text>
-  <text x="440" y="1356" class="t-label">tokens per file</text>
-  <text x="440" y="1376" class="t-body">Stacks fast across sessions. 10 files = 40k tokens before any tool output.</text>
-  <text x="440" y="1396" class="t-label" fill="#9CA3AF">per Read call, accumulated in history</text>
-
-  <!-- Card 3: Bash output — x=802 -->
-  <rect x="802" y="1270" width="368" height="154" rx="12" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" filter="url(#shadow-sm)" />
-  <rect x="802" y="1270" width="5" height="154" rx="2" fill="#DC2626" />
-  <text x="826" y="1294" class="t-subhead">Verbose bash output</text>
-  <text x="826" y="1334" class="t-stat" fill="#DC2626">~8-20k</text>
-  <text x="826" y="1356" class="t-label">tokens per run</text>
-  <text x="826" y="1376" class="t-body">Test suites, build logs, npm installs. Pipe to head or capture summaries.</text>
-  <text x="826" y="1396" class="t-label" fill="#9CA3AF">per verbose command execution</text>
-</g>
-
-<!-- ═══════════════════════════════════════════════════
-     SECTION 7 — How compaction works  (y: 1462 – 1620)
-     Card: x=30, y=1462, w=1140, h=158
-═══════════════════════════════════════════════════ -->
-<g class="sec-fade" style="animation-delay:0.75s">
-  <rect x="30" y="1462" width="1140" height="158" rx="12" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" filter="url(#shadow-sm)" />
-  <rect x="30" y="1462" width="5" height="158" rx="2" fill="#7C3AED" />
-
-  <text x="54" y="1482" class="t-section-num">SECTION 07</text>
-  <text x="54" y="1502" class="t-subhead">How compaction works internally</text>
-
-  <!--
-    Flow boxes: 3 boxes + insight panel
-    Each box: w=160, h=80, gap=24px
-    x positions: 54, 238 (54+160+24), 422 (238+160+24)
-    Insight panel: x=620 to x=1146 = 526px wide
-    Box tops: y=1516, bottoms: y=1596
-  -->
-
-  <!-- Box 1: Full history -->
-  <rect x="54" y="1516" width="160" height="80" rx="8" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1" />
-  <!-- y=1535, 1551, 1563, 1575 -->
-  <text x="134" y="1535" class="t-label" text-anchor="middle" fill="#1D4ED8">Full history</text>
-  <text x="134" y="1551" class="t-label" text-anchor="middle" fill="#1D4ED8">N x turns</text>
-  <text x="134" y="1567" class="t-label" text-anchor="middle" fill="#6B7280">all tokens present</text>
-  <text x="134" y="1583" class="t-label" text-anchor="middle" fill="#6B7280">in context window</text>
-
-  <!-- Arrow 1 -->
-  <line x1="214" y1="1556" x2="238" y2="1556" stroke="#7C3AED" stroke-width="1.5" />
-  <polygon points="238,1552 246,1556 238,1560" fill="#7C3AED" />
-
-  <!-- Box 2: Compaction LLM call -->
-  <rect x="246" y="1516" width="160" height="80" rx="8" fill="#F5F3FF" stroke="#C4B5FD" stroke-width="1" />
-  <text x="326" y="1535" class="t-label" text-anchor="middle" fill="#6D28D9">Compaction</text>
-  <text x="326" y="1551" class="t-label" text-anchor="middle" fill="#6D28D9">LLM call</text>
-  <text x="326" y="1567" class="t-label" text-anchor="middle" fill="#6B7280">summarise history</text>
-  <text x="326" y="1583" class="t-label" text-anchor="middle" fill="#6B7280">to prose summary</text>
-
-  <!-- Arrow 2 -->
-  <line x1="406" y1="1556" x2="430" y2="1556" stroke="#7C3AED" stroke-width="1.5" />
-  <polygon points="430,1552 438,1556 430,1560" fill="#7C3AED" />
-
-  <!-- Box 3: Summary replaces -->
-  <rect x="438" y="1516" width="160" height="80" rx="8" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1" />
-  <text x="518" y="1535" class="t-label" text-anchor="middle" fill="#15803D">Summary</text>
-  <text x="518" y="1551" class="t-label" text-anchor="middle" fill="#15803D">replaces history</text>
-  <text x="518" y="1567" class="t-label" text-anchor="middle" fill="#6B7280">context drops ~70%</text>
-  <text x="518" y="1583" class="t-label" text-anchor="middle" fill="#6B7280">conversation continues</text>
-
-  <!-- Insight panel: x=622, y=1516, w=524, h=80 -->
-  <rect x="622" y="1516" width="524" height="80" rx="8" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1" />
-  <text x="638" y="1534" class="t-subhead" fill="#92400E">What compaction loses</text>
-  <text x="638" y="1552" class="t-tip" fill="#78350F">Exact error messages, intermediate reasoning steps, prior file</text>
-  <text x="638" y="1568" class="t-tip" fill="#78350F">contents, and nuance in earlier decisions are lost in summary.</text>
-  <text x="638" y="1584" class="t-tip" fill="#92400E">Proactive /compact before critical work preserves what matters.</text>
-</g>
-
-<!-- ═══════════════════════════════════════════════════
-     FOOTER — Quick reference  (y: 1638 – 1760)
-     Bar: x=30, y=1638, w=1140, h=104
-     Then footer line at y=1760
-═══════════════════════════════════════════════════ -->
-<g class="sec-fade" style="animation-delay:0.85s">
-  <rect x="30" y="1638" width="1140" height="104" rx="12" fill="#1E3A5F" filter="url(#shadow-sm)" />
-  <rect x="30" y="1638" width="5" height="104" rx="2" fill="#0D9488" />
-
-  <text x="54" y="1658" class="t-subhead" fill="#93C5FD">Quick Reference</text>
-
-  <!--
-    5 pills across the full width inside the band.
-    Available width: 1140 - 24 (left pad) - 24 (right pad) = 1092px
-    5 pills with 16px gaps: (1092 - 4*16) / 5 = (1092-64)/5 = 1028/5 = 205.6 → 205px each
-    x starts: 54, 275, 496, 717, 938
-    pill y=1668, h=34, text baseline y=1689
-  -->
-
-  <rect x="54"  y="1668" width="205" height="34" rx="8" fill="#0D9488" opacity="0.9" />
-  <text x="157" y="1689" class="t-badge" text-anchor="middle" font-size="11">Background agents — best ROI</text>
-
-  <rect x="275" y="1668" width="205" height="34" rx="8" fill="#7C3AED" opacity="0.9" />
-  <text x="378" y="1685" class="t-badge" text-anchor="middle" font-size="11">/compact early</text>
-  <text x="378" y="1697" class="t-badge" text-anchor="middle" font-size="11">&amp; often</text>
-
-  <rect x="496" y="1668" width="205" height="34" rx="8" fill="#1D4ED8" opacity="0.9" />
-  <text x="599" y="1685" class="t-badge" text-anchor="middle" font-size="11">Read with</text>
-  <text x="599" y="1697" class="t-badge" text-anchor="middle" font-size="11">offset + limit</text>
-
-  <rect x="717" y="1668" width="205" height="34" rx="8" fill="#92400E" opacity="0.9" />
-  <text x="820" y="1685" class="t-badge" text-anchor="middle" font-size="11">Grep &gt; full</text>
-  <text x="820" y="1697" class="t-badge" text-anchor="middle" font-size="11">file read</text>
-
-  <rect x="938" y="1668" width="205" height="34" rx="8" fill="#7F1D1D" opacity="0.9" />
-  <text x="1041" y="1685" class="t-badge" text-anchor="middle" font-size="11">Screenshots only</text>
-  <text x="1041" y="1697" class="t-badge" text-anchor="middle" font-size="11">for UI validation</text>
-</g>
-
-<!-- ── Footer line ── -->
-<g class="sec-fade" style="animation-delay:0.95s">
-  <line x1="30" y1="1760" x2="1170" y2="1760" stroke="#E5E7EB" stroke-width="1" />
-  <!-- y=1780 main footer text -->
-  <text x="600" y="1780" class="t-label" text-anchor="middle">Token consumption patterns — Claude Code internal documentation</text>
-  <!-- y=1798 secondary -->
-  <text x="600" y="1798" class="t-label" text-anchor="middle" fill="#9CA3AF">Context window: up to 200k tokens  |  Compaction threshold: ~85% fill  |  Sub-agent isolation: full separate context</text>
-
-  <!-- Color legend row — y=1816 rects, y=1828 text -->
-  <!-- 8 items spread across 1140px, roughly 142px apart, start x=54 -->
-  <rect x="54"  y="1820" width="12" height="12" rx="2" fill="#6B7280" />
-  <text x="72"  y="1831" class="t-label">System</text>
-
-  <rect x="172" y="1820" width="12" height="12" rx="2" fill="#2563EB" />
-  <text x="190" y="1831" class="t-label">History</text>
-
-  <rect x="300" y="1820" width="12" height="12" rx="2" fill="#D97706" />
-  <text x="318" y="1831" class="t-label">File / Tool output</text>
-
-  <rect x="480" y="1820" width="12" height="12" rx="2" fill="#16A34A" />
-  <text x="498" y="1831" class="t-label">Response</text>
-
-  <rect x="610" y="1820" width="12" height="12" rx="2" fill="#7C3AED" />
-  <text x="628" y="1831" class="t-label">Compaction</text>
-
-  <rect x="764" y="1820" width="12" height="12" rx="2" fill="#0D9488" />
-  <text x="782" y="1831" class="t-label">Sub-agent</text>
-
-  <rect x="892" y="1820" width="12" height="12" rx="2" fill="#DC2626" />
-  <text x="910" y="1831" class="t-label">High cost / danger</text>
-
-  <rect x="1060" y="1820" width="12" height="12" rx="2" fill="#1E3A5F" />
-  <text x="1078" y="1831" class="t-label">Section header</text>
-</g>
+<!-- Background -->
+<rect x="0" y="0" width="1200" height="1900" fill="#F9FAFB"/>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     Section 1: Header banner (y=0 to y=70)
+═══════════════════════════════════════════════════════════════ -->
+<rect x="0" y="0" width="1200" height="70" fill="#0F172A"/>
+<text x="600" y="28" text-anchor="middle" fill="#F9FAFB" font-size="20" font-weight="700" font-family="system-ui, -apple-system, sans-serif">Token Consumption in Claude Code</text>
+<text x="600" y="52" text-anchor="middle" fill="#94A3B8" font-size="13" font-family="system-ui, -apple-system, sans-serif">How context is used and how to save tokens</text>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     Section 2: What counts as tokens (y=80 to y=220)
+═══════════════════════════════════════════════════════════════ -->
+<rect x="20" y="90" width="1160" height="120" rx="10" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+
+<!-- Section title -->
+<text x="600" y="114" text-anchor="middle" fill="#111827" font-size="14" font-weight="600" font-family="system-ui, -apple-system, sans-serif">What fills your context window?</text>
+
+<!-- Horizontal bar at y=130, total width=1160 starting at x=20 -->
+<!-- System 15% = 174px -->
+<rect x="20" y="130" width="174" height="30" fill="#7C3AED" class="bar-anim" style="animation-delay:0.1s"/>
+<!-- History 30% = 348px, starts at x=194 -->
+<rect x="194" y="130" width="348" height="30" fill="#2563EB" class="bar-anim" style="animation-delay:0.2s"/>
+<!-- File reads 35% = 406px, starts at x=542 -->
+<rect x="542" y="130" width="406" height="30" fill="#0D9488" class="bar-anim" style="animation-delay:0.3s"/>
+<!-- Responses 20% = 232px, starts at x=948 -->
+<rect x="948" y="130" width="232" height="30" fill="#D97706" class="bar-anim" style="animation-delay:0.4s"/>
+
+<!-- Percentage labels inside bars -->
+<text x="107" y="150" text-anchor="middle" fill="#FFFFFF" font-size="12" font-weight="600" font-family="system-ui, -apple-system, sans-serif">15%</text>
+<text x="368" y="150" text-anchor="middle" fill="#FFFFFF" font-size="12" font-weight="600" font-family="system-ui, -apple-system, sans-serif">30%</text>
+<text x="745" y="150" text-anchor="middle" fill="#FFFFFF" font-size="12" font-weight="600" font-family="system-ui, -apple-system, sans-serif">35%</text>
+<text x="1064" y="150" text-anchor="middle" fill="#FFFFFF" font-size="12" font-weight="600" font-family="system-ui, -apple-system, sans-serif">20%</text>
+
+<!-- Legend at y=185, 4 items at x=100, 380, 660, 940 -->
+<rect x="80" y="175" width="12" height="12" fill="#7C3AED"/>
+<text x="98" y="185" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">System prompt</text>
+
+<rect x="360" y="175" width="12" height="12" fill="#2563EB"/>
+<text x="378" y="185" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">Conversation history</text>
+
+<rect x="640" y="175" width="12" height="12" fill="#0D9488"/>
+<text x="658" y="185" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">File reads</text>
+
+<rect x="920" y="175" width="12" height="12" fill="#D97706"/>
+<text x="938" y="185" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">Model responses</text>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     Section 3: Two-column (y=230 to y=580)
+═══════════════════════════════════════════════════════════════ -->
+
+<!-- Left card: "Main Conversation fills up" -->
+<rect x="20" y="240" width="565" height="330" rx="10" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+<text x="302" y="262" text-anchor="middle" fill="#111827" font-size="14" font-weight="600" font-family="system-ui, -apple-system, sans-serif">Main Conversation fills up</text>
+
+<!-- Step 1: y=285, "Reads 3 files", blue bar 30% = 99px out of 330 max -->
+<circle cx="44" cy="285" r="5" fill="#2563EB"/>
+<text x="58" y="289" fill="#111827" font-size="12" font-family="system-ui, -apple-system, sans-serif">Reads 3 files</text>
+<rect x="200" y="277" width="99" height="16" rx="3" fill="#2563EB" class="bar-anim" style="animation-delay:0.2s"/>
+<text x="305" y="289" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">30%</text>
+
+<!-- Step 2: y=345, "Bash output (large)", orange bar 60% = 198px -->
+<circle cx="44" cy="345" r="5" fill="#D97706"/>
+<text x="58" y="349" fill="#111827" font-size="12" font-family="system-ui, -apple-system, sans-serif">Bash output (large)</text>
+<rect x="200" y="337" width="198" height="16" rx="3" fill="#D97706" class="bar-anim" style="animation-delay:0.3s"/>
+<text x="405" y="349" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">60%</text>
+
+<!-- Step 3: y=405, "More reads", red bar 85% = 281px -->
+<circle cx="44" cy="405" r="5" fill="#DC2626"/>
+<text x="58" y="409" fill="#111827" font-size="12" font-family="system-ui, -apple-system, sans-serif">More reads</text>
+<rect x="200" y="397" width="281" height="16" rx="3" fill="#DC2626" class="bar-anim" style="animation-delay:0.4s"/>
+<text x="487" y="409" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">85%</text>
+
+<!-- Step 4: y=465, "COMPACTION", purple bar 30% = 99px -->
+<circle cx="44" cy="465" r="5" fill="#7C3AED"/>
+<text x="58" y="469" fill="#7C3AED" font-size="12" font-weight="700" font-family="system-ui, -apple-system, sans-serif">COMPACTION</text>
+<rect x="200" y="457" width="99" height="16" rx="3" fill="#7C3AED" class="bar-anim compact-flash" style="animation-delay:0.5s"/>
+<text x="305" y="469" fill="#7C3AED" font-size="11" font-weight="600" font-family="system-ui, -apple-system, sans-serif">30% — context reset</text>
+
+<!-- Left card footer note -->
+<text x="302" y="520" text-anchor="middle" fill="#DC2626" font-size="11" font-family="system-ui, -apple-system, sans-serif">Context fills linearly — each tool call adds more</text>
+<text x="302" y="540" text-anchor="middle" fill="#DC2626" font-size="11" font-family="system-ui, -apple-system, sans-serif">Compaction auto-triggers at ~85% but loses detail</text>
+
+<!-- Right card: "Background Agents" -->
+<rect x="615" y="240" width="565" height="330" rx="10" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+<text x="897" y="262" text-anchor="middle" fill="#111827" font-size="14" font-weight="600" font-family="system-ui, -apple-system, sans-serif">Background Agents</text>
+
+<!-- Agent bubble 1: y=295, height=55, center=322 -->
+<rect x="640" y="295" width="515" height="55" rx="8" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+<text x="662" y="318" fill="#111827" font-size="12" font-weight="600" font-family="system-ui, -apple-system, sans-serif">File Analysis Agent</text>
+<text x="662" y="336" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">Reads files, runs grep, processes output</text>
+<text x="1145" y="327" text-anchor="end" fill="#2563EB" font-size="12" font-weight="700" font-family="system-ui, -apple-system, sans-serif">40k tokens</text>
+
+<!-- Agent bubble 2: y=370, height=55, center=397 -->
+<rect x="640" y="370" width="515" height="55" rx="8" fill="#F0FDF4" stroke="#16A34A" stroke-width="1.5"/>
+<text x="662" y="393" fill="#111827" font-size="12" font-weight="600" font-family="system-ui, -apple-system, sans-serif">Test Runner Agent</text>
+<text x="662" y="411" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">Runs tests, captures bash output, reports</text>
+<text x="1145" y="402" text-anchor="end" fill="#16A34A" font-size="12" font-weight="700" font-family="system-ui, -apple-system, sans-serif">25k tokens</text>
+
+<!-- Agent bubble 3: y=445, height=55, center=472 -->
+<rect x="640" y="445" width="515" height="55" rx="8" fill="#FAF5FF" stroke="#7C3AED" stroke-width="1.5"/>
+<text x="662" y="468" fill="#111827" font-size="12" font-weight="600" font-family="system-ui, -apple-system, sans-serif">UI Validation Agent</text>
+<text x="662" y="486" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">Playwright screenshots, DOM checks</text>
+<text x="1145" y="477" text-anchor="end" fill="#7C3AED" font-size="12" font-weight="700" font-family="system-ui, -apple-system, sans-serif">35k tokens</text>
+
+<!-- Arrow and summary text -->
+<text x="897" y="520" text-anchor="middle" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">&#x2193; Summaries only return to main context</text>
+
+<!-- Token isolation badge -->
+<rect x="730" y="530" width="335" height="26" rx="6" fill="#0D9488"/>
+<text x="897" y="547" text-anchor="middle" fill="#FFFFFF" font-size="12" font-weight="600" font-family="system-ui, -apple-system, sans-serif">Each agent context is fully isolated</text>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     Section 4: 5 tip cards (y=590 to y=800)
+═══════════════════════════════════════════════════════════════ -->
+
+<!-- Header band -->
+<rect x="20" y="600" width="1160" height="35" rx="8" fill="#1E3A5F"/>
+<text x="600" y="623" text-anchor="middle" fill="#FFFFFF" font-size="14" font-weight="600" font-family="system-ui, -apple-system, sans-serif">Top 5 Token-Saving Strategies</text>
+
+<!-- Card 1: x=20, "Background Agents" -->
+<rect x="20" y="645" width="220" height="145" rx="8" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" class="fade-in" style="animation-delay:0.1s"/>
+<rect x="20" y="645" width="220" height="4" rx="4" fill="#2563EB"/>
+<text x="40" y="672" fill="#2563EB" font-size="13" font-weight="700" font-family="system-ui, -apple-system, sans-serif">[BG]</text>
+<text x="40" y="692" fill="#111827" font-size="13" font-weight="600" font-family="system-ui, -apple-system, sans-serif">Background Agents</text>
+<text x="40" y="712" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">Isolate heavy work:</text>
+<text x="40" y="728" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">files, bash, analysis</text>
+<rect x="40" y="762" width="90" height="18" rx="4" fill="#EFF6FF" stroke="#2563EB" stroke-width="1"/>
+<text x="85" y="775" text-anchor="middle" fill="#2563EB" font-size="10" font-weight="600" font-family="system-ui, -apple-system, sans-serif">HIGH IMPACT</text>
+
+<!-- Card 2: x=248, "/compact" -->
+<rect x="248" y="645" width="220" height="145" rx="8" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" class="fade-in" style="animation-delay:0.2s"/>
+<rect x="248" y="645" width="220" height="4" rx="4" fill="#0D9488"/>
+<text x="268" y="672" fill="#0D9488" font-size="13" font-weight="700" font-family="system-ui, -apple-system, sans-serif">[~]</text>
+<text x="268" y="692" fill="#111827" font-size="13" font-weight="600" font-family="system-ui, -apple-system, sans-serif">/compact</text>
+<text x="268" y="712" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">Summarize history</text>
+<text x="268" y="728" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">before it fills up</text>
+<rect x="268" y="762" width="90" height="18" rx="4" fill="#F0FDF4" stroke="#16A34A" stroke-width="1"/>
+<text x="313" y="775" text-anchor="middle" fill="#16A34A" font-size="10" font-weight="600" font-family="system-ui, -apple-system, sans-serif">HIGH IMPACT</text>
+
+<!-- Card 3: x=476, "Targeted Reads" -->
+<rect x="476" y="645" width="220" height="145" rx="8" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" class="fade-in" style="animation-delay:0.3s"/>
+<rect x="476" y="645" width="220" height="4" rx="4" fill="#7C3AED"/>
+<text x="496" y="672" fill="#7C3AED" font-size="13" font-weight="700" font-family="system-ui, -apple-system, sans-serif">[&gt;&gt;]</text>
+<text x="496" y="692" fill="#111827" font-size="13" font-weight="600" font-family="system-ui, -apple-system, sans-serif">Targeted Reads</text>
+<text x="496" y="712" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">Read only the lines</text>
+<text x="496" y="728" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">you need, not whole files</text>
+<rect x="496" y="762" width="90" height="18" rx="4" fill="#FAF5FF" stroke="#7C3AED" stroke-width="1"/>
+<text x="541" y="775" text-anchor="middle" fill="#7C3AED" font-size="10" font-weight="600" font-family="system-ui, -apple-system, sans-serif">MED IMPACT</text>
+
+<!-- Card 4: x=704, "Grep > Read" -->
+<rect x="704" y="645" width="220" height="145" rx="8" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" class="fade-in" style="animation-delay:0.4s"/>
+<rect x="704" y="645" width="220" height="4" rx="4" fill="#D97706"/>
+<text x="724" y="672" fill="#D97706" font-size="13" font-weight="700" font-family="system-ui, -apple-system, sans-serif">[??]</text>
+<text x="724" y="692" fill="#111827" font-size="13" font-weight="600" font-family="system-ui, -apple-system, sans-serif">Grep &gt; Read</text>
+<text x="724" y="712" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">Grep for symbols instead</text>
+<text x="724" y="728" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">of reading whole files</text>
+<rect x="724" y="762" width="90" height="18" rx="4" fill="#FFFBEB" stroke="#D97706" stroke-width="1"/>
+<text x="769" y="775" text-anchor="middle" fill="#D97706" font-size="10" font-weight="600" font-family="system-ui, -apple-system, sans-serif">MED IMPACT</text>
+
+<!-- Card 5: x=932, "Playwright" -->
+<rect x="932" y="645" width="220" height="145" rx="8" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" class="fade-in" style="animation-delay:0.5s"/>
+<rect x="932" y="645" width="220" height="4" rx="4" fill="#DC2626"/>
+<text x="952" y="672" fill="#DC2626" font-size="13" font-weight="700" font-family="system-ui, -apple-system, sans-serif">[P]</text>
+<text x="952" y="692" fill="#111827" font-size="13" font-weight="600" font-family="system-ui, -apple-system, sans-serif">Playwright</text>
+<text x="952" y="712" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">Screenshots cost 2-3k each</text>
+<text x="952" y="728" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">use only for validation</text>
+<rect x="952" y="762" width="90" height="18" rx="4" fill="#FEF2F2" stroke="#DC2626" stroke-width="1"/>
+<text x="997" y="775" text-anchor="middle" fill="#DC2626" font-size="10" font-weight="600" font-family="system-ui, -apple-system, sans-serif">CAUTION</text>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     Section 5: Playwright cost chart (y=810 to y=1010)
+═══════════════════════════════════════════════════════════════ -->
+<rect x="20" y="820" width="1160" height="180" rx="10" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+<text x="600" y="844" text-anchor="middle" fill="#111827" font-size="14" font-weight="600" font-family="system-ui, -apple-system, sans-serif">Playwright / UI Testing: Token Cost Comparison</text>
+
+<!-- Labels column: right-aligned at x=375 -->
+<!-- Bars: x=385 to x=1170 (785px max). 5000 tokens = 785px, 1 token = 0.157px -->
+
+<!-- Row 1: y=875, "Screenshot (1 image)" → 2500 tokens → 393px, fill=#D97706 -->
+<text x="375" y="879" text-anchor="end" fill="#4B5563" font-size="12" font-family="system-ui, -apple-system, sans-serif">Screenshot (1 image)</text>
+<rect x="385" y="861" width="393" height="28" rx="4" fill="#D97706" class="bar-anim" style="animation-delay:0.1s"/>
+<text x="786" y="879" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">2,500 tokens</text>
+
+<!-- Row 2: y=915, "DOM Snapshot" → 3000 tokens → 471px, fill=#D97706 -->
+<text x="375" y="919" text-anchor="end" fill="#4B5563" font-size="12" font-family="system-ui, -apple-system, sans-serif">DOM Snapshot</text>
+<rect x="385" y="901" width="471" height="28" rx="4" fill="#D97706" class="bar-anim" style="animation-delay:0.2s"/>
+<text x="864" y="919" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">3,000 tokens</text>
+
+<!-- Row 3: y=955, "Targeted CSS check" → 200 tokens → 31px, fill=#16A34A -->
+<text x="375" y="959" text-anchor="end" fill="#4B5563" font-size="12" font-family="system-ui, -apple-system, sans-serif">Targeted CSS check</text>
+<rect x="385" y="941" width="31" height="28" rx="4" fill="#16A34A" class="bar-anim" style="animation-delay:0.3s"/>
+<text x="424" y="959" fill="#4B5563" font-size="11" font-family="system-ui, -apple-system, sans-serif">200 tokens</text>
+
+<!-- Row 4: y=995, "BG Agent UI test" → 5000 tokens → 785px, fill=#7C3AED -->
+<text x="375" y="999" text-anchor="end" fill="#4B5563" font-size="12" font-family="system-ui, -apple-system, sans-serif">BG Agent UI test</text>
+<rect x="385" y="981" width="785" height="28" rx="4" fill="#7C3AED" class="bar-anim" style="animation-delay:0.4s"/>
+<text x="700" y="999" text-anchor="middle" fill="#FFFFFF" font-size="11" font-weight="600" font-family="system-ui, -apple-system, sans-serif">isolated — 5,000 tokens (contained)</text>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     Section 6: Token math stats (y=1020 to y=1150)
+═══════════════════════════════════════════════════════════════ -->
+
+<!-- Card 1: x=20, width=375 -->
+<rect x="20" y="1030" width="375" height="110" rx="10" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+<rect x="20" y="1030" width="375" height="4" rx="4" fill="#2563EB"/>
+<text x="207" y="1068" text-anchor="middle" fill="#2563EB" font-size="28" font-weight="700" font-family="system-ui, -apple-system, sans-serif">2k–4k</text>
+<text x="207" y="1093" text-anchor="middle" fill="#111827" font-size="13" font-weight="600" font-family="system-ui, -apple-system, sans-serif">Single file read</text>
+<text x="207" y="1115" text-anchor="middle" fill="#6B7280" font-size="11" font-family="system-ui, -apple-system, sans-serif">~2,000–4,000 tokens per file</text>
+
+<!-- Card 2: x=412, width=375 -->
+<rect x="412" y="1030" width="375" height="110" rx="10" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+<rect x="412" y="1030" width="375" height="4" rx="4" fill="#D97706"/>
+<text x="599" y="1068" text-anchor="middle" fill="#D97706" font-size="28" font-weight="700" font-family="system-ui, -apple-system, sans-serif">500–8k</text>
+<text x="599" y="1093" text-anchor="middle" fill="#111827" font-size="13" font-weight="600" font-family="system-ui, -apple-system, sans-serif">Bash command output</text>
+<text x="599" y="1115" text-anchor="middle" fill="#6B7280" font-size="11" font-family="system-ui, -apple-system, sans-serif">~500–8,000 tokens per run</text>
+
+<!-- Card 3: x=805, width=375 -->
+<rect x="805" y="1030" width="375" height="110" rx="10" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+<rect x="805" y="1030" width="375" height="4" rx="4" fill="#0D9488"/>
+<text x="992" y="1068" text-anchor="middle" fill="#0D9488" font-size="28" font-weight="700" font-family="system-ui, -apple-system, sans-serif">50k–200k</text>
+<text x="992" y="1093" text-anchor="middle" fill="#111827" font-size="13" font-weight="600" font-family="system-ui, -apple-system, sans-serif">BG Agent isolation</text>
+<text x="992" y="1115" text-anchor="middle" fill="#6B7280" font-size="11" font-family="system-ui, -apple-system, sans-serif">Saves 50k–200k tokens from main</text>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     Section 7: Context lifecycle (y=1160 to y=1350)
+═══════════════════════════════════════════════════════════════ -->
+<rect x="20" y="1170" width="1160" height="170" rx="10" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+<text x="600" y="1193" text-anchor="middle" fill="#111827" font-size="14" font-weight="600" font-family="system-ui, -apple-system, sans-serif">Context Window Lifecycle</text>
+
+<!-- Box 1: x=40, y=1210, width=300, height=90 — "Fresh Context" (green border) -->
+<rect x="40" y="1210" width="300" height="90" rx="8" fill="#F0FDF4" stroke="#16A34A" stroke-width="2"/>
+<text x="190" y="1232" text-anchor="middle" fill="#16A34A" font-size="13" font-weight="700" font-family="system-ui, -apple-system, sans-serif">Fresh Context</text>
+<text x="60" y="1253" fill="#4B5563" font-size="12" font-family="system-ui, -apple-system, sans-serif">System prompt: 15k</text>
+<text x="60" y="1271" fill="#4B5563" font-size="12" font-family="system-ui, -apple-system, sans-serif">Conversation: 0k</text>
+<text x="60" y="1289" fill="#4B5563" font-size="12" font-family="system-ui, -apple-system, sans-serif">Files: 0k</text>
+
+<!-- Arrow 1 -->
+<text x="360" y="1259" fill="#4B5563" font-size="22" font-family="system-ui, -apple-system, sans-serif">&#x2192;</text>
+
+<!-- Box 2: x=380, y=1210, width=300, height=90 — "Mid-Session" (orange border) -->
+<rect x="385" y="1210" width="300" height="90" rx="8" fill="#FFFBEB" stroke="#D97706" stroke-width="2"/>
+<text x="535" y="1232" text-anchor="middle" fill="#D97706" font-size="13" font-weight="700" font-family="system-ui, -apple-system, sans-serif">Mid-Session</text>
+<text x="405" y="1253" fill="#4B5563" font-size="12" font-family="system-ui, -apple-system, sans-serif">History: 30k</text>
+<text x="405" y="1271" fill="#4B5563" font-size="12" font-family="system-ui, -apple-system, sans-serif">Files read: 40k</text>
+<text x="405" y="1289" fill="#DC2626" font-size="12" font-weight="600" font-family="system-ui, -apple-system, sans-serif">85% full</text>
+
+<!-- Arrow 2 -->
+<text x="704" y="1259" fill="#4B5563" font-size="22" font-family="system-ui, -apple-system, sans-serif">&#x2192;</text>
+
+<!-- Box 3: x=720, y=1210, width=300, height=90 — "After Compaction" (blue border) -->
+<rect x="720" y="1210" width="300" height="90" rx="8" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+<text x="870" y="1232" text-anchor="middle" fill="#2563EB" font-size="13" font-weight="700" font-family="system-ui, -apple-system, sans-serif">After Compaction</text>
+<text x="740" y="1253" fill="#4B5563" font-size="12" font-family="system-ui, -apple-system, sans-serif">Summary: 8k</text>
+<text x="740" y="1271" fill="#4B5563" font-size="12" font-family="system-ui, -apple-system, sans-serif">Context reset</text>
+<text x="740" y="1289" fill="#D97706" font-size="12" font-weight="600" font-family="system-ui, -apple-system, sans-serif">Nuance lost</text>
+
+<!-- Warning text at y=1330 -->
+<text x="600" y="1330" text-anchor="middle" fill="#DC2626" font-size="12" font-weight="600" font-family="system-ui, -apple-system, sans-serif">Warning: Compaction loses detail — use /compact proactively or background agents for heavy work</text>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     Section 8: Quick reference pills (y=1360 to y=1480)
+═══════════════════════════════════════════════════════════════ -->
+<rect x="20" y="1370" width="1160" height="100" rx="10" fill="#1E3A5F"/>
+<text x="600" y="1394" text-anchor="middle" fill="#FFFFFF" font-size="14" font-weight="600" font-family="system-ui, -apple-system, sans-serif">Quick Reference</text>
+
+<!-- Pills at y=1420, height=28 -->
+<!-- /compact — x=30 -->
+<rect x="30" y="1407" width="85" height="28" rx="14" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+<text x="72" y="1425" text-anchor="middle" fill="#FFFFFF" font-size="11" font-family="system-ui, -apple-system, sans-serif">/compact</text>
+
+<!-- Background agents — x=130 -->
+<rect x="126" y="1407" width="145" height="28" rx="14" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+<text x="198" y="1425" text-anchor="middle" fill="#FFFFFF" font-size="11" font-family="system-ui, -apple-system, sans-serif">Background agents</text>
+
+<!-- Targeted read — x=290 -->
+<rect x="283" y="1407" width="120" height="28" rx="14" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+<text x="343" y="1425" text-anchor="middle" fill="#FFFFFF" font-size="11" font-family="system-ui, -apple-system, sans-serif">Targeted read</text>
+
+<!-- grep first — x=420 -->
+<rect x="415" y="1407" width="95" height="28" rx="14" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+<text x="462" y="1425" text-anchor="middle" fill="#FFFFFF" font-size="11" font-family="system-ui, -apple-system, sans-serif">grep first</text>
+
+<!-- Short prompts — x=526 -->
+<rect x="521" y="1407" width="110" height="28" rx="14" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+<text x="576" y="1425" text-anchor="middle" fill="#FFFFFF" font-size="11" font-family="system-ui, -apple-system, sans-serif">Short prompts</text>
+
+<!-- Avoid big files — x=645 -->
+<rect x="643" y="1407" width="115" height="28" rx="14" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+<text x="700" y="1425" text-anchor="middle" fill="#FFFFFF" font-size="11" font-family="system-ui, -apple-system, sans-serif">Avoid big files</text>
+
+<!-- Screenshots = 2.5k — x=772 -->
+<rect x="770" y="1407" width="140" height="28" rx="14" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+<text x="840" y="1425" text-anchor="middle" fill="#FFFFFF" font-size="11" font-family="system-ui, -apple-system, sans-serif">Screenshots = 2.5k</text>
+
+<!-- Context clears — x=924 -->
+<rect x="922" y="1407" width="115" height="28" rx="14" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+<text x="979" y="1425" text-anchor="middle" fill="#FFFFFF" font-size="11" font-family="system-ui, -apple-system, sans-serif">Context clears</text>
+
+<!-- Footer -->
+<text x="600" y="1490" text-anchor="middle" fill="#6B7280" font-size="12" font-family="system-ui, -apple-system, sans-serif">Claude Code Token Guide · 2026</text>
 
 </svg>
