@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -24,7 +25,7 @@ func (srv *server) handleGetSSOConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
 		return
@@ -37,7 +38,7 @@ func (srv *server) handleGetSSOConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch DB config
-	dbRecord, err := srv.db.GetSSOConfig(provider)
+	dbRecord, err := srv.db.GetSSOConfig(context.Background(), provider)
 	if err != nil {
 		log.Printf("Error fetching SSO config for %s: %v", provider, err)
 		http.Error(w, fmt.Sprintf(`{"error":"failed to fetch SSO config","message":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
@@ -95,7 +96,7 @@ func (srv *server) handlePutSSOConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
 		return
@@ -120,14 +121,14 @@ func (srv *server) handlePutSSOConfig(w http.ResponseWriter, r *http.Request) {
 		req.Config = json.RawMessage(`{}`)
 	}
 
-	if err := srv.db.UpsertSSOConfig(provider, req.Config, req.IsEnabled, user.Username); err != nil {
+	if err := srv.db.UpsertSSOConfig(r.Context(), provider, req.Config, req.IsEnabled, user.Username); err != nil {
 		log.Printf("Error upserting SSO config for %s: %v", provider, err)
 		http.Error(w, fmt.Sprintf(`{"error":"failed to save SSO config","message":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "update", "sso_config", provider, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "update", "sso_config", provider, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"provider":   provider,
 		"is_enabled": fmt.Sprintf("%v", req.IsEnabled),
 	})
@@ -147,7 +148,7 @@ func (srv *server) handleTestSSOConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
 		return
@@ -187,7 +188,7 @@ func (srv *server) testOIDCConfig() (bool, string) {
 	// Try DB config first, then runtime config
 	issuerURL := ""
 
-	dbRecord, err := srv.db.GetSSOConfig("oidc")
+	dbRecord, err := srv.db.GetSSOConfig(context.Background(), "oidc")
 	if err == nil && dbRecord != nil {
 		var cfg map[string]interface{}
 		if json.Unmarshal(dbRecord.Config, &cfg) == nil {
@@ -225,7 +226,7 @@ func (srv *server) testOIDCConfig() (bool, string) {
 func (srv *server) testLDAPConfig() (bool, string) {
 	ldapURL := ""
 
-	dbRecord, err := srv.db.GetSSOConfig("ldap")
+	dbRecord, err := srv.db.GetSSOConfig(context.Background(), "ldap")
 	if err == nil && dbRecord != nil {
 		var cfg map[string]interface{}
 		if json.Unmarshal(dbRecord.Config, &cfg) == nil {
@@ -272,7 +273,7 @@ func (srv *server) testLDAPConfig() (bool, string) {
 func (srv *server) testSAMLConfig() (bool, string) {
 	metadataURL := ""
 
-	dbRecord, err := srv.db.GetSSOConfig("saml")
+	dbRecord, err := srv.db.GetSSOConfig(context.Background(), "saml")
 	if err == nil && dbRecord != nil {
 		var cfg map[string]interface{}
 		if json.Unmarshal(dbRecord.Config, &cfg) == nil {

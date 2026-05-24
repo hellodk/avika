@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/codes"
 )
 
 // Permission levels for team-project access
@@ -138,7 +140,9 @@ type EnrollmentToken struct {
 // ============================================================================
 
 // CreateProject creates a new project
-func (db *DB) CreateProject(name, slug, description, createdBy string) (*Project, error) {
+func (db *DB) CreateProject(ctx context.Context, name, slug, description, createdBy string) (*Project, error) {
+	ctx, span := db.dbSpan(ctx, "INSERT", "projects")
+	defer span.End()
 	id := uuid.New().String()
 	query := `
 		INSERT INTO projects (id, name, slug, description, created_by, created_at, updated_at)
@@ -147,10 +151,12 @@ func (db *DB) CreateProject(name, slug, description, createdBy string) (*Project
 	`
 	var p Project
 	var desc, creator sql.NullString
-	err := db.conn.QueryRow(query, id, name, slug, description, createdBy).Scan(
+	err := db.conn.QueryRowContext(ctx, query, id, name, slug, description, createdBy).Scan(
 		&p.ID, &p.Name, &p.Slug, &desc, &creator, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("failed to create project: %w", err)
 	}
 	p.Description = desc.String
@@ -159,7 +165,9 @@ func (db *DB) CreateProject(name, slug, description, createdBy string) (*Project
 }
 
 // GetProject retrieves a project by ID
-func (db *DB) GetProject(id string) (*Project, error) {
+func (db *DB) GetProject(ctx context.Context, id string) (*Project, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "projects")
+	defer span.End()
 	query := `
 		SELECT id, name, slug, description, metadata, created_by, created_at, updated_at
 		FROM projects WHERE id = $1
@@ -167,13 +175,15 @@ func (db *DB) GetProject(id string) (*Project, error) {
 	var p Project
 	var desc, creator sql.NullString
 	var metadata []byte
-	err := db.conn.QueryRow(query, id).Scan(
+	err := db.conn.QueryRowContext(ctx, query, id).Scan(
 		&p.ID, &p.Name, &p.Slug, &desc, &metadata, &creator, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	p.Description = desc.String
@@ -183,7 +193,9 @@ func (db *DB) GetProject(id string) (*Project, error) {
 }
 
 // GetProjectBySlug retrieves a project by slug
-func (db *DB) GetProjectBySlug(slug string) (*Project, error) {
+func (db *DB) GetProjectBySlug(ctx context.Context, slug string) (*Project, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "projects")
+	defer span.End()
 	query := `
 		SELECT id, name, slug, description, metadata, created_by, created_at, updated_at
 		FROM projects WHERE slug = $1
@@ -191,13 +203,15 @@ func (db *DB) GetProjectBySlug(slug string) (*Project, error) {
 	var p Project
 	var desc, creator sql.NullString
 	var metadata []byte
-	err := db.conn.QueryRow(query, slug).Scan(
+	err := db.conn.QueryRowContext(ctx, query, slug).Scan(
 		&p.ID, &p.Name, &p.Slug, &desc, &metadata, &creator, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	p.Description = desc.String
@@ -207,13 +221,17 @@ func (db *DB) GetProjectBySlug(slug string) (*Project, error) {
 }
 
 // ListProjects lists all projects (for superadmins) or accessible projects (for users)
-func (db *DB) ListProjects() ([]Project, error) {
+func (db *DB) ListProjects(ctx context.Context) ([]Project, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "projects")
+	defer span.End()
 	query := `
 		SELECT id, name, slug, description, created_by, created_at, updated_at
 		FROM projects ORDER BY name
 	`
-	rows, err := db.conn.Query(query)
+	rows, err := db.conn.QueryContext(ctx, query)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -233,7 +251,9 @@ func (db *DB) ListProjects() ([]Project, error) {
 }
 
 // ListProjectsForUser lists projects accessible by a user
-func (db *DB) ListProjectsForUser(username string) ([]Project, error) {
+func (db *DB) ListProjectsForUser(ctx context.Context, username string) ([]Project, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "projects")
+	defer span.End()
 	query := `
 		SELECT DISTINCT p.id, p.name, p.slug, p.description, p.created_by, p.created_at, p.updated_at
 		FROM projects p
@@ -242,8 +262,10 @@ func (db *DB) ListProjectsForUser(username string) ([]Project, error) {
 		WHERE tm.username = $1
 		ORDER BY p.name
 	`
-	rows, err := db.conn.Query(query, username)
+	rows, err := db.conn.QueryContext(ctx, query, username)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -263,15 +285,27 @@ func (db *DB) ListProjectsForUser(username string) ([]Project, error) {
 }
 
 // UpdateProject updates a project
-func (db *DB) UpdateProject(id, name, description string) error {
+func (db *DB) UpdateProject(ctx context.Context, id, name, description string) error {
+	ctx, span := db.dbSpan(ctx, "UPDATE", "projects")
+	defer span.End()
 	query := `UPDATE projects SET name = $1, description = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`
-	_, err := db.conn.Exec(query, name, description, id)
+	_, err := db.conn.ExecContext(ctx, query, name, description, id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 // DeleteProject deletes a project
-func (db *DB) DeleteProject(id string) error {
-	_, err := db.conn.Exec("DELETE FROM projects WHERE id = $1", id)
+func (db *DB) DeleteProject(ctx context.Context, id string) error {
+	ctx, span := db.dbSpan(ctx, "DELETE", "projects")
+	defer span.End()
+	_, err := db.conn.ExecContext(ctx, "DELETE FROM projects WHERE id = $1", id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
@@ -280,7 +314,9 @@ func (db *DB) DeleteProject(id string) error {
 // ============================================================================
 
 // CreateEnvironment creates a new environment within a project
-func (db *DB) CreateEnvironment(projectID, name, slug, description, color string, sortOrder int, isProduction bool) (*Environment, error) {
+func (db *DB) CreateEnvironment(ctx context.Context, projectID, name, slug, description, color string, sortOrder int, isProduction bool) (*Environment, error) {
+	ctx, span := db.dbSpan(ctx, "INSERT", "environments")
+	defer span.End()
 	id := uuid.New().String()
 	query := `
 		INSERT INTO environments (id, project_id, name, slug, description, color, sort_order, is_production, created_at, updated_at)
@@ -289,10 +325,12 @@ func (db *DB) CreateEnvironment(projectID, name, slug, description, color string
 	`
 	var e Environment
 	var desc sql.NullString
-	err := db.conn.QueryRow(query, id, projectID, name, slug, description, color, sortOrder, isProduction).Scan(
+	err := db.conn.QueryRowContext(ctx, query, id, projectID, name, slug, description, color, sortOrder, isProduction).Scan(
 		&e.ID, &e.ProjectID, &e.Name, &e.Slug, &desc, &e.Color, &e.SortOrder, &e.IsProduction, &e.CreatedAt, &e.UpdatedAt,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("failed to create environment: %w", err)
 	}
 	e.Description = desc.String
@@ -300,20 +338,24 @@ func (db *DB) CreateEnvironment(projectID, name, slug, description, color string
 }
 
 // GetEnvironment retrieves an environment by ID
-func (db *DB) GetEnvironment(id string) (*Environment, error) {
+func (db *DB) GetEnvironment(ctx context.Context, id string) (*Environment, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "environments")
+	defer span.End()
 	query := `
 		SELECT id, project_id, name, slug, description, color, sort_order, is_production, created_at, updated_at
 		FROM environments WHERE id = $1
 	`
 	var e Environment
 	var desc sql.NullString
-	err := db.conn.QueryRow(query, id).Scan(
+	err := db.conn.QueryRowContext(ctx, query, id).Scan(
 		&e.ID, &e.ProjectID, &e.Name, &e.Slug, &desc, &e.Color, &e.SortOrder, &e.IsProduction, &e.CreatedAt, &e.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	e.Description = desc.String
@@ -321,20 +363,24 @@ func (db *DB) GetEnvironment(id string) (*Environment, error) {
 }
 
 // GetEnvironmentBySlug retrieves an environment by project ID and slug
-func (db *DB) GetEnvironmentBySlug(projectID, slug string) (*Environment, error) {
+func (db *DB) GetEnvironmentBySlug(ctx context.Context, projectID, slug string) (*Environment, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "environments")
+	defer span.End()
 	query := `
 		SELECT id, project_id, name, slug, description, color, sort_order, is_production, created_at, updated_at
 		FROM environments WHERE project_id = $1 AND slug = $2
 	`
 	var e Environment
 	var desc sql.NullString
-	err := db.conn.QueryRow(query, projectID, slug).Scan(
+	err := db.conn.QueryRowContext(ctx, query, projectID, slug).Scan(
 		&e.ID, &e.ProjectID, &e.Name, &e.Slug, &desc, &e.Color, &e.SortOrder, &e.IsProduction, &e.CreatedAt, &e.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	e.Description = desc.String
@@ -343,8 +389,8 @@ func (db *DB) GetEnvironmentBySlug(projectID, slug string) (*Environment, error)
 
 // EnsureEnvironment returns the environment for (projectID, slug), creating it if it does not exist.
 // Used when an agent connects with a new environment label so environments are driven by agent config.
-func (db *DB) EnsureEnvironment(projectID, slug string) (*Environment, error) {
-	existing, err := db.GetEnvironmentBySlug(projectID, slug)
+func (db *DB) EnsureEnvironment(ctx context.Context, projectID, slug string) (*Environment, error) {
+	existing, err := db.GetEnvironmentBySlug(ctx, projectID, slug)
 	if err != nil {
 		return nil, err
 	}
@@ -359,17 +405,21 @@ func (db *DB) EnsureEnvironment(projectID, slug string) (*Environment, error) {
 	color := "#6366f1"
 	sortOrder := 999
 	isProduction := strings.EqualFold(slug, "production") || strings.EqualFold(slug, "prod")
-	return db.CreateEnvironment(projectID, name, slug, "", color, sortOrder, isProduction)
+	return db.CreateEnvironment(ctx, projectID, name, slug, "", color, sortOrder, isProduction)
 }
 
 // ListEnvironments lists all environments in a project
-func (db *DB) ListEnvironments(projectID string) ([]Environment, error) {
+func (db *DB) ListEnvironments(ctx context.Context, projectID string) ([]Environment, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "environments")
+	defer span.End()
 	query := `
 		SELECT id, project_id, name, slug, description, color, sort_order, is_production, created_at, updated_at
 		FROM environments WHERE project_id = $1 ORDER BY sort_order, name
 	`
-	rows, err := db.conn.Query(query, projectID)
+	rows, err := db.conn.QueryContext(ctx, query, projectID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -388,24 +438,36 @@ func (db *DB) ListEnvironments(projectID string) ([]Environment, error) {
 }
 
 // UpdateEnvironment updates an environment
-func (db *DB) UpdateEnvironment(id, name, description, color string, sortOrder int, isProduction bool) error {
+func (db *DB) UpdateEnvironment(ctx context.Context, id, name, description, color string, sortOrder int, isProduction bool) error {
+	ctx, span := db.dbSpan(ctx, "UPDATE", "environments")
+	defer span.End()
 	query := `
-		UPDATE environments 
-		SET name = $1, description = $2, color = $3, sort_order = $4, is_production = $5, updated_at = CURRENT_TIMESTAMP 
+		UPDATE environments
+		SET name = $1, description = $2, color = $3, sort_order = $4, is_production = $5, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $6
 	`
-	_, err := db.conn.Exec(query, name, description, color, sortOrder, isProduction, id)
+	_, err := db.conn.ExecContext(ctx, query, name, description, color, sortOrder, isProduction, id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 // DeleteEnvironment deletes an environment
-func (db *DB) DeleteEnvironment(id string) error {
-	_, err := db.conn.Exec("DELETE FROM environments WHERE id = $1", id)
+func (db *DB) DeleteEnvironment(ctx context.Context, id string) error {
+	ctx, span := db.dbSpan(ctx, "DELETE", "environments")
+	defer span.End()
+	_, err := db.conn.ExecContext(ctx, "DELETE FROM environments WHERE id = $1", id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 // CreateDefaultEnvironments creates default environments for a new project
-func (db *DB) CreateDefaultEnvironments(projectID string) error {
+func (db *DB) CreateDefaultEnvironments(ctx context.Context, projectID string) error {
 	defaults := []struct {
 		name, slug, color string
 		sortOrder         int
@@ -417,7 +479,7 @@ func (db *DB) CreateDefaultEnvironments(projectID string) error {
 	}
 
 	for _, d := range defaults {
-		_, err := db.CreateEnvironment(projectID, d.name, d.slug, "", d.color, d.sortOrder, d.isProduction)
+		_, err := db.CreateEnvironment(ctx, projectID, d.name, d.slug, "", d.color, d.sortOrder, d.isProduction)
 		if err != nil {
 			return err
 		}
@@ -430,7 +492,9 @@ func (db *DB) CreateDefaultEnvironments(projectID string) error {
 // ============================================================================
 
 // AssignServer assigns a server to an environment
-func (db *DB) AssignServer(agentID, environmentID, displayName, assignedBy string, tags []string) (*ServerAssignment, error) {
+func (db *DB) AssignServer(ctx context.Context, agentID, environmentID, displayName, assignedBy string, tags []string) (*ServerAssignment, error) {
+	ctx, span := db.dbSpan(ctx, "INSERT", "server_assignments")
+	defer span.End()
 	var sa ServerAssignment
 	var envID, dispName, assignBy sql.NullString
 	var tagsArray pq.StringArray
@@ -448,10 +512,12 @@ func (db *DB) AssignServer(agentID, environmentID, displayName, assignedBy strin
 				updated_at = CURRENT_TIMESTAMP
 			RETURNING agent_id, environment_id, display_name, tags, assigned_by, assigned_at, updated_at
 		`
-		err := db.conn.QueryRow(query, agentID, environmentID, displayName, pq.Array(tags)).Scan(
+		err := db.conn.QueryRowContext(ctx, query, agentID, environmentID, displayName, pq.Array(tags)).Scan(
 			&sa.AgentID, &envID, &dispName, &tagsArray, &assignBy, &sa.AssignedAt, &sa.UpdatedAt,
 		)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, fmt.Errorf("failed to assign server: %w", err)
 		}
 	} else {
@@ -467,10 +533,12 @@ func (db *DB) AssignServer(agentID, environmentID, displayName, assignedBy strin
 				updated_at = CURRENT_TIMESTAMP
 			RETURNING agent_id, environment_id, display_name, tags, assigned_by, assigned_at, updated_at
 		`
-		err := db.conn.QueryRow(query, agentID, environmentID, displayName, pq.Array(tags), assignedBy).Scan(
+		err := db.conn.QueryRowContext(ctx, query, agentID, environmentID, displayName, pq.Array(tags), assignedBy).Scan(
 			&sa.AgentID, &envID, &dispName, &tagsArray, &assignBy, &sa.AssignedAt, &sa.UpdatedAt,
 		)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, fmt.Errorf("failed to assign server: %w", err)
 		}
 	}
@@ -483,13 +551,21 @@ func (db *DB) AssignServer(agentID, environmentID, displayName, assignedBy strin
 }
 
 // UnassignServer removes a server from its environment
-func (db *DB) UnassignServer(agentID string) error {
-	_, err := db.conn.Exec("UPDATE server_assignments SET environment_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE agent_id = $1", agentID)
+func (db *DB) UnassignServer(ctx context.Context, agentID string) error {
+	ctx, span := db.dbSpan(ctx, "UPDATE", "server_assignments")
+	defer span.End()
+	_, err := db.conn.ExecContext(ctx, "UPDATE server_assignments SET environment_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE agent_id = $1", agentID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 // GetServerAssignment gets the assignment for a server
-func (db *DB) GetServerAssignment(agentID string) (*ServerAssignment, error) {
+func (db *DB) GetServerAssignment(ctx context.Context, agentID string) (*ServerAssignment, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "server_assignments")
+	defer span.End()
 	query := `
 		SELECT agent_id, environment_id, display_name, tags, assigned_by, assigned_at, updated_at
 		FROM server_assignments WHERE agent_id = $1
@@ -497,13 +573,15 @@ func (db *DB) GetServerAssignment(agentID string) (*ServerAssignment, error) {
 	var sa ServerAssignment
 	var envID, dispName, assignBy sql.NullString
 	var tagsArray pq.StringArray
-	err := db.conn.QueryRow(query, agentID).Scan(
+	err := db.conn.QueryRowContext(ctx, query, agentID).Scan(
 		&sa.AgentID, &envID, &dispName, &tagsArray, &assignBy, &sa.AssignedAt, &sa.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	sa.EnvironmentID = envID.String
@@ -514,14 +592,18 @@ func (db *DB) GetServerAssignment(agentID string) (*ServerAssignment, error) {
 }
 
 // ListUnassignedServers lists servers not assigned to any environment
-func (db *DB) ListUnassignedServers() ([]string, error) {
+func (db *DB) ListUnassignedServers(ctx context.Context) ([]string, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "server_assignments")
+	defer span.End()
 	query := `
 		SELECT a.agent_id FROM agents a
 		LEFT JOIN server_assignments sa ON a.agent_id = sa.agent_id
 		WHERE sa.environment_id IS NULL OR sa.agent_id IS NULL
 	`
-	rows, err := db.conn.Query(query)
+	rows, err := db.conn.QueryContext(ctx, query)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -538,13 +620,17 @@ func (db *DB) ListUnassignedServers() ([]string, error) {
 }
 
 // ListServersInEnvironment lists servers in a specific environment
-func (db *DB) ListServersInEnvironment(environmentID string) ([]ServerAssignment, error) {
+func (db *DB) ListServersInEnvironment(ctx context.Context, environmentID string) ([]ServerAssignment, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "server_assignments")
+	defer span.End()
 	query := `
 		SELECT agent_id, environment_id, display_name, tags, assigned_by, assigned_at, updated_at
 		FROM server_assignments WHERE environment_id = $1
 	`
-	rows, err := db.conn.Query(query, environmentID)
+	rows, err := db.conn.QueryContext(ctx, query, environmentID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -580,7 +666,9 @@ type ServerAssignmentWithDetails struct {
 }
 
 // ListAllServerAssignments lists all server assignments with environment and project details
-func (db *DB) ListAllServerAssignments() ([]ServerAssignmentWithDetails, error) {
+func (db *DB) ListAllServerAssignments(ctx context.Context) ([]ServerAssignmentWithDetails, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "server_assignments")
+	defer span.End()
 	query := `
 		SELECT sa.agent_id, sa.environment_id, e.name as env_name, p.id as project_id, p.name as project_name,
 			   sa.display_name, sa.tags, sa.assigned_by, sa.assigned_at
@@ -589,8 +677,10 @@ func (db *DB) ListAllServerAssignments() ([]ServerAssignmentWithDetails, error) 
 		LEFT JOIN projects p ON e.project_id = p.id
 		ORDER BY p.name, e.name, sa.assigned_at
 	`
-	rows, err := db.conn.Query(query)
+	rows, err := db.conn.QueryContext(ctx, query)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -618,7 +708,9 @@ func (db *DB) ListAllServerAssignments() ([]ServerAssignmentWithDetails, error) 
 // ListServerAssignmentsForUser returns only assignments belonging to projects
 // the given user can access via team membership. Superadmins should use
 // ListAllServerAssignments instead.
-func (db *DB) ListServerAssignmentsForUser(username string) ([]ServerAssignmentWithDetails, error) {
+func (db *DB) ListServerAssignmentsForUser(ctx context.Context, username string) ([]ServerAssignmentWithDetails, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "server_assignments")
+	defer span.End()
 	query := `
 		SELECT sa.agent_id, sa.environment_id, e.name as env_name, p.id as project_id, p.name as project_name,
 		       sa.display_name, sa.tags, sa.assigned_by, sa.assigned_at
@@ -633,8 +725,10 @@ func (db *DB) ListServerAssignmentsForUser(username string) ([]ServerAssignmentW
 		)
 		ORDER BY p.name, e.name, sa.assigned_at
 	`
-	rows, err := db.conn.Query(query, username)
+	rows, err := db.conn.QueryContext(ctx, query, username)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -660,9 +754,15 @@ func (db *DB) ListServerAssignmentsForUser(username string) ([]ServerAssignmentW
 }
 
 // UpdateServerTags updates tags for a server
-func (db *DB) UpdateServerTags(agentID string, tags []string) error {
+func (db *DB) UpdateServerTags(ctx context.Context, agentID string, tags []string) error {
+	ctx, span := db.dbSpan(ctx, "UPDATE", "server_assignments")
+	defer span.End()
 	query := `UPDATE server_assignments SET tags = $1, updated_at = CURRENT_TIMESTAMP WHERE agent_id = $2`
-	_, err := db.conn.Exec(query, tags, agentID)
+	_, err := db.conn.ExecContext(ctx, query, tags, agentID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
@@ -671,7 +771,9 @@ func (db *DB) UpdateServerTags(agentID string, tags []string) error {
 // ============================================================================
 
 // CreateTeam creates a new team
-func (db *DB) CreateTeam(name, slug, description string) (*Team, error) {
+func (db *DB) CreateTeam(ctx context.Context, name, slug, description string) (*Team, error) {
+	ctx, span := db.dbSpan(ctx, "INSERT", "teams")
+	defer span.End()
 	id := uuid.New().String()
 	query := `
 		INSERT INTO teams (id, name, slug, description, created_at, updated_at)
@@ -680,10 +782,12 @@ func (db *DB) CreateTeam(name, slug, description string) (*Team, error) {
 	`
 	var t Team
 	var desc sql.NullString
-	err := db.conn.QueryRow(query, id, name, slug, description).Scan(
+	err := db.conn.QueryRowContext(ctx, query, id, name, slug, description).Scan(
 		&t.ID, &t.Name, &t.Slug, &desc, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("failed to create team: %w", err)
 	}
 	t.Description = desc.String
@@ -691,15 +795,19 @@ func (db *DB) CreateTeam(name, slug, description string) (*Team, error) {
 }
 
 // GetTeam retrieves a team by ID
-func (db *DB) GetTeam(id string) (*Team, error) {
+func (db *DB) GetTeam(ctx context.Context, id string) (*Team, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "teams")
+	defer span.End()
 	query := `SELECT id, name, slug, description, created_at, updated_at FROM teams WHERE id = $1`
 	var t Team
 	var desc sql.NullString
-	err := db.conn.QueryRow(query, id).Scan(&t.ID, &t.Name, &t.Slug, &desc, &t.CreatedAt, &t.UpdatedAt)
+	err := db.conn.QueryRowContext(ctx, query, id).Scan(&t.ID, &t.Name, &t.Slug, &desc, &t.CreatedAt, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	t.Description = desc.String
@@ -707,10 +815,14 @@ func (db *DB) GetTeam(id string) (*Team, error) {
 }
 
 // ListTeams lists all teams
-func (db *DB) ListTeams() ([]Team, error) {
+func (db *DB) ListTeams(ctx context.Context) ([]Team, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "teams")
+	defer span.End()
 	query := `SELECT id, name, slug, description, created_at, updated_at FROM teams ORDER BY name`
-	rows, err := db.conn.Query(query)
+	rows, err := db.conn.QueryContext(ctx, query)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -729,7 +841,9 @@ func (db *DB) ListTeams() ([]Team, error) {
 }
 
 // ListTeamsForUser lists teams a user belongs to
-func (db *DB) ListTeamsForUser(username string) ([]Team, error) {
+func (db *DB) ListTeamsForUser(ctx context.Context, username string) ([]Team, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "teams")
+	defer span.End()
 	query := `
 		SELECT t.id, t.name, t.slug, t.description, t.created_at, t.updated_at
 		FROM teams t
@@ -737,8 +851,10 @@ func (db *DB) ListTeamsForUser(username string) ([]Team, error) {
 		WHERE tm.username = $1
 		ORDER BY t.name
 	`
-	rows, err := db.conn.Query(query, username)
+	rows, err := db.conn.QueryContext(ctx, query, username)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -757,15 +873,27 @@ func (db *DB) ListTeamsForUser(username string) ([]Team, error) {
 }
 
 // UpdateTeam updates a team
-func (db *DB) UpdateTeam(id, name, description string) error {
+func (db *DB) UpdateTeam(ctx context.Context, id, name, description string) error {
+	ctx, span := db.dbSpan(ctx, "UPDATE", "teams")
+	defer span.End()
 	query := `UPDATE teams SET name = $1, description = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`
-	_, err := db.conn.Exec(query, name, description, id)
+	_, err := db.conn.ExecContext(ctx, query, name, description, id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 // DeleteTeam deletes a team
-func (db *DB) DeleteTeam(id string) error {
-	_, err := db.conn.Exec("DELETE FROM teams WHERE id = $1", id)
+func (db *DB) DeleteTeam(ctx context.Context, id string) error {
+	ctx, span := db.dbSpan(ctx, "DELETE", "teams")
+	defer span.End()
+	_, err := db.conn.ExecContext(ctx, "DELETE FROM teams WHERE id = $1", id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
@@ -774,27 +902,43 @@ func (db *DB) DeleteTeam(id string) error {
 // ============================================================================
 
 // AddTeamMember adds a user to a team
-func (db *DB) AddTeamMember(teamID, username string, role TeamRole) error {
+func (db *DB) AddTeamMember(ctx context.Context, teamID, username string, role TeamRole) error {
+	ctx, span := db.dbSpan(ctx, "INSERT", "team_members")
+	defer span.End()
 	query := `
 		INSERT INTO team_members (team_id, username, role, joined_at)
 		VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
 		ON CONFLICT (team_id, username) DO UPDATE SET role = EXCLUDED.role
 	`
-	_, err := db.conn.Exec(query, teamID, username, role)
+	_, err := db.conn.ExecContext(ctx, query, teamID, username, role)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 // RemoveTeamMember removes a user from a team
-func (db *DB) RemoveTeamMember(teamID, username string) error {
-	_, err := db.conn.Exec("DELETE FROM team_members WHERE team_id = $1 AND username = $2", teamID, username)
+func (db *DB) RemoveTeamMember(ctx context.Context, teamID, username string) error {
+	ctx, span := db.dbSpan(ctx, "DELETE", "team_members")
+	defer span.End()
+	_, err := db.conn.ExecContext(ctx, "DELETE FROM team_members WHERE team_id = $1 AND username = $2", teamID, username)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 // ListTeamMembers lists members of a team
-func (db *DB) ListTeamMembers(teamID string) ([]TeamMember, error) {
+func (db *DB) ListTeamMembers(ctx context.Context, teamID string) ([]TeamMember, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "team_members")
+	defer span.End()
 	query := `SELECT team_id, username, role, joined_at FROM team_members WHERE team_id = $1 ORDER BY joined_at`
-	rows, err := db.conn.Query(query, teamID)
+	rows, err := db.conn.QueryContext(ctx, query, teamID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -811,14 +955,18 @@ func (db *DB) ListTeamMembers(teamID string) ([]TeamMember, error) {
 }
 
 // GetTeamMember gets a specific team member
-func (db *DB) GetTeamMember(teamID, username string) (*TeamMember, error) {
+func (db *DB) GetTeamMember(ctx context.Context, teamID, username string) (*TeamMember, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "team_members")
+	defer span.End()
 	query := `SELECT team_id, username, role, joined_at FROM team_members WHERE team_id = $1 AND username = $2`
 	var m TeamMember
-	err := db.conn.QueryRow(query, teamID, username).Scan(&m.TeamID, &m.Username, &m.Role, &m.JoinedAt)
+	err := db.conn.QueryRowContext(ctx, query, teamID, username).Scan(&m.TeamID, &m.Username, &m.Role, &m.JoinedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	return &m, nil
@@ -829,27 +977,43 @@ func (db *DB) GetTeamMember(teamID, username string) (*TeamMember, error) {
 // ============================================================================
 
 // GrantProjectAccess grants a team access to a project
-func (db *DB) GrantProjectAccess(teamID, projectID string, permission Permission, grantedBy string) error {
+func (db *DB) GrantProjectAccess(ctx context.Context, teamID, projectID string, permission Permission, grantedBy string) error {
+	ctx, span := db.dbSpan(ctx, "INSERT", "team_project_access")
+	defer span.End()
 	query := `
 		INSERT INTO team_project_access (team_id, project_id, permission, granted_by, granted_at)
 		VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
 		ON CONFLICT (team_id, project_id) DO UPDATE SET permission = EXCLUDED.permission, granted_by = EXCLUDED.granted_by
 	`
-	_, err := db.conn.Exec(query, teamID, projectID, permission, grantedBy)
+	_, err := db.conn.ExecContext(ctx, query, teamID, projectID, permission, grantedBy)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 // RevokeProjectAccess revokes a team's access to a project
-func (db *DB) RevokeProjectAccess(teamID, projectID string) error {
-	_, err := db.conn.Exec("DELETE FROM team_project_access WHERE team_id = $1 AND project_id = $2", teamID, projectID)
+func (db *DB) RevokeProjectAccess(ctx context.Context, teamID, projectID string) error {
+	ctx, span := db.dbSpan(ctx, "DELETE", "team_project_access")
+	defer span.End()
+	_, err := db.conn.ExecContext(ctx, "DELETE FROM team_project_access WHERE team_id = $1 AND project_id = $2", teamID, projectID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 // ListTeamProjectAccess lists a team's project access
-func (db *DB) ListTeamProjectAccess(teamID string) ([]TeamProjectAccess, error) {
+func (db *DB) ListTeamProjectAccess(ctx context.Context, teamID string) ([]TeamProjectAccess, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "team_project_access")
+	defer span.End()
 	query := `SELECT team_id, project_id, permission, granted_by, granted_at FROM team_project_access WHERE team_id = $1`
-	rows, err := db.conn.Query(query, teamID)
+	rows, err := db.conn.QueryContext(ctx, query, teamID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -878,36 +1042,47 @@ func (db *DB) ListTeamProjectAccess(teamID string) ([]TeamProjectAccess, error) 
 //   - role = 'superuser' (seeded administrative role from migration 002)
 //
 // All three are local administrative users who manage the cluster setup.
-func (db *DB) IsSuperAdmin(username string) (bool, error) {
+func (db *DB) IsSuperAdmin(ctx context.Context, username string) (bool, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "users")
+	defer span.End()
 	var isSuperAdmin bool
-	err := db.conn.QueryRow(
+	err := db.conn.QueryRowContext(ctx,
 		"SELECT COALESCE(is_superadmin, FALSE) OR (role IN ('admin', 'superuser')) FROM users WHERE username = $1",
 		username,
 	).Scan(&isSuperAdmin)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
-	return isSuperAdmin, err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return false, err
+	}
+	return isSuperAdmin, nil
 }
 
 // GetUserAccess gets the full access info for a user
-func (db *DB) GetUserAccess(username string) (*UserAccess, error) {
+func (db *DB) GetUserAccess(ctx context.Context, username string) (*UserAccess, error) {
 	ua := &UserAccess{
 		Username:      username,
 		ProjectAccess: make(map[string]Permission),
 	}
 
 	// Check superadmin status
-	isSuperAdmin, err := db.IsSuperAdmin(username)
+	isSuperAdmin, err := db.IsSuperAdmin(ctx, username)
 	if err != nil {
 		return nil, err
 	}
 	ua.IsSuperAdmin = isSuperAdmin
 
 	// Get team memberships
+	ctx, span := db.dbSpan(ctx, "SELECT", "team_members")
+	defer span.End()
 	query := `SELECT team_id, username, role, joined_at FROM team_members WHERE username = $1`
-	rows, err := db.conn.Query(query, username)
+	rows, err := db.conn.QueryContext(ctx, query, username)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -927,7 +1102,7 @@ func (db *DB) GetUserAccess(username string) (*UserAccess, error) {
 		JOIN team_members tm ON tpa.team_id = tm.team_id
 		WHERE tm.username = $1
 	`
-	accessRows, err := db.conn.Query(accessQuery, username)
+	accessRows, err := db.conn.QueryContext(ctx, accessQuery, username)
 	if err != nil {
 		return nil, err
 	}
@@ -950,9 +1125,9 @@ func (db *DB) GetUserAccess(username string) (*UserAccess, error) {
 }
 
 // HasProjectAccess checks if a user has at least the required permission on a project
-func (db *DB) HasProjectAccess(username, projectID string, requiredPermission Permission) (bool, error) {
+func (db *DB) HasProjectAccess(ctx context.Context, username, projectID string, requiredPermission Permission) (bool, error) {
 	// Superadmins have full access
-	isSuperAdmin, err := db.IsSuperAdmin(username)
+	isSuperAdmin, err := db.IsSuperAdmin(ctx, username)
 	if err != nil {
 		return false, err
 	}
@@ -961,25 +1136,29 @@ func (db *DB) HasProjectAccess(username, projectID string, requiredPermission Pe
 	}
 
 	// Check team-based access
+	ctx, span := db.dbSpan(ctx, "SELECT", "team_project_access")
+	defer span.End()
 	query := `
 		SELECT tpa.permission FROM team_project_access tpa
 		JOIN team_members tm ON tpa.team_id = tm.team_id
 		WHERE tm.username = $1 AND tpa.project_id = $2
-		ORDER BY 
-			CASE tpa.permission 
-				WHEN 'admin' THEN 4 
-				WHEN 'operate' THEN 3 
-				WHEN 'write' THEN 2 
-				WHEN 'read' THEN 1 
+		ORDER BY
+			CASE tpa.permission
+				WHEN 'admin' THEN 4
+				WHEN 'operate' THEN 3
+				WHEN 'write' THEN 2
+				WHEN 'read' THEN 1
 			END DESC
 		LIMIT 1
 	`
 	var permission Permission
-	err = db.conn.QueryRow(query, username, projectID).Scan(&permission)
+	err = db.conn.QueryRowContext(ctx, query, username, projectID).Scan(&permission)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return false, err
 	}
 
@@ -987,15 +1166,19 @@ func (db *DB) HasProjectAccess(username, projectID string, requiredPermission Pe
 }
 
 // GetVisibleAgentIDs returns agent IDs visible to a user
-func (db *DB) GetVisibleAgentIDs(username string) ([]string, error) {
+func (db *DB) GetVisibleAgentIDs(ctx context.Context, username string) ([]string, error) {
 	// Superadmins see all agents
-	isSuperAdmin, err := db.IsSuperAdmin(username)
+	isSuperAdmin, err := db.IsSuperAdmin(ctx, username)
 	if err != nil {
 		return nil, err
 	}
+	ctx, span := db.dbSpan(ctx, "SELECT", "agents")
+	defer span.End()
 	if isSuperAdmin {
-		rows, err := db.conn.Query("SELECT agent_id FROM agents")
+		rows, err := db.conn.QueryContext(ctx, "SELECT agent_id FROM agents")
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		defer rows.Close()
@@ -1021,8 +1204,10 @@ func (db *DB) GetVisibleAgentIDs(username string) ([]string, error) {
 		JOIN team_members tm ON tpa.team_id = tm.team_id
 		WHERE tm.username = $1
 	`
-	rows, err := db.conn.Query(query, username)
+	rows, err := db.conn.QueryContext(ctx, query, username)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -1039,13 +1224,17 @@ func (db *DB) GetVisibleAgentIDs(username string) ([]string, error) {
 }
 
 // GetAgentIDsForEnvironment returns all agent IDs assigned to a specific environment
-func (db *DB) GetAgentIDsForEnvironment(environmentID string) ([]string, error) {
+func (db *DB) GetAgentIDsForEnvironment(ctx context.Context, environmentID string) ([]string, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "server_assignments")
+	defer span.End()
 	query := `
 		SELECT agent_id FROM server_assignments
 		WHERE environment_id = $1
 	`
-	rows, err := db.conn.Query(query, environmentID)
+	rows, err := db.conn.QueryContext(ctx, query, environmentID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -1062,15 +1251,19 @@ func (db *DB) GetAgentIDsForEnvironment(environmentID string) ([]string, error) 
 }
 
 // GetAgentIDsForProject returns all agent IDs assigned to any environment within a project
-func (db *DB) GetAgentIDsForProject(projectID string) ([]string, error) {
+func (db *DB) GetAgentIDsForProject(ctx context.Context, projectID string) ([]string, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "server_assignments")
+	defer span.End()
 	query := `
 		SELECT DISTINCT sa.agent_id
 		FROM server_assignments sa
 		JOIN environments e ON sa.environment_id = e.id
 		WHERE e.project_id = $1
 	`
-	rows, err := db.conn.Query(query, projectID)
+	rows, err := db.conn.QueryContext(ctx, query, projectID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -1107,7 +1300,9 @@ func permissionLevel(p Permission) int {
 // ============================================================================
 
 // CreateAuditLog creates an audit log entry
-func (db *DB) CreateAuditLog(username, action, resourceType, resourceID, ipAddress, userAgent string, details interface{}) error {
+func (db *DB) CreateAuditLog(ctx context.Context, username, action, resourceType, resourceID, ipAddress, userAgent string, details interface{}) error {
+	ctx, span := db.dbSpan(ctx, "INSERT", "audit_logs")
+	defer span.End()
 	var detailsJSON []byte
 	var err error
 	if details != nil {
@@ -1121,18 +1316,26 @@ func (db *DB) CreateAuditLog(username, action, resourceType, resourceID, ipAddre
 		INSERT INTO audit_logs (username, action, resource_type, resource_id, details, ip_address, user_agent)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
-	_, err = db.conn.Exec(query, username, action, resourceType, resourceID, detailsJSON, ipAddress, userAgent)
+	_, err = db.conn.ExecContext(ctx, query, username, action, resourceType, resourceID, detailsJSON, ipAddress, userAgent)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 // ListAuditLogs lists recent audit logs
-func (db *DB) ListAuditLogs(limit int) ([]AuditLog, error) {
+func (db *DB) ListAuditLogs(ctx context.Context, limit int) ([]AuditLog, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "audit_logs")
+	defer span.End()
 	query := `
 		SELECT id, timestamp, username, action, resource_type, resource_id, details, ip_address, user_agent
 		FROM audit_logs ORDER BY timestamp DESC LIMIT $1
 	`
-	rows, err := db.conn.Query(query, limit)
+	rows, err := db.conn.QueryContext(ctx, query, limit)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -1158,7 +1361,9 @@ func (db *DB) ListAuditLogs(limit int) ([]AuditLog, error) {
 // ============================================================================
 
 // CreateEnrollmentToken creates a new enrollment token for an environment
-func (db *DB) CreateEnrollmentToken(environmentID, description, createdBy string, expiresAt *time.Time, maxUses *int) (*EnrollmentToken, string, error) {
+func (db *DB) CreateEnrollmentToken(ctx context.Context, environmentID, description, createdBy string, expiresAt *time.Time, maxUses *int) (*EnrollmentToken, string, error) {
+	ctx, span := db.dbSpan(ctx, "INSERT", "enrollment_tokens")
+	defer span.End()
 	id := uuid.New().String()
 	// Generate a random token
 	tokenBytes := make([]byte, 32)
@@ -1177,10 +1382,12 @@ func (db *DB) CreateEnrollmentToken(environmentID, description, createdBy string
 	var desc, creator sql.NullString
 	var expires, lastUsed sql.NullTime
 	var maxUsesVal sql.NullInt32
-	err := db.conn.QueryRow(query, id, environmentID, tokenHash, description, expiresAt, maxUses, createdBy).Scan(
+	err := db.conn.QueryRowContext(ctx, query, id, environmentID, tokenHash, description, expiresAt, maxUses, createdBy).Scan(
 		&et.ID, &et.EnvironmentID, &desc, &expires, &maxUsesVal, &et.UseCount, &creator, &et.CreatedAt, &lastUsed,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, "", fmt.Errorf("failed to create enrollment token: %w", err)
 	}
 	et.Description = desc.String
@@ -1205,7 +1412,9 @@ func sha256Hex(s string) string {
 }
 
 // ValidateEnrollmentToken validates a token and returns the environment ID if valid
-func (db *DB) ValidateEnrollmentToken(token string) (string, error) {
+func (db *DB) ValidateEnrollmentToken(ctx context.Context, token string) (string, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "enrollment_tokens")
+	defer span.End()
 	tokenHash := sha256Hex(token)
 	query := `
 		SELECT id, environment_id, expires_at, max_uses, use_count
@@ -1215,11 +1424,13 @@ func (db *DB) ValidateEnrollmentToken(token string) (string, error) {
 	var expires sql.NullTime
 	var maxUses sql.NullInt32
 	var useCount int
-	err := db.conn.QueryRow(query, tokenHash).Scan(&id, &envID, &expires, &maxUses, &useCount)
+	err := db.conn.QueryRowContext(ctx, query, tokenHash).Scan(&id, &envID, &expires, &maxUses, &useCount)
 	if err == sql.ErrNoRows {
 		return "", fmt.Errorf("invalid token")
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return "", err
 	}
 
@@ -1233,13 +1444,15 @@ func (db *DB) ValidateEnrollmentToken(token string) (string, error) {
 	// two concurrent requests both pass the check then both increment.
 	var updated int64
 	if maxUses.Valid {
-		res, err2 := db.conn.Exec(
+		res, err2 := db.conn.ExecContext(ctx,
 			`UPDATE enrollment_tokens
 			 SET use_count = use_count + 1, last_used_at = CURRENT_TIMESTAMP
 			 WHERE id = $1 AND use_count < max_uses`,
 			id,
 		)
 		if err2 != nil {
+			span.RecordError(err2)
+			span.SetStatus(codes.Error, err2.Error())
 			return "", err2
 		}
 		updated, _ = res.RowsAffected()
@@ -1248,11 +1461,13 @@ func (db *DB) ValidateEnrollmentToken(token string) (string, error) {
 		}
 	} else {
 		// No max_uses cap — just increment.
-		_, err = db.conn.Exec(
+		_, err = db.conn.ExecContext(ctx,
 			`UPDATE enrollment_tokens SET use_count = use_count + 1, last_used_at = CURRENT_TIMESTAMP WHERE id = $1`,
 			id,
 		)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return "", err
 		}
 	}
@@ -1261,13 +1476,17 @@ func (db *DB) ValidateEnrollmentToken(token string) (string, error) {
 }
 
 // ListEnrollmentTokens lists all tokens for an environment
-func (db *DB) ListEnrollmentTokens(environmentID string) ([]EnrollmentToken, error) {
+func (db *DB) ListEnrollmentTokens(ctx context.Context, environmentID string) ([]EnrollmentToken, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "enrollment_tokens")
+	defer span.End()
 	query := `
 		SELECT id, environment_id, description, expires_at, max_uses, use_count, created_by, created_at, last_used_at
 		FROM enrollment_tokens WHERE environment_id = $1 ORDER BY created_at DESC
 	`
-	rows, err := db.conn.Query(query, environmentID)
+	rows, err := db.conn.QueryContext(ctx, query, environmentID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -1299,8 +1518,14 @@ func (db *DB) ListEnrollmentTokens(environmentID string) ([]EnrollmentToken, err
 }
 
 // DeleteEnrollmentToken deletes an enrollment token
-func (db *DB) DeleteEnrollmentToken(id string) error {
-	_, err := db.conn.Exec("DELETE FROM enrollment_tokens WHERE id = $1", id)
+func (db *DB) DeleteEnrollmentToken(ctx context.Context, id string) error {
+	ctx, span := db.dbSpan(ctx, "DELETE", "enrollment_tokens")
+	defer span.End()
+	_, err := db.conn.ExecContext(ctx, "DELETE FROM enrollment_tokens WHERE id = $1", id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
@@ -1327,7 +1552,9 @@ type UserDetailRecord struct {
 
 // ListUsersDetailed returns all users with full detail (excluding password_hash).
 // If search is non-empty the result is filtered by username, email, or display_name (case-insensitive substring match).
-func (db *DB) ListUsersDetailed(search string) ([]UserDetailRecord, error) {
+func (db *DB) ListUsersDetailed(ctx context.Context, search string) ([]UserDetailRecord, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "users")
+	defer span.End()
 	baseQuery := `
 		SELECT username, role, email, is_active, last_login, is_superadmin,
 		       external_id, identity_provider, display_name, avatar_url,
@@ -1341,12 +1568,14 @@ func (db *DB) ListUsersDetailed(search string) ([]UserDetailRecord, error) {
 		pattern := "%" + search + "%"
 		baseQuery += ` WHERE (username ILIKE $1 OR email ILIKE $1 OR display_name ILIKE $1)`
 		baseQuery += ` ORDER BY username`
-		rows, err = db.conn.Query(baseQuery, pattern)
+		rows, err = db.conn.QueryContext(ctx, baseQuery, pattern)
 	} else {
 		baseQuery += ` ORDER BY username`
-		rows, err = db.conn.Query(baseQuery)
+		rows, err = db.conn.QueryContext(ctx, baseQuery)
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -1386,7 +1615,9 @@ func (db *DB) ListUsersDetailed(search string) ([]UserDetailRecord, error) {
 
 // GetUserDetailed retrieves a single user by username with full detail (excluding password_hash).
 // Returns nil, nil when the user does not exist.
-func (db *DB) GetUserDetailed(username string) (*UserDetailRecord, error) {
+func (db *DB) GetUserDetailed(ctx context.Context, username string) (*UserDetailRecord, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "users")
+	defer span.End()
 	query := `
 		SELECT username, role, email, is_active, last_login, is_superadmin,
 		       external_id, identity_provider, display_name, avatar_url,
@@ -1397,7 +1628,7 @@ func (db *DB) GetUserDetailed(username string) (*UserDetailRecord, error) {
 	var email, externalID, displayName, avatarURL sql.NullString
 	var lastLogin sql.NullTime
 	var isSuperAdmin, isActive sql.NullBool
-	err := db.conn.QueryRow(query, username).Scan(
+	err := db.conn.QueryRowContext(ctx, query, username).Scan(
 		&u.Username, &u.Role, &email, &isActive, &lastLogin, &isSuperAdmin,
 		&externalID, &u.IdentityProvider, &displayName, &avatarURL,
 		&u.CreatedAt, &u.UpdatedAt,
@@ -1406,6 +1637,8 @@ func (db *DB) GetUserDetailed(username string) (*UserDetailRecord, error) {
 		return nil, nil
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	u.Email = email.String
@@ -1427,7 +1660,9 @@ func (db *DB) GetUserDetailed(username string) (*UserDetailRecord, error) {
 }
 
 // CreateUserByAdmin creates a new local user (admin action) and returns the full user detail record.
-func (db *DB) CreateUserByAdmin(username, passwordHash, role, email, displayName string, isSuperAdmin bool) (*UserDetailRecord, error) {
+func (db *DB) CreateUserByAdmin(ctx context.Context, username, passwordHash, role, email, displayName string, isSuperAdmin bool) (*UserDetailRecord, error) {
+	ctx, span := db.dbSpan(ctx, "INSERT", "users")
+	defer span.End()
 	query := `
 		INSERT INTO users (username, password_hash, role, email, display_name, is_superadmin, is_active, identity_provider, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, true, 'local', NOW(), NOW())
@@ -1439,12 +1674,14 @@ func (db *DB) CreateUserByAdmin(username, passwordHash, role, email, displayName
 	var emailVal, externalID, displayNameVal, avatarURL sql.NullString
 	var lastLogin sql.NullTime
 	var isSuperAdminVal, isActive sql.NullBool
-	err := db.conn.QueryRow(query, username, passwordHash, role, email, displayName, isSuperAdmin).Scan(
+	err := db.conn.QueryRowContext(ctx, query, username, passwordHash, role, email, displayName, isSuperAdmin).Scan(
 		&u.Username, &u.Role, &emailVal, &isActive, &lastLogin, &isSuperAdminVal,
 		&externalID, &u.IdentityProvider, &displayNameVal, &avatarURL,
 		&u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 	u.Email = emailVal.String
@@ -1466,7 +1703,9 @@ func (db *DB) CreateUserByAdmin(username, passwordHash, role, email, displayName
 }
 
 // UpdateUserByAdmin dynamically updates user fields. Only non-nil pointer arguments are applied.
-func (db *DB) UpdateUserByAdmin(username string, role, email, displayName *string, isSuperAdmin, isActive *bool) error {
+func (db *DB) UpdateUserByAdmin(ctx context.Context, username string, role, email, displayName *string, isSuperAdmin, isActive *bool) error {
+	ctx, span := db.dbSpan(ctx, "UPDATE", "users")
+	defer span.End()
 	setClauses := []string{}
 	args := []interface{}{}
 	argIdx := 1
@@ -1502,26 +1741,46 @@ func (db *DB) UpdateUserByAdmin(username string, role, email, displayName *strin
 	if len(args) == 0 {
 		// Nothing to update besides updated_at
 		query := "UPDATE users SET updated_at = NOW() WHERE username = $1"
-		_, err := db.conn.Exec(query, username)
+		_, err := db.conn.ExecContext(ctx, query, username)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
 		return err
 	}
 
 	query := fmt.Sprintf("UPDATE users SET %s WHERE username = $%d",
 		strings.Join(setClauses, ", "), argIdx)
 	args = append(args, username)
-	_, err := db.conn.Exec(query, args...)
+	_, err := db.conn.ExecContext(ctx, query, args...)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 // DeactivateUser sets a user as inactive.
-func (db *DB) DeactivateUser(username string) error {
-	_, err := db.conn.Exec("UPDATE users SET is_active = false, updated_at = NOW() WHERE username = $1", username)
+func (db *DB) DeactivateUser(ctx context.Context, username string) error {
+	ctx, span := db.dbSpan(ctx, "UPDATE", "users")
+	defer span.End()
+	_, err := db.conn.ExecContext(ctx, "UPDATE users SET is_active = false, updated_at = NOW() WHERE username = $1", username)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 // ReactivateUser sets a user as active.
-func (db *DB) ReactivateUser(username string) error {
-	_, err := db.conn.Exec("UPDATE users SET is_active = true, updated_at = NOW() WHERE username = $1", username)
+func (db *DB) ReactivateUser(ctx context.Context, username string) error {
+	ctx, span := db.dbSpan(ctx, "UPDATE", "users")
+	defer span.End()
+	_, err := db.conn.ExecContext(ctx, "UPDATE users SET is_active = true, updated_at = NOW() WHERE username = $1", username)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
@@ -1540,44 +1799,58 @@ type SSOConfigRecord struct {
 
 // GetSSOConfig retrieves the SSO configuration for a given provider.
 // Returns nil, nil when the provider does not exist.
-func (db *DB) GetSSOConfig(provider string) (*SSOConfigRecord, error) {
+func (db *DB) GetSSOConfig(ctx context.Context, provider string) (*SSOConfigRecord, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "sso_config")
+	defer span.End()
 	query := `
 		SELECT provider, config, is_enabled, updated_at, COALESCE(updated_by, '')
 		FROM sso_config WHERE provider = $1
 	`
 	var r SSOConfigRecord
-	err := db.conn.QueryRow(query, provider).Scan(
+	err := db.conn.QueryRowContext(ctx, query, provider).Scan(
 		&r.Provider, &r.Config, &r.IsEnabled, &r.UpdatedAt, &r.UpdatedBy,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	return &r, nil
 }
 
 // UpsertSSOConfig inserts or updates the SSO configuration for a provider.
-func (db *DB) UpsertSSOConfig(provider string, config json.RawMessage, isEnabled bool, updatedBy string) error {
+func (db *DB) UpsertSSOConfig(ctx context.Context, provider string, config json.RawMessage, isEnabled bool, updatedBy string) error {
+	ctx, span := db.dbSpan(ctx, "INSERT", "sso_config")
+	defer span.End()
 	query := `
 		INSERT INTO sso_config (provider, config, is_enabled, updated_at, updated_by)
 		VALUES ($1, $2, $3, NOW(), $4)
 		ON CONFLICT (provider) DO UPDATE SET
 			config = $2, is_enabled = $3, updated_at = NOW(), updated_by = $4
 	`
-	_, err := db.conn.Exec(query, provider, config, isEnabled, updatedBy)
+	_, err := db.conn.ExecContext(ctx, query, provider, config, isEnabled, updatedBy)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 // ListSSOConfigs returns all SSO configurations ordered by provider name.
-func (db *DB) ListSSOConfigs() ([]SSOConfigRecord, error) {
+func (db *DB) ListSSOConfigs(ctx context.Context) ([]SSOConfigRecord, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "sso_config")
+	defer span.End()
 	query := `
 		SELECT provider, config, is_enabled, updated_at, COALESCE(updated_by, '')
 		FROM sso_config ORDER BY provider
 	`
-	rows, err := db.conn.Query(query)
+	rows, err := db.conn.QueryContext(ctx, query)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()

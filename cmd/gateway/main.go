@@ -33,7 +33,9 @@ import (
 	"github.com/prometheus/common/expfmt"
 	"github.com/rs/zerolog"
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -135,7 +137,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 
 				agentLog := logging.WithAgent(gatewayLog, currentSession.id, currentSession.hostname, currentSession.ip)
 				// Persist offline status
-				if err := s.db.UpsertAgent(currentSession); err != nil {
+				if err := s.db.UpsertAgent(context.Background(), currentSession); err != nil {
 					agentLog.Warn().Err(err).Msg("Failed to update agent status in DB")
 				}
 				agentLog.Info().Msg("Agent disconnected (marked offline)")
@@ -150,11 +152,22 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 			return nil
 		}
 		if err != nil {
+			span := trace.SpanFromContext(stream.Context())
+			traceID := span.SpanContext().TraceID().String()
+			spanID := span.SpanContext().SpanID().String()
 			if currentSession != nil {
 				agentLog := logging.WithAgent(gatewayLog, currentSession.id, currentSession.hostname, currentSession.ip)
-				agentLog.Error().Err(err).Msg("Stream error")
+				ev := agentLog.Error().Err(err)
+				if span.SpanContext().IsValid() {
+					ev = ev.Str("trace_id", traceID).Str("span_id", spanID)
+				}
+				ev.Msg("Stream error")
 			} else {
-				gatewayLog.Error().Err(err).Msg("Stream error (no agent session yet)")
+				ev := gatewayLog.Error().Err(err)
+				if span.SpanContext().IsValid() {
+					ev = ev.Str("trace_id", traceID).Str("span_id", spanID)
+				}
+				ev.Msg("Stream error (no agent session yet)")
 			}
 			return err
 		}
@@ -244,7 +257,7 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 
 				// 4a. Auto-assign to environment based on labels
 				if len(hb.Labels) > 0 {
-					s.autoAssignAgentToEnvironment(agentID, hb.Labels)
+					s.autoAssignAgentToEnvironment(stream.Context(), agentID, hb.Labels)
 				}
 			} else {
 				// Reconnecting - update existing session
@@ -272,17 +285,17 @@ func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 
 				// Try auto-assignment on reconnection if agent has labels but no assignment
 				if len(hb.Labels) > 0 {
-					existing, err := s.db.GetServerAssignment(agentID)
+					existing, err := s.db.GetServerAssignment(stream.Context(), agentID)
 					if err != nil || existing == nil {
 						agentLog := logging.WithAgent(gatewayLog, agentID, hb.Hostname, ip)
 						agentLog.Info().Interface("labels", hb.Labels).Msg("Attempting auto-assign for reconnected agent")
-						s.autoAssignAgentToEnvironment(agentID, hb.Labels)
+						s.autoAssignAgentToEnvironment(stream.Context(), agentID, hb.Labels)
 					}
 				}
 			}
 
 			// Persist to DB
-			if err := s.db.UpsertAgent(currentSession); err != nil {
+			if err := s.db.UpsertAgent(stream.Context(), currentSession); err != nil {
 				agentLog := logging.WithAgent(gatewayLog, currentSession.id, currentSession.hostname, currentSession.ip)
 				agentLog.Warn().Err(err).Msg("Failed to persist agent heartbeat")
 			}
@@ -610,7 +623,7 @@ func (s *server) RemoveAgent(ctx context.Context, req *pb.RemoveAgentRequest) (*
 	if ok {
 		dbID = resolved
 	}
-	if err := s.db.RemoveAgent(dbID); err != nil {
+	if err := s.db.RemoveAgent(ctx, dbID); err != nil {
 		gatewayLog.Warn().Err(err).Str("agent_id", dbID).Msg("Failed to remove agent from DB")
 		return &pb.RemoveAgentResponse{Success: false}, nil
 	}
@@ -693,7 +706,7 @@ func (s *server) GetAnalytics(ctx context.Context, req *pb.AnalyticsRequest) (*p
 		var agentFilter []string
 		if req.EnvironmentId != "" {
 			// Filter by specific environment
-			agents, err := s.db.GetAgentIDsForEnvironment(req.EnvironmentId)
+			agents, err := s.db.GetAgentIDsForEnvironment(ctx, req.EnvironmentId)
 			if err != nil {
 				log.Printf("GetAnalytics: Failed to get agents for environment %s: %v", req.EnvironmentId, err)
 			} else {
@@ -701,7 +714,7 @@ func (s *server) GetAnalytics(ctx context.Context, req *pb.AnalyticsRequest) (*p
 			}
 		} else if req.ProjectId != "" {
 			// Filter by project (all environments)
-			agents, err := s.db.GetAgentIDsForProject(req.ProjectId)
+			agents, err := s.db.GetAgentIDsForProject(ctx, req.ProjectId)
 			if err != nil {
 				log.Printf("GetAnalytics: Failed to get agents for project %s: %v", req.ProjectId, err)
 			} else {
@@ -977,7 +990,10 @@ func (s *server) getAgentClient(agentID string) (pb.AgentServiceClient, *grpc.Cl
 	}
 	log.Printf("Found session for %s, dialing %s", agentID, target)
 
-	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(target,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to agent %s: %v", agentID, err)
 	}
@@ -1247,7 +1263,7 @@ func (srv *server) startBackgroundPruning() {
 		retentionPeriod := 10 * 24 * time.Hour
 
 		prune := func() {
-			ids, err := srv.db.PruneStaleAgents(retentionPeriod)
+			ids, err := srv.db.PruneStaleAgents(context.Background(), retentionPeriod)
 			if err != nil {
 				log.Printf("Failed to prune stale agents: %v", err)
 				return
@@ -1288,7 +1304,7 @@ func (srv *server) startHeartbeatMonitoring() {
 		timeout := 5 * time.Minute
 
 		monitor := func() {
-			count, err := srv.db.MarkStaleAgentsOffline(timeout)
+			count, err := srv.db.MarkStaleAgentsOffline(context.Background(), timeout)
 			if err != nil {
 				gatewayLog.Error().Err(err).Msg("Heartbeat monitor failed")
 				return
@@ -1424,11 +1440,14 @@ func main() {
 		gatewayLog.Info().Bool("mtls", cfg.Security.RequireClientCert).Msg("TLS enabled for gRPC")
 	}
 
+	// OTel stats handler — traces all agent RPCs in Grafana Tempo via stats API (v0.68+)
+	grpcOpts = append(grpcOpts, grpc.StatsHandler(otelgrpc.NewServerHandler()))
+
 	// Add PSK interceptors if enabled
 	if cfg.PSK.Enabled {
 		grpcOpts = append(grpcOpts,
-			grpc.UnaryInterceptor(pskManager.UnaryPSKInterceptor()),
-			grpc.StreamInterceptor(pskManager.StreamPSKInterceptor()),
+			grpc.ChainUnaryInterceptor(pskManager.UnaryPSKInterceptor()),
+			grpc.ChainStreamInterceptor(pskManager.StreamPSKInterceptor()),
 		)
 		gatewayLog.Info().Msg("PSK authentication enabled for agent connections")
 	}
@@ -1472,7 +1491,7 @@ func main() {
 	}
 
 	// ── Load agents ─────────────────────────────────────────────────────
-	if err := srv.db.LoadAgents(&srv.sessions); err != nil {
+	if err := srv.db.LoadAgents(context.Background(), &srv.sessions); err != nil {
 		gatewayLog.Warn().Err(err).Msg("Failed to load agents from database")
 	} else {
 		count := 0
@@ -1483,6 +1502,21 @@ func main() {
 		gatewayLog.Info().Int("count", count).Msg("Loaded agents from database")
 	}
 
+	// ── Distributed tracing (OpenTelemetry) ─────────────────────────────
+	// Must run before background services so their DB spans have a live provider.
+	shutdownTracer, err := initTracer("avika-gateway", Version)
+	if err != nil {
+		log.Printf("Warning: tracer init failed: %v", err)
+	}
+	defer func() {
+		// 15s: batch timeout (5s) + network RTT + margin so in-flight spans flush.
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if shutdownTracer != nil {
+			_ = shutdownTracer(ctx)
+		}
+	}()
+
 	// Start background services
 	srv.startUptimeCrawler()
 	if cfg.LLM.Enabled {
@@ -1492,17 +1526,6 @@ func main() {
 	srv.startHeartbeatMonitoring()
 	srv.startGatewayMonitoring()
 	srv.alerts.Start()
-
-	// ── Distributed tracing (OpenTelemetry) ─────────────────────────────
-	shutdownTracer, err := initTracer("avika-gateway", Version)
-	if err != nil {
-		log.Printf("Warning: tracer init failed: %v", err)
-	}
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = shutdownTracer(ctx)
-	}()
 
 	// ── HTTP server ─────────────────────────────────────────────────────
 	httpServer := srv.createHTTPServer(cfg)
@@ -1828,14 +1851,14 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	var userPassChangeClear func(string) error
 	if srv.db != nil {
 		userLookup = func(username string) (passwordHash string, role string, found bool) {
-			user, err := srv.db.GetUser(username)
+			user, err := srv.db.GetUser(context.Background(), username)
 			if err != nil || user == nil {
 				return "", "", false
 			}
 			return user.PasswordHash, user.Role, true
 		}
 		userPassChangeLookup = func(username string) bool {
-			required, err := srv.db.GetUserPassChangeRequired(username)
+			required, err := srv.db.GetUserPassChangeRequired(context.Background(), username)
 			if err != nil {
 				log.Printf("auth: GetUserPassChangeRequired(%s): %v", username, err)
 				return false
@@ -1843,7 +1866,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 			return required
 		}
 		userPassChangeClear = func(username string) error {
-			return srv.db.ClearUserPassChangeRequired(username)
+			return srv.db.ClearUserPassChangeRequired(context.Background(), username)
 		}
 	}
 
@@ -1895,7 +1918,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Callback to persist password changes to database
 	onPasswordChanged := func(username, newHash string) error {
 		if srv.db != nil {
-			return srv.db.UpdateUserPassword(username, newHash)
+			return srv.db.UpdateUserPassword(context.Background(), username, newHash)
 		}
 		return nil
 	}
@@ -1938,7 +1961,7 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 		isSuperAdmin := false
 		if srv.db != nil {
 			var err error
-			isSuperAdmin, err = srv.db.IsSuperAdmin(user.Username)
+			isSuperAdmin, err = srv.db.IsSuperAdmin(r.Context(), user.Username)
 			if err != nil {
 				// Log instead of swallowing — a DB error here means the
 				// frontend silently denies admin access to a real admin.
@@ -2331,7 +2354,11 @@ func (srv *server) createHTTPServer(cfg *config.Config) *http.Server {
 	// Spans are exported to the OTel collector (otel-gateway in monitoring namespace).
 	tracedHandler := otelhttp.NewHandler(handler, "avika-gateway",
 		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
-			// Use "METHOD /path" as the span name so Grafana Tempo groups correctly
+			// Use the matched route pattern (Go 1.22 r.Pattern) to avoid high-cardinality
+			// span names from agent IDs / UUIDs in paths.
+			if p := r.Pattern; p != "" {
+				return r.Method + " " + p
+			}
 			return r.Method + " " + r.URL.Path
 		}),
 	)
@@ -2586,7 +2613,7 @@ func (srv *server) handleTerminal(w http.ResponseWriter, r *http.Request, upgrad
 	// RBAC: Check if user has access to this agent (visible agents use actual session keys)
 	user := middleware.GetUserFromContext(r.Context())
 	if user != nil {
-		visibleAgents, err := srv.db.GetVisibleAgentIDs(user.Username)
+		visibleAgents, err := srv.db.GetVisibleAgentIDs(r.Context(), user.Username)
 		if err != nil {
 			log.Printf("Terminal RBAC error for user %s: %v", user.Username, err)
 			http.Error(w, "Failed to check access permissions", http.StatusInternalServerError)
@@ -2717,7 +2744,7 @@ func (srv *server) handleExportReport(w http.ResponseWriter, r *http.Request) {
 	// RBAC: Filter agent IDs to only those the user can access
 	user := middleware.GetUserFromContext(r.Context())
 	if user != nil {
-		visibleAgents, err := srv.db.GetVisibleAgentIDs(user.Username)
+		visibleAgents, err := srv.db.GetVisibleAgentIDs(r.Context(), user.Username)
 		if err != nil {
 			log.Printf("Export report RBAC error for user %s: %v", user.Username, err)
 			http.Error(w, "Failed to check access permissions", http.StatusInternalServerError)
@@ -2847,14 +2874,22 @@ func (srv *server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "# TYPE nginx_gateway_recommendations_count gauge\n")
 	fmt.Fprintf(w, "nginx_gateway_recommendations_count %d\n", recCount)
 
-	// Append Prometheus-registered HTTP metrics (avika_http_requests_total, avika_http_request_duration_seconds)
+	// Append Prometheus-registered HTTP metrics using OpenMetrics format (1.0.0).
+	// The classic text/plain 0.0.4 format silently drops exemplars — OpenMetrics
+	// is required for Grafana's "click metric → jump to Tempo trace" flow.
+	w.Header().Set("Content-Type", string(expfmt.FmtOpenMetrics_1_0_0))
+	enc := expfmt.NewEncoder(w, expfmt.FmtOpenMetrics_1_0_0)
 	if mfs, err := prometheus.DefaultGatherer.Gather(); err == nil {
 		for _, mf := range mfs {
-			if _, err := expfmt.MetricFamilyToText(w, mf); err != nil {
-				log.Printf("metrics: write avika_http metrics: %v", err)
+			if err := enc.Encode(mf); err != nil {
+				log.Printf("metrics: encode avika_http metrics: %v", err)
 				break
 			}
 		}
+	}
+	// OpenMetrics requires a terminal # EOF marker
+	if closer, ok := enc.(io.Closer); ok {
+		_ = closer.Close()
 	}
 }
 
@@ -2869,14 +2904,14 @@ func (s *server) GetTraces(ctx context.Context, req *pb.TraceRequest) (*pb.Trace
 	// Project/environment filtering
 	var agentFilter []string
 	if req.EnvironmentId != "" {
-		agents, err := s.db.GetAgentIDsForEnvironment(req.EnvironmentId)
+		agents, err := s.db.GetAgentIDsForEnvironment(ctx, req.EnvironmentId)
 		if err != nil {
 			log.Printf("GetTraces: Failed to get agents for environment %s: %v", req.EnvironmentId, err)
 		} else {
 			agentFilter = agents
 		}
 	} else if req.ProjectId != "" {
-		agents, err := s.db.GetAgentIDsForProject(req.ProjectId)
+		agents, err := s.db.GetAgentIDsForProject(ctx, req.ProjectId)
 		if err != nil {
 			log.Printf("GetTraces: Failed to get agents for project %s: %v", req.ProjectId, err)
 		} else {
@@ -2895,7 +2930,7 @@ func (s *server) GetTraceDetails(ctx context.Context, req *pb.TraceRequest) (*pb
 }
 
 func (s *server) ListAlertRules(ctx context.Context, req *pb.ListAlertRulesRequest) (*pb.AlertRuleList, error) {
-	rules, err := s.db.ListAlertRules()
+	rules, err := s.db.ListAlertRules(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -2910,14 +2945,14 @@ func (s *server) CreateAlertRule(ctx context.Context, req *pb.AlertRule) (*pb.Al
 		// Invalid UUID provided, generate a new one
 		req.Id = uuid.New().String()
 	}
-	if err := s.db.UpsertAlertRule(req); err != nil {
+	if err := s.db.UpsertAlertRule(ctx, req); err != nil {
 		return nil, err
 	}
 	return req, nil
 }
 
 func (s *server) DeleteAlertRule(ctx context.Context, req *pb.DeleteAlertRuleRequest) (*pb.DeleteAlertRuleResponse, error) {
-	if err := s.db.DeleteAlertRule(req.Id); err != nil {
+	if err := s.db.DeleteAlertRule(ctx, req.Id); err != nil {
 		return &pb.DeleteAlertRuleResponse{Success: false}, err
 	}
 	return &pb.DeleteAlertRuleResponse{Success: true}, nil
@@ -2944,7 +2979,7 @@ func (srv *server) handleGeoData(w http.ResponseWriter, r *http.Request) {
 	var agentFilter []string
 	if environmentID != "" {
 		// Filter by specific environment
-		agents, err := srv.db.GetAgentIDsForEnvironment(environmentID)
+		agents, err := srv.db.GetAgentIDsForEnvironment(r.Context(), environmentID)
 		if err != nil {
 			log.Printf("Geo data: Failed to get agents for environment %s: %v", environmentID, err)
 			http.Error(w, `{"error":"Failed to get agents for environment"}`, http.StatusInternalServerError)
@@ -2953,7 +2988,7 @@ func (srv *server) handleGeoData(w http.ResponseWriter, r *http.Request) {
 		agentFilter = agents
 	} else if projectID != "" {
 		// Filter by project (all environments)
-		agents, err := srv.db.GetAgentIDsForProject(projectID)
+		agents, err := srv.db.GetAgentIDsForProject(r.Context(), projectID)
 		if err != nil {
 			log.Printf("Geo data: Failed to get agents for project %s: %v", projectID, err)
 			http.Error(w, `{"error":"Failed to get agents for project"}`, http.StatusInternalServerError)
@@ -2964,7 +2999,7 @@ func (srv *server) handleGeoData(w http.ResponseWriter, r *http.Request) {
 		// RBAC: Get visible agents for the user to filter geo data
 		user := middleware.GetUserFromContext(r.Context())
 		if user != nil {
-			visibleAgents, err := srv.db.GetVisibleAgentIDs(user.Username)
+			visibleAgents, err := srv.db.GetVisibleAgentIDs(r.Context(), user.Username)
 			if err != nil {
 				log.Printf("Geo data RBAC error for user %s: %v", user.Username, err)
 				http.Error(w, `{"error":"Failed to check access permissions"}`, http.StatusInternalServerError)
@@ -3019,9 +3054,9 @@ func (srv *server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 	// Apply RBAC filtering if DB is available
 	user := middleware.GetUserFromContext(r.Context())
 	if user != nil && srv.db != nil {
-		isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+		isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 		if !isSuperAdmin {
-			visibleIDs, _ := srv.db.GetVisibleAgentIDs(user.Username)
+			visibleIDs, _ := srv.db.GetVisibleAgentIDs(r.Context(), user.Username)
 			visibleSet := make(map[string]struct{}, len(visibleIDs))
 			for _, id := range visibleIDs {
 				visibleSet[id] = struct{}{}
@@ -3183,10 +3218,10 @@ func (srv *server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
 	if srv.clickhouse != nil {
 		// Use ClickHouse logic
 		if req.EnvironmentId != "" {
-			agents, _ := srv.db.GetAgentIDsForEnvironment(req.EnvironmentId)
+			agents, _ := srv.db.GetAgentIDsForEnvironment(r.Context(), req.EnvironmentId)
 			resp, err = srv.clickhouse.GetAnalyticsWithAgentFilter(ctx, req, agents)
 		} else if req.ProjectId != "" {
-			agents, _ := srv.db.GetAgentIDsForProject(req.ProjectId)
+			agents, _ := srv.db.GetAgentIDsForProject(r.Context(), req.ProjectId)
 			resp, err = srv.clickhouse.GetAnalyticsWithAgentFilter(ctx, req, agents)
 		} else {
 			resp, err = srv.clickhouse.GetAnalyticsWithAgentFilter(ctx, req, nil)
@@ -3367,7 +3402,7 @@ const (
 //   - Agent has no labels → assign to Unclassified project/environment.
 //   - If agent is being moved FROM Unclassified TO a real project → remove from Unclassified first.
 //   - Agent cannot be in both Unclassified and a real project simultaneously.
-func (s *server) autoAssignAgentToEnvironment(agentID string, labels map[string]string) {
+func (s *server) autoAssignAgentToEnvironment(ctx context.Context, agentID string, labels map[string]string) {
 	if s.db == nil {
 		return
 	}
@@ -3380,7 +3415,7 @@ func (s *server) autoAssignAgentToEnvironment(agentID string, labels map[string]
 
 	if projectSlug != "" && envSlug != "" {
 		// Agent declares a project + environment — look up (don't create)
-		project, err := s.db.GetProjectBySlug(projectSlug)
+		project, err := s.db.GetProjectBySlug(ctx, projectSlug)
 		if err != nil || project == nil {
 			gatewayLog.Warn().Str("agent_id", agentID).Str("project", projectSlug).
 				Msg("Agent references non-existent project. Assigning to Unclassified. Create the project first, then the agent will auto-assign on next heartbeat.")
@@ -3388,7 +3423,7 @@ func (s *server) autoAssignAgentToEnvironment(agentID string, labels map[string]
 			targetProjectName = "Unclassified"
 			targetEnvName = "Unclassified"
 		} else {
-			env, err := s.db.GetEnvironmentBySlug(project.ID, envSlug)
+			env, err := s.db.GetEnvironmentBySlug(ctx, project.ID, envSlug)
 			if err != nil || env == nil {
 				gatewayLog.Warn().Str("agent_id", agentID).Str("project", projectSlug).Str("environment", envSlug).
 					Msg("Agent references non-existent environment. Assigning to Unclassified. Create the environment first.")
@@ -3409,7 +3444,7 @@ func (s *server) autoAssignAgentToEnvironment(agentID string, labels map[string]
 	}
 
 	// Check current assignment
-	existing, err := s.db.GetServerAssignment(agentID)
+	existing, err := s.db.GetServerAssignment(ctx, agentID)
 	if err == nil && existing != nil {
 		if existing.EnvironmentID == targetEnvID {
 			return // Already correctly assigned
@@ -3419,7 +3454,7 @@ func (s *server) autoAssignAgentToEnvironment(agentID string, labels map[string]
 		// If moving FROM real TO Unclassified → only if explicitly unassigned (don't downgrade)
 		if existing.EnvironmentID == unclassifiedEnvID && targetEnvID != unclassifiedEnvID {
 			// Upgrading from Unclassified to real project — remove old assignment
-			_ = s.db.UnassignServer(agentID)
+			_ = s.db.UnassignServer(ctx, agentID)
 		} else if existing.EnvironmentID != unclassifiedEnvID && targetEnvID == unclassifiedEnvID {
 			// Agent is already in a real project but labels are missing/wrong — keep existing, don't downgrade
 			return
@@ -3430,7 +3465,7 @@ func (s *server) autoAssignAgentToEnvironment(agentID string, labels map[string]
 	}
 
 	displayName := labels["name"]
-	_, err = s.db.AssignServer(agentID, targetEnvID, displayName, "", nil)
+	_, err = s.db.AssignServer(ctx, agentID, targetEnvID, displayName, "", nil)
 	if err != nil {
 		gatewayLog.Warn().Err(err).Str("agent_id", agentID).Msg("Auto-assign failed")
 		return

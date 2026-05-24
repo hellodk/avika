@@ -43,13 +43,13 @@ func (srv *server) handleStageConfig(w http.ResponseWriter, r *http.Request) {
 		Description: req.Description,
 	}
 
-	if err := srv.db.UpsertStagedConfig(staged); err != nil {
+	if err := srv.db.UpsertStagedConfig(r.Context(), staged); err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "stage_config", "config", req.TargetID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "stage_config", "config", req.TargetID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"path": req.ConfigPath,
 	})
 
@@ -67,7 +67,7 @@ func (srv *server) handleGetStagedConfig(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	staged, err := srv.db.GetStagedConfig(targetID, configPath)
+	staged, err := srv.db.GetStagedConfig(r.Context(), targetID, configPath)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
 		return
@@ -93,7 +93,7 @@ func (srv *server) handleDiscardStagedConfig(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := srv.db.DeleteStagedConfig(targetID, configPath); err != nil {
+	if err := srv.db.DeleteStagedConfig(r.Context(), targetID, configPath); err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
 		return
 	}

@@ -62,7 +62,7 @@ func (e *AlertEngine) loadCooldowns() {
 	if e.db == nil {
 		return
 	}
-	cooldowns, err := e.db.LoadAlertCooldowns()
+	cooldowns, err := e.db.LoadAlertCooldowns(context.Background())
 	if err != nil {
 		log.Printf("AlertEngine: failed to load cooldowns from DB: %v", err)
 		return
@@ -82,7 +82,7 @@ func (e *AlertEngine) Stop() {
 }
 
 func (e *AlertEngine) evaluateRules() {
-	rules, err := e.db.ListAlertRules()
+	rules, err := e.db.ListAlertRules(context.Background())
 	if err != nil {
 		log.Printf("AlertEngine: Failed to list rules: %v", err)
 		return
@@ -306,7 +306,7 @@ func (e *AlertEngine) recordFired(ruleID string) {
 	e.lastFiredMu.Unlock()
 
 	if e.db != nil {
-		if err := e.db.UpdateAlertLastFired(ruleID, now); err != nil {
+		if err := e.db.UpdateAlertLastFired(context.Background(), ruleID, now); err != nil {
 			log.Printf("AlertEngine: failed to persist last_fired_at for rule %s: %v", ruleID, err)
 		}
 	}

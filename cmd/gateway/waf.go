@@ -11,7 +11,7 @@ import (
 
 // handleListWAFPolicies handles GET /api/waf/policies
 func (srv *server) handleListWAFPolicies(w http.ResponseWriter, r *http.Request) {
-	policies, err := srv.db.ListWAFPolicies()
+	policies, err := srv.db.ListWAFPolicies(r.Context(), )
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
 		return
@@ -43,13 +43,13 @@ func (srv *server) handleCreateWAFPolicy(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := srv.db.UpsertWAFPolicy(&p); err != nil {
+	if err := srv.db.UpsertWAFPolicy(r.Context(), &p); err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "create_waf_policy", "waf", p.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "create_waf_policy", "waf", p.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"name": p.Name,
 	})
 
@@ -65,7 +65,7 @@ func (srv *server) handleGetWAFPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	policy, err := srv.db.GetWAFPolicy(id)
+	policy, err := srv.db.GetWAFPolicy(r.Context(), id)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
 		return
@@ -101,13 +101,13 @@ func (srv *server) handleUpdateWAFPolicy(w http.ResponseWriter, r *http.Request)
 	}
 	p.ID = id
 
-	if err := srv.db.UpsertWAFPolicy(&p); err != nil {
+	if err := srv.db.UpsertWAFPolicy(r.Context(), &p); err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "update_waf_policy", "waf", p.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "update_waf_policy", "waf", p.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"name": p.Name,
 	})
 

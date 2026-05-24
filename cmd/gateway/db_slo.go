@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
 	"time"
+
+	"go.opentelemetry.io/otel/codes"
 )
 
 type SLOTarget struct {
@@ -17,6 +20,8 @@ type SLOTarget struct {
 
 // UpsertSLOTarget creates or updates an SLO target
 func (db *DB) UpsertSLOTarget(target *SLOTarget) error {
+	ctx, span := db.dbSpan(context.Background(), "INSERT", "slo_targets")
+	defer span.End()
 	query := `
 	INSERT INTO slo_targets (entity_type, entity_id, slo_type, target_value, time_window, created_at, updated_at)
 	VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -25,15 +30,24 @@ func (db *DB) UpsertSLOTarget(target *SLOTarget) error {
 		updated_at = CURRENT_TIMESTAMP
 	RETURNING id, created_at, updated_at;
 	`
-	return db.conn.QueryRow(query, target.EntityType, target.EntityID, target.SLOType, target.TargetValue, target.TimeWindow).
+	err := db.conn.QueryRowContext(ctx, query, target.EntityType, target.EntityID, target.SLOType, target.TargetValue, target.TimeWindow).
 		Scan(&target.ID, &target.CreatedAt, &target.UpdatedAt)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return err
 }
 
 // ListSLOTargets returns all SLO targets
 func (db *DB) ListSLOTargets() ([]SLOTarget, error) {
+	ctx, span := db.dbSpan(context.Background(), "SELECT", "slo_targets")
+	defer span.End()
 	query := `SELECT id, entity_type, entity_id, slo_type, target_value, time_window, created_at, updated_at FROM slo_targets ORDER BY created_at DESC;`
-	rows, err := db.conn.Query(query)
+	rows, err := db.conn.QueryContext(ctx, query)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -51,6 +65,12 @@ func (db *DB) ListSLOTargets() ([]SLOTarget, error) {
 
 // DeleteSLOTarget removes an SLO target
 func (db *DB) DeleteSLOTarget(id string) error {
-	_, err := db.conn.Exec("DELETE FROM slo_targets WHERE id = $1", id)
+	ctx, span := db.dbSpan(context.Background(), "DELETE", "slo_targets")
+	defer span.End()
+	_, err := db.conn.ExecContext(ctx, "DELETE FROM slo_targets WHERE id = $1", id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }

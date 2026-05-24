@@ -37,11 +37,11 @@ func (srv *server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	// Superadmins see all projects
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if isSuperAdmin {
-		projects, err = srv.db.ListProjects()
+		projects, err = srv.db.ListProjects(r.Context(), )
 	} else {
-		projects, err = srv.db.ListProjectsForUser(user.Username)
+		projects, err = srv.db.ListProjectsForUser(r.Context(), user.Username)
 	}
 
 	if err != nil {
@@ -67,7 +67,7 @@ func (srv *server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only superadmins can create projects
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
 		return
@@ -93,7 +93,7 @@ func (srv *server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		req.Slug = slugify(req.Name)
 	}
 
-	project, err := srv.db.CreateProject(req.Name, req.Slug, req.Description, user.Username)
+	project, err := srv.db.CreateProject(r.Context(), req.Name, req.Slug, req.Description, user.Username)
 	if err != nil {
 		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
 			http.Error(w, `{"error":"project with this slug already exists"}`, http.StatusConflict)
@@ -107,7 +107,7 @@ func (srv *server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 	// with LABEL_ENVIRONMENT/AVIKA_LABEL_ENVIRONMENT or by admin in Settings.
 
 	// Audit log
-	if err := srv.db.CreateAuditLog(user.Username, "create", "project", project.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	if err := srv.db.CreateAuditLog(r.Context(), user.Username, "create", "project", project.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"name": req.Name,
 		"slug": req.Slug,
 	}); err != nil {
@@ -134,13 +134,13 @@ func (srv *server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check access
-	hasAccess, _ := srv.db.HasProjectAccess(user.Username, projectID, PermissionRead)
+	hasAccess, _ := srv.db.HasProjectAccess(r.Context(), user.Username, projectID, PermissionRead)
 	if !hasAccess {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
 
-	project, err := srv.db.GetProject(projectID)
+	project, err := srv.db.GetProject(r.Context(), projectID)
 	if err != nil {
 		http.Error(w, `{"error":"failed to get project"}`, http.StatusInternalServerError)
 		return
@@ -169,7 +169,7 @@ func (srv *server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check admin access
-	hasAccess, _ := srv.db.HasProjectAccess(user.Username, projectID, PermissionAdmin)
+	hasAccess, _ := srv.db.HasProjectAccess(r.Context(), user.Username, projectID, PermissionAdmin)
 	if !hasAccess {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
@@ -184,13 +184,13 @@ func (srv *server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := srv.db.UpdateProject(projectID, req.Name, req.Description); err != nil {
+	if err := srv.db.UpdateProject(r.Context(), projectID, req.Name, req.Description); err != nil {
 		http.Error(w, `{"error":"failed to update project"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	if err := srv.db.CreateAuditLog(user.Username, "update", "project", projectID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	if err := srv.db.CreateAuditLog(r.Context(), user.Username, "update", "project", projectID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"name": req.Name,
 	}); err != nil {
 		fmt.Printf("handleUpdateProject: failed to create audit log for user %s project %s: %v\n", user.Username, projectID, err)
@@ -209,7 +209,7 @@ func (srv *server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only superadmins can delete projects
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
 		return
@@ -221,13 +221,13 @@ func (srv *server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := srv.db.DeleteProject(projectID); err != nil {
+	if err := srv.db.DeleteProject(r.Context(), projectID); err != nil {
 		http.Error(w, `{"error":"failed to delete project"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "delete", "project", projectID, r.RemoteAddr, r.UserAgent(), nil)
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "delete", "project", projectID, r.RemoteAddr, r.UserAgent(), nil)
 
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
@@ -252,13 +252,13 @@ func (srv *server) handleListEnvironments(w http.ResponseWriter, r *http.Request
 	}
 
 	// Check access
-	hasAccess, _ := srv.db.HasProjectAccess(user.Username, projectID, PermissionRead)
+	hasAccess, _ := srv.db.HasProjectAccess(r.Context(), user.Username, projectID, PermissionRead)
 	if !hasAccess {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
 
-	envs, err := srv.db.ListEnvironments(projectID)
+	envs, err := srv.db.ListEnvironments(r.Context(), projectID)
 	if err != nil {
 		http.Error(w, `{"error":"failed to list environments"}`, http.StatusInternalServerError)
 		return
@@ -286,7 +286,7 @@ func (srv *server) handleListProjectGroups(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	hasAccess, _ := srv.db.HasProjectAccess(user.Username, projectID, PermissionRead)
+	hasAccess, _ := srv.db.HasProjectAccess(r.Context(), user.Username, projectID, PermissionRead)
 	if !hasAccess {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
@@ -320,7 +320,7 @@ func (srv *server) handleCreateEnvironment(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Check admin access
-	hasAccess, _ := srv.db.HasProjectAccess(user.Username, projectID, PermissionAdmin)
+	hasAccess, _ := srv.db.HasProjectAccess(r.Context(), user.Username, projectID, PermissionAdmin)
 	if !hasAccess {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
@@ -351,7 +351,7 @@ func (srv *server) handleCreateEnvironment(w http.ResponseWriter, r *http.Reques
 		req.Color = "#6366f1"
 	}
 
-	env, err := srv.db.CreateEnvironment(projectID, req.Name, req.Slug, req.Description, req.Color, req.SortOrder, req.IsProduction)
+	env, err := srv.db.CreateEnvironment(r.Context(), projectID, req.Name, req.Slug, req.Description, req.Color, req.SortOrder, req.IsProduction)
 	if err != nil {
 		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
 			http.Error(w, `{"error":"environment with this slug already exists in project"}`, http.StatusConflict)
@@ -362,7 +362,7 @@ func (srv *server) handleCreateEnvironment(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "create", "environment", env.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "create", "environment", env.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"name":       req.Name,
 		"project_id": projectID,
 	})
@@ -387,14 +387,14 @@ func (srv *server) handleUpdateEnvironment(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Get environment to find project
-	env, err := srv.db.GetEnvironment(envID)
+	env, err := srv.db.GetEnvironment(r.Context(), envID)
 	if err != nil || env == nil {
 		http.Error(w, `{"error":"environment not found"}`, http.StatusNotFound)
 		return
 	}
 
 	// Check admin access to project
-	hasAccess, _ := srv.db.HasProjectAccess(user.Username, env.ProjectID, PermissionAdmin)
+	hasAccess, _ := srv.db.HasProjectAccess(r.Context(), user.Username, env.ProjectID, PermissionAdmin)
 	if !hasAccess {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
@@ -412,13 +412,13 @@ func (srv *server) handleUpdateEnvironment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := srv.db.UpdateEnvironment(envID, req.Name, req.Description, req.Color, req.SortOrder, req.IsProduction); err != nil {
+	if err := srv.db.UpdateEnvironment(r.Context(), envID, req.Name, req.Description, req.Color, req.SortOrder, req.IsProduction); err != nil {
 		http.Error(w, `{"error":"failed to update environment"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "update", "environment", envID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "update", "environment", envID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"name": req.Name,
 	})
 
@@ -441,26 +441,26 @@ func (srv *server) handleDeleteEnvironment(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Get environment to find project
-	env, err := srv.db.GetEnvironment(envID)
+	env, err := srv.db.GetEnvironment(r.Context(), envID)
 	if err != nil || env == nil {
 		http.Error(w, `{"error":"environment not found"}`, http.StatusNotFound)
 		return
 	}
 
 	// Check admin access to project
-	hasAccess, _ := srv.db.HasProjectAccess(user.Username, env.ProjectID, PermissionAdmin)
+	hasAccess, _ := srv.db.HasProjectAccess(r.Context(), user.Username, env.ProjectID, PermissionAdmin)
 	if !hasAccess {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
 
-	if err := srv.db.DeleteEnvironment(envID); err != nil {
+	if err := srv.db.DeleteEnvironment(r.Context(), envID); err != nil {
 		http.Error(w, `{"error":"failed to delete environment"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "delete", "environment", envID, r.RemoteAddr, r.UserAgent(), nil)
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "delete", "environment", envID, r.RemoteAddr, r.UserAgent(), nil)
 
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
@@ -500,27 +500,27 @@ func (srv *server) handleAssignServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get environment to find project
-	env, err := srv.db.GetEnvironment(req.EnvironmentID)
+	env, err := srv.db.GetEnvironment(r.Context(), req.EnvironmentID)
 	if err != nil || env == nil {
 		http.Error(w, `{"error":"environment not found"}`, http.StatusNotFound)
 		return
 	}
 
 	// Check admin access to project
-	hasAccess, _ := srv.db.HasProjectAccess(user.Username, env.ProjectID, PermissionAdmin)
+	hasAccess, _ := srv.db.HasProjectAccess(r.Context(), user.Username, env.ProjectID, PermissionAdmin)
 	if !hasAccess {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
 
-	assignment, err := srv.db.AssignServer(agentID, req.EnvironmentID, req.DisplayName, user.Username, req.Tags)
+	assignment, err := srv.db.AssignServer(r.Context(), agentID, req.EnvironmentID, req.DisplayName, user.Username, req.Tags)
 	if err != nil {
 		http.Error(w, `{"error":"failed to assign server"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "assign", "server", agentID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "assign", "server", agentID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"environment_id": req.EnvironmentID,
 	})
 
@@ -543,16 +543,16 @@ func (srv *server) handleUnassignServer(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Get current assignment to check access
-	assignment, err := srv.db.GetServerAssignment(agentID)
+	assignment, err := srv.db.GetServerAssignment(r.Context(), agentID)
 	if err != nil {
 		http.Error(w, `{"error":"failed to get assignment"}`, http.StatusInternalServerError)
 		return
 	}
 
 	if assignment != nil && assignment.EnvironmentID != "" {
-		env, _ := srv.db.GetEnvironment(assignment.EnvironmentID)
+		env, _ := srv.db.GetEnvironment(r.Context(), assignment.EnvironmentID)
 		if env != nil {
-			hasAccess, _ := srv.db.HasProjectAccess(user.Username, env.ProjectID, PermissionAdmin)
+			hasAccess, _ := srv.db.HasProjectAccess(r.Context(), user.Username, env.ProjectID, PermissionAdmin)
 			if !hasAccess {
 				http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 				return
@@ -560,20 +560,20 @@ func (srv *server) handleUnassignServer(w http.ResponseWriter, r *http.Request) 
 		}
 	} else {
 		// Only superadmins can unassign servers that aren't assigned
-		isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+		isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 		if !isSuperAdmin {
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 	}
 
-	if err := srv.db.UnassignServer(agentID); err != nil {
+	if err := srv.db.UnassignServer(r.Context(), agentID); err != nil {
 		http.Error(w, `{"error":"failed to unassign server"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "unassign", "server", agentID, r.RemoteAddr, r.UserAgent(), nil)
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "unassign", "server", agentID, r.RemoteAddr, r.UserAgent(), nil)
 
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "unassigned"})
@@ -591,11 +591,11 @@ func (srv *server) handleListServerAssignments(w http.ResponseWriter, r *http.Re
 	// for projects they belong to (via team membership).
 	var assignments []ServerAssignmentWithDetails
 	var err error
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if isSuperAdmin {
-		assignments, err = srv.db.ListAllServerAssignments()
+		assignments, err = srv.db.ListAllServerAssignments(r.Context(), )
 	} else {
-		assignments, err = srv.db.ListServerAssignmentsForUser(user.Username)
+		assignments, err = srv.db.ListServerAssignmentsForUser(r.Context(), user.Username)
 	}
 	if err != nil {
 		http.Error(w, `{"error":"failed to list server assignments"}`, http.StatusInternalServerError)
@@ -621,13 +621,13 @@ func (srv *server) handleListUnassignedServers(w http.ResponseWriter, r *http.Re
 	}
 
 	// Only superadmins can see unassigned servers
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
 		return
 	}
 
-	agents, err := srv.db.ListUnassignedServers()
+	agents, err := srv.db.ListUnassignedServers(r.Context(), )
 	if err != nil {
 		http.Error(w, `{"error":"failed to list unassigned servers"}`, http.StatusInternalServerError)
 		return
@@ -656,16 +656,16 @@ func (srv *server) handleUpdateServerTags(w http.ResponseWriter, r *http.Request
 	}
 
 	// Get current assignment to check access
-	assignment, err := srv.db.GetServerAssignment(agentID)
+	assignment, err := srv.db.GetServerAssignment(r.Context(), agentID)
 	if err != nil || assignment == nil {
 		http.Error(w, `{"error":"server assignment not found"}`, http.StatusNotFound)
 		return
 	}
 
 	if assignment.EnvironmentID != "" {
-		env, _ := srv.db.GetEnvironment(assignment.EnvironmentID)
+		env, _ := srv.db.GetEnvironment(r.Context(), assignment.EnvironmentID)
 		if env != nil {
-			hasAccess, _ := srv.db.HasProjectAccess(user.Username, env.ProjectID, PermissionAdmin)
+			hasAccess, _ := srv.db.HasProjectAccess(r.Context(), user.Username, env.ProjectID, PermissionAdmin)
 			if !hasAccess {
 				http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 				return
@@ -681,7 +681,7 @@ func (srv *server) handleUpdateServerTags(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := srv.db.UpdateServerTags(agentID, req.Tags); err != nil {
+	if err := srv.db.UpdateServerTags(r.Context(), agentID, req.Tags); err != nil {
 		http.Error(w, `{"error":"failed to update tags"}`, http.StatusInternalServerError)
 		return
 	}
@@ -706,11 +706,11 @@ func (srv *server) handleListTeams(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	// Superadmins see all teams, others see only their teams
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if isSuperAdmin {
-		teams, err = srv.db.ListTeams()
+		teams, err = srv.db.ListTeams(r.Context(), )
 	} else {
-		teams, err = srv.db.ListTeamsForUser(user.Username)
+		teams, err = srv.db.ListTeamsForUser(r.Context(), user.Username)
 	}
 
 	if err != nil {
@@ -735,7 +735,7 @@ func (srv *server) handleCreateTeam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only superadmins can create teams
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
 		return
@@ -760,7 +760,7 @@ func (srv *server) handleCreateTeam(w http.ResponseWriter, r *http.Request) {
 		req.Slug = slugify(req.Name)
 	}
 
-	team, err := srv.db.CreateTeam(req.Name, req.Slug, req.Description)
+	team, err := srv.db.CreateTeam(r.Context(), req.Name, req.Slug, req.Description)
 	if err != nil {
 		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
 			http.Error(w, `{"error":"team with this slug already exists"}`, http.StatusConflict)
@@ -771,7 +771,7 @@ func (srv *server) handleCreateTeam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "create", "team", team.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "create", "team", team.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"name": req.Name,
 	})
 
@@ -795,16 +795,16 @@ func (srv *server) handleGetTeam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user is member of team or superadmin
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
-		member, _ := srv.db.GetTeamMember(teamID, user.Username)
+		member, _ := srv.db.GetTeamMember(r.Context(), teamID, user.Username)
 		if member == nil {
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 	}
 
-	team, err := srv.db.GetTeam(teamID)
+	team, err := srv.db.GetTeam(r.Context(), teamID)
 	if err != nil {
 		http.Error(w, `{"error":"failed to get team"}`, http.StatusInternalServerError)
 		return
@@ -833,9 +833,9 @@ func (srv *server) handleUpdateTeam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user is admin of team or superadmin
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
-		member, _ := srv.db.GetTeamMember(teamID, user.Username)
+		member, _ := srv.db.GetTeamMember(r.Context(), teamID, user.Username)
 		if member == nil || member.Role != TeamRoleAdmin {
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 			return
@@ -851,13 +851,13 @@ func (srv *server) handleUpdateTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := srv.db.UpdateTeam(teamID, req.Name, req.Description); err != nil {
+	if err := srv.db.UpdateTeam(r.Context(), teamID, req.Name, req.Description); err != nil {
 		http.Error(w, `{"error":"failed to update team"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "update", "team", teamID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "update", "team", teamID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"name": req.Name,
 	})
 
@@ -874,7 +874,7 @@ func (srv *server) handleDeleteTeam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only superadmins can delete teams
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
 		return
@@ -886,13 +886,13 @@ func (srv *server) handleDeleteTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := srv.db.DeleteTeam(teamID); err != nil {
+	if err := srv.db.DeleteTeam(r.Context(), teamID); err != nil {
 		http.Error(w, `{"error":"failed to delete team"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "delete", "team", teamID, r.RemoteAddr, r.UserAgent(), nil)
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "delete", "team", teamID, r.RemoteAddr, r.UserAgent(), nil)
 
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
@@ -913,16 +913,16 @@ func (srv *server) handleListTeamMembers(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Check if user is member of team or superadmin
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
-		member, _ := srv.db.GetTeamMember(teamID, user.Username)
+		member, _ := srv.db.GetTeamMember(r.Context(), teamID, user.Username)
 		if member == nil {
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 	}
 
-	members, err := srv.db.ListTeamMembers(teamID)
+	members, err := srv.db.ListTeamMembers(r.Context(), teamID)
 	if err != nil {
 		http.Error(w, `{"error":"failed to list team members"}`, http.StatusInternalServerError)
 		return
@@ -951,9 +951,9 @@ func (srv *server) handleAddTeamMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user is admin of team or superadmin
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
-		member, _ := srv.db.GetTeamMember(teamID, user.Username)
+		member, _ := srv.db.GetTeamMember(r.Context(), teamID, user.Username)
 		if member == nil || member.Role != TeamRoleAdmin {
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 			return
@@ -978,13 +978,13 @@ func (srv *server) handleAddTeamMember(w http.ResponseWriter, r *http.Request) {
 		req.Role = TeamRoleMember
 	}
 
-	if err := srv.db.AddTeamMember(teamID, req.Username, req.Role); err != nil {
+	if err := srv.db.AddTeamMember(r.Context(), teamID, req.Username, req.Role); err != nil {
 		http.Error(w, `{"error":"failed to add team member"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "add_member", "team", teamID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "add_member", "team", teamID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"member_username": req.Username,
 		"role":            string(req.Role),
 	})
@@ -1009,22 +1009,22 @@ func (srv *server) handleRemoveTeamMember(w http.ResponseWriter, r *http.Request
 	}
 
 	// Check if user is admin of team or superadmin
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
-		member, _ := srv.db.GetTeamMember(teamID, user.Username)
+		member, _ := srv.db.GetTeamMember(r.Context(), teamID, user.Username)
 		if member == nil || member.Role != TeamRoleAdmin {
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 	}
 
-	if err := srv.db.RemoveTeamMember(teamID, username); err != nil {
+	if err := srv.db.RemoveTeamMember(r.Context(), teamID, username); err != nil {
 		http.Error(w, `{"error":"failed to remove team member"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "remove_member", "team", teamID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "remove_member", "team", teamID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"member_username": username,
 	})
 
@@ -1041,7 +1041,7 @@ func (srv *server) handleGrantProjectAccess(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Only superadmins can grant project access
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
 		return
@@ -1071,13 +1071,13 @@ func (srv *server) handleGrantProjectAccess(w http.ResponseWriter, r *http.Reque
 		req.Permission = PermissionRead
 	}
 
-	if err := srv.db.GrantProjectAccess(teamID, req.ProjectID, req.Permission, user.Username); err != nil {
+	if err := srv.db.GrantProjectAccess(r.Context(), teamID, req.ProjectID, req.Permission, user.Username); err != nil {
 		http.Error(w, `{"error":"failed to grant project access"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "grant_access", "team_project", teamID+":"+req.ProjectID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "grant_access", "team_project", teamID+":"+req.ProjectID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"project_id": req.ProjectID,
 		"permission": string(req.Permission),
 	})
@@ -1095,7 +1095,7 @@ func (srv *server) handleRevokeProjectAccess(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Only superadmins can revoke project access
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
 		return
@@ -1108,13 +1108,13 @@ func (srv *server) handleRevokeProjectAccess(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := srv.db.RevokeProjectAccess(teamID, projectID); err != nil {
+	if err := srv.db.RevokeProjectAccess(r.Context(), teamID, projectID); err != nil {
 		http.Error(w, `{"error":"failed to revoke project access"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "revoke_access", "team_project", teamID+":"+projectID, r.RemoteAddr, r.UserAgent(), nil)
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "revoke_access", "team_project", teamID+":"+projectID, r.RemoteAddr, r.UserAgent(), nil)
 
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "revoked"})
@@ -1135,16 +1135,16 @@ func (srv *server) handleListTeamProjects(w http.ResponseWriter, r *http.Request
 	}
 
 	// Check if user is member of team or superadmin
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
-		member, _ := srv.db.GetTeamMember(teamID, user.Username)
+		member, _ := srv.db.GetTeamMember(r.Context(), teamID, user.Username)
 		if member == nil {
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 	}
 
-	access, err := srv.db.ListTeamProjectAccess(teamID)
+	access, err := srv.db.ListTeamProjectAccess(r.Context(), teamID)
 	if err != nil {
 		http.Error(w, `{"error":"failed to list team projects"}`, http.StatusInternalServerError)
 		return
@@ -1177,16 +1177,16 @@ func (srv *server) handleCreateEnrollmentToken(w http.ResponseWriter, r *http.Re
 	}
 
 	// Get environment to check project access
-	env, err := srv.db.GetEnvironment(envID)
+	env, err := srv.db.GetEnvironment(r.Context(), envID)
 	if err != nil || env == nil {
 		http.Error(w, `{"error":"environment not found"}`, http.StatusNotFound)
 		return
 	}
 
 	// Check if user has admin access to the project (or is superadmin)
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
-		hasAccess, _ := srv.db.HasProjectAccess(user.Username, env.ProjectID, PermissionAdmin)
+		hasAccess, _ := srv.db.HasProjectAccess(r.Context(), user.Username, env.ProjectID, PermissionAdmin)
 		if !hasAccess {
 			http.Error(w, `{"error":"forbidden","message":"admin access required to create enrollment tokens"}`, http.StatusForbidden)
 			return
@@ -1215,14 +1215,14 @@ func (srv *server) handleCreateEnrollmentToken(w http.ResponseWriter, r *http.Re
 		expiresAt = &t
 	}
 
-	token, plainToken, err := srv.db.CreateEnrollmentToken(envID, req.Description, user.Username, expiresAt, req.MaxUses)
+	token, plainToken, err := srv.db.CreateEnrollmentToken(r.Context(), envID, req.Description, user.Username, expiresAt, req.MaxUses)
 	if err != nil {
 		http.Error(w, `{"error":"failed to create enrollment token"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "create", "enrollment_token", token.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "create", "enrollment_token", token.ID, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"environment_id": envID,
 	})
 
@@ -1257,23 +1257,23 @@ func (srv *server) handleListEnrollmentTokens(w http.ResponseWriter, r *http.Req
 	}
 
 	// Get environment to check project access
-	env, err := srv.db.GetEnvironment(envID)
+	env, err := srv.db.GetEnvironment(r.Context(), envID)
 	if err != nil || env == nil {
 		http.Error(w, `{"error":"environment not found"}`, http.StatusNotFound)
 		return
 	}
 
 	// Check if user has access to the project
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
-		hasAccess, _ := srv.db.HasProjectAccess(user.Username, env.ProjectID, PermissionRead)
+		hasAccess, _ := srv.db.HasProjectAccess(r.Context(), user.Username, env.ProjectID, PermissionRead)
 		if !hasAccess {
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 	}
 
-	tokens, err := srv.db.ListEnrollmentTokens(envID)
+	tokens, err := srv.db.ListEnrollmentTokens(r.Context(), envID)
 	if err != nil {
 		http.Error(w, `{"error":"failed to list enrollment tokens"}`, http.StatusInternalServerError)
 		return
@@ -1302,19 +1302,19 @@ func (srv *server) handleDeleteEnrollmentToken(w http.ResponseWriter, r *http.Re
 	}
 
 	// Only superadmins can delete tokens (for now)
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
 		return
 	}
 
-	if err := srv.db.DeleteEnrollmentToken(tokenID); err != nil {
+	if err := srv.db.DeleteEnrollmentToken(r.Context(), tokenID); err != nil {
 		http.Error(w, `{"error":"failed to delete enrollment token"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "delete", "enrollment_token", tokenID, r.RemoteAddr, r.UserAgent(), nil)
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "delete", "enrollment_token", tokenID, r.RemoteAddr, r.UserAgent(), nil)
 
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
@@ -1331,7 +1331,7 @@ func (srv *server) handleValidateEnrollmentToken(w http.ResponseWriter, r *http.
 		return
 	}
 
-	envID, err := srv.db.ValidateEnrollmentToken(req.Token)
+	envID, err := srv.db.ValidateEnrollmentToken(r.Context(), req.Token)
 	if err != nil {
 		// Log the real error server-side; return a generic message to the agent
 		// so internal DB details (table names, SQL errors) are not exposed.
@@ -1341,14 +1341,14 @@ func (srv *server) handleValidateEnrollmentToken(w http.ResponseWriter, r *http.
 	}
 
 	// Get environment details
-	env, err := srv.db.GetEnvironment(envID)
+	env, err := srv.db.GetEnvironment(r.Context(), envID)
 	if err != nil || env == nil {
 		http.Error(w, `{"error":"environment not found"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Get project details
-	project, err := srv.db.GetProject(env.ProjectID)
+	project, err := srv.db.GetProject(r.Context(), env.ProjectID)
 	if err != nil || project == nil {
 		http.Error(w, `{"error":"project not found"}`, http.StatusInternalServerError)
 		return
@@ -1377,7 +1377,7 @@ func (srv *server) handleListAuditLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only superadmins can view audit logs
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
 		return
@@ -1391,7 +1391,7 @@ func (srv *server) handleListAuditLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	logs, err := srv.db.ListAuditLogs(limit)
+	logs, err := srv.db.ListAuditLogs(r.Context(), limit)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, escapeJSON(err.Error())), http.StatusInternalServerError)
 		return
@@ -1416,14 +1416,14 @@ func (srv *server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
 		return
 	}
 
 	search := r.URL.Query().Get("search")
-	users, err := srv.db.ListUsersDetailed(search)
+	users, err := srv.db.ListUsersDetailed(r.Context(), search)
 	if err != nil {
 		log.Printf("Error listing users: %v", err)
 		http.Error(w, `{"error":"failed to list users"}`, http.StatusInternalServerError)
@@ -1445,7 +1445,7 @@ func (srv *server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
 		return
@@ -1483,7 +1483,7 @@ func (srv *server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	created, err := srv.db.CreateUserByAdmin(req.Username, hashedPassword, req.Role, req.Email, req.DisplayName, req.IsSuperAdmin)
+	created, err := srv.db.CreateUserByAdmin(r.Context(), req.Username, hashedPassword, req.Role, req.Email, req.DisplayName, req.IsSuperAdmin)
 	if err != nil {
 		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
 			http.Error(w, `{"error":"user already exists"}`, http.StatusConflict)
@@ -1495,7 +1495,7 @@ func (srv *server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "create", "user", req.Username, r.RemoteAddr, r.UserAgent(), map[string]string{
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "create", "user", req.Username, r.RemoteAddr, r.UserAgent(), map[string]string{
 		"role":          req.Role,
 		"is_superadmin": fmt.Sprintf("%v", req.IsSuperAdmin),
 	})
@@ -1520,13 +1520,13 @@ func (srv *server) handleGetUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Superadmin or self
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin && user.Username != username {
 		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
 
-	u, err := srv.db.GetUserDetailed(username)
+	u, err := srv.db.GetUserDetailed(r.Context(), username)
 	if err != nil {
 		log.Printf("Error getting user %s: %v", username, err)
 		http.Error(w, `{"error":"failed to get user"}`, http.StatusInternalServerError)
@@ -1555,7 +1555,7 @@ func (srv *server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	isSelf := user.Username == username
 
 	// Must be superadmin or self
@@ -1623,7 +1623,7 @@ func (srv *server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := srv.db.UpdateUserByAdmin(username, role, email, displayName, isSuperAdminVal, isActive); err != nil {
+	if err := srv.db.UpdateUserByAdmin(r.Context(), username, role, email, displayName, isSuperAdminVal, isActive); err != nil {
 		log.Printf("Error updating user %s: %v", username, err)
 		http.Error(w, `{"error":"failed to update user"}`, http.StatusInternalServerError)
 		return
@@ -1640,7 +1640,7 @@ func (srv *server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	if isActive != nil {
 		details["is_active"] = fmt.Sprintf("%v", *isActive)
 	}
-	_ = srv.db.CreateAuditLog(user.Username, "update", "user", username, r.RemoteAddr, r.UserAgent(), details)
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "update", "user", username, r.RemoteAddr, r.UserAgent(), details)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -1655,7 +1655,7 @@ func (srv *server) handleDeactivateUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
 		return
@@ -1673,14 +1673,14 @@ func (srv *server) handleDeactivateUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := srv.db.DeactivateUser(username); err != nil {
+	if err := srv.db.DeactivateUser(r.Context(), username); err != nil {
 		log.Printf("Error deactivating user %s: %v", username, err)
 		http.Error(w, `{"error":"failed to deactivate user"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "deactivate", "user", username, r.RemoteAddr, r.UserAgent(), nil)
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "deactivate", "user", username, r.RemoteAddr, r.UserAgent(), nil)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -1695,7 +1695,7 @@ func (srv *server) handleReactivateUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	isSuperAdmin, _ := srv.db.IsSuperAdmin(user.Username)
+	isSuperAdmin, _ := srv.db.IsSuperAdmin(r.Context(), user.Username)
 	if !isSuperAdmin {
 		http.Error(w, `{"error":"forbidden","message":"superadmin access required"}`, http.StatusForbidden)
 		return
@@ -1707,14 +1707,14 @@ func (srv *server) handleReactivateUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := srv.db.ReactivateUser(username); err != nil {
+	if err := srv.db.ReactivateUser(r.Context(), username); err != nil {
 		log.Printf("Error reactivating user %s: %v", username, err)
 		http.Error(w, `{"error":"failed to reactivate user"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Audit log
-	_ = srv.db.CreateAuditLog(user.Username, "reactivate", "user", username, r.RemoteAddr, r.UserAgent(), nil)
+	_ = srv.db.CreateAuditLog(r.Context(), user.Username, "reactivate", "user", username, r.RemoteAddr, r.UserAgent(), nil)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

@@ -8,6 +8,7 @@ import (
 	"github.com/avika-ai/avika/internal/common/logging"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -22,7 +23,12 @@ var (
 		prometheus.HistogramOpts{
 			Name:    "avika_http_request_duration_seconds",
 			Help:    "HTTP request duration in seconds",
-			Buckets: prometheus.DefBuckets,
+			Buckets: []float64{
+				0.001, 0.002, 0.005,
+				0.010, 0.020, 0.050,
+				0.100, 0.200, 0.500,
+				1.0, 2.0, 5.0, 10.0,
+			},
 		},
 		[]string{"method", "path"},
 	)
@@ -59,7 +65,13 @@ func metricsAndLogMiddleware(logger zerolog.Logger, logRequests bool) func(http.
 			next.ServeHTTP(rec, r)
 			duration := time.Since(start)
 			method := r.Method
-			path := r.URL.Path
+			// Use matched route pattern to avoid high-cardinality labels from agent
+			// IDs / project IDs / UUIDs embedded in paths. r.Pattern is set by
+			// Go 1.22's ServeMux after dispatch; falls back to raw path for unmatched routes.
+			path := r.Pattern
+			if path == "" {
+				path = r.URL.Path
+			}
 			if path == "" {
 				path = "/"
 			}
@@ -67,7 +79,18 @@ func metricsAndLogMiddleware(logger zerolog.Logger, logRequests bool) func(http.
 			statusStr := strconv.Itoa(status)
 
 			avikaHTTPRequestsTotal.WithLabelValues(method, path, statusStr).Inc()
-			avikaHTTPRequestDurationSeconds.WithLabelValues(method, path).Observe(duration.Seconds())
+
+			// Record histogram with exemplar so Grafana can navigate metric → trace.
+			obs := avikaHTTPRequestDurationSeconds.WithLabelValues(method, path)
+			span := trace.SpanFromContext(r.Context())
+			if eo, ok := obs.(prometheus.ExemplarObserver); ok && span.SpanContext().IsValid() && span.SpanContext().IsSampled() {
+				eo.ObserveWithExemplar(
+					duration.Seconds(),
+					prometheus.Labels{"traceID": span.SpanContext().TraceID().String()},
+				)
+			} else {
+				obs.Observe(duration.Seconds())
+			}
 
 			if logRequests && logger.GetLevel() <= zerolog.InfoLevel {
 				remoteAddr := r.RemoteAddr
