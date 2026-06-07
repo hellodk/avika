@@ -42,7 +42,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   display: {
     defaultTimeRange: "now-1h",
     refreshInterval: "30s",
-    timezone: "browser",
+    timezone: "Asia/Kolkata",
   },
   telemetry: {
     collectionInterval: "10",

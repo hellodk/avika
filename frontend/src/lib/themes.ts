@@ -26,7 +26,7 @@ export const themes = {
         surfaceLight: "243 244 246",   // #F3F4F6  (hover)
         text: "17 24 39",              // #111827
         textMuted: "75 85 99",         // #4B5563
-        textDim: "156 163 175",        // #9CA3AF
+        textDim: "107 114 128",        // #6B7280
         primary: "37 99 235",          // #2563EB
         success: "22 163 74",          // #16A34A
         warning: "217 119 6",          // #D97706
