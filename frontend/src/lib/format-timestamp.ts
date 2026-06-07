@@ -13,16 +13,16 @@
  */
 
 function getUserTimezone(): string | undefined {
-  if (typeof window === "undefined") return "UTC"; // SSR — default to UTC
+  if (typeof window === "undefined") return "Asia/Kolkata"; // SSR — default to IST
   try {
     const raw = localStorage.getItem("avika-user-settings");
     if (raw) {
       const settings = JSON.parse(raw);
       const tz = settings?.display?.timezone;
-      if (tz === "UTC") return "UTC";
+      if (tz === "UTC" || tz === "Asia/Kolkata" || tz === "browser") return tz;
     }
   } catch {}
-  return undefined; // browser default
+  return "Asia/Kolkata"; // default to IST
 }
 
 function toDate(input: string | number | Date): Date {
@@ -38,7 +38,7 @@ function toDate(input: string | number | Date): Date {
 export function formatTs(input: string | number | Date): string {
   const d = toDate(input);
   const tz = getUserTimezone();
-  return d.toLocaleString("en-US", {
+  const formatted = d.toLocaleString("en-IN", {
     timeZone: tz,
     month: "short",
     day: "2-digit",
@@ -48,13 +48,14 @@ export function formatTs(input: string | number | Date): string {
     second: "2-digit",
     hour12: false,
   });
+  return tz === "Asia/Kolkata" ? `${formatted} IST` : formatted;
 }
 
 /** Date only: "Apr 05, 2026" */
 export function formatTsDate(input: string | number | Date): string {
   const d = toDate(input);
   const tz = getUserTimezone();
-  return d.toLocaleDateString("en-US", {
+  return d.toLocaleDateString("en-IN", {
     timeZone: tz,
     month: "short",
     day: "2-digit",
@@ -66,7 +67,7 @@ export function formatTsDate(input: string | number | Date): string {
 export function formatTsTime(input: string | number | Date): string {
   const d = toDate(input);
   const tz = getUserTimezone();
-  return d.toLocaleTimeString("en-US", {
+  return d.toLocaleTimeString("en-IN", {
     timeZone: tz,
     hour: "2-digit",
     minute: "2-digit",
@@ -79,7 +80,7 @@ export function formatTsTime(input: string | number | Date): string {
 export function formatTsShort(input: string | number | Date): string {
   const d = toDate(input);
   const tz = getUserTimezone();
-  return d.toLocaleString("en-US", {
+  const formatted = d.toLocaleString("en-IN", {
     timeZone: tz,
     month: "short",
     day: "2-digit",
@@ -87,13 +88,14 @@ export function formatTsShort(input: string | number | Date): string {
     minute: "2-digit",
     hour12: false,
   });
+  return tz === "Asia/Kolkata" ? `${formatted} IST` : formatted;
 }
 
 /** Precise time with milliseconds: "00:30:05.123" */
 export function formatTsPrecise(input: string | number | Date): string {
   const d = toDate(input);
   const tz = getUserTimezone();
-  const base = d.toLocaleTimeString("en-US", {
+  const base = d.toLocaleTimeString("en-IN", {
     timeZone: tz,
     hour: "2-digit",
     minute: "2-digit",
