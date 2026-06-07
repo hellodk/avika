@@ -423,7 +423,7 @@ func defaultConfig() *Config {
 			},
 		},
 		Auth: AuthConfig{
-			Enabled:           false,
+			Enabled:           true,
 			Username:          "admin",
 			PasswordHash:      "", // Must be set if auth is enabled
 			JWTSecret:         "", // Auto-generated if empty
@@ -493,6 +493,21 @@ func defaultConfig() *Config {
 		LogLevel:  "info",
 		LogFormat: "json",
 	}
+}
+
+// ValidateConfig performs startup validation of critical auth configuration
+func (c *Config) ValidateConfig() error {
+	if c.Auth.Enabled {
+		// At least one auth provider must be configured
+		hasProvider := c.OIDC.Enabled || c.LDAP.Enabled || c.SAML.Enabled || c.Auth.PasswordHash != ""
+		if !hasProvider {
+			return fmt.Errorf("Auth.Enabled is true but no authentication provider is configured: "+
+				"either set Auth.PasswordHash, enable OIDC (Auth.OIDC.Enabled=true), "+
+				"enable LDAP (Auth.LDAP.Enabled=true), or enable SAML (Auth.SAML.Enabled=true)",
+			)
+		}
+	}
+	return nil
 }
 
 // loadEnvOverrides applies environment variable overrides

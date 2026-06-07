@@ -1204,7 +1204,7 @@ func (s *server) startUptimeCrawler() {
 	}()
 }
 
-func (s *server) startRecommendationConsumer() {
+func (s *server) startRecommendationConsumer(ctx context.Context) {
 	if s.config == nil || !s.config.LLM.Enabled {
 		log.Println("AI Engine disabled, skipping recommendation consumer")
 		return
@@ -1222,11 +1222,15 @@ func (s *server) startRecommendationConsumer() {
 			MinBytes: 10e3, // 10KB
 			MaxBytes: 10e6, // 10MB
 		})
+		defer r.Close()
 
 		log.Printf("Started consuming recommendations from Kafka (%s)", brokers)
 
 		for {
-			m, err := r.ReadMessage(context.Background())
+			m, err := r.ReadMessage(ctx)
+			if ctx.Err() != nil {
+				return
+			}
 			if err != nil {
 				log.Printf("Error reading recommendation: %v", err)
 				time.Sleep(5 * time.Second) // backoff
@@ -1520,7 +1524,7 @@ func main() {
 	// Start background services
 	srv.startUptimeCrawler()
 	if cfg.LLM.Enabled {
-		srv.startRecommendationConsumer()
+		srv.startRecommendationConsumer(ctx)
 	}
 	srv.startBackgroundPruning()
 	srv.startHeartbeatMonitoring()
