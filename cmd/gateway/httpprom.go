@@ -86,7 +86,7 @@ func metricsAndLogMiddleware(logger zerolog.Logger, logRequests bool) func(http.
 			if eo, ok := obs.(prometheus.ExemplarObserver); ok && span.SpanContext().IsValid() && span.SpanContext().IsSampled() {
 				eo.ObserveWithExemplar(
 					duration.Seconds(),
-					prometheus.Labels{"traceID": span.SpanContext().TraceID().String()},
+					prometheus.Labels{"trace_id": span.SpanContext().TraceID().String()},
 				)
 			} else {
 				obs.Observe(duration.Seconds())

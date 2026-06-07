@@ -134,24 +134,26 @@ func (e *AlertEngine) evaluateRule(rule *pb.AlertRule) {
 		}
 	}
 
-	// Compare using the rule's comparison type
-	triggered := evaluateComparison(rule.Comparison, val, float64(rule.Threshold))
-
-	// Rate-of-change comparisons: compare current window vs previous window
-	if !triggered && isRateComparison(rule.Comparison) {
-		triggered, err = e.evaluateRateOfChange(ctx, rule, val)
-		if err != nil {
-			log.Printf("AlertEngine: Rate-of-change error for rule %s: %v", rule.Name, err)
-			return
-		}
-	}
-
 	// Composite Rules: evaluate multi-condition logic if present
+	var triggered bool
 	if rule.Conditions != "" {
+		var err error
 		triggered, err = e.evaluateCompositeRule(ctx, rule)
 		if err != nil {
 			log.Printf("AlertEngine: Composite rule error for rule %s: %v", rule.Name, err)
 			return
+		}
+	} else {
+		// Compare using the rule's comparison type (simple rule)
+		triggered = evaluateComparison(rule.Comparison, val, float64(rule.Threshold))
+
+		// Rate-of-change comparisons: compare current window vs previous window
+		if !triggered && isRateComparison(rule.Comparison) {
+			triggered, err = e.evaluateRateOfChange(ctx, rule, val)
+			if err != nil {
+				log.Printf("AlertEngine: Rate-of-change error for rule %s: %v", rule.Name, err)
+				return
+			}
 		}
 	}
 
