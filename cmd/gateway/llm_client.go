@@ -340,7 +340,8 @@ func NewOpenAIClient(config *LLMConfig) (*OpenAIClient, error) {
 		temperature:   config.Temperature,
 		retryAttempts: config.RetryAttempts,
 		httpClient: &http.Client{
-			Timeout: time.Duration(config.TimeoutSeconds) * time.Second,
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+			Timeout:   time.Duration(config.TimeoutSeconds) * time.Second,
 		},
 	}
 	if config.RateLimitRPM > 0 {
@@ -375,10 +376,35 @@ func (c *OpenAIClient) HealthCheck(ctx context.Context) error {
 
 func (c *OpenAIClient) Analyze(ctx context.Context, req *AnalysisRequest) (*AnalysisResponse, error) {
 	start := time.Now()
+	tracer := otel.Tracer("avika.llm")
+	ctx, span := tracer.Start(ctx, "llm.analyze",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("llm.provider", "openai"),
+			attribute.String("llm.model", c.model),
+			attribute.String("llm.operation", "analyze"),
+		),
+	)
+	defer span.End()
+
+	var result *AnalysisResponse
+	var retErr error
+	defer func() {
+		duration := time.Since(start)
+		avikaLLMLatencySeconds.WithLabelValues("openai", c.model, "analyze").Observe(duration.Seconds())
+		outcome := "success"
+		if retErr != nil {
+			outcome = "error"
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, retErr.Error())
+		}
+		avikaLLMRequestsTotal.WithLabelValues("openai", c.model, "analyze", outcome).Inc()
+	}()
 
 	prompt, err := renderAnalysisPrompt(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to render prompt: %w", err)
+		retErr = fmt.Errorf("failed to render prompt: %w", err)
+		return nil, retErr
 	}
 
 	messages := []map[string]string{
@@ -402,13 +428,15 @@ func (c *OpenAIClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if c.limiter != nil {
 			if err := c.limiter.Wait(ctx); err != nil {
-				return nil, fmt.Errorf("rate limiter: %w", err)
+				retErr = fmt.Errorf("rate limiter: %w", err)
+				return nil, retErr
 			}
 		}
 
 		httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/chat/completions", bytes.NewReader(jsonBody))
 		if err != nil {
-			return nil, err
+			retErr = err
+			return nil, retErr
 		}
 		if c.apiKey != "" {
 			httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
@@ -422,7 +450,8 @@ func (c *OpenAIClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
 				select {
 				case <-ctx.Done():
-					return nil, ctx.Err()
+					retErr = ctx.Err()
+					return nil, retErr
 				case <-time.After(backoff):
 				}
 			}
@@ -432,7 +461,8 @@ func (c *OpenAIClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 		respBody, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			retErr = fmt.Errorf("failed to read response body: %w", err)
+			return nil, retErr
 		}
 
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
@@ -441,7 +471,8 @@ func (c *OpenAIClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
 				select {
 				case <-ctx.Done():
-					return nil, ctx.Err()
+					retErr = ctx.Err()
+					return nil, retErr
 				case <-time.After(backoff):
 				}
 			}
@@ -449,7 +480,8 @@ func (c *OpenAIClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("OpenAI API error: %d - %s", resp.StatusCode, string(respBody))
+			retErr = fmt.Errorf("OpenAI API error: %d - %s", resp.StatusCode, string(respBody))
+			return nil, retErr
 		}
 
 		var openAIResp struct {
@@ -459,15 +491,24 @@ func (c *OpenAIClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 				} `json:"message"`
 			} `json:"choices"`
 			Usage struct {
-				TotalTokens int `json:"total_tokens"`
+				PromptTokens     int `json:"prompt_tokens"`
+				CompletionTokens int `json:"completion_tokens"`
+				TotalTokens      int `json:"total_tokens"`
 			} `json:"usage"`
 		}
 		if err := json.Unmarshal(respBody, &openAIResp); err != nil {
-			return nil, fmt.Errorf("failed to parse OpenAI response: %w", err)
+			retErr = fmt.Errorf("failed to parse OpenAI response: %w", err)
+			return nil, retErr
 		}
 		if len(openAIResp.Choices) == 0 {
-			return nil, fmt.Errorf("no response from OpenAI")
+			retErr = fmt.Errorf("no response from OpenAI")
+			return nil, retErr
 		}
+
+		span.SetAttributes(
+			attribute.Int("llm.input_tokens", openAIResp.Usage.PromptTokens),
+			attribute.Int("llm.output_tokens", openAIResp.Usage.CompletionTokens),
+		)
 
 		content := openAIResp.Choices[0].Message.Content
 		analysisResp := &AnalysisResponse{
@@ -479,17 +520,43 @@ func (c *OpenAIClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 			analysisResp.RootCauseAnalysis = content
 			analysisResp.Confidence = 0.5
 		}
-		return analysisResp, nil
+		result = analysisResp
+		return result, nil
 	}
-	return nil, fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	retErr = fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	return nil, retErr
 }
 
 func (c *OpenAIClient) GenerateRecommendation(ctx context.Context, req *RecommendationRequest) (*RecommendationResponse, error) {
 	start := time.Now()
+	tracer := otel.Tracer("avika.llm")
+	ctx, span := tracer.Start(ctx, "llm.generate_recommendation",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("llm.provider", "openai"),
+			attribute.String("llm.model", c.model),
+			attribute.String("llm.operation", "generate_recommendation"),
+		),
+	)
+	defer span.End()
+
+	var retErr error
+	defer func() {
+		duration := time.Since(start)
+		avikaLLMLatencySeconds.WithLabelValues("openai", c.model, "generate_recommendation").Observe(duration.Seconds())
+		outcome := "success"
+		if retErr != nil {
+			outcome = "error"
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, retErr.Error())
+		}
+		avikaLLMRequestsTotal.WithLabelValues("openai", c.model, "generate_recommendation", outcome).Inc()
+	}()
 
 	prompt, err := renderRecommendationPrompt(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to render prompt: %w", err)
+		retErr = fmt.Errorf("failed to render prompt: %w", err)
+		return nil, retErr
 	}
 
 	messages := []map[string]string{
@@ -513,13 +580,15 @@ func (c *OpenAIClient) GenerateRecommendation(ctx context.Context, req *Recommen
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if c.limiter != nil {
 			if err := c.limiter.Wait(ctx); err != nil {
-				return nil, fmt.Errorf("rate limiter: %w", err)
+				retErr = fmt.Errorf("rate limiter: %w", err)
+				return nil, retErr
 			}
 		}
 
 		httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/chat/completions", bytes.NewReader(jsonBody))
 		if err != nil {
-			return nil, err
+			retErr = err
+			return nil, retErr
 		}
 		if c.apiKey != "" {
 			httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
@@ -533,7 +602,8 @@ func (c *OpenAIClient) GenerateRecommendation(ctx context.Context, req *Recommen
 				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
 				select {
 				case <-ctx.Done():
-					return nil, ctx.Err()
+					retErr = ctx.Err()
+					return nil, retErr
 				case <-time.After(backoff):
 				}
 			}
@@ -543,7 +613,8 @@ func (c *OpenAIClient) GenerateRecommendation(ctx context.Context, req *Recommen
 		respBody, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			retErr = fmt.Errorf("failed to read response body: %w", err)
+			return nil, retErr
 		}
 
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
@@ -552,7 +623,8 @@ func (c *OpenAIClient) GenerateRecommendation(ctx context.Context, req *Recommen
 				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
 				select {
 				case <-ctx.Done():
-					return nil, ctx.Err()
+					retErr = ctx.Err()
+					return nil, retErr
 				case <-time.After(backoff):
 				}
 			}
@@ -560,7 +632,8 @@ func (c *OpenAIClient) GenerateRecommendation(ctx context.Context, req *Recommen
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("OpenAI API error: %d - %s", resp.StatusCode, string(respBody))
+			retErr = fmt.Errorf("OpenAI API error: %d - %s", resp.StatusCode, string(respBody))
+			return nil, retErr
 		}
 
 		var openAIResp struct {
@@ -570,15 +643,24 @@ func (c *OpenAIClient) GenerateRecommendation(ctx context.Context, req *Recommen
 				} `json:"message"`
 			} `json:"choices"`
 			Usage struct {
-				TotalTokens int `json:"total_tokens"`
+				PromptTokens     int `json:"prompt_tokens"`
+				CompletionTokens int `json:"completion_tokens"`
+				TotalTokens      int `json:"total_tokens"`
 			} `json:"usage"`
 		}
 		if err := json.Unmarshal(respBody, &openAIResp); err != nil {
-			return nil, fmt.Errorf("failed to parse OpenAI response: %w", err)
+			retErr = fmt.Errorf("failed to parse OpenAI response: %w", err)
+			return nil, retErr
 		}
 		if len(openAIResp.Choices) == 0 {
-			return nil, fmt.Errorf("no response from OpenAI")
+			retErr = fmt.Errorf("no response from OpenAI")
+			return nil, retErr
 		}
+
+		span.SetAttributes(
+			attribute.Int("llm.input_tokens", openAIResp.Usage.PromptTokens),
+			attribute.Int("llm.output_tokens", openAIResp.Usage.CompletionTokens),
+		)
 
 		content := openAIResp.Choices[0].Message.Content
 		recResp := &RecommendationResponse{
@@ -586,11 +668,13 @@ func (c *OpenAIClient) GenerateRecommendation(ctx context.Context, req *Recommen
 			ProcessingTimeMs: time.Since(start).Milliseconds(),
 		}
 		if err := parseRecommendationJSON(content, recResp); err != nil {
-			return nil, fmt.Errorf("failed to parse recommendations: %w", err)
+			retErr = fmt.Errorf("failed to parse recommendations: %w", err)
+			return nil, retErr
 		}
 		return recResp, nil
 	}
-	return nil, fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	retErr = fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	return nil, retErr
 }
 
 // ClaudeClient implements LLMClient for Anthropic Claude
@@ -618,7 +702,8 @@ func NewClaudeClient(config *LLMConfig) (*ClaudeClient, error) {
 		temperature:   config.Temperature,
 		retryAttempts: config.RetryAttempts,
 		httpClient: &http.Client{
-			Timeout: time.Duration(config.TimeoutSeconds) * time.Second,
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+			Timeout:   time.Duration(config.TimeoutSeconds) * time.Second,
 		},
 	}
 	if config.RateLimitRPM > 0 {
@@ -636,10 +721,34 @@ func (c *ClaudeClient) HealthCheck(ctx context.Context) error {
 
 func (c *ClaudeClient) Analyze(ctx context.Context, req *AnalysisRequest) (*AnalysisResponse, error) {
 	start := time.Now()
+	tracer := otel.Tracer("avika.llm")
+	ctx, span := tracer.Start(ctx, "llm.analyze",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("llm.provider", "anthropic"),
+			attribute.String("llm.model", c.model),
+			attribute.String("llm.operation", "analyze"),
+		),
+	)
+	defer span.End()
+
+	var retErr error
+	defer func() {
+		duration := time.Since(start)
+		avikaLLMLatencySeconds.WithLabelValues("anthropic", c.model, "analyze").Observe(duration.Seconds())
+		outcome := "success"
+		if retErr != nil {
+			outcome = "error"
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, retErr.Error())
+		}
+		avikaLLMRequestsTotal.WithLabelValues("anthropic", c.model, "analyze", outcome).Inc()
+	}()
 
 	prompt, err := renderAnalysisPrompt(req)
 	if err != nil {
-		return nil, err
+		retErr = err
+		return nil, retErr
 	}
 
 	body := map[string]interface{}{
@@ -660,13 +769,15 @@ func (c *ClaudeClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if c.limiter != nil {
 			if err := c.limiter.Wait(ctx); err != nil {
-				return nil, fmt.Errorf("rate limiter: %w", err)
+				retErr = fmt.Errorf("rate limiter: %w", err)
+				return nil, retErr
 			}
 		}
 
 		httpReq, err := http.NewRequestWithContext(ctx, "POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(jsonBody))
 		if err != nil {
-			return nil, err
+			retErr = err
+			return nil, retErr
 		}
 		httpReq.Header.Set("x-api-key", c.apiKey)
 		httpReq.Header.Set("anthropic-version", "2023-06-01")
@@ -679,7 +790,8 @@ func (c *ClaudeClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
 				select {
 				case <-ctx.Done():
-					return nil, ctx.Err()
+					retErr = ctx.Err()
+					return nil, retErr
 				case <-time.After(backoff):
 				}
 			}
@@ -689,7 +801,8 @@ func (c *ClaudeClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 		respBody, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			retErr = fmt.Errorf("failed to read response body: %w", err)
+			return nil, retErr
 		}
 
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
@@ -698,7 +811,8 @@ func (c *ClaudeClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
 				select {
 				case <-ctx.Done():
-					return nil, ctx.Err()
+					retErr = ctx.Err()
+					return nil, retErr
 				case <-time.After(backoff):
 				}
 			}
@@ -706,7 +820,8 @@ func (c *ClaudeClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("Claude API error: %d - %s", resp.StatusCode, string(respBody))
+			retErr = fmt.Errorf("Claude API error: %d - %s", resp.StatusCode, string(respBody))
+			return nil, retErr
 		}
 
 		var claudeResp struct {
@@ -719,11 +834,18 @@ func (c *ClaudeClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 			} `json:"usage"`
 		}
 		if err := json.Unmarshal(respBody, &claudeResp); err != nil {
-			return nil, err
+			retErr = err
+			return nil, retErr
 		}
 		if len(claudeResp.Content) == 0 {
-			return nil, fmt.Errorf("no response from Claude")
+			retErr = fmt.Errorf("no response from Claude")
+			return nil, retErr
 		}
+
+		span.SetAttributes(
+			attribute.Int("llm.input_tokens", claudeResp.Usage.InputTokens),
+			attribute.Int("llm.output_tokens", claudeResp.Usage.OutputTokens),
+		)
 
 		analysisResp := &AnalysisResponse{
 			TokensUsed:       claudeResp.Usage.InputTokens + claudeResp.Usage.OutputTokens,
@@ -736,15 +858,40 @@ func (c *ClaudeClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 		}
 		return analysisResp, nil
 	}
-	return nil, fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	retErr = fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	return nil, retErr
 }
 
 func (c *ClaudeClient) GenerateRecommendation(ctx context.Context, req *RecommendationRequest) (*RecommendationResponse, error) {
 	start := time.Now()
+	tracer := otel.Tracer("avika.llm")
+	ctx, span := tracer.Start(ctx, "llm.generate_recommendation",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("llm.provider", "anthropic"),
+			attribute.String("llm.model", c.model),
+			attribute.String("llm.operation", "generate_recommendation"),
+		),
+	)
+	defer span.End()
+
+	var retErr error
+	defer func() {
+		duration := time.Since(start)
+		avikaLLMLatencySeconds.WithLabelValues("anthropic", c.model, "generate_recommendation").Observe(duration.Seconds())
+		outcome := "success"
+		if retErr != nil {
+			outcome = "error"
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, retErr.Error())
+		}
+		avikaLLMRequestsTotal.WithLabelValues("anthropic", c.model, "generate_recommendation", outcome).Inc()
+	}()
 
 	prompt, err := renderRecommendationPrompt(req)
 	if err != nil {
-		return nil, err
+		retErr = err
+		return nil, retErr
 	}
 
 	body := map[string]interface{}{
@@ -765,13 +912,15 @@ func (c *ClaudeClient) GenerateRecommendation(ctx context.Context, req *Recommen
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if c.limiter != nil {
 			if err := c.limiter.Wait(ctx); err != nil {
-				return nil, fmt.Errorf("rate limiter: %w", err)
+				retErr = fmt.Errorf("rate limiter: %w", err)
+				return nil, retErr
 			}
 		}
 
 		httpReq, err := http.NewRequestWithContext(ctx, "POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(jsonBody))
 		if err != nil {
-			return nil, err
+			retErr = err
+			return nil, retErr
 		}
 		httpReq.Header.Set("x-api-key", c.apiKey)
 		httpReq.Header.Set("anthropic-version", "2023-06-01")
@@ -784,7 +933,8 @@ func (c *ClaudeClient) GenerateRecommendation(ctx context.Context, req *Recommen
 				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
 				select {
 				case <-ctx.Done():
-					return nil, ctx.Err()
+					retErr = ctx.Err()
+					return nil, retErr
 				case <-time.After(backoff):
 				}
 			}
@@ -794,7 +944,8 @@ func (c *ClaudeClient) GenerateRecommendation(ctx context.Context, req *Recommen
 		respBody, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			retErr = fmt.Errorf("failed to read response body: %w", err)
+			return nil, retErr
 		}
 
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
@@ -803,7 +954,8 @@ func (c *ClaudeClient) GenerateRecommendation(ctx context.Context, req *Recommen
 				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
 				select {
 				case <-ctx.Done():
-					return nil, ctx.Err()
+					retErr = ctx.Err()
+					return nil, retErr
 				case <-time.After(backoff):
 				}
 			}
@@ -811,7 +963,8 @@ func (c *ClaudeClient) GenerateRecommendation(ctx context.Context, req *Recommen
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("Claude API error: %d - %s", resp.StatusCode, string(respBody))
+			retErr = fmt.Errorf("Claude API error: %d - %s", resp.StatusCode, string(respBody))
+			return nil, retErr
 		}
 
 		var claudeResp struct {
@@ -824,8 +977,14 @@ func (c *ClaudeClient) GenerateRecommendation(ctx context.Context, req *Recommen
 			} `json:"usage"`
 		}
 		if err := json.Unmarshal(respBody, &claudeResp); err != nil {
-			return nil, err
+			retErr = err
+			return nil, retErr
 		}
+
+		span.SetAttributes(
+			attribute.Int("llm.input_tokens", claudeResp.Usage.InputTokens),
+			attribute.Int("llm.output_tokens", claudeResp.Usage.OutputTokens),
+		)
 
 		recResp := &RecommendationResponse{
 			TokensUsed:       claudeResp.Usage.InputTokens + claudeResp.Usage.OutputTokens,
@@ -833,12 +992,14 @@ func (c *ClaudeClient) GenerateRecommendation(ctx context.Context, req *Recommen
 		}
 		if len(claudeResp.Content) > 0 {
 			if err := parseRecommendationJSON(claudeResp.Content[0].Text, recResp); err != nil {
-				return nil, err
+				retErr = err
+				return nil, retErr
 			}
 		}
 		return recResp, nil
 	}
-	return nil, fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	retErr = fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	return nil, retErr
 }
 
 // OllamaClient implements LLMClient for local Ollama
@@ -867,7 +1028,8 @@ func NewOllamaClient(config *LLMConfig) (*OllamaClient, error) {
 		model:         model,
 		retryAttempts: config.RetryAttempts,
 		httpClient: &http.Client{
-			Timeout: time.Duration(config.TimeoutSeconds) * time.Second,
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+			Timeout:   time.Duration(config.TimeoutSeconds) * time.Second,
 		},
 	}
 	if config.RateLimitRPM > 0 {
@@ -899,10 +1061,34 @@ func (c *OllamaClient) HealthCheck(ctx context.Context) error {
 
 func (c *OllamaClient) Analyze(ctx context.Context, req *AnalysisRequest) (*AnalysisResponse, error) {
 	start := time.Now()
+	tracer := otel.Tracer("avika.llm")
+	ctx, span := tracer.Start(ctx, "llm.analyze",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("llm.provider", "ollama"),
+			attribute.String("llm.model", c.model),
+			attribute.String("llm.operation", "analyze"),
+		),
+	)
+	defer span.End()
+
+	var retErr error
+	defer func() {
+		duration := time.Since(start)
+		avikaLLMLatencySeconds.WithLabelValues("ollama", c.model, "analyze").Observe(duration.Seconds())
+		outcome := "success"
+		if retErr != nil {
+			outcome = "error"
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, retErr.Error())
+		}
+		avikaLLMRequestsTotal.WithLabelValues("ollama", c.model, "analyze", outcome).Inc()
+	}()
 
 	prompt, err := renderAnalysisPrompt(req)
 	if err != nil {
-		return nil, err
+		retErr = err
+		return nil, retErr
 	}
 
 	fullPrompt := "You are an expert NGINX performance engineer. Analyze errors and provide actionable recommendations in JSON format.\n\n" + prompt
@@ -923,13 +1109,15 @@ func (c *OllamaClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if c.limiter != nil {
 			if err := c.limiter.Wait(ctx); err != nil {
-				return nil, fmt.Errorf("rate limiter: %w", err)
+				retErr = fmt.Errorf("rate limiter: %w", err)
+				return nil, retErr
 			}
 		}
 
 		httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/generate", bytes.NewReader(jsonBody))
 		if err != nil {
-			return nil, err
+			retErr = err
+			return nil, retErr
 		}
 		httpReq.Header.Set("Content-Type", "application/json")
 
@@ -940,7 +1128,8 @@ func (c *OllamaClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
 				select {
 				case <-ctx.Done():
-					return nil, ctx.Err()
+					retErr = ctx.Err()
+					return nil, retErr
 				case <-time.After(backoff):
 				}
 			}
@@ -950,7 +1139,8 @@ func (c *OllamaClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 		respBody, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			retErr = fmt.Errorf("failed to read response body: %w", err)
+			return nil, retErr
 		}
 
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
@@ -959,7 +1149,8 @@ func (c *OllamaClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
 				select {
 				case <-ctx.Done():
-					return nil, ctx.Err()
+					retErr = ctx.Err()
+					return nil, retErr
 				case <-time.After(backoff):
 				}
 			}
@@ -967,14 +1158,16 @@ func (c *OllamaClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("Ollama API error: %d - %s", resp.StatusCode, string(respBody))
+			retErr = fmt.Errorf("Ollama API error: %d - %s", resp.StatusCode, string(respBody))
+			return nil, retErr
 		}
 
 		var ollamaResp struct {
 			Response string `json:"response"`
 		}
 		if err := json.Unmarshal(respBody, &ollamaResp); err != nil {
-			return nil, err
+			retErr = err
+			return nil, retErr
 		}
 
 		analysisResp := &AnalysisResponse{
@@ -987,15 +1180,40 @@ func (c *OllamaClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 		}
 		return analysisResp, nil
 	}
-	return nil, fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	retErr = fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	return nil, retErr
 }
 
 func (c *OllamaClient) GenerateRecommendation(ctx context.Context, req *RecommendationRequest) (*RecommendationResponse, error) {
 	start := time.Now()
+	tracer := otel.Tracer("avika.llm")
+	ctx, span := tracer.Start(ctx, "llm.generate_recommendation",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("llm.provider", "ollama"),
+			attribute.String("llm.model", c.model),
+			attribute.String("llm.operation", "generate_recommendation"),
+		),
+	)
+	defer span.End()
+
+	var retErr error
+	defer func() {
+		duration := time.Since(start)
+		avikaLLMLatencySeconds.WithLabelValues("ollama", c.model, "generate_recommendation").Observe(duration.Seconds())
+		outcome := "success"
+		if retErr != nil {
+			outcome = "error"
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, retErr.Error())
+		}
+		avikaLLMRequestsTotal.WithLabelValues("ollama", c.model, "generate_recommendation", outcome).Inc()
+	}()
 
 	prompt, err := renderRecommendationPrompt(req)
 	if err != nil {
-		return nil, err
+		retErr = err
+		return nil, retErr
 	}
 
 	fullPrompt := "You are an NGINX optimization expert. Generate specific, actionable tuning recommendations in JSON format.\n\n" + prompt
@@ -1016,13 +1234,15 @@ func (c *OllamaClient) GenerateRecommendation(ctx context.Context, req *Recommen
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if c.limiter != nil {
 			if err := c.limiter.Wait(ctx); err != nil {
-				return nil, fmt.Errorf("rate limiter: %w", err)
+				retErr = fmt.Errorf("rate limiter: %w", err)
+				return nil, retErr
 			}
 		}
 
 		httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/generate", bytes.NewReader(jsonBody))
 		if err != nil {
-			return nil, err
+			retErr = err
+			return nil, retErr
 		}
 		httpReq.Header.Set("Content-Type", "application/json")
 
@@ -1033,7 +1253,8 @@ func (c *OllamaClient) GenerateRecommendation(ctx context.Context, req *Recommen
 				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
 				select {
 				case <-ctx.Done():
-					return nil, ctx.Err()
+					retErr = ctx.Err()
+					return nil, retErr
 				case <-time.After(backoff):
 				}
 			}
@@ -1043,7 +1264,8 @@ func (c *OllamaClient) GenerateRecommendation(ctx context.Context, req *Recommen
 		respBody, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			retErr = fmt.Errorf("failed to read response body: %w", err)
+			return nil, retErr
 		}
 
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
@@ -1052,7 +1274,8 @@ func (c *OllamaClient) GenerateRecommendation(ctx context.Context, req *Recommen
 				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
 				select {
 				case <-ctx.Done():
-					return nil, ctx.Err()
+					retErr = ctx.Err()
+					return nil, retErr
 				case <-time.After(backoff):
 				}
 			}
@@ -1060,25 +1283,29 @@ func (c *OllamaClient) GenerateRecommendation(ctx context.Context, req *Recommen
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("Ollama API error: %d - %s", resp.StatusCode, string(respBody))
+			retErr = fmt.Errorf("Ollama API error: %d - %s", resp.StatusCode, string(respBody))
+			return nil, retErr
 		}
 
 		var ollamaResp struct {
 			Response string `json:"response"`
 		}
 		if err := json.Unmarshal(respBody, &ollamaResp); err != nil {
-			return nil, err
+			retErr = err
+			return nil, retErr
 		}
 
 		recResp := &RecommendationResponse{
 			ProcessingTimeMs: time.Since(start).Milliseconds(),
 		}
 		if err := parseRecommendationJSON(ollamaResp.Response, recResp); err != nil {
-			return nil, err
+			retErr = err
+			return nil, retErr
 		}
 		return recResp, nil
 	}
-	return nil, fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	retErr = fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	return nil, retErr
 }
 
 // MockLLMClient provides rule-based responses when no LLM is configured
