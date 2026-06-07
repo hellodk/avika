@@ -97,6 +97,42 @@ func (l *rpmLimiter) Stop() {
 	close(l.done)
 }
 
+// sanitizeForPrompt strips prompt injection patterns from untrusted content
+// and truncates to prevent context overflow.
+func sanitizeForPrompt(s string) string {
+	if s == "" {
+		return ""
+	}
+	// Strip lines that attempt to inject instructions
+	injectionPrefixes := []string{
+		"IGNORE", "DISREGARD", "FORGET", "NEW INSTRUCTION",
+		"SYSTEM:", "[INST]", "###", "<<<", ">>>",
+		"<|im_start|>", "<|im_end|>", "```system",
+	}
+	lines := strings.Split(s, "\n")
+	filtered := lines[:0]
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(strings.ToUpper(line))
+		isInjection := false
+		for _, prefix := range injectionPrefixes {
+			if strings.HasPrefix(trimmed, prefix) {
+				isInjection = true
+				break
+			}
+		}
+		if !isInjection {
+			filtered = append(filtered, line)
+		}
+	}
+	result := strings.Join(filtered, "\n")
+	// Truncate to prevent context overflow
+	const maxLen = 2000
+	if len(result) > maxLen {
+		result = result[:maxLen] + "\n... (truncated)"
+	}
+	return result
+}
+
 // LLMClient abstracts different LLM providers
 type LLMClient interface {
 	Analyze(ctx context.Context, req *AnalysisRequest) (*AnalysisResponse, error)
@@ -1495,6 +1531,9 @@ Generate NGINX tuning recommendations in JSON:
 }`
 
 func renderAnalysisPrompt(req *AnalysisRequest) (string, error) {
+	// Sanitize NginxConfig to prevent prompt injection
+	req.NginxConfig = sanitizeForPrompt(req.NginxConfig)
+
 	tmpl, err := template.New("analysis").Parse(analysisPromptTemplate)
 	if err != nil {
 		return "", err

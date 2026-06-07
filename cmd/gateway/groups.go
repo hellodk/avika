@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -66,6 +67,9 @@ func (s *server) ListGroups(ctx context.Context, req *pb.ListGroupsRequest) (*pb
 			return nil, status.Errorf(codes.Internal, "failed to scan group: %v", err)
 		}
 		groups = append(groups, agentGroupToProto(group))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 
 	return &pb.ListGroupsResponse{Groups: groups}, nil
@@ -230,7 +234,7 @@ func (s *server) UpdateGroup(ctx context.Context, req *pb.UpdateGroupRequest) (*
 		&metadataJSON, &createdBy, &group.CreatedAt, &group.UpdatedAt,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "group not found")
 		}
 		return nil, status.Errorf(codes.Internal, "failed to update group: %v", err)
@@ -306,7 +310,7 @@ func (s *server) AddAgentsToGroup(ctx context.Context, req *pb.AddAgentsToGroupR
 			agentID,
 		).Scan(&agentEnvID)
 
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			// Agent not in server_assignments, check if agent exists
 			var exists bool
 			if err := s.db.conn.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM agents WHERE agent_id = $1)", agentID).Scan(&exists); err != nil {
@@ -497,6 +501,9 @@ func (s *server) GetGroupAgents(ctx context.Context, req *pb.GetGroupAgentsReque
 
 		agents = append(agents, &agent)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 
 	return &pb.GetGroupAgentsResponse{Agents: agents}, nil
 }
@@ -520,7 +527,7 @@ func (s *server) getGroupByID(ctx context.Context, groupID string) (*AgentGroup,
 	row := s.db.conn.QueryRowContext(ctx, query, groupID)
 	group, err := scanAgentGroupRow(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "group not found")
 		}
 		return nil, status.Errorf(codes.Internal, "failed to query group: %v", err)
@@ -555,6 +562,9 @@ func (s *server) getGroupsForAgent(ctx context.Context, agentID string) ([]group
 			continue
 		}
 		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return out, nil
 }
@@ -705,6 +715,9 @@ func (s *server) getGroupsForProject(ctx context.Context, projectID string) ([]P
 			continue
 		}
 		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return out, nil
 }

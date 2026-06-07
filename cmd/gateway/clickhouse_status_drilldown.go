@@ -106,6 +106,9 @@ func (db *ClickHouseDB) statusLevel1(ctx context.Context, where string, args []i
 		total += s.Count
 		classes = append(classes, s)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 
 	// Calculate percentages and get top code per class
 	for i := range classes {
@@ -188,6 +191,9 @@ func (db *ClickHouseDB) statusLevel2(ctx context.Context, where string, args []i
 		total += s.Count
 		codes = append(codes, s)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 
 	// Percentages and top URI per code
 	for i := range codes {
@@ -249,6 +255,9 @@ func (db *ClickHouseDB) statusLevel3(ctx context.Context, where string, args []i
 		s.Bandwidth = int64(bw)
 		uris = append(uris, s)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 
 	return &StatusDrillDownResponse{Level: 3, URIs: uris}, nil
 }
@@ -289,6 +298,9 @@ func (db *ClickHouseDB) statusLevel4(ctx context.Context, where string, args []i
 		}
 		t.BodyBytes = int64(bb)
 		traces = append(traces, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 
 	return &StatusDrillDownResponse{Level: 4, Traces: traces}, nil

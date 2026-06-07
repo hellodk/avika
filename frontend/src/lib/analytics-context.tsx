@@ -15,18 +15,18 @@ type AnalyticsSummary = {
 
 type AnalyticsData = {
   summary: AnalyticsSummary;
-  request_rate: any[];
-  status_distribution: any[];
-  top_endpoints: any[];
-  latency_trend: any[];
-  latency_distribution: any[];
-  server_distribution: any[];
-  system_metrics: any[];
-  connections_history: any[];
-  http_status_metrics: any;
-  gateway_metrics: any[];
-  insights: any[];
-  recent_requests: any[];
+  request_rate: Record<string, unknown>[];
+  status_distribution: Record<string, unknown>[];
+  top_endpoints: Record<string, unknown>[];
+  latency_trend: Record<string, unknown>[];
+  latency_distribution: Record<string, unknown>[];
+  server_distribution: Record<string, unknown>[];
+  system_metrics: Record<string, unknown>[];
+  connections_history: Record<string, unknown>[];
+  http_status_metrics: Record<string, unknown> | null;
+  gateway_metrics: Record<string, unknown>[];
+  insights: Record<string, unknown>[];
+  recent_requests: Record<string, unknown>[];
 };
 
 type AnalyticsContextValue = {
@@ -97,9 +97,9 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
         setData({ ...emptyData, ...json, summary: { ...emptyData.summary, ...json.summary } });
         setLastFetchedAt(Date.now());
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (id === fetchRef.current) {
-        setError(err.message || "Failed to fetch analytics");
+        setError(err instanceof Error ? err.message : "Failed to fetch analytics");
       }
     } finally {
       if (id === fetchRef.current) {

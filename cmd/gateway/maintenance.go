@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -93,6 +94,9 @@ func (s *server) ListMaintenanceTemplates(ctx context.Context, req *pb.ListMaint
 		}
 		templates = append(templates, maintenanceTemplateToProto(template))
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 
 	return &pb.ListMaintenanceTemplatesResponse{Templates: templates}, nil
 }
@@ -165,7 +169,7 @@ func (s *server) UpdateMaintenanceTemplate(ctx context.Context, req *pb.UpdateMa
 	// Check if it's a built-in template
 	var isBuiltIn bool
 	err := s.db.conn.QueryRowContext(ctx, "SELECT is_built_in FROM maintenance_templates WHERE id = $1", req.TemplateId).Scan(&isBuiltIn)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, status.Error(codes.NotFound, "template not found")
 	}
 	if isBuiltIn {
@@ -261,7 +265,7 @@ func (s *server) DeleteMaintenanceTemplate(ctx context.Context, req *pb.DeleteMa
 	// Check if it's a built-in template
 	var isBuiltIn bool
 	err := s.db.conn.QueryRowContext(ctx, "SELECT is_built_in FROM maintenance_templates WHERE id = $1", req.TemplateId).Scan(&isBuiltIn)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, status.Error(codes.NotFound, "template not found")
 	}
 	if isBuiltIn {
@@ -290,7 +294,7 @@ func (s *server) PreviewMaintenanceTemplate(ctx context.Context, req *pb.Preview
 		"SELECT html_content, css_content FROM maintenance_templates WHERE id = $1",
 		req.TemplateId,
 	).Scan(&htmlContent, &cssContent)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, status.Error(codes.NotFound, "template not found")
 	}
 	if err != nil {
@@ -422,7 +426,7 @@ func (s *server) disableMaintenance(ctx context.Context, req *pb.SetMaintenanceR
 
 	var id string
 	err := s.db.conn.QueryRowContext(ctx, query, req.Scope, req.ScopeId, req.SiteFilter, req.LocationFilter).Scan(&id)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, status.Error(codes.NotFound, "maintenance state not found")
 	}
 	if err != nil {
@@ -520,7 +524,7 @@ func (s *server) cancelScheduledMaintenance(ctx context.Context, req *pb.SetMain
 
 	var id string
 	err := s.db.conn.QueryRowContext(ctx, query, req.Scope, req.ScopeId, req.SiteFilter, req.LocationFilter).Scan(&id)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, status.Error(codes.NotFound, "scheduled maintenance not found")
 	}
 	if err != nil {
@@ -547,7 +551,7 @@ func (s *server) GetMaintenanceStatus(ctx context.Context, req *pb.GetMaintenanc
 
 	state, err := s.scanMaintenanceState(ctx, query, req.Scope, req.ScopeId, req.SiteFilter, req.LocationFilter)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "maintenance state not found")
 		}
 		return nil, status.Errorf(codes.Internal, "failed to get maintenance status: %v", err)
@@ -584,6 +588,9 @@ func (s *server) ListMaintenanceStates(ctx context.Context, req *pb.ListMaintena
 			continue
 		}
 		states = append(states, maintenanceStateToProto(state))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 
 	return &pb.ListMaintenanceStatesResponse{States: states}, nil
@@ -622,6 +629,9 @@ func (s *server) applyMaintenanceToAgents(ctx context.Context, req *pb.SetMainte
 				continue
 			}
 			agentIDs = append(agentIDs, agentID)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
 		}
 	}
 

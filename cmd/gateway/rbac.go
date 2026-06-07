@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -178,7 +179,7 @@ func (db *DB) GetProject(ctx context.Context, id string) (*Project, error) {
 	err := db.conn.QueryRowContext(ctx, query, id).Scan(
 		&p.ID, &p.Name, &p.Slug, &desc, &metadata, &creator, &p.CreatedAt, &p.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -206,7 +207,7 @@ func (db *DB) GetProjectBySlug(ctx context.Context, slug string) (*Project, erro
 	err := db.conn.QueryRowContext(ctx, query, slug).Scan(
 		&p.ID, &p.Name, &p.Slug, &desc, &metadata, &creator, &p.CreatedAt, &p.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -350,7 +351,7 @@ func (db *DB) GetEnvironment(ctx context.Context, id string) (*Environment, erro
 	err := db.conn.QueryRowContext(ctx, query, id).Scan(
 		&e.ID, &e.ProjectID, &e.Name, &e.Slug, &desc, &e.Color, &e.SortOrder, &e.IsProduction, &e.CreatedAt, &e.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -375,7 +376,7 @@ func (db *DB) GetEnvironmentBySlug(ctx context.Context, projectID, slug string) 
 	err := db.conn.QueryRowContext(ctx, query, projectID, slug).Scan(
 		&e.ID, &e.ProjectID, &e.Name, &e.Slug, &desc, &e.Color, &e.SortOrder, &e.IsProduction, &e.CreatedAt, &e.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -576,7 +577,7 @@ func (db *DB) GetServerAssignment(ctx context.Context, agentID string) (*ServerA
 	err := db.conn.QueryRowContext(ctx, query, agentID).Scan(
 		&sa.AgentID, &envID, &dispName, &tagsArray, &assignBy, &sa.AssignedAt, &sa.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -802,7 +803,7 @@ func (db *DB) GetTeam(ctx context.Context, id string) (*Team, error) {
 	var t Team
 	var desc sql.NullString
 	err := db.conn.QueryRowContext(ctx, query, id).Scan(&t.ID, &t.Name, &t.Slug, &desc, &t.CreatedAt, &t.UpdatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -961,7 +962,7 @@ func (db *DB) GetTeamMember(ctx context.Context, teamID, username string) (*Team
 	query := `SELECT team_id, username, role, joined_at FROM team_members WHERE team_id = $1 AND username = $2`
 	var m TeamMember
 	err := db.conn.QueryRowContext(ctx, query, teamID, username).Scan(&m.TeamID, &m.Username, &m.Role, &m.JoinedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -1050,7 +1051,7 @@ func (db *DB) IsSuperAdmin(ctx context.Context, username string) (bool, error) {
 		"SELECT COALESCE(is_superadmin, FALSE) OR (role IN ('admin', 'superuser')) FROM users WHERE username = $1",
 		username,
 	).Scan(&isSuperAdmin)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
 	if err != nil {
@@ -1153,7 +1154,7 @@ func (db *DB) HasProjectAccess(ctx context.Context, username, projectID string, 
 	`
 	var permission Permission
 	err = db.conn.QueryRowContext(ctx, query, username, projectID).Scan(&permission)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
 	if err != nil {
@@ -1425,7 +1426,7 @@ func (db *DB) ValidateEnrollmentToken(ctx context.Context, token string) (string
 	var maxUses sql.NullInt32
 	var useCount int
 	err := db.conn.QueryRowContext(ctx, query, tokenHash).Scan(&id, &envID, &expires, &maxUses, &useCount)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", fmt.Errorf("invalid token")
 	}
 	if err != nil {
@@ -1633,7 +1634,7 @@ func (db *DB) GetUserDetailed(ctx context.Context, username string) (*UserDetail
 		&externalID, &u.IdentityProvider, &displayName, &avatarURL,
 		&u.CreatedAt, &u.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -1810,7 +1811,7 @@ func (db *DB) GetSSOConfig(ctx context.Context, provider string) (*SSOConfigReco
 	err := db.conn.QueryRowContext(ctx, query, provider).Scan(
 		&r.Provider, &r.Config, &r.IsEnabled, &r.UpdatedAt, &r.UpdatedBy,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {

@@ -102,6 +102,9 @@ func (db *ClickHouseDB) visitorLevel1(ctx context.Context, where string, args []
 		total += g.Count
 		groups = append(groups, g)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	for i := range groups {
 		if total > 0 {
 			groups[i].Percentage = float64(groups[i].Count) / float64(total) * 100
@@ -142,6 +145,9 @@ func (db *ClickHouseDB) visitorLevel2(ctx context.Context, where string, args []
 		total += d.Count
 		details = append(details, d)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	for i := range details {
 		if total > 0 {
 			details[i].Percentage = float64(details[i].Count) / float64(total) * 100
@@ -178,6 +184,9 @@ func (db *ClickHouseDB) visitorLevel3(ctx context.Context, where string, args []
 		u.Count = int64(cnt)
 		u.Bandwidth = int64(bw)
 		urls = append(urls, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return &VisitorDrillDownResponse{Level: 3, Category: category, URLs: urls}, nil
 }

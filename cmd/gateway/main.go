@@ -120,6 +120,18 @@ type AgentSession struct {
 	labels           map[string]string // Agent labels for auto-assignment (project, environment)
 }
 
+func (s *AgentSession) IsOnline() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.status == "online"
+}
+
+func (s *AgentSession) GetStatus() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.status
+}
+
 func (s *server) Connect(stream pb.Commander_ConnectServer) error {
 	// ... (existing logging) ...
 
@@ -437,7 +449,7 @@ func (s *server) startGatewayMonitoring() {
 			activeConns := 0
 			s.sessions.Range(func(key, value interface{}) bool {
 				session := value.(*AgentSession)
-				if session.status == "online" {
+				if session.IsOnline() {
 					activeConns++
 				}
 				return true
@@ -485,7 +497,7 @@ func (s *server) GetLogs(req *pb.LogRequest, stream pb.AgentService_GetLogsServe
 	}
 	session := val.(*AgentSession)
 
-	if session.status == "offline" {
+	if !session.IsOnline() {
 		return fmt.Errorf("agent %s is offline", req.InstanceId)
 	}
 
@@ -540,7 +552,7 @@ func (s *server) ListAgents(ctx context.Context, req *pb.ListAgentsRequest) (*pb
 	s.sessions.Range(func(key, value interface{}) bool {
 		session := value.(*AgentSession)
 
-		status := session.status
+		status := session.GetStatus()
 		if status == "" {
 			status = "online" // Default fallback
 		}
@@ -591,7 +603,7 @@ func (s *server) GetAgent(ctx context.Context, req *pb.GetAgentRequest) (*pb.Age
 		AgentId:          session.id,
 		Hostname:         session.hostname,
 		Version:          session.version,
-		Status:           session.status,
+		Status:           session.GetStatus(),
 		InstancesCount:   int32(session.instancesCount),
 		Uptime:           session.uptime,
 		Ip:               session.ip,
@@ -1164,7 +1176,7 @@ func (s *server) startUptimeCrawler() {
 
 				// Skip offline agents for uptime checks?
 				// Currently just mocking, but logically we can't check if offline.
-				if session.status == "offline" {
+				if !session.IsOnline() {
 					return true
 				}
 
@@ -2809,7 +2821,7 @@ func (srv *server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	offlineCount := 0
 	srv.sessions.Range(func(k, v interface{}) bool {
 		session := v.(*AgentSession)
-		if session.status == "online" {
+		if session.IsOnline() {
 			onlineCount++
 		} else {
 			offlineCount++

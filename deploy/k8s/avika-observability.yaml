@@ -64,6 +64,17 @@ spec:
       interval: 30s
       rules:
 
+        # Watchdog: always firing, used to detect alerting pipeline failures
+        - alert: AvikaWatchdog
+          expr: vector(1)
+          labels:
+            severity: none
+            team: avika
+          annotations:
+            summary: "Avika alerting pipeline is functional"
+            description: "This alert always fires. If it is absent from Alertmanager, the Prometheus→Alertmanager pipeline is broken. Wire to a healthchecks.io or dead man's switch receiver."
+            runbook_url: "https://github.com/hellodk/avika/blob/master/docs/OBSERVABILITY_ARCHITECTURE.md"
+
         # Gateway down
         - alert: AvikaGatewayDown
           expr: absent(nginx_gateway_info)

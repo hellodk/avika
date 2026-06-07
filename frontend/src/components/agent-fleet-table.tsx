@@ -35,24 +35,44 @@ const STATUS_THRESHOLDS = {
 type SortField = 'hostname' | 'ip' | 'version' | 'agent_version' | 'status' | 'last_seen';
 type SortDirection = 'asc' | 'desc';
 
+interface AgentInstance {
+    agent_id: string;
+    hostname: string | null;
+    ip: string | null;
+    pod_ip?: string | null;
+    version: string | null;
+    agent_version: string | null;
+    last_seen: number | null;
+    psk_authenticated?: boolean;
+    is_pod?: boolean;
+}
+
+interface ServerAssignment {
+    environment_id: string;
+}
+
+interface Environment {
+    id: string;
+}
+
 interface AgentFleetTableProps {
-    instances: any[];
+    instances: AgentInstance[];
     loading: boolean;
     latestVersion: string;
-    serverAssignments: Record<string, any>;
-    selectedProject?: any;
-    selectedEnvironment?: any;
-    environments?: any[];
+    serverAssignments: Record<string, ServerAssignment>;
+    selectedProject?: { id: string } | null;
+    selectedEnvironment?: Environment | null;
+    environments?: Environment[];
     selectedAgents: Set<string>;
     onSelectionChange: (selected: Set<string>) => void;
-    onDelete?: (agent: any) => void;
+    onDelete?: (agent: AgentInstance) => void;
     onUpdate?: (agentId: string) => void;
     onBulkDelete?: () => void;
     onBulkUpdate?: () => void;
-    onTerminal?: (agent: any) => void;
+    onTerminal?: (agent: AgentInstance) => void;
 }
 
-function getAgentStatus(lastSeenTimestamp: number | null): { color: string; icon: any; label: string; dotColor: string; priority: number; variant: "online" | "warning" | "offline" } {
+function getAgentStatus(lastSeenTimestamp: number | null): { color: string; icon: React.ElementType; label: string; dotColor: string; priority: number; variant: "online" | "warning" | "offline" } {
     if (!lastSeenTimestamp) {
         return { color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20", icon: CheckCircle2, label: "Online", dotColor: "bg-emerald-500", priority: 3, variant: "online" };
     }

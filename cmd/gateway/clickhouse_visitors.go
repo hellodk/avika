@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 )
@@ -260,14 +261,17 @@ func (db *ClickHouseDB) getBrowserStats(ctx context.Context, startTime time.Time
 		totalHits += s.Hits
 		stats = append(stats, s)
 	}
-	
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
+
 	// Calculate percentages
 	for i := range stats {
 		if totalHits > 0 {
 			stats[i].Percentage = float64(stats[i].Hits) / float64(totalHits) * 100
 		}
 	}
-	
+
 	return stats, nil
 }
 
@@ -308,14 +312,17 @@ func (db *ClickHouseDB) getOSStats(ctx context.Context, startTime time.Time, age
 		totalHits += s.Hits
 		stats = append(stats, s)
 	}
-	
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
+
 	// Calculate percentages
 	for i := range stats {
 		if totalHits > 0 {
 			stats[i].Percentage = float64(stats[i].Hits) / float64(totalHits) * 100
 		}
 	}
-	
+
 	return stats, nil
 }
 
@@ -355,14 +362,17 @@ func (db *ClickHouseDB) getReferrerStats(ctx context.Context, startTime time.Tim
 		totalHits += s.Hits
 		stats = append(stats, s)
 	}
-	
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
+
 	// Calculate percentages
 	for i := range stats {
 		if totalHits > 0 {
 			stats[i].Percentage = float64(stats[i].Hits) / float64(totalHits) * 100
 		}
 	}
-	
+
 	return stats, nil
 }
 
@@ -399,7 +409,10 @@ func (db *ClickHouseDB) getNotFoundStats(ctx context.Context, startTime time.Tim
 		}
 		stats = append(stats, s)
 	}
-	
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
+
 	return stats, nil
 }
 
@@ -446,7 +459,10 @@ func (db *ClickHouseDB) getHourlyDistribution(ctx context.Context, startTime tim
 			hd.Bandwidth = bandwidth
 		}
 	}
-	
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
+
 	// Convert map to sorted slice
 	var stats []HourlyDistribution
 	for h := 0; h < 24; h++ {
@@ -491,14 +507,17 @@ func (db *ClickHouseDB) getDeviceStats(ctx context.Context, startTime time.Time,
 		totalHits += s.Hits
 		stats = append(stats, s)
 	}
-	
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
+
 	// Calculate percentages
 	for i := range stats {
 		if totalHits > 0 {
 			stats[i].Percentage = float64(stats[i].Hits) / float64(totalHits) * 100
 		}
 	}
-	
+
 	return stats, nil
 }
 
@@ -542,7 +561,10 @@ func (db *ClickHouseDB) getStaticFileStats(ctx context.Context, startTime time.T
 		}
 		stats = append(stats, s)
 	}
-	
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
+
 	return stats, nil
 }
 
@@ -576,6 +598,9 @@ func (db *ClickHouseDB) getTopRequestedURLs(ctx context.Context, startTime time.
 		}
 		stats = append(stats, s)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	return stats, nil
 }
 
@@ -607,6 +632,9 @@ func (db *ClickHouseDB) getStatusCodeStats(ctx context.Context, startTime time.T
 		}
 		totalHits += s.Hits
 		stats = append(stats, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	for i := range stats {
 		if totalHits > 0 {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -45,7 +46,7 @@ func (s *PgSessionStore) Load(token string) (*middleware.PersistedSession, bool,
 		 FROM sessions WHERE token = $1`,
 		token,
 	).Scan(&ps.Username, &ps.Role, &ps.ExpiresAt, &ps.RequirePassChange)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, false, nil
 	}
 	if err != nil {
@@ -93,7 +94,7 @@ func (s *PgOIDCStateStore) LoadState(state string) (redirectURI string, createdA
 		`SELECT redirect_uri, created_at FROM oidc_states WHERE state = $1`,
 		state,
 	).Scan(&redirectURI, &createdAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", time.Time{}, false, nil
 	}
 	if err != nil {

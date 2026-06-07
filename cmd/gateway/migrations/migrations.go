@@ -4,6 +4,7 @@ package migrations
 import (
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -172,7 +173,7 @@ func (r *Runner) applyMigration(m Migration) error {
 func (r *Runner) GetCurrentVersion() (string, error) {
 	var version string
 	err := r.db.QueryRow("SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&version)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "none", nil
 	}
 	return version, err

@@ -505,6 +505,9 @@ func (api *ErrorAnalysisAPI) getErrorPatterns(ctx context.Context, startTime tim
 
 		patterns = append(patterns, pattern)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 
 	return patterns, nil
 }
@@ -563,6 +566,9 @@ func (api *ErrorAnalysisAPI) getErrorTrend(ctx context.Context, startTime time.T
 		point.Total = int64(total)
 		trend = append(trend, point)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 
 	return trend, nil
 }
@@ -619,6 +625,9 @@ func (api *ErrorAnalysisAPI) getTopErrorEndpoints(ctx context.Context, startTime
 		stat.AvgLatency = float32(avgLat)
 		stat.P95Latency = float32(p95Lat)
 		endpoints = append(endpoints, stat)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 
 	return endpoints, nil
