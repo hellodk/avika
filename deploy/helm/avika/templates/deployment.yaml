@@ -88,6 +88,10 @@ spec:
           {{- end }}
           image: "{{ $imgRepo }}:{{ $component.image.tag | default $.Chart.AppVersion }}"
           imagePullPolicy: {{ $component.image.pullPolicy | default "IfNotPresent" }}
+          {{- if $component.args }}
+          args:
+            {{- toYaml $component.args | nindent 12 }}
+          {{- end }}
           {{- with $.Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
@@ -367,7 +371,12 @@ spec:
           {{- end }}
         {{- end }}
       {{- /* Volumes */ -}}
-      {{- if $component.volumes }}
+      {{- if eq $name "otel-collector" }}
+      volumes:
+        - name: otel-config
+          configMap:
+            name: {{ include "avika.fullname" $ }}-otel-config
+      {{- else if $component.volumes }}
       volumes:
         {{- toYaml $component.volumes | nindent 8 }}
       {{- end }}
