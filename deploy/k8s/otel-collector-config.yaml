@@ -122,7 +122,7 @@ data:
 
     exporters:
       otlp/tempo:
-        endpoint: avika-tempo.monitoring.svc.cluster.local:4317
+        endpoint: avika-tempo.avika.svc.cluster.local:4317
         tls:
           insecure: true
 
