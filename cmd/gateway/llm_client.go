@@ -826,13 +826,16 @@ type CachedLLMClient struct {
 }
 
 func NewCachedLLMClient(client LLMClient, ttlMinutes int) *CachedLLMClient {
-	cache, _ := lru.New[string, interface{}](1000)
-	return &CachedLLMClient{
+	c := &CachedLLMClient{
 		client:     client,
-		cache:      cache,
 		ttl:        time.Duration(ttlMinutes) * time.Minute,
 		timestamps: make(map[string]time.Time),
 	}
+	cache, _ := lru.NewWithEvict[string, interface{}](1000, func(key string, value interface{}) {
+		delete(c.timestamps, key)
+	})
+	c.cache = cache
+	return c
 }
 
 func (c *CachedLLMClient) GetProviderName() string { return c.client.GetProviderName() }
@@ -892,7 +895,7 @@ func (c *CachedLLMClient) GenerateRecommendation(ctx context.Context, req *Recom
 func (c *CachedLLMClient) computeKey(prefix string, data interface{}) string {
 	jsonData, _ := json.Marshal(data)
 	hash := fmt.Sprintf("%x", sha256.Sum256(jsonData))
-	return prefix + ":" + hash[:16]
+	return prefix + ":" + hash
 }
 
 // Prompt templates
