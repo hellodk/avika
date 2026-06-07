@@ -29,10 +29,11 @@ serviceAccount:
 # Pod settings (applied to all components)
 podAnnotations: {}
 podSecurityContext:
-  runAsNonRoot: false
+  runAsNonRoot: true
+  runAsUser: 65534
 securityContext:
   allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
   capabilities:
     drop:
       - ALL
