@@ -27,8 +27,9 @@ const REFRESH_INTERVALS = [
 ];
 
 const TIMEZONES = [
-    { label: "Browser", value: "browser" },
+    { label: "IST (Asia/Kolkata)", value: "Asia/Kolkata" },
     { label: "UTC", value: "UTC" },
+    { label: "Browser local", value: "browser" },
 ];
 
 interface DisplaySettingsProps {

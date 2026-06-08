@@ -203,10 +203,10 @@ if ! check_running "Frontend" "next dev"; then
     # Check if node_modules exists
     if [ ! -d "node_modules" ]; then
         echo -e "${YELLOW}  Installing dependencies...${NC}"
-        npm install
+        pnpm install
     fi
-    
-    nohup npm run dev > ../logs/frontend.log 2>&1 &
+
+    nohup pnpm run dev > ../logs/frontend.log 2>&1 &
     FRONTEND_PID=$!
     echo "  PID: $FRONTEND_PID"
     echo "  URL: http://localhost:3000"

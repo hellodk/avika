@@ -26,7 +26,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o avika-agent .
 
 # Final stage - minimal runtime image
-FROM alpine:latest
+FROM alpine:3.19
 
 # Install ca-certificates for HTTPS
 RUN apk --no-cache add ca-certificates tzdata
