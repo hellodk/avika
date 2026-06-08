@@ -248,6 +248,9 @@ func (db *DB) ListProjects(ctx context.Context) ([]Project, error) {
 		p.CreatedBy = creator.String
 		projects = append(projects, p)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	return projects, nil
 }
 
@@ -281,6 +284,9 @@ func (db *DB) ListProjectsForUser(ctx context.Context, username string) ([]Proje
 		p.Description = desc.String
 		p.CreatedBy = creator.String
 		projects = append(projects, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return projects, nil
 }
@@ -434,6 +440,9 @@ func (db *DB) ListEnvironments(ctx context.Context, projectID string) ([]Environ
 		}
 		e.Description = desc.String
 		envs = append(envs, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return envs, nil
 }
@@ -617,6 +626,9 @@ func (db *DB) ListUnassignedServers(ctx context.Context) ([]string, error) {
 		}
 		agents = append(agents, id)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	return agents, nil
 }
 
@@ -649,6 +661,9 @@ func (db *DB) ListServersInEnvironment(ctx context.Context, environmentID string
 		sa.AssignedBy = assignBy.String
 		sa.Tags = tagsArray
 		assignments = append(assignments, sa)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return assignments, nil
 }
@@ -703,6 +718,9 @@ func (db *DB) ListAllServerAssignments(ctx context.Context) ([]ServerAssignmentW
 		sa.Tags = tagsArray
 		assignments = append(assignments, sa)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	return assignments, nil
 }
 
@@ -750,6 +768,9 @@ func (db *DB) ListServerAssignmentsForUser(ctx context.Context, username string)
 		sa.AssignedBy = assignBy.String
 		sa.Tags = tagsArray
 		assignments = append(assignments, sa)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return assignments, nil
 }
@@ -838,6 +859,9 @@ func (db *DB) ListTeams(ctx context.Context) ([]Team, error) {
 		t.Description = desc.String
 		teams = append(teams, t)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	return teams, nil
 }
 
@@ -869,6 +893,9 @@ func (db *DB) ListTeamsForUser(ctx context.Context, username string) ([]Team, er
 		}
 		t.Description = desc.String
 		teams = append(teams, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return teams, nil
 }
@@ -952,6 +979,9 @@ func (db *DB) ListTeamMembers(ctx context.Context, teamID string) ([]TeamMember,
 		}
 		members = append(members, m)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	return members, nil
 }
 
@@ -1029,6 +1059,9 @@ func (db *DB) ListTeamProjectAccess(ctx context.Context, teamID string) ([]TeamP
 		a.GrantedBy = grantedBy.String
 		access = append(access, a)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	return access, nil
 }
 
@@ -1095,6 +1128,9 @@ func (db *DB) GetUserAccess(ctx context.Context, username string) (*UserAccess, 
 		}
 		ua.Teams = append(ua.Teams, m)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 
 	// Get project access through teams
 	accessQuery := `
@@ -1120,6 +1156,9 @@ func (db *DB) GetUserAccess(ctx context.Context, username string) (*UserAccess, 
 		if !ok || permissionLevel(permission) > permissionLevel(existing) {
 			ua.ProjectAccess[projectID] = permission
 		}
+	}
+	if err := accessRows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 
 	return ua, nil
@@ -1192,6 +1231,9 @@ func (db *DB) GetVisibleAgentIDs(ctx context.Context, username string) ([]string
 			}
 			agents = append(agents, id)
 		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
+		}
 		return agents, nil
 	}
 
@@ -1221,6 +1263,9 @@ func (db *DB) GetVisibleAgentIDs(ctx context.Context, username string) ([]string
 		}
 		agents = append(agents, id)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	return agents, nil
 }
 
@@ -1247,6 +1292,9 @@ func (db *DB) GetAgentIDsForEnvironment(ctx context.Context, environmentID strin
 			return nil, err
 		}
 		agents = append(agents, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return agents, nil
 }
@@ -1276,6 +1324,9 @@ func (db *DB) GetAgentIDsForProject(ctx context.Context, projectID string) ([]st
 			return nil, err
 		}
 		agents = append(agents, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return agents, nil
 }
@@ -1353,6 +1404,9 @@ func (db *DB) ListAuditLogs(ctx context.Context, limit int) ([]AuditLog, error) 
 		l.IPAddress = ipAddress.String
 		l.UserAgent = userAgent.String
 		logs = append(logs, l)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return logs, nil
 }
@@ -1515,6 +1569,9 @@ func (db *DB) ListEnrollmentTokens(ctx context.Context, environmentID string) ([
 		}
 		tokens = append(tokens, et)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	return tokens, nil
 }
 
@@ -1610,6 +1667,9 @@ func (db *DB) ListUsersDetailed(ctx context.Context, search string) ([]UserDetai
 			u.IsActive = true // default active when NULL
 		}
 		users = append(users, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return users, nil
 }
@@ -1863,6 +1923,9 @@ func (db *DB) ListSSOConfigs(ctx context.Context) ([]SSOConfigRecord, error) {
 			return nil, err
 		}
 		configs = append(configs, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return configs, nil
 }

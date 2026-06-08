@@ -228,6 +228,9 @@ func (db *DB) LoadAlertCooldowns(ctx context.Context) (map[string]time.Time, err
 		}
 		result[id] = t
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	return result, nil
 }
 
@@ -262,6 +265,9 @@ func (db *DB) ListUsers(ctx context.Context) ([]*UserRecord, error) {
 			continue
 		}
 		users = append(users, &user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return users, nil
 }
@@ -379,6 +385,9 @@ func (db *DB) LoadAgents(ctx context.Context, sessions *sync.Map) error {
 		}
 		sessions.Store(id, session)
 	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("row iteration: %w", err)
+	}
 	return nil
 }
 
@@ -397,6 +406,9 @@ func (db *DB) PruneStaleAgents(ctx context.Context, maxAge time.Duration) ([]str
 			if err := rows.Scan(&id); err == nil {
 				ids = append(ids, id)
 			}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
 		}
 	}
 
@@ -497,6 +509,9 @@ func (db *DB) ListAlertRules(ctx context.Context) ([]*pb.AlertRule, error) {
 		}
 		rules = append(rules, rule)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	return rules, nil
 }
 
@@ -548,6 +563,9 @@ func (db *DB) ListAgents(ctx context.Context) ([]*pb.AgentInfo, error) {
 			AgentVersion:     agentVersion,
 			PskAuthenticated: pskAuthenticated,
 		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return list, nil
 }
@@ -728,6 +746,9 @@ func (db *DB) ListWAFPolicies(ctx context.Context) ([]WAFPolicy, error) {
 			continue
 		}
 		policies = append(policies, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return policies, nil
 }
