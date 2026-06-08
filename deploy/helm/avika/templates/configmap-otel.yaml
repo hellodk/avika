@@ -1,0 +1,94 @@
+{{- if (index .Values.components "otel-collector").enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "avika.fullname" . }}-otel-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "avika.labels" . | nindent 4 }}
+    component: otel-collector
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        # 384Mi = 75% of 512Mi container limit; leaves headroom for tail_sampling
+        # buffer which sits outside the memory_limiter's accounting.
+        limit_mib: 384
+        spike_limit_mib: 96
+
+      # Enriches spans with k8s.pod.name, k8s.namespace.name, k8s.node.name
+      # so every span in Tempo shows which pod/node it came from.
+      k8sattributes:
+        auth_type: serviceAccount
+        passthrough: false
+        extract:
+          metadata:
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.namespace.name
+            - k8s.deployment.name
+            - k8s.node.name
+
+      # Tail sampling — buffer traces for up to 30s then decide:
+      #   - Always keep errors (100%)
+      #   - Always keep slow traces >500ms (100%)
+      #   - Keep 5% of fast, successful traces as baseline
+      # num_traces caps in-memory buffer to prevent OOM at high request rates.
+      tail_sampling:
+        decision_wait: 30s
+        num_traces: 100000
+        expected_new_traces_per_sec: 200
+        policies:
+          - name: always-sample-errors
+            type: status_code
+            status_code:
+              status_codes: [ERROR]
+          - name: always-sample-slow
+            type: latency
+            latency:
+              threshold_ms: 500
+          - name: probabilistic-baseline
+            type: probabilistic
+            probabilistic:
+              sampling_percentage: 5
+
+      batch:
+        send_batch_size: 256
+        timeout: 5s
+        send_batch_max_size: 512
+
+    exporters:
+      otlp/tempo:
+        endpoint: avika-tempo.{{ .Release.Namespace }}.svc.cluster.local:4317
+        tls:
+          insecure: true
+
+      debug:
+        verbosity: basic
+        sampling_initial: 5
+        sampling_thereafter: 500
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        # Traces: enrich with k8s metadata → tail-sample → export to Tempo
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, k8sattributes, tail_sampling, batch]
+          exporters: [otlp/tempo, debug]
+
+---
+{{- end }}

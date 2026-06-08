@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
@@ -42,6 +43,9 @@ func (db *DB) ListConfigBackups(ctx context.Context, agentID string, limit int) 
 			return nil, err
 		}
 		backups = append(backups, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return backups, nil
 }

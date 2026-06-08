@@ -17,7 +17,121 @@ import (
 
 	"github.com/avika-ai/avika/cmd/gateway/config"
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var (
+	avikaLLMRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "avika_llm_requests_total",
+			Help: "Total LLM API requests",
+		},
+		[]string{"provider", "model", "operation", "outcome"},
+	)
+	avikaLLMLatencySeconds = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "avika_llm_latency_seconds",
+			Help:    "LLM API call latency",
+			Buckets: []float64{0.5, 1, 2, 5, 10, 20, 30, 60},
+		},
+		[]string{"provider", "model", "operation"},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(avikaLLMRequestsTotal, avikaLLMLatencySeconds)
+}
+
+// rpmLimiter is a minimal token-bucket rate limiter using only the standard library.
+// It allows at most rpm requests per minute by spacing them evenly.
+type rpmLimiter struct {
+	ticker *time.Ticker
+	done   chan struct{}
+	tokens chan struct{}
+}
+
+func newRPMLimiter(rpm int) *rpmLimiter {
+	interval := time.Minute / time.Duration(rpm)
+	l := &rpmLimiter{
+		ticker: time.NewTicker(interval),
+		done:   make(chan struct{}),
+		tokens: make(chan struct{}, 1),
+	}
+	go func() {
+		defer close(l.tokens)
+		for {
+			select {
+			case <-l.ticker.C:
+				select {
+				case l.tokens <- struct{}{}:
+				default: // bucket is full; discard surplus token
+				}
+			case <-l.done:
+				l.ticker.Stop()
+				return
+			}
+		}
+	}()
+	return l
+}
+
+// Wait blocks until a token is available or ctx is cancelled.
+func (l *rpmLimiter) Wait(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case _, ok := <-l.tokens:
+		if !ok {
+			return fmt.Errorf("rate limiter closed")
+		}
+		return nil
+	}
+}
+
+func (l *rpmLimiter) Stop() {
+	close(l.done)
+}
+
+// sanitizeForPrompt strips prompt injection patterns from untrusted content
+// and truncates to prevent context overflow.
+func sanitizeForPrompt(s string) string {
+	if s == "" {
+		return ""
+	}
+	// Strip lines that attempt to inject instructions
+	injectionPrefixes := []string{
+		"IGNORE", "DISREGARD", "FORGET", "NEW INSTRUCTION",
+		"SYSTEM:", "[INST]", "###", "<<<", ">>>",
+		"<|im_start|>", "<|im_end|>", "```system",
+	}
+	lines := strings.Split(s, "\n")
+	filtered := lines[:0]
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(strings.ToUpper(line))
+		isInjection := false
+		for _, prefix := range injectionPrefixes {
+			if strings.HasPrefix(trimmed, prefix) {
+				isInjection = true
+				break
+			}
+		}
+		if !isInjection {
+			filtered = append(filtered, line)
+		}
+	}
+	result := strings.Join(filtered, "\n")
+	// Truncate to prevent context overflow
+	const maxLen = 2000
+	if len(result) > maxLen {
+		result = result[:maxLen] + "\n... (truncated)"
+	}
+	return result
+}
 
 // LLMClient abstracts different LLM providers
 type LLMClient interface {
@@ -237,12 +351,14 @@ func NewLLMClient(config *LLMConfig) (LLMClient, error) {
 
 // OpenAIClient implements LLMClient for OpenAI
 type OpenAIClient struct {
-	apiKey     string
-	model      string
-	baseURL    string
-	maxTokens  int
-	temperature float32
-	httpClient *http.Client
+	apiKey        string
+	model         string
+	baseURL       string
+	maxTokens     int
+	temperature   float32
+	httpClient    *http.Client
+	limiter       *rpmLimiter
+	retryAttempts int
 }
 
 // NewOpenAIClient creates a new OpenAI client
@@ -252,16 +368,22 @@ func NewOpenAIClient(config *LLMConfig) (*OpenAIClient, error) {
 		baseURL = "https://api.openai.com/v1"
 	}
 
-	return &OpenAIClient{
-		apiKey:     config.APIKey,
-		model:      config.Model,
-		baseURL:    baseURL,
-		maxTokens:  config.MaxTokens,
-		temperature: config.Temperature,
+	c := &OpenAIClient{
+		apiKey:        config.APIKey,
+		model:         config.Model,
+		baseURL:       baseURL,
+		maxTokens:     config.MaxTokens,
+		temperature:   config.Temperature,
+		retryAttempts: config.RetryAttempts,
 		httpClient: &http.Client{
-			Timeout: time.Duration(config.TimeoutSeconds) * time.Second,
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+			Timeout:   time.Duration(config.TimeoutSeconds) * time.Second,
 		},
-	}, nil
+	}
+	if config.RateLimitRPM > 0 {
+		c.limiter = newRPMLimiter(config.RateLimitRPM)
+	}
+	return c, nil
 }
 
 func (c *OpenAIClient) GetProviderName() string { return "openai" }
@@ -290,10 +412,35 @@ func (c *OpenAIClient) HealthCheck(ctx context.Context) error {
 
 func (c *OpenAIClient) Analyze(ctx context.Context, req *AnalysisRequest) (*AnalysisResponse, error) {
 	start := time.Now()
+	tracer := otel.Tracer("avika.llm")
+	ctx, span := tracer.Start(ctx, "llm.analyze",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("llm.provider", "openai"),
+			attribute.String("llm.model", c.model),
+			attribute.String("llm.operation", "analyze"),
+		),
+	)
+	defer span.End()
+
+	var result *AnalysisResponse
+	var retErr error
+	defer func() {
+		duration := time.Since(start)
+		avikaLLMLatencySeconds.WithLabelValues("openai", c.model, "analyze").Observe(duration.Seconds())
+		outcome := "success"
+		if retErr != nil {
+			outcome = "error"
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, retErr.Error())
+		}
+		avikaLLMRequestsTotal.WithLabelValues("openai", c.model, "analyze", outcome).Inc()
+	}()
 
 	prompt, err := renderAnalysisPrompt(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to render prompt: %w", err)
+		retErr = fmt.Errorf("failed to render prompt: %w", err)
+		return nil, retErr
 	}
 
 	messages := []map[string]string{
@@ -307,75 +454,145 @@ func (c *OpenAIClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 		"max_tokens":  c.maxTokens,
 		"temperature": c.temperature,
 	}
-
 	jsonBody, _ := json.Marshal(body)
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/chat/completions", bytes.NewReader(jsonBody))
-	if err != nil {
-		return nil, err
-	}
 
-	if c.apiKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	maxAttempts := c.retryAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
 	}
-	httpReq.Header.Set("Content-Type", "application/json")
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if c.limiter != nil {
+			if err := c.limiter.Wait(ctx); err != nil {
+				retErr = fmt.Errorf("rate limiter: %w", err)
+				return nil, retErr
+			}
+		}
 
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, err
+		httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/chat/completions", bytes.NewReader(jsonBody))
+		if err != nil {
+			retErr = err
+			return nil, retErr
+		}
+		if c.apiKey != "" {
+			httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		resp, err := c.httpClient.Do(httpReq)
+		if err != nil {
+			lastErr = err
+			if attempt < maxAttempts-1 {
+				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
+				select {
+				case <-ctx.Done():
+					retErr = ctx.Err()
+					return nil, retErr
+				case <-time.After(backoff):
+				}
+			}
+			continue
+		}
+
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			retErr = fmt.Errorf("failed to read response body: %w", err)
+			return nil, retErr
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("OpenAI API error: %d - %s", resp.StatusCode, string(respBody))
+			if attempt < maxAttempts-1 {
+				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
+				select {
+				case <-ctx.Done():
+					retErr = ctx.Err()
+					return nil, retErr
+				case <-time.After(backoff):
+				}
+			}
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			retErr = fmt.Errorf("OpenAI API error: %d - %s", resp.StatusCode, string(respBody))
+			return nil, retErr
+		}
+
+		var openAIResp struct {
+			Choices []struct {
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			} `json:"choices"`
+			Usage struct {
+				PromptTokens     int `json:"prompt_tokens"`
+				CompletionTokens int `json:"completion_tokens"`
+				TotalTokens      int `json:"total_tokens"`
+			} `json:"usage"`
+		}
+		if err := json.Unmarshal(respBody, &openAIResp); err != nil {
+			retErr = fmt.Errorf("failed to parse OpenAI response: %w", err)
+			return nil, retErr
+		}
+		if len(openAIResp.Choices) == 0 {
+			retErr = fmt.Errorf("no response from OpenAI")
+			return nil, retErr
+		}
+
+		span.SetAttributes(
+			attribute.Int("llm.input_tokens", openAIResp.Usage.PromptTokens),
+			attribute.Int("llm.output_tokens", openAIResp.Usage.CompletionTokens),
+		)
+
+		content := openAIResp.Choices[0].Message.Content
+		analysisResp := &AnalysisResponse{
+			TokensUsed:       openAIResp.Usage.TotalTokens,
+			ProcessingTimeMs: time.Since(start).Milliseconds(),
+			ModelUsed:        c.model,
+		}
+		if err := parseAnalysisJSON(content, analysisResp); err != nil {
+			analysisResp.RootCauseAnalysis = content
+			analysisResp.Confidence = 0.5
+		}
+		result = analysisResp
+		return result, nil
 	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("OpenAI API error: %d - %s", resp.StatusCode, string(respBody))
-	}
-
-	var openAIResp struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-		Usage struct {
-			TotalTokens int `json:"total_tokens"`
-		} `json:"usage"`
-	}
-
-	if err := json.Unmarshal(respBody, &openAIResp); err != nil {
-		return nil, fmt.Errorf("failed to parse OpenAI response: %w", err)
-	}
-
-	if len(openAIResp.Choices) == 0 {
-		return nil, fmt.Errorf("no response from OpenAI")
-	}
-
-	// Parse the JSON response from the model
-	content := openAIResp.Choices[0].Message.Content
-	analysisResp := &AnalysisResponse{
-		TokensUsed:       openAIResp.Usage.TotalTokens,
-		ProcessingTimeMs: time.Since(start).Milliseconds(),
-		ModelUsed:        c.model,
-	}
-
-	// Try to parse as JSON, fall back to raw text if needed
-	if err := parseAnalysisJSON(content, analysisResp); err != nil {
-		analysisResp.RootCauseAnalysis = content
-		analysisResp.Confidence = 0.5
-	}
-
-	return analysisResp, nil
+	retErr = fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	return nil, retErr
 }
 
 func (c *OpenAIClient) GenerateRecommendation(ctx context.Context, req *RecommendationRequest) (*RecommendationResponse, error) {
 	start := time.Now()
+	tracer := otel.Tracer("avika.llm")
+	ctx, span := tracer.Start(ctx, "llm.generate_recommendation",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("llm.provider", "openai"),
+			attribute.String("llm.model", c.model),
+			attribute.String("llm.operation", "generate_recommendation"),
+		),
+	)
+	defer span.End()
+
+	var retErr error
+	defer func() {
+		duration := time.Since(start)
+		avikaLLMLatencySeconds.WithLabelValues("openai", c.model, "generate_recommendation").Observe(duration.Seconds())
+		outcome := "success"
+		if retErr != nil {
+			outcome = "error"
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, retErr.Error())
+		}
+		avikaLLMRequestsTotal.WithLabelValues("openai", c.model, "generate_recommendation", outcome).Inc()
+	}()
 
 	prompt, err := renderRecommendationPrompt(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to render prompt: %w", err)
+		retErr = fmt.Errorf("failed to render prompt: %w", err)
+		return nil, retErr
 	}
 
 	messages := []map[string]string{
@@ -389,72 +606,122 @@ func (c *OpenAIClient) GenerateRecommendation(ctx context.Context, req *Recommen
 		"max_tokens":  req.MaxTokens,
 		"temperature": req.Temperature,
 	}
-
 	jsonBody, _ := json.Marshal(body)
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/chat/completions", bytes.NewReader(jsonBody))
-	if err != nil {
-		return nil, err
-	}
 
-	if c.apiKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	maxAttempts := c.retryAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
 	}
-	httpReq.Header.Set("Content-Type", "application/json")
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if c.limiter != nil {
+			if err := c.limiter.Wait(ctx); err != nil {
+				retErr = fmt.Errorf("rate limiter: %w", err)
+				return nil, retErr
+			}
+		}
 
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, err
+		httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/chat/completions", bytes.NewReader(jsonBody))
+		if err != nil {
+			retErr = err
+			return nil, retErr
+		}
+		if c.apiKey != "" {
+			httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		resp, err := c.httpClient.Do(httpReq)
+		if err != nil {
+			lastErr = err
+			if attempt < maxAttempts-1 {
+				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
+				select {
+				case <-ctx.Done():
+					retErr = ctx.Err()
+					return nil, retErr
+				case <-time.After(backoff):
+				}
+			}
+			continue
+		}
+
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			retErr = fmt.Errorf("failed to read response body: %w", err)
+			return nil, retErr
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("OpenAI API error: %d - %s", resp.StatusCode, string(respBody))
+			if attempt < maxAttempts-1 {
+				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
+				select {
+				case <-ctx.Done():
+					retErr = ctx.Err()
+					return nil, retErr
+				case <-time.After(backoff):
+				}
+			}
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			retErr = fmt.Errorf("OpenAI API error: %d - %s", resp.StatusCode, string(respBody))
+			return nil, retErr
+		}
+
+		var openAIResp struct {
+			Choices []struct {
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			} `json:"choices"`
+			Usage struct {
+				PromptTokens     int `json:"prompt_tokens"`
+				CompletionTokens int `json:"completion_tokens"`
+				TotalTokens      int `json:"total_tokens"`
+			} `json:"usage"`
+		}
+		if err := json.Unmarshal(respBody, &openAIResp); err != nil {
+			retErr = fmt.Errorf("failed to parse OpenAI response: %w", err)
+			return nil, retErr
+		}
+		if len(openAIResp.Choices) == 0 {
+			retErr = fmt.Errorf("no response from OpenAI")
+			return nil, retErr
+		}
+
+		span.SetAttributes(
+			attribute.Int("llm.input_tokens", openAIResp.Usage.PromptTokens),
+			attribute.Int("llm.output_tokens", openAIResp.Usage.CompletionTokens),
+		)
+
+		content := openAIResp.Choices[0].Message.Content
+		recResp := &RecommendationResponse{
+			TokensUsed:       openAIResp.Usage.TotalTokens,
+			ProcessingTimeMs: time.Since(start).Milliseconds(),
+		}
+		if err := parseRecommendationJSON(content, recResp); err != nil {
+			retErr = fmt.Errorf("failed to parse recommendations: %w", err)
+			return nil, retErr
+		}
+		return recResp, nil
 	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("OpenAI API error: %d - %s", resp.StatusCode, string(respBody))
-	}
-
-	var openAIResp struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-		Usage struct {
-			TotalTokens int `json:"total_tokens"`
-		} `json:"usage"`
-	}
-
-	if err := json.Unmarshal(respBody, &openAIResp); err != nil {
-		return nil, fmt.Errorf("failed to parse OpenAI response: %w", err)
-	}
-
-	if len(openAIResp.Choices) == 0 {
-		return nil, fmt.Errorf("no response from OpenAI")
-	}
-
-	content := openAIResp.Choices[0].Message.Content
-	recResp := &RecommendationResponse{
-		TokensUsed:       openAIResp.Usage.TotalTokens,
-		ProcessingTimeMs: time.Since(start).Milliseconds(),
-	}
-
-	if err := parseRecommendationJSON(content, recResp); err != nil {
-		return nil, fmt.Errorf("failed to parse recommendations: %w", err)
-	}
-
-	return recResp, nil
+	retErr = fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	return nil, retErr
 }
 
 // ClaudeClient implements LLMClient for Anthropic Claude
 type ClaudeClient struct {
-	apiKey     string
-	model      string
-	maxTokens  int
-	temperature float32
-	httpClient *http.Client
+	apiKey        string
+	model         string
+	maxTokens     int
+	temperature   float32
+	httpClient    *http.Client
+	limiter       *rpmLimiter
+	retryAttempts int
 }
 
 // NewClaudeClient creates a new Claude client
@@ -464,15 +731,21 @@ func NewClaudeClient(config *LLMConfig) (*ClaudeClient, error) {
 		model = "claude-3-sonnet-20240229"
 	}
 
-	return &ClaudeClient{
-		apiKey:     config.APIKey,
-		model:      model,
-		maxTokens:  config.MaxTokens,
-		temperature: config.Temperature,
+	c := &ClaudeClient{
+		apiKey:        config.APIKey,
+		model:         model,
+		maxTokens:     config.MaxTokens,
+		temperature:   config.Temperature,
+		retryAttempts: config.RetryAttempts,
 		httpClient: &http.Client{
-			Timeout: time.Duration(config.TimeoutSeconds) * time.Second,
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+			Timeout:   time.Duration(config.TimeoutSeconds) * time.Second,
 		},
-	}, nil
+	}
+	if config.RateLimitRPM > 0 {
+		c.limiter = newRPMLimiter(config.RateLimitRPM)
+	}
+	return c, nil
 }
 
 func (c *ClaudeClient) GetProviderName() string { return "anthropic" }
@@ -484,10 +757,34 @@ func (c *ClaudeClient) HealthCheck(ctx context.Context) error {
 
 func (c *ClaudeClient) Analyze(ctx context.Context, req *AnalysisRequest) (*AnalysisResponse, error) {
 	start := time.Now()
+	tracer := otel.Tracer("avika.llm")
+	ctx, span := tracer.Start(ctx, "llm.analyze",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("llm.provider", "anthropic"),
+			attribute.String("llm.model", c.model),
+			attribute.String("llm.operation", "analyze"),
+		),
+	)
+	defer span.End()
+
+	var retErr error
+	defer func() {
+		duration := time.Since(start)
+		avikaLLMLatencySeconds.WithLabelValues("anthropic", c.model, "analyze").Observe(duration.Seconds())
+		outcome := "success"
+		if retErr != nil {
+			outcome = "error"
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, retErr.Error())
+		}
+		avikaLLMRequestsTotal.WithLabelValues("anthropic", c.model, "analyze", outcome).Inc()
+	}()
 
 	prompt, err := renderAnalysisPrompt(req)
 	if err != nil {
-		return nil, err
+		retErr = err
+		return nil, retErr
 	}
 
 	body := map[string]interface{}{
@@ -498,70 +795,139 @@ func (c *ClaudeClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 		},
 		"system": "You are an expert NGINX performance engineer. Analyze errors and provide actionable recommendations in JSON format.",
 	}
-
 	jsonBody, _ := json.Marshal(body)
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(jsonBody))
-	if err != nil {
-		return nil, err
+
+	maxAttempts := c.retryAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
 	}
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if c.limiter != nil {
+			if err := c.limiter.Wait(ctx); err != nil {
+				retErr = fmt.Errorf("rate limiter: %w", err)
+				return nil, retErr
+			}
+		}
 
-	httpReq.Header.Set("x-api-key", c.apiKey)
-	httpReq.Header.Set("anthropic-version", "2023-06-01")
-	httpReq.Header.Set("Content-Type", "application/json")
+		httpReq, err := http.NewRequestWithContext(ctx, "POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(jsonBody))
+		if err != nil {
+			retErr = err
+			return nil, retErr
+		}
+		httpReq.Header.Set("x-api-key", c.apiKey)
+		httpReq.Header.Set("anthropic-version", "2023-06-01")
+		httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, err
+		resp, err := c.httpClient.Do(httpReq)
+		if err != nil {
+			lastErr = err
+			if attempt < maxAttempts-1 {
+				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
+				select {
+				case <-ctx.Done():
+					retErr = ctx.Err()
+					return nil, retErr
+				case <-time.After(backoff):
+				}
+			}
+			continue
+		}
+
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			retErr = fmt.Errorf("failed to read response body: %w", err)
+			return nil, retErr
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("Claude API error: %d - %s", resp.StatusCode, string(respBody))
+			if attempt < maxAttempts-1 {
+				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
+				select {
+				case <-ctx.Done():
+					retErr = ctx.Err()
+					return nil, retErr
+				case <-time.After(backoff):
+				}
+			}
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			retErr = fmt.Errorf("Claude API error: %d - %s", resp.StatusCode, string(respBody))
+			return nil, retErr
+		}
+
+		var claudeResp struct {
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+			Usage struct {
+				InputTokens  int `json:"input_tokens"`
+				OutputTokens int `json:"output_tokens"`
+			} `json:"usage"`
+		}
+		if err := json.Unmarshal(respBody, &claudeResp); err != nil {
+			retErr = err
+			return nil, retErr
+		}
+		if len(claudeResp.Content) == 0 {
+			retErr = fmt.Errorf("no response from Claude")
+			return nil, retErr
+		}
+
+		span.SetAttributes(
+			attribute.Int("llm.input_tokens", claudeResp.Usage.InputTokens),
+			attribute.Int("llm.output_tokens", claudeResp.Usage.OutputTokens),
+		)
+
+		analysisResp := &AnalysisResponse{
+			TokensUsed:       claudeResp.Usage.InputTokens + claudeResp.Usage.OutputTokens,
+			ProcessingTimeMs: time.Since(start).Milliseconds(),
+			ModelUsed:        c.model,
+		}
+		if err := parseAnalysisJSON(claudeResp.Content[0].Text, analysisResp); err != nil {
+			analysisResp.RootCauseAnalysis = claudeResp.Content[0].Text
+			analysisResp.Confidence = 0.5
+		}
+		return analysisResp, nil
 	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Claude API error: %d - %s", resp.StatusCode, string(respBody))
-	}
-
-	var claudeResp struct {
-		Content []struct {
-			Text string `json:"text"`
-		} `json:"content"`
-		Usage struct {
-			InputTokens  int `json:"input_tokens"`
-			OutputTokens int `json:"output_tokens"`
-		} `json:"usage"`
-	}
-
-	if err := json.Unmarshal(respBody, &claudeResp); err != nil {
-		return nil, err
-	}
-
-	if len(claudeResp.Content) == 0 {
-		return nil, fmt.Errorf("no response from Claude")
-	}
-
-	analysisResp := &AnalysisResponse{
-		TokensUsed:       claudeResp.Usage.InputTokens + claudeResp.Usage.OutputTokens,
-		ProcessingTimeMs: time.Since(start).Milliseconds(),
-		ModelUsed:        c.model,
-	}
-
-	if err := parseAnalysisJSON(claudeResp.Content[0].Text, analysisResp); err != nil {
-		analysisResp.RootCauseAnalysis = claudeResp.Content[0].Text
-		analysisResp.Confidence = 0.5
-	}
-
-	return analysisResp, nil
+	retErr = fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	return nil, retErr
 }
 
 func (c *ClaudeClient) GenerateRecommendation(ctx context.Context, req *RecommendationRequest) (*RecommendationResponse, error) {
 	start := time.Now()
+	tracer := otel.Tracer("avika.llm")
+	ctx, span := tracer.Start(ctx, "llm.generate_recommendation",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("llm.provider", "anthropic"),
+			attribute.String("llm.model", c.model),
+			attribute.String("llm.operation", "generate_recommendation"),
+		),
+	)
+	defer span.End()
+
+	var retErr error
+	defer func() {
+		duration := time.Since(start)
+		avikaLLMLatencySeconds.WithLabelValues("anthropic", c.model, "generate_recommendation").Observe(duration.Seconds())
+		outcome := "success"
+		if retErr != nil {
+			outcome = "error"
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, retErr.Error())
+		}
+		avikaLLMRequestsTotal.WithLabelValues("anthropic", c.model, "generate_recommendation", outcome).Inc()
+	}()
 
 	prompt, err := renderRecommendationPrompt(req)
 	if err != nil {
-		return nil, err
+		retErr = err
+		return nil, retErr
 	}
 
 	body := map[string]interface{}{
@@ -572,65 +938,113 @@ func (c *ClaudeClient) GenerateRecommendation(ctx context.Context, req *Recommen
 		},
 		"system": "You are an NGINX optimization expert. Generate specific, actionable tuning recommendations in JSON format.",
 	}
-
 	jsonBody, _ := json.Marshal(body)
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(jsonBody))
-	if err != nil {
-		return nil, err
+
+	maxAttempts := c.retryAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
 	}
-
-	httpReq.Header.Set("x-api-key", c.apiKey)
-	httpReq.Header.Set("anthropic-version", "2023-06-01")
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Claude API error: %d - %s", resp.StatusCode, string(respBody))
-	}
-
-	var claudeResp struct {
-		Content []struct {
-			Text string `json:"text"`
-		} `json:"content"`
-		Usage struct {
-			InputTokens  int `json:"input_tokens"`
-			OutputTokens int `json:"output_tokens"`
-		} `json:"usage"`
-	}
-
-	if err := json.Unmarshal(respBody, &claudeResp); err != nil {
-		return nil, err
-	}
-
-	recResp := &RecommendationResponse{
-		TokensUsed:       claudeResp.Usage.InputTokens + claudeResp.Usage.OutputTokens,
-		ProcessingTimeMs: time.Since(start).Milliseconds(),
-	}
-
-	if len(claudeResp.Content) > 0 {
-		if err := parseRecommendationJSON(claudeResp.Content[0].Text, recResp); err != nil {
-			return nil, err
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if c.limiter != nil {
+			if err := c.limiter.Wait(ctx); err != nil {
+				retErr = fmt.Errorf("rate limiter: %w", err)
+				return nil, retErr
+			}
 		}
-	}
 
-	return recResp, nil
+		httpReq, err := http.NewRequestWithContext(ctx, "POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(jsonBody))
+		if err != nil {
+			retErr = err
+			return nil, retErr
+		}
+		httpReq.Header.Set("x-api-key", c.apiKey)
+		httpReq.Header.Set("anthropic-version", "2023-06-01")
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		resp, err := c.httpClient.Do(httpReq)
+		if err != nil {
+			lastErr = err
+			if attempt < maxAttempts-1 {
+				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
+				select {
+				case <-ctx.Done():
+					retErr = ctx.Err()
+					return nil, retErr
+				case <-time.After(backoff):
+				}
+			}
+			continue
+		}
+
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			retErr = fmt.Errorf("failed to read response body: %w", err)
+			return nil, retErr
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("Claude API error: %d - %s", resp.StatusCode, string(respBody))
+			if attempt < maxAttempts-1 {
+				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
+				select {
+				case <-ctx.Done():
+					retErr = ctx.Err()
+					return nil, retErr
+				case <-time.After(backoff):
+				}
+			}
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			retErr = fmt.Errorf("Claude API error: %d - %s", resp.StatusCode, string(respBody))
+			return nil, retErr
+		}
+
+		var claudeResp struct {
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+			Usage struct {
+				InputTokens  int `json:"input_tokens"`
+				OutputTokens int `json:"output_tokens"`
+			} `json:"usage"`
+		}
+		if err := json.Unmarshal(respBody, &claudeResp); err != nil {
+			retErr = err
+			return nil, retErr
+		}
+
+		span.SetAttributes(
+			attribute.Int("llm.input_tokens", claudeResp.Usage.InputTokens),
+			attribute.Int("llm.output_tokens", claudeResp.Usage.OutputTokens),
+		)
+
+		recResp := &RecommendationResponse{
+			TokensUsed:       claudeResp.Usage.InputTokens + claudeResp.Usage.OutputTokens,
+			ProcessingTimeMs: time.Since(start).Milliseconds(),
+		}
+		if len(claudeResp.Content) > 0 {
+			if err := parseRecommendationJSON(claudeResp.Content[0].Text, recResp); err != nil {
+				retErr = err
+				return nil, retErr
+			}
+		}
+		return recResp, nil
+	}
+	retErr = fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	return nil, retErr
 }
 
 // OllamaClient implements LLMClient for local Ollama
 type OllamaClient struct {
-	baseURL    string
-	model      string
-	httpClient *http.Client
+	baseURL       string
+	model         string
+	httpClient    *http.Client
+	limiter       *rpmLimiter
+	retryAttempts int
 }
 
 // NewOllamaClient creates a new Ollama client
@@ -645,13 +1059,19 @@ func NewOllamaClient(config *LLMConfig) (*OllamaClient, error) {
 		model = "llama2"
 	}
 
-	return &OllamaClient{
-		baseURL: baseURL,
-		model:   model,
+	c := &OllamaClient{
+		baseURL:       baseURL,
+		model:         model,
+		retryAttempts: config.RetryAttempts,
 		httpClient: &http.Client{
-			Timeout: time.Duration(config.TimeoutSeconds) * time.Second,
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+			Timeout:   time.Duration(config.TimeoutSeconds) * time.Second,
 		},
-	}, nil
+	}
+	if config.RateLimitRPM > 0 {
+		c.limiter = newRPMLimiter(config.RateLimitRPM)
+	}
+	return c, nil
 }
 
 func (c *OllamaClient) GetProviderName() string { return "ollama" }
@@ -677,10 +1097,34 @@ func (c *OllamaClient) HealthCheck(ctx context.Context) error {
 
 func (c *OllamaClient) Analyze(ctx context.Context, req *AnalysisRequest) (*AnalysisResponse, error) {
 	start := time.Now()
+	tracer := otel.Tracer("avika.llm")
+	ctx, span := tracer.Start(ctx, "llm.analyze",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("llm.provider", "ollama"),
+			attribute.String("llm.model", c.model),
+			attribute.String("llm.operation", "analyze"),
+		),
+	)
+	defer span.End()
+
+	var retErr error
+	defer func() {
+		duration := time.Since(start)
+		avikaLLMLatencySeconds.WithLabelValues("ollama", c.model, "analyze").Observe(duration.Seconds())
+		outcome := "success"
+		if retErr != nil {
+			outcome = "error"
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, retErr.Error())
+		}
+		avikaLLMRequestsTotal.WithLabelValues("ollama", c.model, "analyze", outcome).Inc()
+	}()
 
 	prompt, err := renderAnalysisPrompt(req)
 	if err != nil {
-		return nil, err
+		retErr = err
+		return nil, retErr
 	}
 
 	fullPrompt := "You are an expert NGINX performance engineer. Analyze errors and provide actionable recommendations in JSON format.\n\n" + prompt
@@ -691,56 +1135,121 @@ func (c *OllamaClient) Analyze(ctx context.Context, req *AnalysisRequest) (*Anal
 		"stream": false,
 		"format": "json",
 	}
-
 	jsonBody, _ := json.Marshal(body)
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/generate", bytes.NewReader(jsonBody))
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, err
+	maxAttempts := c.retryAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
 	}
-	defer resp.Body.Close()
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if c.limiter != nil {
+			if err := c.limiter.Wait(ctx); err != nil {
+				retErr = fmt.Errorf("rate limiter: %w", err)
+				return nil, retErr
+			}
+		}
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/generate", bytes.NewReader(jsonBody))
+		if err != nil {
+			retErr = err
+			return nil, retErr
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		resp, err := c.httpClient.Do(httpReq)
+		if err != nil {
+			lastErr = err
+			if attempt < maxAttempts-1 {
+				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
+				select {
+				case <-ctx.Done():
+					retErr = ctx.Err()
+					return nil, retErr
+				case <-time.After(backoff):
+				}
+			}
+			continue
+		}
+
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			retErr = fmt.Errorf("failed to read response body: %w", err)
+			return nil, retErr
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("Ollama API error: %d - %s", resp.StatusCode, string(respBody))
+			if attempt < maxAttempts-1 {
+				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
+				select {
+				case <-ctx.Done():
+					retErr = ctx.Err()
+					return nil, retErr
+				case <-time.After(backoff):
+				}
+			}
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			retErr = fmt.Errorf("Ollama API error: %d - %s", resp.StatusCode, string(respBody))
+			return nil, retErr
+		}
+
+		var ollamaResp struct {
+			Response string `json:"response"`
+		}
+		if err := json.Unmarshal(respBody, &ollamaResp); err != nil {
+			retErr = err
+			return nil, retErr
+		}
+
+		analysisResp := &AnalysisResponse{
+			ProcessingTimeMs: time.Since(start).Milliseconds(),
+			ModelUsed:        c.model,
+		}
+		if err := parseAnalysisJSON(ollamaResp.Response, analysisResp); err != nil {
+			analysisResp.RootCauseAnalysis = ollamaResp.Response
+			analysisResp.Confidence = 0.5
+		}
+		return analysisResp, nil
 	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Ollama API error: %d - %s", resp.StatusCode, string(respBody))
-	}
-
-	var ollamaResp struct {
-		Response string `json:"response"`
-	}
-
-	if err := json.Unmarshal(respBody, &ollamaResp); err != nil {
-		return nil, err
-	}
-
-	analysisResp := &AnalysisResponse{
-		ProcessingTimeMs: time.Since(start).Milliseconds(),
-		ModelUsed:        c.model,
-	}
-
-	if err := parseAnalysisJSON(ollamaResp.Response, analysisResp); err != nil {
-		analysisResp.RootCauseAnalysis = ollamaResp.Response
-		analysisResp.Confidence = 0.5
-	}
-
-	return analysisResp, nil
+	retErr = fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	return nil, retErr
 }
 
 func (c *OllamaClient) GenerateRecommendation(ctx context.Context, req *RecommendationRequest) (*RecommendationResponse, error) {
 	start := time.Now()
+	tracer := otel.Tracer("avika.llm")
+	ctx, span := tracer.Start(ctx, "llm.generate_recommendation",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("llm.provider", "ollama"),
+			attribute.String("llm.model", c.model),
+			attribute.String("llm.operation", "generate_recommendation"),
+		),
+	)
+	defer span.End()
+
+	var retErr error
+	defer func() {
+		duration := time.Since(start)
+		avikaLLMLatencySeconds.WithLabelValues("ollama", c.model, "generate_recommendation").Observe(duration.Seconds())
+		outcome := "success"
+		if retErr != nil {
+			outcome = "error"
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, retErr.Error())
+		}
+		avikaLLMRequestsTotal.WithLabelValues("ollama", c.model, "generate_recommendation", outcome).Inc()
+	}()
 
 	prompt, err := renderRecommendationPrompt(req)
 	if err != nil {
-		return nil, err
+		retErr = err
+		return nil, retErr
 	}
 
 	fullPrompt := "You are an NGINX optimization expert. Generate specific, actionable tuning recommendations in JSON format.\n\n" + prompt
@@ -751,46 +1260,88 @@ func (c *OllamaClient) GenerateRecommendation(ctx context.Context, req *Recommen
 		"stream": false,
 		"format": "json",
 	}
-
 	jsonBody, _ := json.Marshal(body)
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/generate", bytes.NewReader(jsonBody))
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, err
+	maxAttempts := c.retryAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
 	}
-	defer resp.Body.Close()
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if c.limiter != nil {
+			if err := c.limiter.Wait(ctx); err != nil {
+				retErr = fmt.Errorf("rate limiter: %w", err)
+				return nil, retErr
+			}
+		}
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/generate", bytes.NewReader(jsonBody))
+		if err != nil {
+			retErr = err
+			return nil, retErr
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		resp, err := c.httpClient.Do(httpReq)
+		if err != nil {
+			lastErr = err
+			if attempt < maxAttempts-1 {
+				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
+				select {
+				case <-ctx.Done():
+					retErr = ctx.Err()
+					return nil, retErr
+				case <-time.After(backoff):
+				}
+			}
+			continue
+		}
+
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			retErr = fmt.Errorf("failed to read response body: %w", err)
+			return nil, retErr
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("Ollama API error: %d - %s", resp.StatusCode, string(respBody))
+			if attempt < maxAttempts-1 {
+				backoff := time.Duration(attempt+1) * 500 * time.Millisecond
+				select {
+				case <-ctx.Done():
+					retErr = ctx.Err()
+					return nil, retErr
+				case <-time.After(backoff):
+				}
+			}
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			retErr = fmt.Errorf("Ollama API error: %d - %s", resp.StatusCode, string(respBody))
+			return nil, retErr
+		}
+
+		var ollamaResp struct {
+			Response string `json:"response"`
+		}
+		if err := json.Unmarshal(respBody, &ollamaResp); err != nil {
+			retErr = err
+			return nil, retErr
+		}
+
+		recResp := &RecommendationResponse{
+			ProcessingTimeMs: time.Since(start).Milliseconds(),
+		}
+		if err := parseRecommendationJSON(ollamaResp.Response, recResp); err != nil {
+			retErr = err
+			return nil, retErr
+		}
+		return recResp, nil
 	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Ollama API error: %d - %s", resp.StatusCode, string(respBody))
-	}
-
-	var ollamaResp struct {
-		Response string `json:"response"`
-	}
-
-	if err := json.Unmarshal(respBody, &ollamaResp); err != nil {
-		return nil, err
-	}
-
-	recResp := &RecommendationResponse{
-		ProcessingTimeMs: time.Since(start).Milliseconds(),
-	}
-
-	if err := parseRecommendationJSON(ollamaResp.Response, recResp); err != nil {
-		return nil, err
-	}
-
-	return recResp, nil
+	retErr = fmt.Errorf("all %d attempts failed: %w", maxAttempts, lastErr)
+	return nil, retErr
 }
 
 // MockLLMClient provides rule-based responses when no LLM is configured
@@ -826,13 +1377,16 @@ type CachedLLMClient struct {
 }
 
 func NewCachedLLMClient(client LLMClient, ttlMinutes int) *CachedLLMClient {
-	cache, _ := lru.New[string, interface{}](1000)
-	return &CachedLLMClient{
+	c := &CachedLLMClient{
 		client:     client,
-		cache:      cache,
 		ttl:        time.Duration(ttlMinutes) * time.Minute,
 		timestamps: make(map[string]time.Time),
 	}
+	cache, _ := lru.NewWithEvict[string, interface{}](1000, func(key string, value interface{}) {
+		delete(c.timestamps, key)
+	})
+	c.cache = cache
+	return c
 }
 
 func (c *CachedLLMClient) GetProviderName() string { return c.client.GetProviderName() }
@@ -892,7 +1446,7 @@ func (c *CachedLLMClient) GenerateRecommendation(ctx context.Context, req *Recom
 func (c *CachedLLMClient) computeKey(prefix string, data interface{}) string {
 	jsonData, _ := json.Marshal(data)
 	hash := fmt.Sprintf("%x", sha256.Sum256(jsonData))
-	return prefix + ":" + hash[:16]
+	return prefix + ":" + hash
 }
 
 // Prompt templates
@@ -977,6 +1531,9 @@ Generate NGINX tuning recommendations in JSON:
 }`
 
 func renderAnalysisPrompt(req *AnalysisRequest) (string, error) {
+	// Sanitize NginxConfig to prevent prompt injection
+	req.NginxConfig = sanitizeForPrompt(req.NginxConfig)
+
 	tmpl, err := template.New("analysis").Parse(analysisPromptTemplate)
 	if err != nil {
 		return "", err

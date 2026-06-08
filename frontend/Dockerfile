@@ -6,11 +6,13 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Install dependencies based on the preferred package manager
-COPY package.json package-lock.json* .npmrc* ./
-RUN npm ci
+COPY package.json pnpm-lock.yaml* .npmrc* ./
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate && \
+    pnpm install --frozen-lockfile
 
 # Rebuild the source code only when needed
 FROM base AS builder
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -55,7 +57,7 @@ RUN if [ -z "$VERSION" ]; then \
 
 ENV NEXT_PUBLIC_APP_VERSION=${VERSION}
 
-RUN npm run build
+RUN pnpm run build
 
 # Production image, copy all the files and run next
 FROM base AS runner

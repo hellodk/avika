@@ -381,30 +381,33 @@ components:
       repository: otel/opentelemetry-collector-contrib
       tag: "0.96.0"  # THIRD-PARTY: Do not auto-update
       pullPolicy: IfNotPresent
-    
+
+    args:
+      - --config=/etc/otelcol-contrib/config.yaml
+
     ports:
       grpc:
         containerPort: 4317
       http:
         containerPort: 4318
-    
+
     service:
       type: ClusterIP
-    
+
     livenessProbe:
       httpGet:
         path: /
         port: 13133
       initialDelaySeconds: 10
       periodSeconds: 15
-    
+
     readinessProbe:
       httpGet:
         path: /
         port: 13133
       initialDelaySeconds: 5
       periodSeconds: 10
-    
+
     resources:
       limits:
         cpu: 500m
@@ -412,6 +415,10 @@ components:
       requests:
         cpu: 100m
         memory: 128Mi
+
+    volumeMounts:
+      - name: otel-config
+        mountPath: /etc/otelcol-contrib
 
   # ---------------------------------------------------------------------------
   # POSTGRESQL - Primary Database (StatefulSet)

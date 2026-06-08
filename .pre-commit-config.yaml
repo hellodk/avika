@@ -1,0 +1,47 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=2048']
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: local
+    hooks:
+      - id: go-build
+        name: Go build (gateway)
+        language: system
+        entry: bash -c 'cd cmd/gateway && go build ./...'
+        pass_filenames: false
+        files: \.go$
+
+      - id: go-vet
+        name: go vet (gateway)
+        language: system
+        entry: bash -c 'cd cmd/gateway && go vet ./...'
+        pass_filenames: false
+        files: \.go$
+
+      - id: frontend-typecheck
+        name: TypeScript type check
+        language: system
+        entry: bash -c 'cd frontend && pnpm run build 2>&1 | grep -c "error TS" | xargs -I{} sh -c "test {} -eq 0 || (echo \"TypeScript errors found\" && exit 1)"'
+        pass_filenames: false
+        files: \.(ts|tsx)$
+        stages: [pre-push]
+
+      - id: unit-tests-go
+        name: Go unit tests
+        language: system
+        entry: bash -c 'cd cmd/gateway && go test ./... -short -count=1 2>&1'
+        pass_filenames: false
+        files: \.go$
+        stages: [pre-push]

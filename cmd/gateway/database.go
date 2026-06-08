@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -83,7 +84,7 @@ func (db *DB) GetSetting(ctx context.Context, key string) (string, error) {
 	defer span.End()
 	var value string
 	err := db.conn.QueryRowContext(ctx, "SELECT value FROM settings WHERE key = $1", key).Scan(&value)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}
 	if err != nil {
@@ -129,7 +130,7 @@ func (db *DB) GetUser(ctx context.Context, username string) (*UserRecord, error)
 		"SELECT username, password_hash, role FROM users WHERE username = $1 AND COALESCE(is_active, true) = true",
 		username,
 	).Scan(&user.Username, &user.PasswordHash, &user.Role)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -182,7 +183,7 @@ func (db *DB) GetUserPassChangeRequired(ctx context.Context, username string) (b
 		`SELECT COALESCE(require_pass_change, FALSE) FROM users WHERE username = $1`,
 		username,
 	).Scan(&required)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
 	if err != nil {
@@ -227,6 +228,9 @@ func (db *DB) LoadAlertCooldowns(ctx context.Context) (map[string]time.Time, err
 		}
 		result[id] = t
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	return result, nil
 }
 
@@ -261,6 +265,9 @@ func (db *DB) ListUsers(ctx context.Context) ([]*UserRecord, error) {
 			continue
 		}
 		users = append(users, &user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return users, nil
 }
@@ -378,6 +385,9 @@ func (db *DB) LoadAgents(ctx context.Context, sessions *sync.Map) error {
 		}
 		sessions.Store(id, session)
 	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("row iteration: %w", err)
+	}
 	return nil
 }
 
@@ -396,6 +406,9 @@ func (db *DB) PruneStaleAgents(ctx context.Context, maxAge time.Duration) ([]str
 			if err := rows.Scan(&id); err == nil {
 				ids = append(ids, id)
 			}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
 		}
 	}
 
@@ -496,6 +509,9 @@ func (db *DB) ListAlertRules(ctx context.Context) ([]*pb.AlertRule, error) {
 		}
 		rules = append(rules, rule)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	return rules, nil
 }
 
@@ -548,6 +564,9 @@ func (db *DB) ListAgents(ctx context.Context) ([]*pb.AgentInfo, error) {
 			PskAuthenticated: pskAuthenticated,
 		})
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	return list, nil
 }
 
@@ -564,7 +583,7 @@ func (db *DB) GetUserInfo(ctx context.Context, username string) (*middleware.Use
 		"SELECT username, COALESCE(email, ''), role FROM users WHERE username = $1",
 		username,
 	).Scan(&user.Username, &user.Email, &user.Role)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -622,7 +641,7 @@ func (db *DB) AddUserToTeamByName(ctx context.Context, username, teamName string
 	// Find team by name
 	var teamID string
 	err := db.conn.QueryRowContext(ctx, "SELECT id FROM teams WHERE name = $1 OR slug = $1", teamName).Scan(&teamID)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("team not found: %s", teamName)
 	}
 	if err != nil {
@@ -664,7 +683,7 @@ func (db *DB) GetTeamByName(ctx context.Context, name string) (*middleware.TeamI
 	defer span.End()
 	var team middleware.TeamInfo
 	err := db.conn.QueryRowContext(ctx, "SELECT id, name FROM teams WHERE name = $1 OR slug = $1", name).Scan(&team.ID, &team.Name)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -728,6 +747,9 @@ func (db *DB) ListWAFPolicies(ctx context.Context) ([]WAFPolicy, error) {
 		}
 		policies = append(policies, p)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	return policies, nil
 }
 
@@ -738,7 +760,7 @@ func (db *DB) GetWAFPolicy(ctx context.Context, id string) (*WAFPolicy, error) {
 	var p WAFPolicy
 	err := db.conn.QueryRowContext(ctx, "SELECT id, name, description, rules, enabled, created_at, updated_at FROM waf_policies WHERE id = $1", id).
 		Scan(&p.ID, &p.Name, &p.Description, &p.Rules, &p.Enabled, &p.CreatedAt, &p.UpdatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -789,7 +811,7 @@ func (db *DB) GetStagedConfig(ctx context.Context, targetID, configPath string) 
 	var c StagedConfig
 	err := db.conn.QueryRowContext(ctx, "SELECT target_id, target_type, content, config_path, created_by, description, created_at FROM staged_configs WHERE target_id = $1 AND config_path = $2", targetID, configPath).
 		Scan(&c.TargetID, &c.TargetType, &c.Content, &c.ConfigPath, &c.CreatedBy, &c.Description, &c.CreatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {

@@ -6,7 +6,7 @@ import (
 )
 
 func (s *server) handleGetSLOTargets(w http.ResponseWriter, r *http.Request) {
-	targets, err := s.db.ListSLOTargets()
+	targets, err := s.db.ListSLOTargets(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -27,7 +27,7 @@ func (s *server) handleUpsertSLOTarget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.db.UpsertSLOTarget(&target); err != nil {
+	if err := s.db.UpsertSLOTarget(r.Context(), &target); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -47,7 +47,7 @@ func (s *server) handleDeleteSLOTarget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.db.DeleteSLOTarget(id); err != nil {
+	if err := s.db.DeleteSLOTarget(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -61,7 +61,7 @@ type SLOComplianceResult struct {
 }
 
 func (s *server) handleGetSLOCompliance(w http.ResponseWriter, r *http.Request) {
-	targets, err := s.db.ListSLOTargets()
+	targets, err := s.db.ListSLOTargets(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

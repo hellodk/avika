@@ -747,6 +747,9 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, req *pb
 				log.Printf("GetAnalytics: Request Rate scan failed: %v", err)
 			}
 		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
+		}
 		rows.Close()
 	}
 
@@ -786,6 +789,9 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, req *pb
 				})
 			}
 		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
+		}
 		rows.Close()
 	}
 
@@ -824,6 +830,9 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, req *pb
 					P99:  float32(p99 * 1000),
 				})
 			}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
 		}
 		rows.Close()
 	}
@@ -976,6 +985,9 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, req *pb
 					})
 				}
 			}
+			if err := rows.Err(); err != nil {
+				return nil, fmt.Errorf("row iteration: %w", err)
+			}
 			rows.Close()
 		}
 	}
@@ -1019,6 +1031,9 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, req *pb
 				log.Printf("GetAnalytics: System metrics scan failed: %v", err)
 			}
 		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
+		}
 		rows.Close()
 	}
 
@@ -1051,6 +1066,9 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, req *pb
 			} else {
 				log.Printf("GetAnalytics: Connections history scan failed: %v", err)
 			}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
 		}
 		rows.Close()
 	}
@@ -1085,6 +1103,9 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, req *pb
 				resp.HttpStatusMetrics.Status_4Xx_5Min = append(resp.HttpStatusMetrics.Status_4Xx_5Min, &pb.TimeSeriesPoint{Time: t, Requests: int64(c4xx)})
 				resp.HttpStatusMetrics.Status_5Xx = append(resp.HttpStatusMetrics.Status_5Xx, &pb.TimeSeriesPoint{Time: t, Requests: int64(c5xx)})
 			}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
 		}
 		rows.Close()
 	}
@@ -1207,6 +1228,9 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, req *pb
 				log.Printf("GetAnalytics: Recent requests scan failed: %v", err)
 			}
 		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
+		}
 		rows.Close()
 	}
 
@@ -1243,6 +1267,9 @@ func (db *ClickHouseDB) GetAnalyticsWithAgentFilter(ctx context.Context, req *pb
 					DbLatency:         float32(dbLat),
 				})
 			}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
 		}
 		rows.Close()
 	}
@@ -1360,6 +1387,9 @@ func (db *ClickHouseDB) GetReportData(ctx context.Context, start, end time.Time,
 				})
 			}
 		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
+		}
 	}
 
 	// 3. Top URIs
@@ -1394,6 +1424,9 @@ func (db *ClickHouseDB) GetReportData(ctx context.Context, start, end time.Time,
 				})
 			}
 		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
+		}
 	}
 
 	// 4. Top Servers
@@ -1427,6 +1460,9 @@ func (db *ClickHouseDB) GetReportData(ctx context.Context, start, end time.Time,
 					Traffic:   tr,
 				})
 			}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
 		}
 	}
 
@@ -1536,6 +1572,9 @@ func (db *ClickHouseDB) GetTracesWithFilter(ctx context.Context, req *pb.TraceRe
 			Spans:     []*pb.Span{rootSpan},
 		})
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 
 	return &pb.TraceList{Traces: traces}, nil
 }
@@ -1578,6 +1617,9 @@ func (db *ClickHouseDB) GetTraceDetails(ctx context.Context, agentID string, tra
 		// 		if name == "request" {
 		// 			rootSpan = span
 		// 		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 
 	trace := &pb.Trace{
@@ -2054,6 +2096,9 @@ func (db *ClickHouseDB) GetGeoData(ctx context.Context, window string) (*GeoData
 				resp.Locations = append(resp.Locations, loc)
 			}
 		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
+		}
 		rows.Close()
 	}
 
@@ -2085,6 +2130,9 @@ func (db *ClickHouseDB) GetGeoData(ctx context.Context, window string) (*GeoData
 				resp.CountryStats = append(resp.CountryStats, stat)
 			}
 		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
+		}
 		rows.Close()
 	}
 
@@ -2113,6 +2161,9 @@ func (db *ClickHouseDB) GetGeoData(ctx context.Context, window string) (*GeoData
 				&stat.Latitude, &stat.Longitude, &stat.Requests); err == nil {
 				resp.CityStats = append(resp.CityStats, stat)
 			}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
 		}
 		rows.Close()
 	}
@@ -2145,6 +2196,9 @@ func (db *ClickHouseDB) GetGeoData(ctx context.Context, window string) (*GeoData
 				&req.City, &req.Latitude, &req.Longitude, &req.Method, &req.URI, &req.Status); err == nil {
 				resp.RecentRequests = append(resp.RecentRequests, req)
 			}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
 		}
 		rows.Close()
 	}
@@ -2240,6 +2294,9 @@ func (db *ClickHouseDB) GetGeoDataFiltered(ctx context.Context, window string, a
 				resp.Locations = append(resp.Locations, loc)
 			}
 		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
+		}
 		rows.Close()
 	}
 
@@ -2271,6 +2328,9 @@ func (db *ClickHouseDB) GetGeoDataFiltered(ctx context.Context, window string, a
 				resp.CountryStats = append(resp.CountryStats, stat)
 			}
 		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
+		}
 		rows.Close()
 	}
 
@@ -2299,6 +2359,9 @@ func (db *ClickHouseDB) GetGeoDataFiltered(ctx context.Context, window string, a
 				&stat.Latitude, &stat.Longitude, &stat.Requests); err == nil {
 				resp.CityStats = append(resp.CityStats, stat)
 			}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
 		}
 		rows.Close()
 	}
@@ -2331,6 +2394,9 @@ func (db *ClickHouseDB) GetGeoDataFiltered(ctx context.Context, window string, a
 				&req.City, &req.Latitude, &req.Longitude, &req.Method, &req.URI, &req.Status); err == nil {
 				resp.RecentRequests = append(resp.RecentRequests, req)
 			}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("row iteration: %w", err)
 		}
 		rows.Close()
 	}

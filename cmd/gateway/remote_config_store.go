@@ -69,7 +69,7 @@ func (db *DB) GetActiveLLMClientConfig(ctx context.Context) (*LLMConfig, error) 
 	var enableCaching, enabled bool
 
 	err := row.Scan(&provider, &apiKeyEnc, &model, &baseURL, &maxTokens, &temp, &timeoutSec, &retryAttempts, &rateLimitRPM, &fallback, &enableCaching, &cacheTTL, &enabled)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -193,6 +193,9 @@ func (db *DB) ListIntegrations(ctx context.Context) ([]IntegrationConfigRow, err
 
 		out = append(out, row)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
+	}
 	return out, nil
 }
 
@@ -215,7 +218,7 @@ func (db *DB) GetIntegration(ctx context.Context, t string) (*IntegrationConfigR
 	var enabled bool
 	var updatedAt, lastTested sql.NullTime
 	err := row.Scan(&typ, &cfgBytes, &enabled, &updatedAt, &lastTested, &testBytes)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return &IntegrationConfigRow{Type: t, Config: map[string]interface{}{}, IsEnabled: false}, nil
 	}
 	if err != nil {

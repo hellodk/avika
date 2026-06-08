@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -335,7 +336,7 @@ func (s *server) GetDriftReport(ctx context.Context, req *pb.GetDriftReportReque
 		&itemsJSON, &report.CreatedAt,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "drift report not found")
 		}
 		return nil, status.Errorf(codes.Internal, "failed to query report: %v", err)
@@ -398,6 +399,9 @@ func (s *server) ListDriftReports(ctx context.Context, req *pb.ListDriftReportsR
 		}
 
 		reports = append(reports, driftReportToProto(&report))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 
 	return &pb.ListDriftReportsResponse{Reports: reports}, nil
@@ -488,6 +492,9 @@ func (s *server) getAgentsInGroup(ctx context.Context, groupID string) ([]agentB
 			continue
 		}
 		agents = append(agents, agent)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 
 	return agents, nil

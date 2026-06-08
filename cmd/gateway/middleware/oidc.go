@@ -3,13 +3,19 @@ package middleware
 
 import (
 	"context"
+	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"log"
+	"math/big"
 	"net/http"
 	"net/url"
 	"strings"
@@ -119,6 +125,193 @@ type OIDCProviderMetadata struct {
 	UserinfoEndpoint      string   `json:"userinfo_endpoint"`
 	JwksURI               string   `json:"jwks_uri"`
 	ScopesSupported       []string `json:"scopes_supported"`
+}
+
+// jwksResponse is the JSON Web Key Set returned by the provider's jwks_uri.
+type jwksResponse struct {
+	Keys []jwk `json:"keys"`
+}
+
+// jwk represents a single JSON Web Key (RSA public key).
+type jwk struct {
+	Kty string `json:"kty"`
+	Kid string `json:"kid"`
+	Use string `json:"use"`
+	Alg string `json:"alg"`
+	N   string `json:"n"` // Base64url-encoded modulus
+	E   string `json:"e"` // Base64url-encoded exponent
+}
+
+// idTokenClaims holds the standard claims extracted from a verified ID token.
+type idTokenClaims struct {
+	Iss   string `json:"iss"`
+	Sub   string `json:"sub"`
+	Aud   string `json:"aud"` // may be a string or array; we accept string here
+	Exp   int64  `json:"exp"`
+	Iat   int64  `json:"iat"`
+	Email string `json:"email"`
+	Name  string `json:"name"`
+}
+
+// fetchJWKS fetches and parses the provider's JWKS.
+func (p *OIDCProvider) fetchJWKS(ctx context.Context) (*jwksResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.jwksURI, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("jwks fetch failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("jwks endpoint returned %d: %s", resp.StatusCode, string(body))
+	}
+	var ks jwksResponse
+	if err := json.NewDecoder(resp.Body).Decode(&ks); err != nil {
+		return nil, fmt.Errorf("failed to decode jwks: %w", err)
+	}
+	return &ks, nil
+}
+
+// rsaPublicKeyFromJWK converts a JWK into an *rsa.PublicKey.
+func rsaPublicKeyFromJWK(k jwk) (*rsa.PublicKey, error) {
+	if k.Kty != "RSA" {
+		return nil, fmt.Errorf("unsupported key type %q (only RSA supported)", k.Kty)
+	}
+	nBytes, err := base64.RawURLEncoding.DecodeString(k.N)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode jwk modulus: %w", err)
+	}
+	eBytes, err := base64.RawURLEncoding.DecodeString(k.E)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode jwk exponent: %w", err)
+	}
+	n := new(big.Int).SetBytes(nBytes)
+	e := new(big.Int).SetBytes(eBytes)
+	if !e.IsInt64() {
+		return nil, errors.New("jwk exponent too large")
+	}
+	return &rsa.PublicKey{N: n, E: int(e.Int64())}, nil
+}
+
+// verifyIDToken cryptographically verifies a compact JWS (RS256/RS384/RS512)
+// ID token against the provider's JWKS and validates the standard claims.
+//
+// It returns the parsed claims on success, or an error if the signature is
+// invalid, the token is expired, or the issuer/audience do not match.
+func (p *OIDCProvider) verifyIDToken(ctx context.Context, rawToken string) (*idTokenClaims, error) {
+	parts := strings.Split(rawToken, ".")
+	if len(parts) != 3 {
+		return nil, errors.New("id_token: malformed JWT (expected 3 parts)")
+	}
+
+	// --- 1. Parse header to find kid and alg ---
+	headerJSON, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return nil, fmt.Errorf("id_token: failed to decode header: %w", err)
+	}
+	var header struct {
+		Alg string `json:"alg"`
+		Kid string `json:"kid"`
+	}
+	if err := json.Unmarshal(headerJSON, &header); err != nil {
+		return nil, fmt.Errorf("id_token: failed to parse header: %w", err)
+	}
+
+	// Only RS256, RS384, RS512 are accepted — reject none/HS*/ES* algs.
+	var hashFn hash.Hash
+	var hashID crypto.Hash
+	switch header.Alg {
+	case "RS256":
+		hashFn = sha256.New()
+		hashID = crypto.SHA256
+	case "RS384":
+		hashFn = sha512.New384()
+		hashID = crypto.SHA384
+	case "RS512":
+		hashFn = sha512.New()
+		hashID = crypto.SHA512
+	default:
+		return nil, fmt.Errorf("id_token: unsupported algorithm %q", header.Alg)
+	}
+
+	// --- 2. Fetch JWKS and locate the matching key ---
+	ks, err := p.fetchJWKS(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("id_token: %w", err)
+	}
+
+	var matchedKey *jwk
+	for i := range ks.Keys {
+		k := &ks.Keys[i]
+		if header.Kid == "" || k.Kid == header.Kid {
+			matchedKey = k
+			break
+		}
+	}
+	if matchedKey == nil {
+		return nil, fmt.Errorf("id_token: no JWKS key found for kid=%q", header.Kid)
+	}
+
+	pubKey, err := rsaPublicKeyFromJWK(*matchedKey)
+	if err != nil {
+		return nil, fmt.Errorf("id_token: %w", err)
+	}
+
+	// --- 3. Verify RSA signature ---
+	signingInput := parts[0] + "." + parts[1]
+	hashFn.Write([]byte(signingInput))
+	digest := hashFn.Sum(nil)
+
+	sigBytes, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		return nil, fmt.Errorf("id_token: failed to decode signature: %w", err)
+	}
+
+	if err := rsa.VerifyPKCS1v15(pubKey, hashID, digest, sigBytes); err != nil {
+		return nil, fmt.Errorf("id_token: signature verification failed: %w", err)
+	}
+
+	// --- 4. Parse claims ---
+	claimsJSON, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("id_token: failed to decode claims: %w", err)
+	}
+	var claims idTokenClaims
+	if err := json.Unmarshal(claimsJSON, &claims); err != nil {
+		return nil, fmt.Errorf("id_token: failed to parse claims: %w", err)
+	}
+
+	// --- 5. Validate standard claims ---
+	now := time.Now().Unix()
+	if claims.Exp > 0 && now > claims.Exp {
+		return nil, errors.New("id_token: token is expired")
+	}
+	if claims.Iat > 0 && now < claims.Iat-30 { // 30-second clock skew tolerance
+		return nil, errors.New("id_token: token issued in the future")
+	}
+	if p.config.ClientID != "" && claims.Aud != p.config.ClientID {
+		// aud may also be a JSON array; handle that case.
+		var audList []string
+		if err := json.Unmarshal(claimsJSON, &struct {
+			Aud *[]string `json:"aud"`
+		}{Aud: &audList}); err == nil {
+			found := false
+			for _, a := range audList {
+				if a == p.config.ClientID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return nil, fmt.Errorf("id_token: audience %q does not include client_id %q", claims.Aud, p.config.ClientID)
+			}
+		}
+	}
+
+	return &claims, nil
 }
 
 // NewOIDCProvider creates a new OIDC provider
@@ -328,6 +521,23 @@ func (p *OIDCProvider) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Cryptographically verify the ID token JWT using the provider's JWKS.
+	// This step is mandatory: it proves the token was signed by the OIDC provider
+	// and has not been tampered with. Only after this verification can we trust
+	// any identity claims. (Fixes #216 — previously the userinfo response was
+	// trusted unconditionally without signature verification.)
+	if tokens.IDToken == "" {
+		log.Printf("OIDC callback: token endpoint did not return an id_token")
+		http.Error(w, "Missing ID token in token response", http.StatusInternalServerError)
+		return
+	}
+	idTokenClaims, err := p.verifyIDToken(r.Context(), tokens.IDToken)
+	if err != nil {
+		log.Printf("OIDC id_token verification failed: %v", err)
+		http.Error(w, "ID token verification failed", http.StatusUnauthorized)
+		return
+	}
+
 	// Get user info
 	userInfo, err := p.getUserInfo(r.Context(), tokens.AccessToken)
 	if err != nil {
@@ -336,13 +546,27 @@ func (p *OIDCProvider) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Determine username (prefer email, fall back to preferred_username or sub)
-	username := userInfo.Email
+	// Guard: the sub claim in the userinfo response must match the sub from the
+	// verified ID token. This prevents a compromised or forged userinfo response
+	// from authenticating as a different user. (OIDC Core §5.3.2)
+	if userInfo.Sub != idTokenClaims.Sub {
+		log.Printf("OIDC sub mismatch: id_token sub=%q, userinfo sub=%q — rejecting login",
+			idTokenClaims.Sub, userInfo.Sub)
+		http.Error(w, "Identity mismatch between ID token and userinfo", http.StatusUnauthorized)
+		return
+	}
+
+	// Determine username (prefer email from verified ID token, fall back to
+	// preferred_username from userinfo or the verified sub).
+	username := idTokenClaims.Email
+	if username == "" {
+		username = userInfo.Email
+	}
 	if username == "" {
 		username = userInfo.PreferredUser
 	}
 	if username == "" {
-		username = userInfo.Sub
+		username = idTokenClaims.Sub
 	}
 
 	// Provision user if auto-provisioning is enabled

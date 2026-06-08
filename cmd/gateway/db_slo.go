@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
@@ -19,8 +20,8 @@ type SLOTarget struct {
 }
 
 // UpsertSLOTarget creates or updates an SLO target
-func (db *DB) UpsertSLOTarget(target *SLOTarget) error {
-	ctx, span := db.dbSpan(context.Background(), "INSERT", "slo_targets")
+func (db *DB) UpsertSLOTarget(ctx context.Context, target *SLOTarget) error {
+	ctx, span := db.dbSpan(ctx, "INSERT", "slo_targets")
 	defer span.End()
 	query := `
 	INSERT INTO slo_targets (entity_type, entity_id, slo_type, target_value, time_window, created_at, updated_at)
@@ -40,8 +41,8 @@ func (db *DB) UpsertSLOTarget(target *SLOTarget) error {
 }
 
 // ListSLOTargets returns all SLO targets
-func (db *DB) ListSLOTargets() ([]SLOTarget, error) {
-	ctx, span := db.dbSpan(context.Background(), "SELECT", "slo_targets")
+func (db *DB) ListSLOTargets(ctx context.Context) ([]SLOTarget, error) {
+	ctx, span := db.dbSpan(ctx, "SELECT", "slo_targets")
 	defer span.End()
 	query := `SELECT id, entity_type, entity_id, slo_type, target_value, time_window, created_at, updated_at FROM slo_targets ORDER BY created_at DESC;`
 	rows, err := db.conn.QueryContext(ctx, query)
@@ -56,16 +57,19 @@ func (db *DB) ListSLOTargets() ([]SLOTarget, error) {
 	for rows.Next() {
 		var t SLOTarget
 		if err := rows.Scan(&t.ID, &t.EntityType, &t.EntityID, &t.SLOType, &t.TargetValue, &t.TimeWindow, &t.CreatedAt, &t.UpdatedAt); err != nil {
-			continue
+			return nil, err
 		}
 		targets = append(targets, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration: %w", err)
 	}
 	return targets, nil
 }
 
 // DeleteSLOTarget removes an SLO target
-func (db *DB) DeleteSLOTarget(id string) error {
-	ctx, span := db.dbSpan(context.Background(), "DELETE", "slo_targets")
+func (db *DB) DeleteSLOTarget(ctx context.Context, id string) error {
+	ctx, span := db.dbSpan(ctx, "DELETE", "slo_targets")
 	defer span.End()
 	_, err := db.conn.ExecContext(ctx, "DELETE FROM slo_targets WHERE id = $1", id)
 	if err != nil {
